@@ -576,3 +576,36 @@ test("speech recognition ignores a repeated final-result replay", async ({ page 
 
   await expect(interview).toHaveValue(transcript);
 });
+
+test("ladder walks a family from waitlist to a confirmed evaluation visit", async ({ page }) => {
+  await stubUnconfiguredFamilyInterview(page);
+  await page.goto("/ladder");
+
+  await fillBasics(page, { county: "Scott", birthYear: "2019", schoolStage: "elementary" });
+
+  const card = page.getByTestId("family-appointment-card");
+  await expect(card).toBeVisible();
+  await card.getByRole("button", { name: "Show me (demo)" }).click();
+
+  // Book the first offered slot
+  await card.getByRole("button").filter({ hasText: /,/ }).first().click();
+  await expect(card.getByText(/Booked for/)).toBeVisible();
+  await expect(card.getByText("How to get ready")).toBeVisible();
+
+  // Barriers: need a ride -> honest thanks + visit stays booked
+  await card.getByRole("button", { name: "We need a ride" }).click();
+  await expect(card.getByText(/resources below can help/)).toBeVisible();
+
+  // Demo time-travel to tomorrow -> t1 reminder -> confirm
+  await card.getByRole("button", { name: "Demo: move the visit closer" }).click();
+  await card.getByRole("button", { name: "Tomorrow" }).click();
+  await expect(page.getByTestId("family-appt-reminder")).toContainText("tomorrow");
+  await page.getByRole("button", { name: "Yes, we'll be there" }).click();
+  await expect(card.getByText(/Confirmed/)).toBeVisible();
+
+  // Past the date -> honest close-out. The demo panel is a toggle and is still
+  // open from the click above — do NOT click the disclosure again here.
+  await card.getByRole("button", { name: "Date passed" }).click();
+  await page.getByRole("button", { name: "We made it" }).click();
+  await expect(card.getByText(/Glad you made it/)).toBeVisible();
+});
