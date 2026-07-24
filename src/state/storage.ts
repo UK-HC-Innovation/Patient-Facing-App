@@ -16,6 +16,8 @@ import type {
   DoseEvent,
   EvidenceStatus,
   ExtractedFact,
+  FamilyAppointment,
+  FamilyAppointmentBarrier,
   FamilyEvidenceStatus,
   FamilyFact,
   FamilyInterview,
@@ -23,6 +25,8 @@ import type {
   FamilyProfile,
   FamilyRecommendationItem,
   FamilyRecommendationSet,
+  FamilyReferral,
+  FamilyReminderOffset,
   FamilySafetyEvent,
   FamilyScreenAnswer,
   FoodSource,
@@ -855,6 +859,43 @@ function isSavedFamilyResource(value: unknown): value is SavedFamilyResource {
   );
 }
 
+const familyAppointmentBarriers: FamilyAppointmentBarrier[] = ["ride", "sibling_care", "work_schedule", "none"];
+const familyReminderOffsets: FamilyReminderOffset[] = ["t14", "t3", "t1"];
+const familyAppointmentStatuses: FamilyAppointment["status"][] = [
+  "offered",
+  "booked",
+  "confirmed",
+  "completed",
+  "missed"
+];
+
+function isFamilyReferral(value: unknown): value is FamilyReferral {
+  return isObject(value) && typeof value.clinic === "string" && typeof value.referredAt === "string";
+}
+
+function isFamilyAppointment(value: unknown): value is FamilyAppointment {
+  return (
+    isObject(value) &&
+    typeof value.id === "string" &&
+    typeof value.clinic === "string" &&
+    isArrayOfStrings(value.offeredSlots) &&
+    (value.scheduledFor === undefined || typeof value.scheduledFor === "string") &&
+    typeof value.status === "string" &&
+    familyAppointmentStatuses.some((status) => status === value.status) &&
+    Array.isArray(value.barriers) &&
+    value.barriers.every((barrier) => familyAppointmentBarriers.some((known) => known === barrier)) &&
+    typeof value.barriersAsked === "boolean" &&
+    Array.isArray(value.reminderAcks) &&
+    value.reminderAcks.every(
+      (ack) =>
+        isObject(ack) &&
+        typeof ack.acknowledgedAt === "string" &&
+        familyReminderOffsets.some((offset) => offset === ack.offset)
+    ) &&
+    typeof value.createdAt === "string"
+  );
+}
+
 function uniqueStrings<T extends string>(values: T[]): T[] {
   return [...new Set(values)];
 }
@@ -877,6 +918,8 @@ function isFamilyNavigatorState(value: unknown): value is FamilyNavigatorState {
   return (
     isObject(value) &&
     (value.profile === null || sanitizeFamilyProfile(value.profile) !== undefined) &&
+    (value.referral === undefined || value.referral === null || isFamilyReferral(value.referral)) &&
+    (value.appointments === undefined || isArrayOfObjects(value.appointments, isFamilyAppointment)) &&
     (value.safetyEvents === undefined || isArrayOfObjects(value.safetyEvents, isFamilySafetyEvent)) &&
     (value.recommendations === undefined ||
       value.recommendations === null ||
@@ -917,8 +960,8 @@ function sanitizeFamilyNavigatorState(value: unknown): FamilyNavigatorState | nu
 
   return {
     profile,
-    referral: null,
-    appointments: [],
+    referral: isFamilyReferral(value.referral) ? value.referral : null,
+    appointments: Array.isArray(value.appointments) ? value.appointments.filter(isFamilyAppointment) : [],
     safetyEvents: Array.isArray(value.safetyEvents) ? value.safetyEvents.filter(isFamilySafetyEvent) : [],
     recommendations: sanitizeFamilyRecommendations(value.recommendations),
     interviewDraft: typeof value.interviewDraft === "string" ? value.interviewDraft : "",

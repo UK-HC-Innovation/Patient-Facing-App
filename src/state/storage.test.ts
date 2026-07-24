@@ -183,6 +183,53 @@ describe("storage", () => {
     expect(loaded.family?.activeDomains).toEqual(["school_iep"]);
   });
 
+  it("backfills referral and appointments on saves written before Ladder", () => {
+    const { referral: _referral, appointments: _appointments, ...legacyFamily } = validFamily;
+    saveStoredState({ ...demoState, family: legacyFamily as FamilyNavigatorState });
+
+    const loaded = loadStoredState();
+
+    expect(loaded.family).not.toBeNull();
+    expect(loaded.family?.referral).toBeNull();
+    expect(loaded.family?.appointments).toEqual([]);
+  });
+
+  it("drops malformed appointments but keeps the family slice", () => {
+    saveStoredState({
+      ...demoState,
+      family: {
+        ...validFamily,
+        appointments: [{ id: 1 }] as unknown as FamilyNavigatorState["appointments"]
+      }
+    });
+
+    const loaded = loadStoredState();
+
+    expect(loaded.family).not.toBeNull();
+    expect(loaded.family?.appointments).toEqual([]);
+  });
+
+  it("preserves a valid referral and appointment on load", () => {
+    const appointment: FamilyNavigatorState["appointments"][number] = {
+      id: "appointment-1",
+      clinic: "UK Developmental Pediatrics",
+      offeredSlots: ["2026-08-14T13:30:00.000Z"],
+      scheduledFor: "2026-08-14T13:30:00.000Z",
+      status: "booked",
+      barriers: ["ride"],
+      barriersAsked: true,
+      reminderAcks: [{ offset: "t14", acknowledgedAt: "2026-07-31T12:00:00.000Z" }],
+      createdAt: "2026-07-24T12:00:00.000Z"
+    };
+    const referral = { clinic: "UK Developmental Pediatrics", referredAt: "2026-07-24T12:00:00.000Z" };
+    saveStoredState({ ...demoState, family: { ...validFamily, referral, appointments: [appointment] } });
+
+    const loaded = loadStoredState();
+
+    expect(loaded.family?.referral).toEqual(referral);
+    expect(loaded.family?.appointments).toEqual([appointment]);
+  });
+
   it("starts a fresh browser on the retinopathy-due demo state", () => {
     const loaded = loadStoredState();
 

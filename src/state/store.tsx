@@ -16,6 +16,7 @@ import {
   type FamilyDiagnosisBackdateMonths
 } from "@/domain/family-stages";
 import { mergeFamilyDomains } from "@/domain/family-screen";
+import { BARRIER_DOMAINS, type FamilyAppointmentCountdownDays } from "@/domain/family-appointments";
 import { recordAuditEvent } from "@/domain/audit";
 import { activeConditions } from "@/domain/condition-lens";
 import { canTransition, outcomeToStatus, transition } from "@/domain/screening-gap";
@@ -36,11 +37,15 @@ import type {
   DoseReminderPreference,
   DrReportExtraction,
   ExtractedFact,
+  FamilyAppointment,
+  FamilyAppointmentBarrier,
   FamilyFact,
   FamilyInterview,
   FamilyNavigatorState,
   FamilyProfile,
+  FamilyReferral,
   FamilyRecommendationSet,
+  FamilyReminderOffset,
   FamilySafetyEvent,
   FamilyScreenAnswer,
   GlucoseReading,
@@ -101,6 +106,30 @@ export type HealthAction =
   | { type: "setFamilyRecommendations"; recommendations: FamilyRecommendationSet | null }
   | { type: "saveFamilyResource"; resource: SavedFamilyResource }
   | { type: "toggleFamilyEnrollment"; resourceId: string }
+  | { type: "setFamilyReferral"; referral: FamilyReferral }
+  | { type: "offerFamilyAppointment"; appointment: FamilyAppointment }
+  | { type: "bookFamilyAppointment"; appointmentId: string; slot: string; at: string }
+  | {
+      type: "recordFamilyAppointmentBarriers";
+      appointmentId: string;
+      barriers: FamilyAppointmentBarrier[];
+      at: string;
+    }
+  | {
+      type: "acknowledgeFamilyAppointmentReminder";
+      appointmentId: string;
+      offset: FamilyReminderOffset;
+      at: string;
+    }
+  | { type: "requestFamilyAppointmentReschedule"; appointmentId: string; at: string }
+  | { type: "completeFamilyAppointment"; appointmentId: string; at: string }
+  | { type: "missFamilyAppointment"; appointmentId: string; at: string }
+  | {
+      type: "setFamilyAppointmentCountdown";
+      appointmentId: string;
+      daysUntil: FamilyAppointmentCountdownDays;
+      now: string;
+    }
   | { type: "resetDemo"; patient?: "jordan" | "brent" }
   | { type: "deleteDemoData" };
 
@@ -119,6 +148,27 @@ function emptyFamilyState(profile: FamilyProfile | null): FamilyNavigatorState {
     activeDomains: [],
     saved: [],
     alreadyEnrolled: []
+  };
+}
+
+function updateFamilyAppointment(
+  state: AppState,
+  appointmentId: string,
+  update: (appointment: FamilyAppointment) => FamilyAppointment,
+  auditMessage: string
+): AppState {
+  if (!state.family || !state.family.appointments.some(({ id }) => id === appointmentId)) {
+    return state;
+  }
+  return {
+    ...state,
+    family: {
+      ...state.family,
+      appointments: state.family.appointments.map((appointment) =>
+        appointment.id === appointmentId ? update(appointment) : appointment
+      )
+    },
+    auditEvents: [...state.auditEvents, recordAuditEvent(state.patient.id, "updated", auditMessage)]
   };
 }
 
@@ -702,6 +752,103 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
             : [...state.family.alreadyEnrolled, action.resourceId]
         }
       };
+    case "setFamilyReferral": {
+      const family = state.family ?? emptyFamilyState(null);
+      return {
+        ...state,
+        family: { ...family, referral: action.referral },
+        auditEvents: [
+          ...state.auditEvents,
+          recordAuditEvent(state.patient.id, "created", "Family referral recorded (demo)")
+        ]
+      };
+    }
+    case "offerFamilyAppointment": {
+      const family = state.family ?? emptyFamilyState(null);
+      return {
+        ...state,
+        family: { ...family, appointments: [...family.appointments, action.appointment] },
+        auditEvents: [
+          ...state.auditEvents,
+          recordAuditEvent(state.patient.id, "created", "Evaluation slots offered (demo)")
+        ]
+      };
+    }
+    case "bookFamilyAppointment":
+      return updateFamilyAppointment(
+        state,
+        action.appointmentId,
+        (appointment) => ({ ...appointment, scheduledFor: action.slot, status: "booked" }),
+        "Evaluation visit booked"
+      );
+    case "recordFamilyAppointmentBarriers": {
+      const withBarriers = updateFamilyAppointment(
+        state,
+        action.appointmentId,
+        (appointment) => ({ ...appointment, barriers: action.barriers, barriersAsked: true }),
+        "Visit barriers recorded"
+      );
+      if (withBarriers === state || !withBarriers.family) {
+        return withBarriers;
+      }
+      const mappedDomains = action.barriers.flatMap((barrier) =>
+        barrier === "none" ? [] : [BARRIER_DOMAINS[barrier]]
+      );
+      return {
+        ...withBarriers,
+        family: {
+          ...withBarriers.family,
+          activeDomains: Array.from(new Set([...withBarriers.family.activeDomains, ...mappedDomains]))
+        }
+      };
+    }
+    case "acknowledgeFamilyAppointmentReminder":
+      return updateFamilyAppointment(
+        state,
+        action.appointmentId,
+        (appointment) => ({
+          ...appointment,
+          status: "confirmed",
+          reminderAcks: [...appointment.reminderAcks, { offset: action.offset, acknowledgedAt: action.at }]
+        }),
+        "Evaluation visit confirmed"
+      );
+    case "requestFamilyAppointmentReschedule":
+      return updateFamilyAppointment(
+        state,
+        action.appointmentId,
+        (appointment) => ({ ...appointment, status: "offered", scheduledFor: undefined, reminderAcks: [] }),
+        "Evaluation visit reschedule requested"
+      );
+    case "completeFamilyAppointment":
+      return updateFamilyAppointment(
+        state,
+        action.appointmentId,
+        (appointment) => ({ ...appointment, status: "completed" }),
+        "Evaluation visit completed (self-reported)"
+      );
+    case "missFamilyAppointment":
+      return updateFamilyAppointment(
+        state,
+        action.appointmentId,
+        (appointment) => ({ ...appointment, status: "missed" }),
+        "Evaluation visit missed (self-reported)"
+      );
+    case "setFamilyAppointmentCountdown":
+      return updateFamilyAppointment(
+        state,
+        action.appointmentId,
+        (appointment) =>
+          appointment.scheduledFor === undefined
+            ? appointment
+            : {
+                ...appointment,
+                scheduledFor: new Date(
+                  new Date(action.now).valueOf() + action.daysUntil * 24 * 60 * 60 * 1000
+                ).toISOString()
+              },
+        "Demo control: evaluation visit moved"
+      );
     case "resetDemo":
       if (action.patient === "jordan") {
         return demoState;

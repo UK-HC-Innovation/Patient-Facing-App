@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { brentState, demoState } from "@/domain/fixtures";
 import { schoolAgeFamilyState } from "@/domain/family-fixtures";
+import { createFamilyAppointmentOffer } from "@/domain/family-appointments";
 import { recordAuditEvent } from "@/domain/audit";
 import { healthReducer } from "./store";
 import type {
@@ -794,5 +795,120 @@ describe("healthReducer", () => {
       reportRef: "IMG_1.jpg"
     });
     expect(refused.screeningResults).toHaveLength(0);
+  });
+});
+
+describe("family appointment actions", () => {
+  const NOW = "2026-07-24T12:00:00.000Z";
+
+  function stateWithOffer() {
+    const base: AppState = { ...demoState, family: schoolAgeFamilyState };
+    const seeded = healthReducer(base, {
+      type: "setFamilyReferral",
+      referral: { clinic: "UK Developmental Pediatrics", referredAt: NOW }
+    });
+    const offer = createFamilyAppointmentOffer(new Date(NOW));
+    return { state: healthReducer(seeded, { type: "offerFamilyAppointment", appointment: offer }), offer };
+  }
+
+  it("seeds a referral and an offer", () => {
+    const { state, offer } = stateWithOffer();
+
+    expect(state.family?.referral?.clinic).toBe("UK Developmental Pediatrics");
+    expect(state.family?.appointments.at(-1)?.id).toBe(offer.id);
+  });
+
+  it("books a slot and confirms via a reminder ack", () => {
+    const { state, offer } = stateWithOffer();
+    const slot = offer.offeredSlots[0];
+    const booked = healthReducer(state, {
+      type: "bookFamilyAppointment",
+      appointmentId: offer.id,
+      slot,
+      at: NOW
+    });
+    expect(booked.family?.appointments.at(-1)?.status).toBe("booked");
+    expect(booked.family?.appointments.at(-1)?.scheduledFor).toBe(slot);
+
+    const confirmed = healthReducer(booked, {
+      type: "acknowledgeFamilyAppointmentReminder",
+      appointmentId: offer.id,
+      offset: "t1",
+      at: NOW
+    });
+    expect(confirmed.family?.appointments.at(-1)?.status).toBe("confirmed");
+    expect(confirmed.family?.appointments.at(-1)?.reminderAcks).toEqual([
+      { offset: "t1", acknowledgedAt: NOW }
+    ]);
+  });
+
+  it("merges barrier domains into activeDomains without duplicates", () => {
+    const { state, offer } = stateWithOffer();
+    const withBarrier = healthReducer(state, {
+      type: "recordFamilyAppointmentBarriers",
+      appointmentId: offer.id,
+      barriers: ["ride"],
+      at: NOW
+    });
+    expect(withBarrier.family?.appointments.at(-1)?.barriersAsked).toBe(true);
+    expect(withBarrier.family?.activeDomains).toContain("transportation");
+
+    const again = healthReducer(withBarrier, {
+      type: "recordFamilyAppointmentBarriers",
+      appointmentId: offer.id,
+      barriers: ["ride"],
+      at: NOW
+    });
+    const count = again.family?.activeDomains.filter((domain) => domain === "transportation").length;
+    expect(count).toBe(1);
+  });
+
+  it("reschedule clears the booking; miss + new offer recovers", () => {
+    const { state, offer } = stateWithOffer();
+    const booked = healthReducer(state, {
+      type: "bookFamilyAppointment",
+      appointmentId: offer.id,
+      slot: offer.offeredSlots[0],
+      at: NOW
+    });
+    const reopened = healthReducer(booked, {
+      type: "requestFamilyAppointmentReschedule",
+      appointmentId: offer.id,
+      at: NOW
+    });
+    const active = reopened.family?.appointments.at(-1);
+    expect(active?.status).toBe("offered");
+    expect(active?.scheduledFor).toBeUndefined();
+    expect(active?.reminderAcks).toEqual([]);
+
+    const missed = healthReducer(booked, {
+      type: "missFamilyAppointment",
+      appointmentId: offer.id,
+      at: NOW
+    });
+    const rebooked = healthReducer(missed, {
+      type: "offerFamilyAppointment",
+      appointment: createFamilyAppointmentOffer(new Date(NOW))
+    });
+    expect(rebooked.family?.appointments).toHaveLength(2);
+    expect(rebooked.family?.appointments.at(-1)?.status).toBe("offered");
+  });
+
+  it("countdown moves the scheduled date relative to now", () => {
+    const { state, offer } = stateWithOffer();
+    const booked = healthReducer(state, {
+      type: "bookFamilyAppointment",
+      appointmentId: offer.id,
+      slot: offer.offeredSlots[0],
+      at: NOW
+    });
+    const moved = healthReducer(booked, {
+      type: "setFamilyAppointmentCountdown",
+      appointmentId: offer.id,
+      daysUntil: 1,
+      now: NOW
+    });
+
+    expect(moved.family?.appointments.at(-1)?.scheduledFor).toBe("2026-07-25T12:00:00.000Z");
   });
 });
