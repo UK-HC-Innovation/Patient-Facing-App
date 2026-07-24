@@ -153,6 +153,43 @@ export type FamilyStringKey =
   | "rationaleFuturePlanning"
   | "rationaleDiagnosisEducation"
   | "rationaleRecreation"
+  | "apptSectionTitle"
+  | "apptSectionIntro"
+  | "apptJoinDemoBody"
+  | "apptJoinDemoCta"
+  | "apptOnListLine"
+  | "apptOfferQuestion"
+  | "apptBookedLine"
+  | "apptPrepTitle"
+  | "apptPrepBullet1"
+  | "apptPrepBullet2"
+  | "apptPrepBullet3"
+  | "apptPrepSource"
+  | "apptBarriersQuestion"
+  | "apptBarrierRide"
+  | "apptBarrierSiblings"
+  | "apptBarrierWork"
+  | "apptBarrierNone"
+  | "apptBarriersThanks"
+  | "apptBarriersNoneThanks"
+  | "apptReminderT14"
+  | "apptReminderT3"
+  | "apptReminderT1"
+  | "apptReminderConfirm"
+  | "apptReminderReschedule"
+  | "apptConfirmedLine"
+  | "apptOverdueQuestion"
+  | "apptOverdueWent"
+  | "apptOverdueMissed"
+  | "apptCompletedLine"
+  | "apptMissedLine"
+  | "apptRebookCta"
+  | "apptDemoControlsTitle"
+  | "apptDemoTwoWeeks"
+  | "apptDemoFewDays"
+  | "apptDemoTomorrow"
+  | "apptDemoPassed"
+  | "apptSafetyHold"
   | "resourcesTitle"
   | "resourcesIntro"
   | "resourcesFoundBelow"
@@ -406,6 +443,43 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     rationaleFuturePlanning: "You asked about becoming an adult or planning ahead.",
     rationaleDiagnosisEducation: "You asked to learn more about a diagnosis you mentioned.",
     rationaleRecreation: "You asked about clubs, sports, horses, or things to do.",
+    apptSectionTitle: "Your evaluation visit",
+    apptSectionIntro: "Ladder walks with you from the waitlist to the visit — booking, getting ready, and solving anything that could get in the way.",
+    apptJoinDemoBody: "This demo pretends your child is on the UK Developmental Pediatrics waitlist. Nothing here is a real appointment.",
+    apptJoinDemoCta: "Show me (demo)",
+    apptOnListLine: "You're on the list at {clinic}.",
+    apptOfferQuestion: "An evaluation opening is available. Does one of these work?",
+    apptBookedLine: "Booked for {when}.",
+    apptPrepTitle: "How to get ready",
+    apptPrepBullet1: "Bring any school papers, past evaluations, and a list of what you have noticed.",
+    apptPrepBullet2: "The visit can take a few hours. Your child can bring something that helps them feel calm.",
+    apptPrepBullet3: "You know your child best. Your answers are a big part of the evaluation.",
+    apptPrepSource: "Learn more: CDC, \"Learn the Signs. Act Early.\"",
+    apptBarriersQuestion: "Is there anything that could make it hard to get to this visit?",
+    apptBarrierRide: "We need a ride",
+    apptBarrierSiblings: "Someone to watch the other kids",
+    apptBarrierWork: "Hard to get time off work",
+    apptBarrierNone: "We're all set",
+    apptBarriersThanks: "Thanks — the resources below can help with that. Your visit stays booked either way.",
+    apptBarriersNoneThanks: "Great — we'll remind you as the visit gets close.",
+    apptReminderT14: "Your visit at {clinic} is in about two weeks — {when}. Still good?",
+    apptReminderT3: "Your visit is in a few days — {when}. Still good?",
+    apptReminderT1: "Your visit is tomorrow — {when}. Still good?",
+    apptReminderConfirm: "Yes, we'll be there",
+    apptReminderReschedule: "We need a different time",
+    apptConfirmedLine: "Confirmed. See you {when}.",
+    apptOverdueQuestion: "Your visit date has passed. Were you able to make it?",
+    apptOverdueWent: "We made it",
+    apptOverdueMissed: "We couldn't make it",
+    apptCompletedLine: "Glad you made it. The clinic will follow up with next steps, and Ladder keeps helping in the meantime.",
+    apptMissedLine: "Life happens — you have not lost your place. Let's find a new time.",
+    apptRebookCta: "Find a new time",
+    apptDemoControlsTitle: "Demo: move the visit closer",
+    apptDemoTwoWeeks: "About 2 weeks away",
+    apptDemoFewDays: "A few days away",
+    apptDemoTomorrow: "Tomorrow",
+    apptDemoPassed: "Date passed",
+    apptSafetyHold: "Paused while the safety message above is open.",
     resourcesTitle: "Places that can help",
     resourcesIntro: "These are based on your county, your child's age, and what you told us. Always check the program's own page — their rules are the ones that count.",
     resourcesFoundBelow: "We found {count} places that can help — they're just below.",
@@ -659,6 +733,43 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     rationaleFuturePlanning: "Preguntaste por la vida adulta o por planificar el futuro.",
     rationaleDiagnosisEducation: "Pediste saber más sobre un diagnóstico que mencionaste.",
     rationaleRecreation: "Preguntaste por clubes, deportes, caballos o actividades.",
+    apptSectionTitle: "Tu visita de evaluación",
+    apptSectionIntro: "Ladder te acompaña desde la lista de espera hasta la visita: reservar, prepararte y resolver lo que pueda estorbar.",
+    apptJoinDemoBody: "Esta demo supone que tu hijo o hija está en la lista de espera de UK Developmental Pediatrics. Nada de esto es una cita real.",
+    apptJoinDemoCta: "Muéstrame (demo)",
+    apptOnListLine: "Están en la lista de {clinic}.",
+    apptOfferQuestion: "Hay un espacio para la evaluación. ¿Te sirve alguno de estos?",
+    apptBookedLine: "Reservado para {when}.",
+    apptPrepTitle: "Cómo prepararte",
+    apptPrepBullet1: "Lleva papeles de la escuela, evaluaciones anteriores y una lista de lo que has notado.",
+    apptPrepBullet2: "La visita puede durar unas horas. Tu hijo o hija puede llevar algo que le ayude a sentirse en calma.",
+    apptPrepBullet3: "Tú conoces mejor a tu hijo o hija. Tus respuestas son una parte importante de la evaluación.",
+    apptPrepSource: "Aprende más: CDC, \"Learn the Signs. Act Early.\" (en inglés)",
+    apptBarriersQuestion: "¿Hay algo que dificulte llegar a esta visita?",
+    apptBarrierRide: "Necesitamos transporte",
+    apptBarrierSiblings: "Alguien que cuide a los otros niños",
+    apptBarrierWork: "Es difícil pedir permiso en el trabajo",
+    apptBarrierNone: "Estamos listos",
+    apptBarriersThanks: "Gracias — los recursos de abajo pueden ayudar con eso. Tu visita sigue reservada de todos modos.",
+    apptBarriersNoneThanks: "Genial — te recordaremos cuando se acerque la visita.",
+    apptReminderT14: "Tu visita en {clinic} es en unas dos semanas — {when}. ¿Sigue en pie?",
+    apptReminderT3: "Tu visita es en unos días — {when}. ¿Sigue en pie?",
+    apptReminderT1: "Tu visita es mañana — {when}. ¿Sigue en pie?",
+    apptReminderConfirm: "Sí, ahí estaremos",
+    apptReminderReschedule: "Necesitamos otro horario",
+    apptConfirmedLine: "Confirmado. Nos vemos {when}.",
+    apptOverdueQuestion: "La fecha de tu visita ya pasó. ¿Pudieron ir?",
+    apptOverdueWent: "Sí fuimos",
+    apptOverdueMissed: "No pudimos ir",
+    apptCompletedLine: "Qué bueno que fueron. La clínica les dará los próximos pasos, y Ladder sigue ayudando mientras tanto.",
+    apptMissedLine: "Así es la vida — no perdieron su lugar. Busquemos una nueva fecha.",
+    apptRebookCta: "Buscar nueva fecha",
+    apptDemoControlsTitle: "Demo: acerca la visita",
+    apptDemoTwoWeeks: "A unas 2 semanas",
+    apptDemoFewDays: "A unos días",
+    apptDemoTomorrow: "Mañana",
+    apptDemoPassed: "La fecha pasó",
+    apptSafetyHold: "En pausa mientras el mensaje de seguridad de arriba esté abierto.",
     resourcesTitle: "Lugares que pueden ayudar",
     resourcesIntro: "Esto se basa en tu condado, la edad de tu hijo o hija y lo que nos contaste. Revisa siempre la página del programa — sus reglas son las que valen.",
     resourcesFoundBelow: "Encontramos {count} lugares que pueden ayudar — están aquí abajo.",

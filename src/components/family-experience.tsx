@@ -7,6 +7,7 @@ import React, {
   useState,
   type Dispatch
 } from "react";
+import { FamilyAppointmentCard } from "@/components/family-appointment-card";
 import { FamilyCrisisBanner } from "@/components/family-crisis-banner";
 import { FamilyFactCard } from "@/components/family-fact-card";
 import type { FamilyInterviewSubmissionMeta, SanitizedFamilyInterviewResult } from "@/components/family-interview";
@@ -19,6 +20,11 @@ import { FamilyProfileForm } from "@/components/family-profile-form";
 import { FamilyResourceCard } from "@/components/family-resource-card";
 import { FamilyStageTimeline } from "@/components/family-stage-timeline";
 import { recordAuditEvent } from "@/domain/audit";
+import {
+  createFamilyAppointmentOffer,
+  FAMILY_APPOINTMENT_CLINIC,
+  type FamilyAppointmentCountdownDays
+} from "@/domain/family-appointments";
 import {
   createFamilySafetyEvent,
   domainsAfterSafety,
@@ -45,8 +51,10 @@ import type { Language } from "@/i18n/strings";
 import type {
   AppState,
   DevNeedDomain,
+  FamilyAppointmentBarrier,
   FamilyFact,
   FamilyProfile,
+  FamilyReminderOffset,
   FamilyScreenAnswer
 } from "@/domain/types";
 import { tFamily, type FamilyStringKey } from "@/i18n/family-strings";
@@ -712,6 +720,61 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
           ) : null}
         </div>
       </section>
+
+      {family?.profile ? (
+        <FamilyAppointmentCard
+          family={family}
+          language={language}
+          locked={pendingSafetyEvent !== undefined}
+          onSeedReferral={() => {
+            const now = new Date();
+            dispatch({
+              type: "setFamilyReferral",
+              referral: { clinic: FAMILY_APPOINTMENT_CLINIC, referredAt: now.toISOString() }
+            });
+            dispatch({ type: "offerFamilyAppointment", appointment: createFamilyAppointmentOffer(now) });
+          }}
+          onBook={(appointmentId, slot) =>
+            dispatch({ type: "bookFamilyAppointment", appointmentId, slot, at: new Date().toISOString() })
+          }
+          onBarriers={(appointmentId, barriers: FamilyAppointmentBarrier[]) =>
+            dispatch({
+              type: "recordFamilyAppointmentBarriers",
+              appointmentId,
+              barriers,
+              at: new Date().toISOString()
+            })
+          }
+          onAckReminder={(appointmentId, offset: FamilyReminderOffset) =>
+            dispatch({
+              type: "acknowledgeFamilyAppointmentReminder",
+              appointmentId,
+              offset,
+              at: new Date().toISOString()
+            })
+          }
+          onReschedule={(appointmentId) =>
+            dispatch({ type: "requestFamilyAppointmentReschedule", appointmentId, at: new Date().toISOString() })
+          }
+          onComplete={(appointmentId) =>
+            dispatch({ type: "completeFamilyAppointment", appointmentId, at: new Date().toISOString() })
+          }
+          onMiss={(appointmentId) =>
+            dispatch({ type: "missFamilyAppointment", appointmentId, at: new Date().toISOString() })
+          }
+          onRebook={() =>
+            dispatch({ type: "offerFamilyAppointment", appointment: createFamilyAppointmentOffer(new Date()) })
+          }
+          onCountdown={(appointmentId, daysUntil: FamilyAppointmentCountdownDays) =>
+            dispatch({
+              type: "setFamilyAppointmentCountdown",
+              appointmentId,
+              daysUntil,
+              now: new Date().toISOString()
+            })
+          }
+        />
+      ) : null}
 
       {family && family.profile && family.activeDomains.length > 0 ? (
             <section
