@@ -78,11 +78,16 @@ export function FamilyAppointmentCard({
   onRebook: () => void;
   onCountdown: (appointmentId: string, daysUntil: FamilyAppointmentCountdownDays) => void;
 }) {
-  const [demoControlOpen, setDemoControlOpen] = useState(false);
+  const [demoControlFor, setDemoControlFor] = useState<string | null>(null);
   const now = new Date();
   const appointment = activeFamilyAppointment(family.appointments);
   const reminder = appointment ? dueFamilyReminder(appointment, now) : null;
   const overdue = appointment ? overdueFamilyAppointment(appointment, now) : false;
+  const demoControlKey =
+    appointment?.scheduledFor === undefined
+      ? null
+      : `${appointment.id}:${appointment.status}:${appointment.scheduledFor}`;
+  const demoControlOpen = demoControlKey !== null && demoControlFor === demoControlKey;
 
   const primaryButton = `min-h-12 min-w-0 break-words rounded-control bg-care px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`;
   const secondaryButton = `min-h-12 min-w-0 break-words rounded-control border border-care/30 bg-care/5 px-4 py-2 text-left font-semibold text-care disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`;
@@ -196,14 +201,14 @@ export function FamilyAppointmentCard({
             "overdue"
           )
         ) : null}
-        {active.scheduledFor !== undefined && !overdue ? (
+        {active.scheduledFor !== undefined && active.barriersAsked && !reminder && !overdue ? (
           <div className="border-t border-care/10 pt-3">
             <button
               type="button"
               disabled={locked}
               aria-expanded={demoControlOpen}
               aria-controls="family-appt-demo-panel"
-              onClick={() => setDemoControlOpen((current) => !current)}
+              onClick={() => setDemoControlFor(demoControlOpen ? null : demoControlKey)}
               className={`min-h-12 w-full min-w-0 rounded-control text-left text-sm font-semibold text-ink/70 disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`}
             >
               {tFamily(language, "apptDemoControlsTitle")}
@@ -291,16 +296,55 @@ export function FamilyAppointmentCard({
     body = bookedBody(appointment);
   }
 
+  let activeTurnAnnouncement: string;
+  if (family.referral === null) {
+    activeTurnAnnouncement = tFamily(language, "apptJoinDemoBody");
+  } else if (!appointment) {
+    activeTurnAnnouncement = tFamily(language, "apptRebookCta");
+  } else if (appointment.status === "missed") {
+    activeTurnAnnouncement = tFamily(language, "apptMissedLine");
+  } else if (appointment.status === "offered") {
+    activeTurnAnnouncement = tFamily(language, "apptOfferQuestion");
+  } else if (appointment.status === "completed") {
+    activeTurnAnnouncement = tFamily(language, "apptCompletedLine");
+  } else if (!appointment.barriersAsked) {
+    activeTurnAnnouncement = tFamily(language, "apptBarriersQuestion");
+  } else if (reminder) {
+    activeTurnAnnouncement = tFamily(language, REMINDER_KEYS[reminder], {
+      clinic: appointment.clinic,
+      when: appointment.scheduledFor ? formatFamilySlot(appointment.scheduledFor, language) : ""
+    });
+  } else if (overdue) {
+    activeTurnAnnouncement = tFamily(language, "apptOverdueQuestion");
+  } else {
+    activeTurnAnnouncement = tFamily(
+      language,
+      appointment.status === "confirmed" ? "apptConfirmedLine" : "apptBookedLine",
+      { when: appointment.scheduledFor ? formatFamilySlot(appointment.scheduledFor, language) : "" }
+    );
+  }
+
   return (
     <section
       data-testid="family-appointment-card"
       aria-labelledby="family-appt-title"
       className="rounded-control border border-care/20 bg-white p-4"
     >
+      <p className="mb-2 inline-flex rounded-full bg-calm px-3 py-1 text-xs font-semibold text-care">
+        {tFamily(language, "demoBadge")}
+      </p>
       <h2 id="family-appt-title" className="text-xl font-semibold">
         {tFamily(language, "apptSectionTitle")}
       </h2>
       <p className="mt-1 text-sm leading-6 text-ink/75">{tFamily(language, "apptSectionIntro")}</p>
+      <p
+        data-testid="family-appt-live-turn"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {tFamily(language, "apptSectionTitle")}: {activeTurnAnnouncement}
+      </p>
       {locked ? (
         <p className="mt-2 rounded-control bg-note/30 p-3 text-sm font-medium">
           {tFamily(language, "apptSafetyHold")}

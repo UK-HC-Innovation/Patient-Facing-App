@@ -869,31 +869,93 @@ const familyAppointmentStatuses: FamilyAppointment["status"][] = [
   "missed"
 ];
 
+function isNonblankString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isExactIsoTimestamp(value: unknown): value is string {
+  if (typeof value !== "string") {
+    return false;
+  }
+  const timestamp = new Date(value);
+  return Number.isFinite(timestamp.valueOf()) && timestamp.toISOString() === value;
+}
+
 function isFamilyReferral(value: unknown): value is FamilyReferral {
-  return isObject(value) && typeof value.clinic === "string" && typeof value.referredAt === "string";
+  return (
+    isObject(value) &&
+    isNonblankString(value.clinic) &&
+    isExactIsoTimestamp(value.referredAt)
+  );
 }
 
 function isFamilyAppointment(value: unknown): value is FamilyAppointment {
-  return (
-    isObject(value) &&
-    typeof value.id === "string" &&
-    typeof value.clinic === "string" &&
-    isArrayOfStrings(value.offeredSlots) &&
-    (value.scheduledFor === undefined || typeof value.scheduledFor === "string") &&
-    typeof value.status === "string" &&
-    familyAppointmentStatuses.some((status) => status === value.status) &&
-    Array.isArray(value.barriers) &&
-    value.barriers.every((barrier) => familyAppointmentBarriers.some((known) => known === barrier)) &&
-    typeof value.barriersAsked === "boolean" &&
-    Array.isArray(value.reminderAcks) &&
-    value.reminderAcks.every(
+  if (
+    !isObject(value) ||
+    !isNonblankString(value.id) ||
+    !isNonblankString(value.clinic) ||
+    !isExactIsoTimestamp(value.createdAt) ||
+    !Array.isArray(value.offeredSlots) ||
+    value.offeredSlots.length === 0 ||
+    !value.offeredSlots.every(isExactIsoTimestamp) ||
+    new Set(value.offeredSlots).size !== value.offeredSlots.length ||
+    typeof value.status !== "string" ||
+    !familyAppointmentStatuses.some((status) => status === value.status) ||
+    typeof value.barriersAsked !== "boolean" ||
+    !Array.isArray(value.barriers) ||
+    !Array.isArray(value.reminderAcks)
+  ) {
+    return false;
+  }
+
+  const createdAt = new Date(value.createdAt).valueOf();
+  if (value.offeredSlots.some((slot) => new Date(slot).valueOf() <= createdAt)) {
+    return false;
+  }
+
+  const scheduledFor = value.scheduledFor;
+  if (
+    (value.status === "offered" && scheduledFor !== undefined) ||
+    (value.status !== "offered" && !isExactIsoTimestamp(scheduledFor))
+  ) {
+    return false;
+  }
+
+  const barriers = value.barriers;
+  if (
+    !barriers.every(
+      (barrier): barrier is FamilyAppointmentBarrier =>
+        familyAppointmentBarriers.some((known) => known === barrier)
+    ) ||
+    new Set(barriers).size !== barriers.length ||
+    (!value.barriersAsked && barriers.length > 0) ||
+    (value.barriersAsked && barriers.length === 0) ||
+    (barriers.includes("none") && barriers.length !== 1)
+  ) {
+    return false;
+  }
+
+  const reminderAcks = value.reminderAcks;
+  if (
+    !reminderAcks.every(
       (ack) =>
         isObject(ack) &&
-        typeof ack.acknowledgedAt === "string" &&
+        isExactIsoTimestamp(ack.acknowledgedAt) &&
         familyReminderOffsets.some((offset) => offset === ack.offset)
-    ) &&
-    typeof value.createdAt === "string"
-  );
+    )
+  ) {
+    return false;
+  }
+  const reminderOffsets = reminderAcks.map((ack) => (ack as { offset: FamilyReminderOffset }).offset);
+  if (
+    new Set(reminderOffsets).size !== reminderOffsets.length ||
+    ((value.status === "offered" || value.status === "booked") && reminderAcks.length > 0) ||
+    (value.status === "confirmed" && reminderAcks.length === 0)
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 function uniqueStrings<T extends string>(values: T[]): T[] {
@@ -907,6 +969,17 @@ function uniqueSavedFamilyResources(resources: SavedFamilyResource[]): SavedFami
       return false;
     }
     seen.add(resourceId);
+    return true;
+  });
+}
+
+function uniqueFamilyAppointments(appointments: FamilyAppointment[]): FamilyAppointment[] {
+  const seen = new Set<string>();
+  return appointments.filter(({ id }) => {
+    if (seen.has(id)) {
+      return false;
+    }
+    seen.add(id);
     return true;
   });
 }
@@ -961,7 +1034,9 @@ function sanitizeFamilyNavigatorState(value: unknown): FamilyNavigatorState | nu
   return {
     profile,
     referral: isFamilyReferral(value.referral) ? value.referral : null,
-    appointments: Array.isArray(value.appointments) ? value.appointments.filter(isFamilyAppointment) : [],
+    appointments: Array.isArray(value.appointments)
+      ? uniqueFamilyAppointments(value.appointments.filter(isFamilyAppointment))
+      : [],
     safetyEvents: Array.isArray(value.safetyEvents) ? value.safetyEvents.filter(isFamilySafetyEvent) : [],
     recommendations: sanitizeFamilyRecommendations(value.recommendations),
     interviewDraft: typeof value.interviewDraft === "string" ? value.interviewDraft : "",

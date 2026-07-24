@@ -585,27 +585,28 @@ test("ladder walks a family from waitlist to a confirmed evaluation visit", asyn
 
   const card = page.getByTestId("family-appointment-card");
   await expect(card).toBeVisible();
+  await expect(card.getByText("UKHCI Ladder · concept demo — not an official service")).toBeVisible();
   await card.getByRole("button", { name: "Show me (demo)" }).click();
 
   // Book the first offered slot
   await card.getByRole("button").filter({ hasText: /,/ }).first().click();
-  await expect(card.getByText(/Booked for/)).toBeVisible();
+  await expect(card.getByText(/Booked for.*\(demo\)/)).toBeVisible();
   await expect(card.getByText("How to get ready")).toBeVisible();
 
   // Barriers: need a ride -> honest thanks + visit stays booked
   await card.getByRole("button", { name: "We need a ride" }).click();
-  await expect(card.getByText(/resources below can help/)).toBeVisible();
+  await expect(card.getByText(/in this demo.*simulated visit stays booked/i)).toBeVisible();
 
   // Demo time-travel to tomorrow -> t1 reminder -> confirm
   await card.getByRole("button", { name: "Demo: move the visit closer" }).click();
   await card.getByRole("button", { name: "Tomorrow" }).click();
   await expect(page.getByTestId("family-appt-reminder")).toContainText("tomorrow");
   await page.getByRole("button", { name: "Yes, we'll be there" }).click();
-  await expect(card.getByText(/Confirmed/)).toBeVisible();
+  await expect(card.locator("p:not(.sr-only)", { hasText: /Confirmed for.*\(demo\)/ })).toBeVisible();
 
-  // Past the date -> honest close-out. The demo panel is a toggle and is still
-  // open from the click above — do NOT click the disclosure again here.
+  // The reminder collapses the demo panel. Reopen it explicitly for the next turn.
+  await card.getByRole("button", { name: "Demo: move the visit closer" }).click();
   await card.getByRole("button", { name: "Date passed" }).click();
   await page.getByRole("button", { name: "We made it" }).click();
-  await expect(card.getByText(/Glad you made it/)).toBeVisible();
+  await expect(card.locator("p:not(.sr-only)", { hasText: /Glad you made it \(demo\)/ })).toBeVisible();
 });

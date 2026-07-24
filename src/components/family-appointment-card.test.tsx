@@ -101,6 +101,7 @@ describe("FamilyAppointmentCard", () => {
     expect(screen.getByText("Is there anything that could make it hard to get to this visit?")).toBeVisible();
     expect(screen.queryByTestId("family-appt-reminder")).not.toBeInTheDocument();
     expect(screen.queryByTestId("family-appt-overdue")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Demo: move the visit closer" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "We need a ride" }));
     expect(callbacks.onBarriers).toHaveBeenCalledWith(booked.id, ["ride"]);
 
@@ -120,6 +121,7 @@ describe("FamilyAppointmentCard", () => {
     expect(screen.queryByText("Is there anything that could make it hard to get to this visit?")).not.toBeInTheDocument();
     expect(screen.getByTestId("family-appt-reminder")).toHaveTextContent("tomorrow");
     expect(screen.queryByTestId("family-appt-overdue")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Demo: move the visit closer" })).not.toBeInTheDocument();
 
     const overdue: FamilyAppointment = {
       ...barriersAnswered,
@@ -136,6 +138,7 @@ describe("FamilyAppointmentCard", () => {
     expect(screen.queryByText("Is there anything that could make it hard to get to this visit?")).not.toBeInTheDocument();
     expect(screen.queryByTestId("family-appt-reminder")).not.toBeInTheDocument();
     expect(screen.getByTestId("family-appt-overdue")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Demo: move the visit closer" })).not.toBeInTheDocument();
   });
 
   it("locks the booked controls, disclosure, countdown buttons, and source link while safety is pending", async () => {
@@ -143,7 +146,9 @@ describe("FamilyAppointmentCard", () => {
     const booked: FamilyAppointment = {
       ...createFamilyAppointmentOffer(new Date()),
       status: "booked",
-      scheduledFor: new Date(Date.now() + 20 * DAY_MS).toISOString()
+      scheduledFor: new Date(Date.now() + 20 * DAY_MS).toISOString(),
+      barriersAsked: true,
+      barriers: ["none"]
     };
     const props = {
       family: familyState({ appointments: [booked] }),
@@ -165,6 +170,101 @@ describe("FamilyAppointmentCard", () => {
     }
   });
 
+  it("closes the demo disclosure across reminder confirmation and reschedule transitions", async () => {
+    const callbacks = handlers();
+    const offer = createFamilyAppointmentOffer(new Date());
+    const booked: FamilyAppointment = {
+      ...offer,
+      status: "booked",
+      scheduledFor: new Date(Date.now() + 20 * DAY_MS).toISOString(),
+      barriersAsked: true,
+      barriers: ["none"]
+    };
+    const props = {
+      language: "en" as const,
+      locked: false,
+      ...callbacks
+    };
+    const { rerender } = render(
+      <FamilyAppointmentCard family={familyState({ appointments: [booked] })} {...props} />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Demo: move the visit closer" }));
+    await userEvent.click(screen.getByRole("button", { name: "Tomorrow" }));
+    expect(callbacks.onCountdown).toHaveBeenCalledWith(booked.id, 1);
+
+    const reminder: FamilyAppointment = {
+      ...booked,
+      scheduledFor: new Date(Date.now() + 0.5 * DAY_MS).toISOString()
+    };
+    rerender(<FamilyAppointmentCard family={familyState({ appointments: [reminder] })} {...props} />);
+    expect(screen.getByTestId("family-appt-reminder")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Demo: move the visit closer" })).not.toBeInTheDocument();
+
+    const confirmed: FamilyAppointment = {
+      ...reminder,
+      status: "confirmed",
+      reminderAcks: [{ offset: "t1", acknowledgedAt: new Date().toISOString() }]
+    };
+    rerender(<FamilyAppointmentCard family={familyState({ appointments: [confirmed] })} {...props} />);
+    expect(screen.getByRole("button", { name: "Demo: move the visit closer" })).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+    expect(screen.queryByRole("button", { name: "Date passed" })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Demo: move the visit closer" }));
+    const rescheduled: FamilyAppointment = {
+      ...confirmed,
+      status: "offered",
+      scheduledFor: undefined,
+      reminderAcks: [],
+      offeredSlots: offer.offeredSlots.map((slot) =>
+        new Date(new Date(slot).valueOf() + 40 * DAY_MS).toISOString()
+      )
+    };
+    rerender(<FamilyAppointmentCard family={familyState({ appointments: [rescheduled] })} {...props} />);
+    const rebooked: FamilyAppointment = {
+      ...rescheduled,
+      status: "booked",
+      scheduledFor: rescheduled.offeredSlots[0]
+    };
+    rerender(<FamilyAppointmentCard family={familyState({ appointments: [rebooked] })} {...props} />);
+    expect(screen.getByRole("button", { name: "Demo: move the visit closer" })).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+  });
+
+  it("keeps the concept-demo badge visible and politely announces the active turn", () => {
+    const offer = createFamilyAppointmentOffer(new Date());
+    const props = {
+      language: "en" as const,
+      locked: false,
+      ...handlers()
+    };
+    const { rerender } = render(
+      <FamilyAppointmentCard family={familyState({ appointments: [offer] })} {...props} />
+    );
+
+    expect(screen.getByText("UKHCI Ladder · concept demo — not an official service")).toBeVisible();
+    const liveTurn = screen.getByTestId("family-appt-live-turn");
+    expect(liveTurn).toHaveAttribute("aria-live", "polite");
+    expect(liveTurn).not.toHaveAttribute("role", "status");
+    expect(liveTurn).toHaveTextContent("evaluation opening");
+
+    const booked: FamilyAppointment = {
+      ...offer,
+      status: "booked",
+      scheduledFor: offer.offeredSlots[0]
+    };
+    rerender(<FamilyAppointmentCard family={familyState({ appointments: [booked] })} {...props} />);
+    expect(screen.getByTestId("family-appt-live-turn")).toHaveTextContent(
+      "anything that could make it hard"
+    );
+    expect(screen.getByText("UKHCI Ladder · concept demo — not an official service")).toBeVisible();
+  });
+
   it("renders the missed-recovery turn in Spanish", () => {
     const missed: FamilyAppointment = {
       ...createFamilyAppointmentOffer(new Date()),
@@ -179,7 +279,9 @@ describe("FamilyAppointmentCard", () => {
       />
     );
 
-    expect(screen.getByText("Así es la vida — no perdieron su lugar. Busquemos una nueva fecha.")).toBeVisible();
+    expect(
+      screen.getByText("Así es la vida — en esta demo, no pierden su lugar. Busquemos una nueva fecha.")
+    ).toBeVisible();
     expect(screen.getByRole("button", { name: "Buscar nueva fecha" })).toBeVisible();
   });
 });

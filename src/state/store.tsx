@@ -16,7 +16,14 @@ import {
   type FamilyDiagnosisBackdateMonths
 } from "@/domain/family-stages";
 import { mergeFamilyDomains } from "@/domain/family-screen";
-import { BARRIER_DOMAINS, type FamilyAppointmentCountdownDays } from "@/domain/family-appointments";
+import {
+  BARRIER_DOMAINS,
+  FAMILY_APPOINTMENT_COUNTDOWNS,
+  buildDemoSlotOffers,
+  dueFamilyReminder,
+  overdueFamilyAppointment,
+  type FamilyAppointmentCountdownDays
+} from "@/domain/family-appointments";
 import { recordAuditEvent } from "@/domain/audit";
 import { activeConditions } from "@/domain/condition-lens";
 import { canTransition, outcomeToStatus, transition } from "@/domain/screening-gap";
@@ -151,22 +158,113 @@ function emptyFamilyState(profile: FamilyProfile | null): FamilyNavigatorState {
   };
 }
 
+const FAMILY_APPOINTMENT_BARRIERS: FamilyAppointmentBarrier[] = [
+  "ride",
+  "sibling_care",
+  "work_schedule",
+  "none"
+];
+
+function isNonblank(value: string): boolean {
+  return value.trim().length > 0;
+}
+
+function isExactIsoTimestamp(value: string): boolean {
+  const timestamp = new Date(value);
+  return Number.isFinite(timestamp.valueOf()) && timestamp.toISOString() === value;
+}
+
+function isCoherentBarrierAnswer(barriers: FamilyAppointmentBarrier[]): boolean {
+  if (
+    barriers.length === 0 ||
+    new Set(barriers).size !== barriers.length ||
+    barriers.some((barrier) => !FAMILY_APPOINTMENT_BARRIERS.includes(barrier))
+  ) {
+    return false;
+  }
+  return !barriers.includes("none") || barriers.length === 1;
+}
+
+function isValidActionTime(appointment: FamilyAppointment, at: string): boolean {
+  return (
+    isExactIsoTimestamp(at) &&
+    isExactIsoTimestamp(appointment.createdAt) &&
+    new Date(at).valueOf() >= new Date(appointment.createdAt).valueOf()
+  );
+}
+
+function hasValidOfferSlots(appointment: FamilyAppointment): boolean {
+  return (
+    appointment.offeredSlots.length > 0 &&
+    new Set(appointment.offeredSlots).size === appointment.offeredSlots.length &&
+    appointment.offeredSlots.every(isExactIsoTimestamp)
+  );
+}
+
+function isValidNewAppointmentOffer(appointment: FamilyAppointment): boolean {
+  if (
+    !isNonblank(appointment.id) ||
+    !isNonblank(appointment.clinic) ||
+    !isExactIsoTimestamp(appointment.createdAt) ||
+    appointment.status !== "offered" ||
+    appointment.scheduledFor !== undefined ||
+    appointment.barriersAsked ||
+    appointment.barriers.length > 0 ||
+    appointment.reminderAcks.length > 0 ||
+    !hasValidOfferSlots(appointment)
+  ) {
+    return false;
+  }
+  const createdAt = new Date(appointment.createdAt).valueOf();
+  return appointment.offeredSlots.every((slot) => new Date(slot).valueOf() > createdAt);
+}
+
+function sameFamilyAppointment(left: FamilyAppointment, right: FamilyAppointment): boolean {
+  return (
+    left.id === right.id &&
+    left.clinic === right.clinic &&
+    left.scheduledFor === right.scheduledFor &&
+    left.status === right.status &&
+    left.barriersAsked === right.barriersAsked &&
+    left.createdAt === right.createdAt &&
+    left.offeredSlots.length === right.offeredSlots.length &&
+    left.offeredSlots.every((slot, index) => slot === right.offeredSlots[index]) &&
+    left.barriers.length === right.barriers.length &&
+    left.barriers.every((barrier, index) => barrier === right.barriers[index]) &&
+    left.reminderAcks.length === right.reminderAcks.length &&
+    left.reminderAcks.every(
+      (ack, index) =>
+        ack.offset === right.reminderAcks[index]?.offset &&
+        ack.acknowledgedAt === right.reminderAcks[index]?.acknowledgedAt
+    )
+  );
+}
+
 function updateFamilyAppointment(
   state: AppState,
   appointmentId: string,
   update: (appointment: FamilyAppointment) => FamilyAppointment,
   auditMessage: string
 ): AppState {
-  if (!state.family || !state.family.appointments.some(({ id }) => id === appointmentId)) {
+  if (!state.family) {
     return state;
   }
+  const appointmentIndex = state.family.appointments.findIndex(({ id }) => id === appointmentId);
+  if (appointmentIndex < 0) {
+    return state;
+  }
+  const appointment = state.family.appointments[appointmentIndex];
+  const updatedAppointment = update(appointment);
+  if (sameFamilyAppointment(appointment, updatedAppointment)) {
+    return state;
+  }
+  const appointments = [...state.family.appointments];
+  appointments[appointmentIndex] = updatedAppointment;
   return {
     ...state,
     family: {
       ...state.family,
-      appointments: state.family.appointments.map((appointment) =>
-        appointment.id === appointmentId ? update(appointment) : appointment
-      )
+      appointments
     },
     auditEvents: [...state.auditEvents, recordAuditEvent(state.patient.id, "updated", auditMessage)]
   };
@@ -754,6 +852,13 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
       };
     case "setFamilyReferral": {
       const family = state.family ?? emptyFamilyState(null);
+      if (
+        family.referral !== null ||
+        !isNonblank(action.referral.clinic) ||
+        !isExactIsoTimestamp(action.referral.referredAt)
+      ) {
+        return state;
+      }
       return {
         ...state,
         family: { ...family, referral: action.referral },
@@ -765,6 +870,16 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
     }
     case "offerFamilyAppointment": {
       const family = state.family ?? emptyFamilyState(null);
+      const latestAppointment = family.appointments.at(-1);
+      if (
+        family.referral === null ||
+        action.appointment.clinic !== family.referral.clinic ||
+        !isValidNewAppointmentOffer(action.appointment) ||
+        family.appointments.some(({ id }) => id === action.appointment.id) ||
+        (latestAppointment !== undefined && latestAppointment.status !== "missed")
+      ) {
+        return state;
+      }
       return {
         ...state,
         family: { ...family, appointments: [...family.appointments, action.appointment] },
@@ -778,14 +893,40 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
       return updateFamilyAppointment(
         state,
         action.appointmentId,
-        (appointment) => ({ ...appointment, scheduledFor: action.slot, status: "booked" }),
+        (appointment) => {
+          const slotTime = new Date(action.slot).valueOf();
+          if (
+            appointment.status !== "offered" ||
+            appointment.scheduledFor !== undefined ||
+            appointment.reminderAcks.length > 0 ||
+            !hasValidOfferSlots(appointment) ||
+            !isValidActionTime(appointment, action.at) ||
+            !appointment.offeredSlots.includes(action.slot) ||
+            !Number.isFinite(slotTime) ||
+            slotTime <= new Date(action.at).valueOf()
+          ) {
+            return appointment;
+          }
+          return { ...appointment, scheduledFor: action.slot, status: "booked" };
+        },
         "Evaluation visit booked"
       );
     case "recordFamilyAppointmentBarriers": {
       const withBarriers = updateFamilyAppointment(
         state,
         action.appointmentId,
-        (appointment) => ({ ...appointment, barriers: action.barriers, barriersAsked: true }),
+        (appointment) => {
+          if (
+            (appointment.status !== "booked" && appointment.status !== "confirmed") ||
+            appointment.barriersAsked ||
+            appointment.scheduledFor === undefined ||
+            !isValidActionTime(appointment, action.at) ||
+            !isCoherentBarrierAnswer(action.barriers)
+          ) {
+            return appointment;
+          }
+          return { ...appointment, barriers: action.barriers, barriersAsked: true };
+        },
         "Visit barriers recorded"
       );
       if (withBarriers === state || !withBarriers.family) {
@@ -806,47 +947,86 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
       return updateFamilyAppointment(
         state,
         action.appointmentId,
-        (appointment) => ({
-          ...appointment,
-          status: "confirmed",
-          reminderAcks: [...appointment.reminderAcks, { offset: action.offset, acknowledgedAt: action.at }]
-        }),
+        (appointment) => {
+          if (
+            !isValidActionTime(appointment, action.at) ||
+            dueFamilyReminder(appointment, new Date(action.at)) !== action.offset
+          ) {
+            return appointment;
+          }
+          return {
+            ...appointment,
+            status: "confirmed",
+            reminderAcks: [...appointment.reminderAcks, { offset: action.offset, acknowledgedAt: action.at }]
+          };
+        },
         "Evaluation visit confirmed"
       );
     case "requestFamilyAppointmentReschedule":
       return updateFamilyAppointment(
         state,
         action.appointmentId,
-        (appointment) => ({ ...appointment, status: "offered", scheduledFor: undefined, reminderAcks: [] }),
+        (appointment) => {
+          if (
+            (appointment.status !== "booked" && appointment.status !== "confirmed") ||
+            appointment.scheduledFor === undefined ||
+            !isValidActionTime(appointment, action.at)
+          ) {
+            return appointment;
+          }
+          return {
+            ...appointment,
+            offeredSlots: buildDemoSlotOffers(new Date(action.at)),
+            status: "offered",
+            scheduledFor: undefined,
+            reminderAcks: []
+          };
+        },
         "Evaluation visit reschedule requested"
       );
     case "completeFamilyAppointment":
       return updateFamilyAppointment(
         state,
         action.appointmentId,
-        (appointment) => ({ ...appointment, status: "completed" }),
+        (appointment) =>
+          isValidActionTime(appointment, action.at) &&
+          overdueFamilyAppointment(appointment, new Date(action.at))
+            ? { ...appointment, status: "completed" }
+            : appointment,
         "Evaluation visit completed (self-reported)"
       );
     case "missFamilyAppointment":
       return updateFamilyAppointment(
         state,
         action.appointmentId,
-        (appointment) => ({ ...appointment, status: "missed" }),
+        (appointment) =>
+          isValidActionTime(appointment, action.at) &&
+          overdueFamilyAppointment(appointment, new Date(action.at))
+            ? { ...appointment, status: "missed" }
+            : appointment,
         "Evaluation visit missed (self-reported)"
       );
     case "setFamilyAppointmentCountdown":
       return updateFamilyAppointment(
         state,
         action.appointmentId,
-        (appointment) =>
-          appointment.scheduledFor === undefined
+        (appointment) => {
+          if (
+            (appointment.status !== "booked" && appointment.status !== "confirmed") ||
+            appointment.scheduledFor === undefined ||
+            !isExactIsoTimestamp(appointment.scheduledFor) ||
+            !isValidActionTime(appointment, action.now) ||
+            !FAMILY_APPOINTMENT_COUNTDOWNS.includes(action.daysUntil)
+          ) {
+            return appointment;
+          }
+          const scheduledFor = new Date(
+            new Date(action.now).valueOf() + action.daysUntil * 24 * 60 * 60 * 1000
+          ).toISOString();
+          return scheduledFor === appointment.scheduledFor
             ? appointment
-            : {
-                ...appointment,
-                scheduledFor: new Date(
-                  new Date(action.now).valueOf() + action.daysUntil * 24 * 60 * 60 * 1000
-                ).toISOString()
-              },
+            : { ...appointment, scheduledFor };
+        },
         "Demo control: evaluation visit moved"
       );
     case "resetDemo":

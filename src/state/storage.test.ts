@@ -3,7 +3,7 @@ import { brentState, deletedDemoState, demoState } from "@/domain/fixtures";
 import { INSTRUMENTS } from "@/domain/instruments/registry";
 import type { ScreeningInstrument } from "@/domain/instruments/types";
 import { clearStoredState, loadStoredState, saveStoredState } from "./storage";
-import type { FamilyNavigatorState } from "@/domain/types";
+import type { FamilyAppointment, FamilyNavigatorState } from "@/domain/types";
 
 const STORAGE_KEY = "home-health-ai-ownership-state";
 
@@ -184,7 +184,9 @@ describe("storage", () => {
   });
 
   it("backfills referral and appointments on saves written before Ladder", () => {
-    const { referral: _referral, appointments: _appointments, ...legacyFamily } = validFamily;
+    const legacyFamily: Partial<FamilyNavigatorState> = { ...validFamily };
+    delete legacyFamily.referral;
+    delete legacyFamily.appointments;
     saveStoredState({ ...demoState, family: legacyFamily as FamilyNavigatorState });
 
     const loaded = loadStoredState();
@@ -215,7 +217,7 @@ describe("storage", () => {
       clinic: "UK Developmental Pediatrics",
       offeredSlots: ["2026-08-14T13:30:00.000Z"],
       scheduledFor: "2026-08-14T13:30:00.000Z",
-      status: "booked",
+      status: "confirmed",
       barriers: ["ride"],
       barriersAsked: true,
       reminderAcks: [{ offset: "t14", acknowledgedAt: "2026-07-31T12:00:00.000Z" }],
@@ -228,6 +230,112 @@ describe("storage", () => {
 
     expect(loaded.family?.referral).toEqual(referral);
     expect(loaded.family?.appointments).toEqual([appointment]);
+  });
+
+  it("keeps coherent rows for every reducer-produced status and filters mixed semantic failures", () => {
+    const offered: FamilyAppointment = {
+      id: "valid-offered",
+      clinic: "UK Developmental Pediatrics",
+      offeredSlots: [
+        "2026-08-14T13:30:00.000Z",
+        "2026-08-21T13:30:00.000Z",
+        "2026-08-28T13:30:00.000Z"
+      ],
+      status: "offered",
+      barriers: [],
+      barriersAsked: false,
+      reminderAcks: [],
+      createdAt: "2026-07-24T12:00:00.000Z"
+    };
+    const scheduledFor = offered.offeredSlots[0];
+    const booked: FamilyAppointment = {
+      ...offered,
+      id: "valid-booked",
+      status: "booked",
+      scheduledFor
+    };
+    const confirmed: FamilyAppointment = {
+      ...booked,
+      id: "valid-confirmed",
+      status: "confirmed",
+      barriers: ["ride"],
+      barriersAsked: true,
+      reminderAcks: [{ offset: "t14", acknowledgedAt: "2026-07-31T12:00:00.000Z" }]
+    };
+    const completed: FamilyAppointment = {
+      ...confirmed,
+      id: "valid-completed",
+      status: "completed"
+    };
+    const missed: FamilyAppointment = {
+      ...booked,
+      id: "valid-missed",
+      status: "missed"
+    };
+    const invalidRows: FamilyAppointment[] = [
+      { ...offered, id: "bad-created-at", createdAt: "2026-07-24" },
+      { ...offered, id: "bad-slot", offeredSlots: ["not-a-date"] },
+      {
+        ...offered,
+        id: "duplicate-slots",
+        offeredSlots: [offered.offeredSlots[0], offered.offeredSlots[0]]
+      },
+      { ...booked, id: "booked-without-schedule", scheduledFor: undefined },
+      { ...offered, id: "offered-with-schedule", scheduledFor },
+      {
+        ...confirmed,
+        id: "duplicate-acks",
+        reminderAcks: [
+          { offset: "t14", acknowledgedAt: "2026-07-31T12:00:00.000Z" },
+          { offset: "t14", acknowledgedAt: "2026-08-01T12:00:00.000Z" }
+        ]
+      },
+      { ...booked, id: "barriers-before-ask", barriers: ["ride"], barriersAsked: false },
+      { ...booked, id: "asked-without-barriers", barriers: [], barriersAsked: true },
+      { ...booked, id: "none-with-ride", barriers: ["none", "ride"], barriersAsked: true },
+      { ...confirmed, id: "confirmed-without-ack", reminderAcks: [] },
+      { ...offered, id: "   " },
+      { ...offered, id: "blank-clinic", clinic: "   " }
+    ];
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        ...demoState,
+        family: {
+          ...validFamily,
+          referral: { clinic: "UK Developmental Pediatrics", referredAt: "2026-07-24" },
+          appointments: [offered, booked, confirmed, completed, missed, ...invalidRows]
+        }
+      })
+    );
+
+    const loaded = loadStoredState();
+
+    expect(loaded.family?.referral).toBeNull();
+    expect(loaded.family?.appointments.map(({ id }) => id)).toEqual([
+      "valid-offered",
+      "valid-booked",
+      "valid-confirmed",
+      "valid-completed",
+      "valid-missed"
+    ]);
+    expect(loaded.family?.profile).toEqual(validFamily.profile);
+    expect(loaded.patient.id).toBe(demoState.patient.id);
+  });
+
+  it.each([
+    ["blank clinic", { clinic: "   ", referredAt: "2026-07-24T12:00:00.000Z" }],
+    ["invalid ISO timestamp", { clinic: "UK Developmental Pediatrics", referredAt: "not-a-date" }]
+  ])("backfills a referral with %s to null", (_, referral) => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ ...demoState, family: { ...validFamily, referral } })
+    );
+
+    const loaded = loadStoredState();
+
+    expect(loaded.family?.referral).toBeNull();
+    expect(loaded.family?.profile).toEqual(validFamily.profile);
   });
 
   it("starts a fresh browser on the retinopathy-due demo state", () => {

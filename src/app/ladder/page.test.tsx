@@ -110,7 +110,9 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     const user = userEvent.setup();
     render(<ReducerHarness initialState={withFamily(describedFamily)} />);
 
-    expect(screen.getByText(/Demo.*not an official service/i)).toBeVisible();
+    expect(
+      within(screen.getByTestId("family-appointment-card")).getByText(/Demo.*not an official service/i)
+    ).toBeVisible();
     expect(screen.getByRole("button", { name: /rather answer yes or no/i })).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("heading", { name: "What would help?" })).not.toBeInTheDocument();
     expect(screen.getByLabelText(/What would you like help with/i)).toHaveValue(SAMPLE_CAREGIVER_TEXT);
