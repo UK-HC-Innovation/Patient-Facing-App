@@ -941,6 +941,7 @@ function isFamilyAppointment(value: unknown): value is FamilyAppointment {
       (ack) =>
         isObject(ack) &&
         isExactIsoTimestamp(ack.acknowledgedAt) &&
+        new Date(ack.acknowledgedAt).valueOf() >= createdAt &&
         familyReminderOffsets.some((offset) => offset === ack.offset)
     )
   ) {

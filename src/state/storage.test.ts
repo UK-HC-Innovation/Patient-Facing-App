@@ -232,6 +232,40 @@ describe("storage", () => {
     expect(loaded.family?.appointments).toEqual([appointment]);
   });
 
+  it("filters a reminder acknowledgement that predates appointment creation without resetting family state", () => {
+    const validAppointment: FamilyAppointment = {
+      id: "valid-confirmed",
+      clinic: "UK Developmental Pediatrics",
+      offeredSlots: ["2026-08-14T13:30:00.000Z"],
+      scheduledFor: "2026-08-14T13:30:00.000Z",
+      status: "confirmed",
+      barriers: ["ride"],
+      barriersAsked: true,
+      reminderAcks: [{ offset: "t1", acknowledgedAt: "2026-07-24T12:00:00.000Z" }],
+      createdAt: "2026-07-24T12:00:00.000Z"
+    };
+    const impossibleAcknowledgement: FamilyAppointment = {
+      ...validAppointment,
+      id: "pre-creation-acknowledgement",
+      reminderAcks: [{ offset: "t1", acknowledgedAt: "2026-07-23T12:00:00.000Z" }]
+    };
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        ...demoState,
+        family: {
+          ...validFamily,
+          appointments: [validAppointment, impossibleAcknowledgement]
+        }
+      })
+    );
+
+    const loaded = loadStoredState();
+
+    expect(loaded.family?.appointments).toEqual([validAppointment]);
+    expect(loaded.family?.profile).toEqual(validFamily.profile);
+  });
+
   it("keeps coherent rows for every reducer-produced status and filters mixed semantic failures", () => {
     const offered: FamilyAppointment = {
       id: "valid-offered",
