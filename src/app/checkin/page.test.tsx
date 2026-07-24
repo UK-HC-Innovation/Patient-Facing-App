@@ -88,7 +88,7 @@ describe("screening hub", () => {
     render(<CheckinPage />);
 
     expect(screen.getByRole("heading", { name: "Centro de chequeos" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "Ladder — apoyo familiar" })).toHaveAttribute("href", "/family");
+    expect(screen.getByRole("link", { name: "Ladder — apoyo familiar" })).toHaveAttribute("href", "/ladder");
     const history = screen.getByRole("region", { name: "Historial" });
     const entries = within(history).getAllByRole("listitem");
     const dates = within(history).getAllByText(/2026/).map((element) => element.getAttribute("dateTime"));

@@ -109,7 +109,7 @@ describe("decideFrontDoor — deterministic navigation (English)", () => {
     (utterance) => {
       expect(decideFrontDoor(utterance, en)).toEqual({
         kind: "navigate",
-        href: "/family",
+        href: "/ladder",
         label: "Ladder — your child's development"
       });
     }
@@ -138,7 +138,7 @@ describe("decideFrontDoor — deterministic navigation (English)", () => {
   it("routes explicit developmental intent in alternate word order", () => {
     expect(decideFrontDoor("help my child find developmental resources", en)).toEqual({
       kind: "navigate",
-      href: "/family",
+      href: "/ladder",
       label: "Ladder — your child's development"
     });
   });
@@ -146,7 +146,7 @@ describe("decideFrontDoor — deterministic navigation (English)", () => {
   it.each(["help with our child", "resources for our daughter", "support with my kid"])(
     "routes canonical caregiver relationship help forms: %s",
     (utterance) => {
-      expect(decideFrontDoor(utterance, en)).toMatchObject({ kind: "navigate", href: "/family" });
+      expect(decideFrontDoor(utterance, en)).toMatchObject({ kind: "navigate", href: "/ladder" });
     }
   );
 });
@@ -200,7 +200,7 @@ describe("decideFrontDoor — Spanish", () => {
   it.each(["ayuda para mi hija", "recursos para mi hijo"])(
     "routes Spanish family-specific help intent deterministically: %s",
     (utterance) => {
-      expect(decideFrontDoor(utterance, es)).toMatchObject({ kind: "navigate", href: "/family" });
+      expect(decideFrontDoor(utterance, es)).toMatchObject({ kind: "navigate", href: "/ladder" });
     }
   );
 
@@ -219,7 +219,7 @@ describe("decideFrontDoor — Spanish", () => {
   it("keeps generic child services on the family navigator", () => {
     expect(decideFrontDoor("servicios para mi hijo", es)).toEqual({
       kind: "navigate",
-      href: "/family",
+      href: "/ladder",
       label: "Ladder — el desarrollo de tu hijo o hija"
     });
   });
@@ -235,14 +235,14 @@ describe("decideFrontDoor — Spanish", () => {
   it("routes explicit Spanish developmental intent in alternate word order", () => {
     expect(decideFrontDoor("ayuda a mi hija a encontrar recursos de desarrollo", es)).toEqual({
       kind: "navigate",
-      href: "/family",
+      href: "/ladder",
       label: "Ladder — el desarrollo de tu hijo o hija"
     });
   });
 
   it("keeps Spanish family phrases isolated by patient language", () => {
     expect(decideFrontDoor("ayuda para mi hija", en)).toMatchObject({ kind: "coach", reason: "no_match" });
-    expect(decideFrontDoor("ayuda para mi hija", es)).toMatchObject({ kind: "navigate", href: "/family" });
+    expect(decideFrontDoor("ayuda para mi hija", es)).toMatchObject({ kind: "navigate", href: "/ladder" });
   });
 
   it("does not match the English lexicon for a Spanish patient", () => {

@@ -59,7 +59,7 @@ describe("mockRouteClassifier", () => {
   ])("routes family-specific help intent to the family navigator: %s", (utterance) => {
     expect(mockRouteClassifier.classify(utterance, CLASSIFIER_HREFS)).toMatchObject({
       kind: "navigate",
-      href: "/family"
+      href: "/ladder"
     });
   });
 
@@ -92,9 +92,9 @@ describe("mockRouteClassifier", () => {
       kind: "coach",
       confidence: 0.3
     });
-    expect(mockRouteClassifier.classify("housing resources for my child", ["/family"])).toMatchObject({
+    expect(mockRouteClassifier.classify("housing resources for my child", ["/ladder"])).toMatchObject({
       kind: "navigate",
-      href: "/family"
+      href: "/ladder"
     });
   });
 

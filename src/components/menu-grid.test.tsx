@@ -19,7 +19,7 @@ const REQUIRED_ROUTES = [
   "/checkin",
   "/checkin/phq9",
   "/support",
-  "/family",
+  "/ladder",
   "/intake",
   "/privacy"
 ];
@@ -41,12 +41,12 @@ describe("MenuGrid reachability", () => {
 
   it("renders the localized family navigator entry", () => {
     const { rerender } = render(<MenuGrid language="en" />);
-    expect(document.querySelector('a[href="/family"]')).toHaveTextContent("Ladder — your child's development");
-    expect(document.querySelector('a[href="/family"]')).toHaveTextContent("Find developmental resources for your child");
+    expect(document.querySelector('a[href="/ladder"]')).toHaveTextContent("Ladder — your child's development");
+    expect(document.querySelector('a[href="/ladder"]')).toHaveTextContent("Find developmental resources for your child");
 
     rerender(<MenuGrid language="es" />);
-    expect(document.querySelector('a[href="/family"]')).toHaveTextContent("Ladder — el desarrollo de tu hijo o hija");
-    expect(document.querySelector('a[href="/family"]')).toHaveTextContent("Encuentra recursos de desarrollo para tu hijo o hija");
+    expect(document.querySelector('a[href="/ladder"]')).toHaveTextContent("Ladder — el desarrollo de tu hijo o hija");
+    expect(document.querySelector('a[href="/ladder"]')).toHaveTextContent("Encuentra recursos de desarrollo para tu hijo o hija");
   });
 
   it("keeps both the screening hub and moved PHQ-9 reachable", () => {

@@ -25,7 +25,7 @@ const ROUTE_SYNONYMS: Record<string, string[]> = {
   "/checkin": ["screening hub", "check-in history", "health check", "wellness check", "questionnaire"],
   "/checkin/phq9": ["mood", "check in", "check-in", "how i feel", "how i'm feeling"],
   "/support": ["support", "resource", "resources", "rent", "housing", "utilities", "food stamps"],
-  "/family": [
+  "/ladder": [
     "ladder",
     "family navigator",
     "help for my daughter",
@@ -68,8 +68,8 @@ export const mockRouteClassifier: RouteClassifier = {
       if (ENGLISH_CAREGIVER_SDOH.test(text) && allowedHrefs.includes("/support")) {
         return { kind: "navigate", href: "/support", confidence: 0.8 };
       }
-      if (allowedHrefs.includes("/family")) {
-        return { kind: "navigate", href: "/family", confidence: 0.8 };
+      if (allowedHrefs.includes("/ladder")) {
+        return { kind: "navigate", href: "/ladder", confidence: 0.8 };
       }
     }
 

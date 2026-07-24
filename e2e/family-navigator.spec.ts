@@ -157,12 +157,17 @@ test.beforeEach(async ({ page }) => {
   await useFreshStorage(page);
 });
 
+test("family URL redirects to ladder and keeps the query string", async ({ page }) => {
+  await page.goto("/family?k=demo-passcode");
+  await expect(page).toHaveURL(/\/ladder\?k=demo-passcode$/);
+});
+
 test(`golden path works on ordinary caregiver wording: ${PARENT_DESCRIPTION}`, async ({ page }) => {
   const capturedRequests: CapturedFamilyRequest[] = [];
   await stubUnconfiguredFamilyInterview(page, (request) => {
     capturedRequests.push(request);
   });
-  await page.goto("/family?k=demo-passcode");
+  await page.goto("/ladder?k=demo-passcode");
 
   await expect(page.getByRole("heading", { name: "Ladder — your child's development", level: 1 })).toBeVisible();
   await expect(page.getByText("UKHCI Ladder · concept demo — not an official service")).toBeVisible();
@@ -298,7 +303,7 @@ test(`golden path works on ordinary caregiver wording: ${PARENT_DESCRIPTION}`, a
 
 test("a two-year-old in Perry County gets the local First Steps POE before statewide options", async ({ page }) => {
   await stubUnconfiguredFamilyInterview(page);
-  await page.goto("/family");
+  await page.goto("/ladder");
 
   await fillBasics(page, { county: "Perry", birthYear: "2024", birthMonth: "3" });
   await page
@@ -316,7 +321,7 @@ test("conversational path: describe first, then county, year, and school stage a
   page
 }) => {
   await stubUnconfiguredFamilyInterview(page);
-  await page.goto("/family");
+  await page.goto("/ladder");
 
   await expect(page.getByRole("heading", { name: "Tell us about your child and their needs" })).toBeVisible();
   await page
@@ -347,7 +352,7 @@ test("conversational path: describe first, then county, year, and school stage a
 test("demo timeline control backdates diagnosis data and advances staged nudges without faking the clock", async ({
   page
 }) => {
-  await page.goto("/family");
+  await page.goto("/ladder");
   await fillBasics(page, {
     county: "Scott",
     birthYear: "2017",
@@ -422,7 +427,7 @@ test(`Safety phrase raises the banner in-thread and never reaches the network: $
   await stubUnconfiguredFamilyInterview(page, () => {
     familyApiRequests += 1;
   });
-  await page.goto("/family");
+  await page.goto("/ladder");
 
   await page.getByLabel("What would you like help with?").fill(SAFETY_PHRASE);
   await page.getByRole("button", { name: "Find help" }).click();
@@ -433,7 +438,7 @@ test(`Safety phrase raises the banner in-thread and never reaches the network: $
   await expect(banner.getByRole("link", { name: /Text 988/ })).toHaveAttribute("href", "sms:988");
   await expect(banner.getByRole("link", { name: /Call 911/ })).toHaveAttribute("href", "tel:911");
   // The navigator stays put and keeps helping instead of redirecting away.
-  await expect(page).toHaveURL(/\/family$/);
+  await expect(page).toHaveURL(/\/ladder$/);
   await expect(page.getByRole("heading", { name: "Here is what we heard" })).toBeVisible();
   expect(familyApiRequests).toBe(0);
 
@@ -450,7 +455,7 @@ test("Spanish mobile mock path is substantive, language-correct, and horizontall
   await stubUnconfiguredFamilyInterview(page, (request) => {
     capturedRequests.push(request);
   });
-  await page.goto("/family");
+  await page.goto("/ladder");
   await setPersistedLanguage(page, "es");
 
   await expect(page.locator("html")).toHaveAttribute("lang", "es");
@@ -500,7 +505,7 @@ test(`Spanish safety raises the banner without any family API request: ${SPANISH
   await stubUnconfiguredFamilyInterview(page, () => {
     familyApiRequests += 1;
   });
-  await page.goto("/family");
+  await page.goto("/ladder");
   await setPersistedLanguage(page, "es");
 
   await page.getByLabel("¿Con qué te gustaría recibir ayuda?").fill(SPANISH_SAFETY_PHRASE);
@@ -513,7 +518,7 @@ test(`Spanish safety raises the banner without any family API request: ${SPANISH
   await expect(banner.locator('a[href="sms:988"]')).toBeVisible();
   await expect(banner.locator('a[href="tel:911"]')).toBeVisible();
   await expect(banner.getByRole("button", { name: /Ya lo vi.*continuar/i })).toBeVisible();
-  await expect(page).toHaveURL(/\/family$/);
+  await expect(page).toHaveURL(/\/ladder$/);
   expect(familyApiRequests).toBe(0);
 });
 
@@ -522,7 +527,7 @@ test("the Breathitt case leads with school procedure and keeps the banner in-thr
   await stubUnconfiguredFamilyInterview(page, () => {
     familyApiRequests += 1;
   });
-  await page.goto("/family");
+  await page.goto("/ladder");
 
   await page
     .getByLabel("What would you like help with?")
@@ -563,7 +568,7 @@ test("the Breathitt case leads with school procedure and keeps the banner in-thr
 test("speech recognition ignores a repeated final-result replay", async ({ page }) => {
   const transcript = "reading support from the microphone";
   await installRepeatedFinalSpeechShim(page, transcript);
-  await page.goto("/family");
+  await page.goto("/ladder");
   const interview = page.getByLabel("What would you like help with?");
   await interview.fill("");
 

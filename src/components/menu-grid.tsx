@@ -39,7 +39,7 @@ export const MENU_GROUPS: MenuGroup[] = [
       { href: "/checkin", labelKey: "menuCheckinLabel", descKey: "menuCheckinDesc", icon: ClipboardList },
       { href: "/checkin/phq9", labelKey: "menuMoodLabel", descKey: "menuMoodDesc", icon: NotebookPen },
       { href: "/support", labelKey: "menuSupportLabel", descKey: "menuSupportDesc", icon: HandHeart },
-      { href: "/family", labelKey: "menuFamilyLabel", descKey: "menuFamilyDesc", icon: HandHeart }
+      { href: "/ladder", labelKey: "menuFamilyLabel", descKey: "menuFamilyDesc", icon: HandHeart }
     ]
   },
   {

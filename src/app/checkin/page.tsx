@@ -183,7 +183,7 @@ export default function CheckinPage() {
 
         {state.family ? (
           <section className="rounded-control border border-ink/10 bg-white p-5">
-            <Link className="text-lg font-semibold text-care underline" href="/family">
+            <Link className="text-lg font-semibold text-care underline" href="/ladder">
               {copy.family}
             </Link>
             <p className="mt-2 text-sm text-ink/70">{copy.familyBody}</p>
