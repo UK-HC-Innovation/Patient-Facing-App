@@ -107,6 +107,8 @@ export type HealthAction =
 function emptyFamilyState(profile: FamilyProfile | null): FamilyNavigatorState {
   return {
     profile,
+    referral: null,
+    appointments: [],
     safetyEvents: [],
     recommendations: null,
     interviewDraft: "",

@@ -377,6 +377,36 @@ export type SavedFamilyResource = {
   domain: DevNeedDomain;
 };
 
+export type FamilyReferral = {
+  clinic: string;
+  referredAt: string;
+};
+
+export type FamilyAppointmentBarrier = "ride" | "sibling_care" | "work_schedule" | "none";
+
+export type FamilyReminderOffset = "t14" | "t3" | "t1";
+
+export type FamilyAppointmentReminderAck = {
+  offset: FamilyReminderOffset;
+  acknowledgedAt: string;
+};
+
+export type FamilyAppointmentStatus = "offered" | "booked" | "confirmed" | "completed" | "missed";
+
+// One evaluation visit at the developmental-peds clinic. Missed visits are
+// terminal; recovery appends a fresh appointment rather than mutating history.
+export type FamilyAppointment = {
+  id: string;
+  clinic: string;
+  offeredSlots: string[];
+  scheduledFor?: string;
+  status: FamilyAppointmentStatus;
+  barriers: FamilyAppointmentBarrier[];
+  barriersAsked: boolean;
+  reminderAcks: FamilyAppointmentReminderAck[];
+  createdAt: string;
+};
+
 // A safety disclosure inside the family thread. The navigator shows the standard
 // crisis resources and keeps helping — this record is what holds the banner open
 // (and every voice mic closed) until the caregiver acknowledges it.
@@ -409,6 +439,8 @@ export type FamilyRecommendationSet = {
 
 export type FamilyNavigatorState = {
   profile: FamilyProfile | null;
+  referral: FamilyReferral | null;
+  appointments: FamilyAppointment[];
   safetyEvents: FamilySafetyEvent[];
   recommendations: FamilyRecommendationSet | null;
   interviewDraft: string;

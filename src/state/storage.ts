@@ -917,6 +917,8 @@ function sanitizeFamilyNavigatorState(value: unknown): FamilyNavigatorState | nu
 
   return {
     profile,
+    referral: null,
+    appointments: [],
     safetyEvents: Array.isArray(value.safetyEvents) ? value.safetyEvents.filter(isFamilySafetyEvent) : [],
     recommendations: sanitizeFamilyRecommendations(value.recommendations),
     interviewDraft: typeof value.interviewDraft === "string" ? value.interviewDraft : "",

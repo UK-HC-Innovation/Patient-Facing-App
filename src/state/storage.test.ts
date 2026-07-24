@@ -24,6 +24,8 @@ describe("storage", () => {
         { id: "diagnosis-adhd", label: "adhd" }
       ]
     },
+    referral: null,
+    appointments: [],
     safetyEvents: [],
     recommendations: null,
     interviewDraft: "Riley is in fourth grade.",
@@ -1280,6 +1282,8 @@ describe("P4 assessment storage", () => {
       county: "Fayette",
       diagnoses: []
     },
+    referral: null,
+    appointments: [],
     safetyEvents: [],
     recommendations: null,
     interviewDraft: "",

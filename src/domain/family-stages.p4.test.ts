@@ -16,6 +16,8 @@ function familyAt(ageMonths: number): FamilyNavigatorState {
   };
   return {
     profile,
+    referral: null,
+    appointments: [],
     safetyEvents: [],
     recommendations: null,
     interviewDraft: "",

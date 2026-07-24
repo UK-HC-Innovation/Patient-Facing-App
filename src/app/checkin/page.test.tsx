@@ -50,6 +50,8 @@ describe("screening hub", () => {
       patient: { ...demoState.patient, language: "es" },
       family: {
         profile: null,
+        referral: null,
+        appointments: [],
         safetyEvents: [],
         recommendations: null,
         interviewDraft: "",
@@ -322,6 +324,8 @@ describe("screening hub", () => {
           county: "Fayette",
           diagnoses: []
         },
+        referral: null,
+        appointments: [],
         safetyEvents: [],
         recommendations: null,
         interviewDraft: "",
@@ -367,6 +371,8 @@ describe("screening hub", () => {
         county: "Fayette",
         diagnoses: []
       },
+      referral: null,
+      appointments: [],
       safetyEvents: [],
       recommendations: null,
       interviewDraft: "",
