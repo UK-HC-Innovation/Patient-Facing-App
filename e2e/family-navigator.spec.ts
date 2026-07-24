@@ -164,8 +164,8 @@ test(`golden path works on ordinary caregiver wording: ${PARENT_DESCRIPTION}`, a
   });
   await page.goto("/family?k=demo-passcode");
 
-  await expect(page.getByRole("heading", { name: "Your child's development", level: 1 })).toBeVisible();
-  await expect(page.getByText(/Demo.*not an official service/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ladder — your child's development", level: 1 })).toBeVisible();
+  await expect(page.getByText("UKHCI Ladder · concept demo — not an official service")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Tell us about your child and their needs" })).toBeVisible();
   await fillBasics(page, {
     county: "Scott",
@@ -403,16 +403,16 @@ test("demo timeline control backdates diagnosis data and advances staged nudges 
   expect(await page.evaluate(() => Date.now())).toBe(FROZEN_NOW.valueOf());
 });
 
-test("Your child's development is reachable from both Menu and the home composer", async ({ page }) => {
+test("Ladder is reachable from both Menu and the home composer", async ({ page }) => {
   await page.goto("/menu");
 
-  await page.getByRole("link", { name: /^Your child's development/ }).click();
-  await expect(page.getByRole("heading", { name: "Your child's development", level: 1 })).toBeVisible();
+  await page.getByRole("link", { name: /^Ladder — your child's development/ }).click();
+  await expect(page.getByRole("heading", { name: "Ladder — your child's development", level: 1 })).toBeVisible();
 
   await page.goto("/today");
   await page.getByLabel("Tell me what you need").fill("help for my daughter");
   await page.getByRole("button", { name: "Send" }).click();
-  await expect(page.getByRole("heading", { name: "Your child's development", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ladder — your child's development", level: 1 })).toBeVisible();
 });
 
 test(`Safety phrase raises the banner in-thread and never reaches the network: ${SAFETY_PHRASE}`, async ({

@@ -117,8 +117,10 @@ describe("familyStrings", () => {
   });
 
   it("keeps the demo honest and interpolates family copy", () => {
-    expect(tFamily("en", "demoBadge")).toBe("Demo — not an official service");
-    expect(tFamily("es", "demoBadge")).toBe("Demo — no es un servicio oficial");
+    expect(tFamily("en", "pageTitle")).toBe("Ladder — your child's development");
+    expect(tFamily("es", "pageTitle")).toBe("Ladder — el desarrollo de tu hijo o hija");
+    expect(tFamily("en", "demoBadge")).toBe("UKHCI Ladder · concept demo — not an official service");
+    expect(tFamily("es", "demoBadge")).toBe("UKHCI Ladder · demo conceptual — no es un servicio oficial");
     expect(tFamily("en", "interviewCount", { count: 42, max: 5000 })).toBe("42 of 5000 characters");
     expect(familyStrings.en.intro).toMatch(/cannot say what your child has/i);
     expect(familyStrings.en.intro).toMatch(/cannot decide what you qualify for/i);

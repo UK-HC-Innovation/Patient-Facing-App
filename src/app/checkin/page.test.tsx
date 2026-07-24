@@ -41,7 +41,7 @@ describe("screening hub", () => {
     expect(screen.getByRole("heading", { name: "Quick check" }).closest("section")).toHaveTextContent("Demo preview");
     expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
     expect(screen.getByRole("region", { name: "History" })).toHaveTextContent("No completed check-ins yet.");
-    expect(screen.queryByRole("link", { name: "Family support" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Ladder — family support" })).not.toBeInTheDocument();
   });
 
   it("localizes the hub, conditionally shows family support, and orders history newest first", () => {
@@ -88,7 +88,7 @@ describe("screening hub", () => {
     render(<CheckinPage />);
 
     expect(screen.getByRole("heading", { name: "Centro de chequeos" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "Apoyo familiar" })).toHaveAttribute("href", "/family");
+    expect(screen.getByRole("link", { name: "Ladder — apoyo familiar" })).toHaveAttribute("href", "/family");
     const history = screen.getByRole("region", { name: "Historial" });
     const entries = within(history).getAllByRole("listitem");
     const dates = within(history).getAllByText(/2026/).map((element) => element.getAttribute("dateTime"));

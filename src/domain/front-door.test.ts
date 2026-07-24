@@ -110,7 +110,7 @@ describe("decideFrontDoor — deterministic navigation (English)", () => {
       expect(decideFrontDoor(utterance, en)).toEqual({
         kind: "navigate",
         href: "/family",
-        label: "Your child's development"
+        label: "Ladder — your child's development"
       });
     }
   );
@@ -139,7 +139,7 @@ describe("decideFrontDoor — deterministic navigation (English)", () => {
     expect(decideFrontDoor("help my child find developmental resources", en)).toEqual({
       kind: "navigate",
       href: "/family",
-      label: "Your child's development"
+      label: "Ladder — your child's development"
     });
   });
 
@@ -220,7 +220,7 @@ describe("decideFrontDoor — Spanish", () => {
     expect(decideFrontDoor("servicios para mi hijo", es)).toEqual({
       kind: "navigate",
       href: "/family",
-      label: "El desarrollo de tu hijo o hija"
+      label: "Ladder — el desarrollo de tu hijo o hija"
     });
   });
 
@@ -236,7 +236,7 @@ describe("decideFrontDoor — Spanish", () => {
     expect(decideFrontDoor("ayuda a mi hija a encontrar recursos de desarrollo", es)).toEqual({
       kind: "navigate",
       href: "/family",
-      label: "El desarrollo de tu hijo o hija"
+      label: "Ladder — el desarrollo de tu hijo o hija"
     });
   });
 

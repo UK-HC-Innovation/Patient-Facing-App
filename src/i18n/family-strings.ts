@@ -254,8 +254,8 @@ export type FamilyStringKey =
 
 export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = {
   en: {
-    pageTitle: "Your child's development",
-    demoBadge: "Demo — not an official service",
+    pageTitle: "Ladder — your child's development",
+    demoBadge: "UKHCI Ladder · concept demo — not an official service",
     intro: "This tool focuses on your child's growth, learning, and development. We can point you to Kentucky programs that may help. We cannot say what your child has, and we cannot decide what you qualify for. Only the program can do that.",
     spanishReviewNotice: "The Spanish here is a rough draft. A native speaker still needs to check it.",
     setupTitle: "Add or change your child's details",
@@ -507,8 +507,8 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     timelineDevelopmentThirtyCta: "Open family check-ins"
   },
   es: {
-    pageTitle: "El desarrollo de tu hijo o hija",
-    demoBadge: "Demo — no es un servicio oficial",
+    pageTitle: "Ladder — el desarrollo de tu hijo o hija",
+    demoBadge: "UKHCI Ladder · demo conceptual — no es un servicio oficial",
     intro: "Esta herramienta se enfoca en el crecimiento, el aprendizaje y el desarrollo de tu hijo o hija. Podemos mostrarte programas de Kentucky que pueden ayudar. No podemos decir qué tiene tu hijo o hija, ni decidir para qué califican. Solo el programa puede hacer eso.",
     spanishReviewNotice: "El español aquí es un borrador. Todavía falta que lo revise una persona hablante nativa.",
     setupTitle: "Agrega o cambia los datos de tu hijo o hija",

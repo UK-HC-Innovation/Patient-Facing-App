@@ -22,7 +22,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/checkin": "Check-ins & screenings",
   "/checkin/phq9": "Mood check-in",
   "/support": "Support",
-  "/family": "Your child's development",
+  "/family": "Ladder — your child's development",
   "/intake": "Add Instructions",
   "/privacy": "Privacy",
   "/screening": "Eye Check",
@@ -51,7 +51,7 @@ const FAMILY_SDOH_ES = /\b(?:renta|alquiler|vivienda|servicios p[uú]blicos|fact
 // Verb rules land the patient on the real feature screen (chat proposes, the
 // form commits) — never a silent write. Checked before the broader nav lexicon.
 const VERB_RULES: NavRule[] = [
-  { test: /\b(help|support|resources?|services?)\b\s+(for|with)\s+(my|our)\s+(child|daughter|son|kid)\b/, href: "/family", label: "Your child's development" },
+  { test: /\b(help|support|resources?|services?)\b\s+(for|with)\s+(my|our)\s+(child|daughter|son|kid)\b/, href: "/family", label: "Ladder — your child's development" },
   { test: /\b(log|record|add|enter|save|track)\b.*\b(bp|blood pressure|reading|readings|systolic|pressure)\b/, href: "/numbers", label: "Log a blood pressure reading" },
   { test: /\b(log|record|add|enter|save|track|check)\b.*\b(blood sugar|glucose|a1c|sugar)\b/, href: "/glucose", label: "Log a blood sugar reading" },
   { test: /\b(took|take|taken|log|logged|mark)\b.*\b(medicine|medication|meds?|pill|pills|dose)\b/, href: "/medicines", label: "Your medicines" },
@@ -60,7 +60,7 @@ const VERB_RULES: NavRule[] = [
 ];
 
 const NAV_LEXICON: NavRule[] = [
-  { test: /\b(family navigator|(?:help|support|resources?|services?) (?:for|with) (?:my|our) (?:child|daughter|son|kid))\b/, href: "/family", label: "Your child's development" },
+  { test: /\b(family navigator|(?:help|support|resources?|services?) (?:for|with) (?:my|our) (?:child|daughter|son|kid))\b/, href: "/family", label: "Ladder — your child's development" },
   { test: /\b(numbers|blood pressure|readings)\b/, href: "/numbers", label: "My Numbers" },
   { test: /\b(blood sugar|glucose|a1c|glucometer)\b/, href: "/glucose", label: "My Blood Sugar" },
   { test: /\b(medicines?|medications?|pills?|meds)\b/, href: "/medicines", label: "My Medicines" },
@@ -82,7 +82,7 @@ const NAV_VERB = /\b(show|open|see|view|go to|take me to|where'?s|where is|bring
 // one; fuzzier es phrasings fall through to the multilingual live LLM classifier
 // (the English-synonym mock is skipped for es).
 const VERB_RULES_ES: NavRule[] = [
-  { test: /\b(ayuda|apoyo|recursos?|servicios?)\b\s+(para|con)\s+(mi|nuestro|nuestra)\s+(hij[oa]|niñ[oa])\b/, href: "/family", label: "El desarrollo de tu hijo o hija" },
+  { test: /\b(ayuda|apoyo|recursos?|servicios?)\b\s+(para|con)\s+(mi|nuestro|nuestra)\s+(hij[oa]|niñ[oa])\b/, href: "/family", label: "Ladder — el desarrollo de tu hijo o hija" },
   { test: /\b(registr|anot|apunt|guard|agreg)\w*\b.*\b(presi[oó]n|lectura|lecturas|sist[oó]lica)\b/, href: "/numbers", label: "Registrar una lectura de presión" },
   { test: /\b(registr|anot|apunt|guard|agreg)\w*\b.*\b(az[uú]car|glucosa)\b/, href: "/glucose", label: "Registrar tu azúcar en sangre" },
   { test: /\b(tom[eé]|tomad|tom[oó]|registr)\w*\b.*\b(medicina|medicamento|medicinas|medicamentos|pastilla|pastillas|p[ií]ldora|dosis)\b/, href: "/medicines", label: "Tus medicinas" },
@@ -91,7 +91,7 @@ const VERB_RULES_ES: NavRule[] = [
 ];
 
 const NAV_LEXICON_ES: NavRule[] = [
-  { test: /\b(navegador para familias|(?:ayuda|apoyo|recursos?|servicios?) (?:para|con) (?:mi|nuestro|nuestra) (?:hij[oa]|niñ[oa]))\b/, href: "/family", label: "El desarrollo de tu hijo o hija" },
+  { test: /\b(navegador para familias|(?:ayuda|apoyo|recursos?|servicios?) (?:para|con) (?:mi|nuestro|nuestra) (?:hij[oa]|niñ[oa]))\b/, href: "/family", label: "Ladder — el desarrollo de tu hijo o hija" },
   { test: /\b(n[uú]meros|presi[oó]n|lecturas?)\b/, href: "/numbers", label: "Mis Números" },
   { test: /\b(az[uú]car|glucosa)\b/, href: "/glucose", label: "Mi Azúcar en Sangre" },
   { test: /\b(medicinas?|medicamentos?|pastillas?|dosis)\b/, href: "/medicines", label: "Mis Medicinas" },
@@ -160,7 +160,7 @@ export function decideFrontDoor(
     return {
       kind: "navigate",
       href: "/family",
-      label: language === "es" ? "El desarrollo de tu hijo o hija" : "Your child's development"
+      label: language === "es" ? "Ladder — el desarrollo de tu hijo o hija" : "Ladder — your child's development"
     };
   }
 

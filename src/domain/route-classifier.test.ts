@@ -50,6 +50,7 @@ describe("mockRouteClassifier", () => {
   });
 
   it.each([
+    "ladder",
     "help for my daughter",
     "resources for my child",
     "support for my son",
