@@ -107,5 +107,57 @@ export const REGRESSION_CASES: RegressionCase[] = [
     language: "es",
     text: "Ya no aguanto tanto papeleo, necesito un respiro.",
     expectCue: false
+  },
+  // Gains wearing loss grammar. Every one of these fired before the branches were
+  // anchored to a named skill verb; each is a sentence a delighted caregiver would
+  // plausibly write during the wait, and each would have printed "Possible loss of
+  // skills" into the clinician's copy of the visit packet.
+  {
+    id: "used_to_hate_now_loves",
+    language: "en",
+    text: "He used to hate the bath but now he loves it.",
+    expectCue: false
+  },
+  {
+    id: "used_to_need_nap",
+    language: "en",
+    text: "She used to need a nap but now she doesn't.",
+    expectCue: false
+  },
+  {
+    id: "used_to_be_tiny",
+    language: "en",
+    text: "He used to be tiny and now he is huge.",
+    expectCue: false
+  },
+  {
+    id: "stopped_us_at_door",
+    language: "en",
+    text: "He stopped us at the door to say hi.",
+    expectCue: false
+  },
+  {
+    id: "no_longer_uses_diapers",
+    language: "en",
+    text: "He no longer uses diapers during the day.",
+    expectCue: false
+  },
+  {
+    id: "es_antes_lloraba",
+    language: "es",
+    text: "Antes lloraba mucho en la escuela y ya no.",
+    expectCue: false
+  },
+  {
+    id: "es_ya_no_berrinches",
+    language: "es",
+    text: "Ya no hace berrinches por la mañana.",
+    expectCue: false
+  },
+  {
+    id: "es_ya_no_panales",
+    language: "es",
+    text: "Ya no usa pañales durante el día.",
+    expectCue: false
   }
 ];

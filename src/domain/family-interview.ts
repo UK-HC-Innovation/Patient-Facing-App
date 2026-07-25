@@ -166,12 +166,22 @@ type ConcernCategory = {
 };
 
 // Skill regression is a "tell the clinic now" signal, not a crisis and not a
-// diagnosis. Verb-list patterns on purpose: "stopped talking" fires, "stopped
-// crying at drop-off" must not — the corpus in family-regression.corpus.ts is
-// the build-breaking contract.
+// diagnosis. Precision is the property being protected: a false "your child is
+// losing skills" is the most expensive sentence this app can say, and it lands
+// permanently in the packet a clinician reads.
+//
+// Every branch is anchored to BOTH a named skill verb and a loss direction, and
+// each spells out the verb forms that branch actually takes ("stopped talking",
+// "used to talk", "no longer talks"). Two rules earned by real misfires:
+//   - never a bare `\w+` verb slot — "used to hate the bath but now he loves it"
+//     is a gain, and an open slot cannot tell the difference;
+//   - never a self-care verb (use/usar, hace) — "no longer uses diapers" and
+//     "ya no usa pañales" are gains, not losses.
+// Recall deliberately loses to precision here; the check-in probe backstops the
+// phrasings these patterns miss. family-regression.corpus.ts is the contract.
 export const REGRESSION_CUES: Record<Language, RegExp> = {
-  en: /(?:stopped\s+(?:say|talk|walk|point|us|sign)\w*|lost\s+(?:words?|skills?|the\s+words?|his\s+words?|her\s+words?)|used\s+to\s+\w+(?:\s+\w+){0,3}\s+(?:but\s+)?(?:now|no\s+longer|doesn'?t|stopped)|no\s+longer\s+(?:say|talk|walk|point|sign|do)\w*|forgot\s+how\s+to)/i,
-  es: /(?:dej[oó]\s+de\s+(?:hablar|decir|caminar|señalar|usar)|perdi[oó]\s+(?:palabras|habilidades|las\s+palabras)|antes\s+\w+(?:\s+\w+){0,3}\s+y\s+ya\s+no|ya\s+no\s+(?:habla|dice|camina|señala|hace)|olvid[oó]\s+c[oó]mo)/i
+  en: /(?:stopped\s+(?:saying|talking|speaking|walking|pointing|signing|waving|babbling|crawling)\b|lost\s+(?:words?|skills?|the\s+words?|his\s+words?|her\s+words?)|used\s+to\s+(?:say|talk|speak|walk|point|sign|wave|babble|crawl)\b[^.]{0,40}?(?:no\s+longer|doesn'?t|does\s+not|don'?t|won'?t|can'?t|stopped|quit)|no\s+longer\s+(?:says?|talks?|speaks?|walks?|points?|signs?|waves?|babbles?|crawls?)\b|forgot\s+how\s+to)/i,
+  es: /(?:dej[oó]\s+de\s+(?:hablar|decir|caminar|señalar)\b|perdi[oó]\s+(?:palabras|habilidades|las\s+palabras)|antes\s+(?:hablaba|dec[ií]a|caminaba|señalaba|saludaba)\b[^.]{0,40}?ya\s+no\b|ya\s+no\s+(?:habla|dice|camina|señala)\b|olvid[oó]\s+c[oó]mo)/i
 };
 
 /** The caregiver's own sentence that reads as loss of an acquired skill. */
