@@ -375,7 +375,19 @@ export type FamilyStringKey =
   | "checkinDone"
   | "checkinDemoControl"
   | "guidesTitle"
-  | "guidesIntro";
+  | "guidesIntro"
+  | "soonerQuestion"
+  | "soonerYes"
+  | "soonerNo"
+  | "soonerMornings"
+  | "soonerAfternoons"
+  | "soonerAnyWeekday"
+  | "soonerNotice"
+  | "soonerConfirm"
+  | "soonerOnList"
+  | "soonerLeave"
+  | "soonerDemoCta"
+  | "soonerDecline";
 
 export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = {
   en: {
@@ -759,7 +771,20 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     checkinDone: "Thanks — see you next month.",
     checkinDemoControl: "Demo: pretend a month passed",
     guidesTitle: "Things to try at home",
-    guidesIntro: "Small, checked ideas for the meantime — from the sources named on each card."
+    guidesIntro: "Small, checked ideas for the meantime — from the sources named on each card.",
+    soonerQuestion:
+      "Cancellations happen. If an earlier time opened up, could you take it on short notice?",
+    soonerYes: "Yes, put us on the list",
+    soonerNo: "No thanks",
+    soonerMornings: "Weekday mornings",
+    soonerAfternoons: "Weekday afternoons",
+    soonerAnyWeekday: "Any weekday",
+    soonerNotice: "We need 2+ days' notice",
+    soonerConfirm: "Add us",
+    soonerOnList: "On the earlier-visit list — you can leave any time.",
+    soonerLeave: "Leave the list",
+    soonerDemoCta: "An earlier opening appeared (demo)",
+    soonerDecline: "Keep our current time"
   },
   es: {
     pageTitle: "Ladder — el desarrollo de tu hijo o hija",
@@ -1143,7 +1168,20 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     checkinDemoControl: "Demo: imagina que pasó un mes",
     guidesTitle: "Cosas para probar en casa",
     guidesIntro:
-      "Ideas pequeñas y verificadas para mientras tanto — de las fuentes que aparecen en cada tarjeta."
+      "Ideas pequeñas y verificadas para mientras tanto — de las fuentes que aparecen en cada tarjeta.",
+    soonerQuestion:
+      "A veces hay cancelaciones. Si se abriera un horario más temprano, ¿podrían tomarlo con poco aviso?",
+    soonerYes: "Sí, anótanos en la lista",
+    soonerNo: "No, gracias",
+    soonerMornings: "Mañanas entre semana",
+    soonerAfternoons: "Tardes entre semana",
+    soonerAnyWeekday: "Cualquier día entre semana",
+    soonerNotice: "Necesitamos 2+ días de aviso",
+    soonerConfirm: "Anótanos",
+    soonerOnList: "En la lista de visita anticipada — puedes salirte cuando quieras.",
+    soonerLeave: "Salir de la lista",
+    soonerDemoCta: "Se abrió un lugar antes (demo)",
+    soonerDecline: "Mantener nuestro horario"
   }
 };
 

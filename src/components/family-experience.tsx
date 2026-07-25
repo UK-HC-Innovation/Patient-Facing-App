@@ -28,6 +28,7 @@ import { FamilyWaitHeader } from "@/components/family-wait-header";
 import { recordAuditEvent } from "@/domain/audit";
 import {
   createFamilyAppointmentOffer,
+  createSoonerAppointmentOffer,
   FAMILY_APPOINTMENT_CLINIC,
   type FamilyAppointmentCountdownDays
 } from "@/domain/family-appointments";
@@ -72,6 +73,7 @@ import type {
   FamilyReminderOffset,
   FamilyResourceStep,
   FamilyScreenAnswer,
+  FamilySoonerConstraint,
   FamilyStepStatus
 } from "@/domain/types";
 import { tFamily, type FamilyStringKey } from "@/i18n/family-strings";
@@ -957,6 +959,30 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
               appointmentId,
               daysUntil,
               now: new Date().toISOString()
+            })
+          }
+          onJoinSoonerList={(constraints: FamilySoonerConstraint[]) =>
+            dispatch({
+              type: "setFamilySoonerList",
+              soonerList: { optedInAt: new Date().toISOString(), constraints }
+            })
+          }
+          onLeaveSoonerList={() => dispatch({ type: "clearFamilySoonerList" })}
+          onSoonerOffer={() => {
+            const soonerList = family.soonerList;
+            if (soonerList === null) {
+              return;
+            }
+            dispatch({
+              type: "offerFamilyAppointment",
+              appointment: createSoonerAppointmentOffer(new Date(), soonerList.constraints)
+            });
+          }}
+          onDeclineSoonerOffer={(appointmentId) =>
+            dispatch({
+              type: "withdrawFamilyAppointmentOffer",
+              appointmentId,
+              at: new Date().toISOString()
             })
           }
         />

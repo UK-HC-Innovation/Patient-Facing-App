@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { brentState, demoState } from "@/domain/fixtures";
 import { schoolAgeFamilyState } from "@/domain/family-fixtures";
-import { buildDemoSlotOffers, createFamilyAppointmentOffer } from "@/domain/family-appointments";
+import {
+  buildDemoSlotOffers,
+  createFamilyAppointmentOffer,
+  createSoonerAppointmentOffer
+} from "@/domain/family-appointments";
 import { checkInDue } from "@/domain/family-journey";
 import { recordAuditEvent } from "@/domain/audit";
 import { healthReducer } from "./store";
@@ -12,6 +16,7 @@ import type {
   FamilyInterview,
   FamilyPulse,
   FamilyScreenAnswer,
+  FamilySoonerList,
   FamilyStepStatus,
   GlucoseReading,
   SavedFamilyResource
@@ -1634,5 +1639,120 @@ describe("family appointment actions", () => {
     });
 
     expect(moved.family?.appointments.at(-1)?.scheduledFor).toBe("2026-07-25T12:00:00.000Z");
+  });
+
+  it("joins and leaves the earlier-visit list, refusing incoherent constraint sets", () => {
+    const { state } = stateWithOffer();
+    const invalid: FamilySoonerList[] = [
+      { optedInAt: NOW, constraints: [] },
+      { optedInAt: NOW, constraints: ["weekday_mornings", "weekday_mornings"] },
+      { optedInAt: NOW, constraints: ["saturday_mornings" as never] },
+      { optedInAt: "2026-07-24", constraints: ["any_weekday"] }
+    ];
+    for (const soonerList of invalid) {
+      const rejected = healthReducer(state, { type: "setFamilySoonerList", soonerList });
+      expect(rejected, JSON.stringify(soonerList)).toBe(state);
+      expect(rejected.auditEvents, JSON.stringify(soonerList)).toBe(state.auditEvents);
+    }
+    expect(healthReducer(state, { type: "clearFamilySoonerList" })).toBe(state);
+
+    const soonerList: FamilySoonerList = {
+      optedInAt: NOW,
+      constraints: ["weekday_mornings", "needs_notice"]
+    };
+    const joined = healthReducer(state, { type: "setFamilySoonerList", soonerList });
+    expect(joined.family?.soonerList).toEqual(soonerList);
+    expect(joined.auditEvents.at(-1)?.label).toBe("Family earlier-visit list joined");
+
+    const left = healthReducer(joined, { type: "clearFamilySoonerList" });
+    expect(left.family?.soonerList).toBeNull();
+    expect(left.auditEvents.at(-1)?.label).toBe("Family earlier-visit list left");
+    expect(healthReducer(left, { type: "clearFamilySoonerList" })).toBe(left);
+  });
+
+  it("never lists a family that has no referral", () => {
+    const base: AppState = { ...demoState, family: schoolAgeFamilyState };
+    expect(base.family?.referral).toBeNull();
+    expect(
+      healthReducer(base, {
+        type: "setFamilySoonerList",
+        soonerList: { optedInAt: NOW, constraints: ["any_weekday"] }
+      })
+    ).toBe(base);
+    expect(
+      healthReducer(
+        { ...demoState, family: null },
+        { type: "setFamilySoonerList", soonerList: { optedInAt: NOW, constraints: ["any_weekday"] } }
+      ).family
+    ).toBeNull();
+  });
+
+  it("backfills an earlier offer over a live booking only for a listed family", () => {
+    const { state, offer } = stateWithOffer();
+    const booked = bookFirstOffer(state, offer);
+    const sooner = createSoonerAppointmentOffer(new Date(NOW), ["weekday_mornings"]);
+
+    expect(healthReducer(booked, { type: "offerFamilyAppointment", appointment: sooner })).toBe(booked);
+
+    const listed = healthReducer(booked, {
+      type: "setFamilySoonerList",
+      soonerList: { optedInAt: NOW, constraints: ["weekday_mornings"] }
+    });
+    const offered = healthReducer(listed, { type: "offerFamilyAppointment", appointment: sooner });
+    expect(offered.family?.appointments).toHaveLength(2);
+    expect(offered.family?.appointments.at(-1)?.id).toBe(sooner.id);
+    expect(offered.family?.appointments.at(-1)?.offeredSlots).toHaveLength(1);
+
+    const rebooked = healthReducer(offered, {
+      type: "bookFamilyAppointment",
+      appointmentId: sooner.id,
+      slot: sooner.offeredSlots[0],
+      at: NOW
+    });
+    expect(rebooked.family?.appointments.at(-1)?.status).toBe("booked");
+    expect(rebooked.family?.appointments.at(-1)?.scheduledFor).toBe(sooner.offeredSlots[0]);
+    expect(new Date(sooner.offeredSlots[0]).valueOf()).toBeLessThan(
+      new Date(offer.offeredSlots[0]).valueOf()
+    );
+  });
+
+  it("withdraws only an unbooked offer, handing the prior booking back untouched", () => {
+    const { state, offer } = stateWithOffer();
+    const booked = bookFirstOffer(state, offer);
+    const listed = healthReducer(booked, {
+      type: "setFamilySoonerList",
+      soonerList: { optedInAt: NOW, constraints: ["weekday_mornings"] }
+    });
+    const sooner = createSoonerAppointmentOffer(new Date(NOW), ["weekday_mornings"]);
+    const offered = healthReducer(listed, { type: "offerFamilyAppointment", appointment: sooner });
+
+    const refused: HealthAction[] = [
+      { type: "withdrawFamilyAppointmentOffer", appointmentId: offer.id, at: NOW },
+      { type: "withdrawFamilyAppointmentOffer", appointmentId: "missing", at: NOW },
+      { type: "withdrawFamilyAppointmentOffer", appointmentId: sooner.id, at: "2026-07-24" },
+      {
+        type: "withdrawFamilyAppointmentOffer",
+        appointmentId: sooner.id,
+        at: new Date(new Date(NOW).valueOf() - DAY_MS).toISOString()
+      }
+    ];
+    for (const action of refused) {
+      const rejected = healthReducer(offered, action);
+      expect(rejected, JSON.stringify(action)).toBe(offered);
+      expect(rejected.auditEvents, JSON.stringify(action)).toBe(offered.auditEvents);
+    }
+
+    const withdrawn = healthReducer(offered, {
+      type: "withdrawFamilyAppointmentOffer",
+      appointmentId: sooner.id,
+      at: NOW
+    });
+    expect(withdrawn.family?.appointments).toHaveLength(1);
+    const active = withdrawn.family?.appointments.at(-1);
+    expect(active?.id).toBe(offer.id);
+    expect(active?.status).toBe("booked");
+    expect(active?.scheduledFor).toBe(offer.offeredSlots[0]);
+    expect(withdrawn.family?.soonerList?.constraints).toEqual(["weekday_mornings"]);
+    expect(withdrawn.auditEvents.at(-1)?.label).toBe("Earlier-visit offer declined (demo)");
   });
 });

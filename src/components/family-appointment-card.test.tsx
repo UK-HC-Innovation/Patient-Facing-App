@@ -2,11 +2,31 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
-import { createFamilyAppointmentOffer } from "@/domain/family-appointments";
-import type { FamilyAppointment, FamilyNavigatorState } from "@/domain/types";
+import {
+  createFamilyAppointmentOffer,
+  createSoonerAppointmentOffer,
+  formatFamilySlot
+} from "@/domain/family-appointments";
+import type { FamilyAppointment, FamilyNavigatorState, FamilySoonerList } from "@/domain/types";
 import { FamilyAppointmentCard } from "./family-appointment-card";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+const ON_LIST: FamilySoonerList = {
+  optedInAt: new Date().toISOString(),
+  constraints: ["weekday_mornings"]
+};
+
+function quietBooking(overrides: Partial<FamilyAppointment> = {}): FamilyAppointment {
+  return {
+    ...createFamilyAppointmentOffer(new Date()),
+    status: "booked",
+    scheduledFor: new Date(Date.now() + 20 * DAY_MS).toISOString(),
+    barriersAsked: true,
+    barriers: ["none"],
+    ...overrides
+  };
+}
 
 function familyState(overrides: Partial<FamilyNavigatorState>): FamilyNavigatorState {
   return {
@@ -48,7 +68,11 @@ function handlers() {
     onComplete: vi.fn(),
     onMiss: vi.fn(),
     onRebook: vi.fn(),
-    onCountdown: vi.fn()
+    onCountdown: vi.fn(),
+    onJoinSoonerList: vi.fn(),
+    onLeaveSoonerList: vi.fn(),
+    onSoonerOffer: vi.fn(),
+    onDeclineSoonerOffer: vi.fn()
   };
 }
 
@@ -269,6 +293,193 @@ describe("FamilyAppointmentCard", () => {
       "anything that could make it hard"
     );
     expect(screen.getByText("UKHCI Ladder · concept demo — not an official service")).toBeVisible();
+  });
+
+  it("opts into the earlier-visit list with exactly the constraints picked", async () => {
+    const callbacks = handlers();
+    render(
+      <FamilyAppointmentCard
+        family={familyState({ appointments: [quietBooking()] })}
+        language="en"
+        locked={false}
+        {...callbacks}
+      />
+    );
+
+    expect(screen.getByTestId("family-sooner-turn")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Yes, put us on the list" }));
+
+    const confirm = screen.getByRole("button", { name: "Add us" });
+    expect(confirm).toBeDisabled();
+    const mornings = screen.getByRole("button", { name: "Weekday mornings" });
+    expect(mornings).toHaveAttribute("aria-pressed", "false");
+
+    await userEvent.click(mornings);
+    await userEvent.click(screen.getByRole("button", { name: "We need 2+ days' notice" }));
+    await userEvent.click(screen.getByRole("button", { name: "Any weekday" }));
+    await userEvent.click(screen.getByRole("button", { name: "Any weekday" }));
+
+    expect(mornings).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Any weekday" })).toHaveAttribute("aria-pressed", "false");
+    expect(confirm).toBeEnabled();
+
+    await userEvent.click(confirm);
+    expect(callbacks.onJoinSoonerList).toHaveBeenCalledWith(["weekday_mornings", "needs_notice"]);
+  });
+
+  it("stops asking for this visit after 'No thanks' without storing a refusal", async () => {
+    const callbacks = handlers();
+    render(
+      <FamilyAppointmentCard
+        family={familyState({ appointments: [quietBooking()] })}
+        language="en"
+        locked={false}
+        {...callbacks}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "No thanks" }));
+
+    expect(screen.queryByTestId("family-sooner-turn")).not.toBeInTheDocument();
+    expect(callbacks.onJoinSoonerList).not.toHaveBeenCalled();
+    expect(callbacks.onLeaveSoonerList).not.toHaveBeenCalled();
+  });
+
+  it("keeps the earlier-visit ask out of every state that already has a question open", () => {
+    const props = { language: "en" as const, ...handlers() };
+    const booking = quietBooking();
+    const { rerender } = render(
+      <FamilyAppointmentCard family={familyState({ appointments: [booking] })} locked={false} {...props} />
+    );
+    expect(screen.getByTestId("family-sooner-turn")).toBeVisible();
+
+    rerender(
+      <FamilyAppointmentCard family={familyState({ appointments: [booking] })} locked={true} {...props} />
+    );
+    expect(screen.queryByTestId("family-sooner-turn")).not.toBeInTheDocument();
+
+    const unanswered = { ...booking, barriersAsked: false, barriers: [] };
+    rerender(
+      <FamilyAppointmentCard family={familyState({ appointments: [unanswered] })} locked={false} {...props} />
+    );
+    expect(screen.queryByTestId("family-sooner-turn")).not.toBeInTheDocument();
+
+    const reminderDue = { ...booking, scheduledFor: new Date(Date.now() + 0.5 * DAY_MS).toISOString() };
+    rerender(
+      <FamilyAppointmentCard family={familyState({ appointments: [reminderDue] })} locked={false} {...props} />
+    );
+    expect(screen.getByTestId("family-appt-reminder")).toBeVisible();
+    expect(screen.queryByTestId("family-sooner-turn")).not.toBeInTheDocument();
+
+    const past = { ...booking, scheduledFor: new Date(Date.now() - 0.5 * DAY_MS).toISOString() };
+    rerender(
+      <FamilyAppointmentCard family={familyState({ appointments: [past] })} locked={false} {...props} />
+    );
+    expect(screen.getByTestId("family-appt-overdue")).toBeVisible();
+    expect(screen.queryByTestId("family-sooner-turn")).not.toBeInTheDocument();
+  });
+
+  it("swaps the ask for a one-tap leave line and unlocks the demo backfill once listed", async () => {
+    const callbacks = handlers();
+    render(
+      <FamilyAppointmentCard
+        family={familyState({ appointments: [quietBooking()], soonerList: ON_LIST })}
+        language="en"
+        locked={false}
+        {...callbacks}
+      />
+    );
+
+    expect(screen.queryByTestId("family-sooner-turn")).not.toBeInTheDocument();
+    expect(screen.getByText("On the earlier-visit list — you can leave any time.")).toBeVisible();
+
+    await userEvent.click(screen.getByRole("button", { name: "Demo: move the visit closer" }));
+    const demoCta = screen.getByRole("button", { name: "An earlier opening appeared (demo)" });
+    expect(demoCta).toBeEnabled();
+    await userEvent.click(demoCta);
+    expect(callbacks.onSoonerOffer).toHaveBeenCalledOnce();
+
+    await userEvent.click(screen.getByRole("button", { name: "Leave the list" }));
+    expect(callbacks.onLeaveSoonerList).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the demo backfill disabled until the family is on the list", async () => {
+    render(
+      <FamilyAppointmentCard
+        family={familyState({ appointments: [quietBooking()] })}
+        language="en"
+        locked={false}
+        {...handlers()}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Demo: move the visit closer" }));
+    expect(screen.getByRole("button", { name: "An earlier opening appeared (demo)" })).toBeDisabled();
+  });
+
+  it("offers the single earlier slot and lets the family keep the time they have", async () => {
+    const callbacks = handlers();
+    const booking = quietBooking();
+    const sooner = createSoonerAppointmentOffer(new Date(), ["weekday_mornings"]);
+    render(
+      <FamilyAppointmentCard
+        family={familyState({ appointments: [booking, sooner], soonerList: ON_LIST })}
+        language="en"
+        locked={false}
+        {...callbacks}
+      />
+    );
+
+    const slotLabel = formatFamilySlot(sooner.offeredSlots[0], "en");
+    await userEvent.click(screen.getByRole("button", { name: slotLabel }));
+    expect(callbacks.onBook).toHaveBeenCalledWith(sooner.id, sooner.offeredSlots[0]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Keep our current time" }));
+    expect(callbacks.onDeclineSoonerOffer).toHaveBeenCalledWith(sooner.id);
+    expect(callbacks.onMiss).not.toHaveBeenCalled();
+    expect(callbacks.onReschedule).not.toHaveBeenCalled();
+  });
+
+  it("hides the keep-our-time control on a first offer that replaces nothing", () => {
+    render(
+      <FamilyAppointmentCard
+        family={familyState({ appointments: [createFamilyAppointmentOffer(new Date())] })}
+        language="en"
+        locked={false}
+        {...handlers()}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Keep our current time" })).not.toBeInTheDocument();
+  });
+
+  it("renders the earlier-visit turn in Spanish with reachable tap targets", async () => {
+    render(
+      <FamilyAppointmentCard
+        family={familyState({ appointments: [quietBooking()] })}
+        language="es"
+        locked={false}
+        {...handlers()}
+      />
+    );
+
+    expect(
+      screen.getByText(
+        "A veces hay cancelaciones. Si se abriera un horario más temprano, ¿podrían tomarlo con poco aviso?"
+      )
+    ).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Sí, anótanos en la lista" }));
+    for (const label of [
+      "Mañanas entre semana",
+      "Tardes entre semana",
+      "Cualquier día entre semana",
+      "Necesitamos 2+ días de aviso",
+      "Anótanos"
+    ]) {
+      const control = screen.getByRole("button", { name: label });
+      expect(control.className).toContain("min-h-12");
+      expect(control.className).toContain("focus-visible:outline-care");
+    }
   });
 
   it("renders the missed-recovery turn in Spanish", () => {

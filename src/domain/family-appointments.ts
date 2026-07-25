@@ -3,7 +3,8 @@ import type {
   DevNeedDomain,
   FamilyAppointment,
   FamilyAppointmentBarrier,
-  FamilyReminderOffset
+  FamilyReminderOffset,
+  FamilySoonerConstraint
 } from "./types";
 
 export const FAMILY_APPOINTMENT_CLINIC = "UK Developmental Pediatrics";
@@ -47,6 +48,24 @@ export function createFamilyAppointmentOffer(now: Date): FamilyAppointment {
     reminderAcks: [],
     createdAt: now.toISOString()
   };
+}
+
+// A cancellation backfill (demo): one near slot that matches what the family said
+// they could take. Weekends are stepped over so a "weekday mornings" list is never
+// offered a Sunday — the label has to stay true, even in a demo.
+export function createSoonerAppointmentOffer(
+  now: Date,
+  constraints: FamilySoonerConstraint[]
+): FamilyAppointment {
+  const daysOut = constraints.includes("needs_notice") ? 3 : 2;
+  const hour =
+    constraints.includes("weekday_afternoons") && !constraints.includes("weekday_mornings") ? 14 : 9;
+  const slot = new Date(now.valueOf() + daysOut * DAY_MS);
+  slot.setHours(hour, 30, 0, 0);
+  while (slot.getDay() === 0 || slot.getDay() === 6) {
+    slot.setDate(slot.getDate() + 1);
+  }
+  return { ...createFamilyAppointmentOffer(now), offeredSlots: [slot.toISOString()] };
 }
 
 export function activeFamilyAppointment(

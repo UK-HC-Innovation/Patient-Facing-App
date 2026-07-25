@@ -13,7 +13,8 @@ import type {
   FamilyAppointment,
   FamilyAppointmentBarrier,
   FamilyNavigatorState,
-  FamilyReminderOffset
+  FamilyReminderOffset,
+  FamilySoonerConstraint
 } from "@/domain/types";
 import { tFamily, type FamilyStringKey } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
@@ -35,6 +36,13 @@ const BARRIER_OPTIONS: ReadonlyArray<{ value: FamilyAppointmentBarrier; key: Fam
   { value: "sibling_care", key: "apptBarrierSiblings" },
   { value: "work_schedule", key: "apptBarrierWork" },
   { value: "none", key: "apptBarrierNone" }
+];
+
+const SOONER_OPTIONS: ReadonlyArray<{ value: FamilySoonerConstraint; key: FamilyStringKey }> = [
+  { value: "weekday_mornings", key: "soonerMornings" },
+  { value: "weekday_afternoons", key: "soonerAfternoons" },
+  { value: "any_weekday", key: "soonerAnyWeekday" },
+  { value: "needs_notice", key: "soonerNotice" }
 ];
 
 const COUNTDOWN_KEYS: Record<FamilyAppointmentCountdownDays, FamilyStringKey> = {
@@ -64,7 +72,11 @@ export function FamilyAppointmentCard({
   onComplete,
   onMiss,
   onRebook,
-  onCountdown
+  onCountdown,
+  onJoinSoonerList,
+  onLeaveSoonerList,
+  onSoonerOffer,
+  onDeclineSoonerOffer
 }: {
   family: FamilyNavigatorState;
   language: Language;
@@ -78,8 +90,17 @@ export function FamilyAppointmentCard({
   onMiss: (appointmentId: string) => void;
   onRebook: () => void;
   onCountdown: (appointmentId: string, daysUntil: FamilyAppointmentCountdownDays) => void;
+  onJoinSoonerList: (constraints: FamilySoonerConstraint[]) => void;
+  onLeaveSoonerList: () => void;
+  onSoonerOffer: () => void;
+  onDeclineSoonerOffer: (appointmentId: string) => void;
 }) {
   const [demoControlFor, setDemoControlFor] = useState<string | null>(null);
+  // Session-only: "No thanks" quiets the ask for this visit. A refusal is never
+  // stored — re-offering next session is honest, and the family may have moved.
+  const [soonerRefused, setSoonerRefused] = useState(false);
+  const [soonerPicking, setSoonerPicking] = useState(false);
+  const [soonerPicks, setSoonerPicks] = useState<FamilySoonerConstraint[]>([]);
   const now = new Date();
   const appointment = activeFamilyAppointment(family.appointments);
   const reminder = appointment ? dueFamilyReminder(appointment, now) : null;
@@ -92,6 +113,109 @@ export function FamilyAppointmentCard({
 
   const primaryButton = `min-h-12 min-w-0 break-words rounded-control bg-care px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`;
   const secondaryButton = `min-h-12 min-w-0 break-words rounded-control border border-care/30 bg-care/5 px-4 py-2 text-left font-semibold text-care disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`;
+
+  // A backfill offer sits on top of a still-booked visit — that prior entry is what
+  // declining hands back, so its presence is what makes this offer an *earlier* one.
+  const priorBooking =
+    appointment?.status === "offered" ? family.appointments.at(-2) : undefined;
+  const soonerOffer =
+    priorBooking !== undefined &&
+    (priorBooking.status === "booked" || priorBooking.status === "confirmed") &&
+    priorBooking.scheduledFor !== undefined;
+
+  // One ask at a time: the earlier-visit turn only speaks in the card's quiet
+  // states — never over the barriers question, a due reminder, or an overdue visit.
+  const soonerQuiet =
+    !locked &&
+    family.referral !== null &&
+    appointment !== undefined &&
+    (appointment.status === "offered" ||
+      ((appointment.status === "booked" || appointment.status === "confirmed") &&
+        appointment.barriersAsked &&
+        !reminder &&
+        !overdue));
+
+  function toggleSoonerPick(value: FamilySoonerConstraint): void {
+    setSoonerPicks((picks) =>
+      picks.includes(value) ? picks.filter((pick) => pick !== value) : [...picks, value]
+    );
+  }
+
+  function soonerBlock(): React.ReactNode {
+    if (!soonerQuiet) {
+      return null;
+    }
+    if (family.soonerList !== null) {
+      return ladderTurn(
+        <div data-testid="family-sooner-status">
+          <p className="break-words text-sm leading-6">{tFamily(language, "soonerOnList")}</p>
+          <button
+            type="button"
+            disabled={locked}
+            onClick={onLeaveSoonerList}
+            className={`mt-3 ${secondaryButton}`}
+          >
+            {tFamily(language, "soonerLeave")}
+          </button>
+        </div>,
+        "sooner-status"
+      );
+    }
+    if (soonerRefused) {
+      return null;
+    }
+    return ladderTurn(
+      <div data-testid="family-sooner-turn">
+        <p className="break-words font-semibold">{tFamily(language, "soonerQuestion")}</p>
+        {soonerPicking ? (
+          <>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {SOONER_OPTIONS.map(({ value, key }) => (
+                <button
+                  key={value}
+                  type="button"
+                  disabled={locked}
+                  aria-pressed={soonerPicks.includes(value)}
+                  onClick={() => toggleSoonerPick(value)}
+                  className={`${secondaryButton} ${soonerPicks.includes(value) ? "bg-care/20" : ""}`}
+                >
+                  {tFamily(language, key)}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              disabled={locked || soonerPicks.length === 0}
+              onClick={() => onJoinSoonerList(soonerPicks)}
+              className={`mt-3 ${primaryButton}`}
+            >
+              {tFamily(language, "soonerConfirm")}
+            </button>
+          </>
+        ) : (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={locked}
+              onClick={() => setSoonerPicking(true)}
+              className={primaryButton}
+            >
+              {tFamily(language, "soonerYes")}
+            </button>
+            <button
+              type="button"
+              disabled={locked}
+              onClick={() => setSoonerRefused(true)}
+              className={secondaryButton}
+            >
+              {tFamily(language, "soonerNo")}
+            </button>
+          </div>
+        )}
+      </div>,
+      "sooner-ask"
+    );
+  }
 
   function bookedBody(active: FamilyAppointment): React.ReactNode {
     const when = active.scheduledFor ? formatFamilySlot(active.scheduledFor, language) : "";
@@ -232,10 +356,20 @@ export function FamilyAppointmentCard({
                     {tFamily(language, COUNTDOWN_KEYS[daysUntil])}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  data-testid="family-sooner-demo"
+                  disabled={locked || family.soonerList === null}
+                  onClick={onSoonerOffer}
+                  className={secondaryButton}
+                >
+                  {tFamily(language, "soonerDemoCta")}
+                </button>
               </fieldset>
             ) : null}
           </div>
         ) : null}
+        {soonerBlock()}
       </>
     );
   }
@@ -266,27 +400,42 @@ export function FamilyAppointmentCard({
       </>
     );
   } else if (appointment.status === "offered") {
-    body = ladderTurn(
-      <div>
-        <p className="break-words text-sm leading-6 text-ink/75">
-          {tFamily(language, "apptOnListLine", { clinic: appointment.clinic })}
-        </p>
-        <p className="mt-1 break-words font-semibold">{tFamily(language, "apptOfferQuestion")}</p>
-        <div className="mt-3 grid gap-2">
-          {appointment.offeredSlots.map((slot) => (
-            <button
-              key={slot}
-              type="button"
-              disabled={locked}
-              onClick={() => onBook(appointment.id, slot)}
-              className={secondaryButton}
-            >
-              {formatFamilySlot(slot, language)}
-            </button>
-          ))}
-        </div>
-      </div>,
-      "offer"
+    body = (
+      <>
+        {ladderTurn(
+          <div data-sooner-offer={soonerOffer ? "true" : undefined}>
+            <p className="break-words text-sm leading-6 text-ink/75">
+              {tFamily(language, "apptOnListLine", { clinic: appointment.clinic })}
+            </p>
+            <p className="mt-1 break-words font-semibold">{tFamily(language, "apptOfferQuestion")}</p>
+            <div className="mt-3 grid gap-2">
+              {appointment.offeredSlots.map((slot) => (
+                <button
+                  key={slot}
+                  type="button"
+                  disabled={locked}
+                  onClick={() => onBook(appointment.id, slot)}
+                  className={secondaryButton}
+                >
+                  {formatFamilySlot(slot, language)}
+                </button>
+              ))}
+            </div>
+            {soonerOffer ? (
+              <button
+                type="button"
+                disabled={locked}
+                onClick={() => onDeclineSoonerOffer(appointment.id)}
+                className={`mt-3 ${secondaryButton}`}
+              >
+                {tFamily(language, "soonerDecline")}
+              </button>
+            ) : null}
+          </div>,
+          "offer"
+        )}
+        {soonerBlock()}
+      </>
     );
   } else if (appointment.status === "completed") {
     body = ladderTurn(

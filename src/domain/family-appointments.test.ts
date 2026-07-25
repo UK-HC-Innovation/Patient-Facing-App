@@ -4,6 +4,7 @@ import {
   activeFamilyAppointment,
   buildDemoSlotOffers,
   createFamilyAppointmentOffer,
+  createSoonerAppointmentOffer,
   dueFamilyReminder,
   formatFamilySlot,
   overdueFamilyAppointment
@@ -45,6 +46,52 @@ describe("createFamilyAppointmentOffer", () => {
     expect(offer.scheduledFor).toBeUndefined();
     expect(offer.barriersAsked).toBe(false);
     expect(offer.reminderAcks).toEqual([]);
+  });
+});
+
+describe("createSoonerAppointmentOffer", () => {
+  it("offers exactly one near slot, two days out, on a weekday morning", () => {
+    const offer = createSoonerAppointmentOffer(NOW, ["weekday_mornings"]);
+    expect(offer.status).toBe("offered");
+    expect(offer.scheduledFor).toBeUndefined();
+    expect(offer.offeredSlots).toHaveLength(1);
+    const slot = new Date(offer.offeredSlots[0]);
+    expect(slot.valueOf()).toBeGreaterThan(NOW.valueOf());
+    expect(slot.getHours()).toBe(9);
+    expect(slot.getMinutes()).toBe(30);
+  });
+
+  it("waits three days when the family needs notice", () => {
+    // Anchored mid-week so the weekend skip cannot collapse the two into one day.
+    const monday = new Date(NOW.valueOf() + 3 * DAY_MS);
+    const notice = new Date(createSoonerAppointmentOffer(monday, ["needs_notice"]).offeredSlots[0]);
+    const prompt = new Date(createSoonerAppointmentOffer(monday, ["any_weekday"]).offeredSlots[0]);
+    expect(monday.getDay()).toBe(1);
+    expect(notice.valueOf()).toBeGreaterThan(prompt.valueOf());
+    expect(notice.valueOf() - monday.valueOf()).toBeGreaterThanOrEqual(2 * DAY_MS);
+  });
+
+  it("uses an afternoon slot only when afternoons are the family's only window", () => {
+    expect(
+      new Date(createSoonerAppointmentOffer(NOW, ["weekday_afternoons"]).offeredSlots[0]).getHours()
+    ).toBe(14);
+    expect(
+      new Date(
+        createSoonerAppointmentOffer(NOW, ["weekday_afternoons", "weekday_mornings"]).offeredSlots[0]
+      ).getHours()
+    ).toBe(9);
+  });
+
+  it("never lands on a weekend, whatever day the opening appears", () => {
+    for (let day = 0; day < 14; day += 1) {
+      const from = new Date(NOW.valueOf() + day * DAY_MS);
+      for (const constraints of [["any_weekday"], ["needs_notice"]] as const) {
+        const slot = new Date(createSoonerAppointmentOffer(from, [...constraints]).offeredSlots[0]);
+        expect(slot.getDay(), slot.toString()).not.toBe(0);
+        expect(slot.getDay(), slot.toString()).not.toBe(6);
+        expect(slot.valueOf()).toBeGreaterThan(from.valueOf());
+      }
+    }
   });
 });
 

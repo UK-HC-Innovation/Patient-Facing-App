@@ -60,6 +60,8 @@ import type {
   FamilyResourceStep,
   FamilySafetyEvent,
   FamilyScreenAnswer,
+  FamilySoonerConstraint,
+  FamilySoonerList,
   FamilyStepStatus,
   GlucoseReading,
   HomeReading,
@@ -128,8 +130,11 @@ export type HealthAction =
   | { type: "recordFamilyPulse"; pulse: FamilyPulse }
   | { type: "skipFamilyCheckin"; at: string }
   | { type: "backdateFamilyTouches"; days: number; now: string }
+  | { type: "setFamilySoonerList"; soonerList: FamilySoonerList }
+  | { type: "clearFamilySoonerList" }
   | { type: "setFamilyReferral"; referral: FamilyReferral }
   | { type: "offerFamilyAppointment"; appointment: FamilyAppointment }
+  | { type: "withdrawFamilyAppointmentOffer"; appointmentId: string; at: string }
   | { type: "bookFamilyAppointment"; appointmentId: string; slot: string; at: string }
   | {
       type: "recordFamilyAppointmentBarriers";
@@ -184,6 +189,13 @@ const FAMILY_APPOINTMENT_BARRIERS: FamilyAppointmentBarrier[] = [
   "sibling_care",
   "work_schedule",
   "none"
+];
+
+const FAMILY_SOONER_CONSTRAINTS: FamilySoonerConstraint[] = [
+  "weekday_mornings",
+  "weekday_afternoons",
+  "any_weekday",
+  "needs_notice"
 ];
 
 function isNonblank(value: string): boolean {
@@ -297,6 +309,33 @@ function isCoherentBarrierAnswer(barriers: FamilyAppointmentBarrier[]): boolean 
     return false;
   }
   return !barriers.includes("none") || barriers.length === 1;
+}
+
+function isCoherentSoonerList(soonerList: FamilySoonerList): boolean {
+  const { constraints } = soonerList;
+  return (
+    isExactIsoTimestamp(soonerList.optedInAt) &&
+    constraints.length > 0 &&
+    new Set(constraints).size === constraints.length &&
+    constraints.every((constraint) => FAMILY_SOONER_CONSTRAINTS.includes(constraint))
+  );
+}
+
+// A new offer normally only follows a missed visit. The earlier-visit list is the
+// one exception: a cancellation backfill is offered *over* a live booking, and
+// declining it (withdrawFamilyAppointmentOffer) hands the old booking back.
+function acceptsNewOffer(
+  family: FamilyNavigatorState,
+  latest: FamilyAppointment | undefined
+): boolean {
+  if (latest === undefined || latest.status === "missed") {
+    return true;
+  }
+  return (
+    family.soonerList !== null &&
+    (latest.status === "booked" || latest.status === "confirmed") &&
+    latest.scheduledFor !== undefined
+  );
 }
 
 function isValidActionTime(appointment: FamilyAppointment, at: string): boolean {
@@ -1173,6 +1212,34 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
         ]
       };
     }
+    case "setFamilySoonerList": {
+      const family = state.family;
+      if (!family || family.referral === null || !isCoherentSoonerList(action.soonerList)) {
+        return state;
+      }
+      return {
+        ...state,
+        family: { ...family, soonerList: action.soonerList },
+        auditEvents: [
+          ...state.auditEvents,
+          recordAuditEvent(state.patient.id, "created", "Family earlier-visit list joined")
+        ]
+      };
+    }
+    case "clearFamilySoonerList": {
+      const family = state.family;
+      if (!family || family.soonerList === null) {
+        return state;
+      }
+      return {
+        ...state,
+        family: { ...family, soonerList: null },
+        auditEvents: [
+          ...state.auditEvents,
+          recordAuditEvent(state.patient.id, "updated", "Family earlier-visit list left")
+        ]
+      };
+    }
     case "setFamilyReferral": {
       const family = state.family ?? emptyFamilyState(null);
       if (
@@ -1199,7 +1266,7 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
         action.appointment.clinic !== family.referral.clinic ||
         !isValidNewAppointmentOffer(action.appointment) ||
         family.appointments.some(({ id }) => id === action.appointment.id) ||
-        (latestAppointment !== undefined && latestAppointment.status !== "missed")
+        !acceptsNewOffer(family, latestAppointment)
       ) {
         return state;
       }
@@ -1209,6 +1276,32 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
         auditEvents: [
           ...state.auditEvents,
           recordAuditEvent(state.patient.id, "created", "Evaluation slots offered (demo)")
+        ]
+      };
+    }
+    case "withdrawFamilyAppointmentOffer": {
+      const family = state.family;
+      if (!family) {
+        return state;
+      }
+      const appointment = family.appointments.find(({ id }) => id === action.appointmentId);
+      if (
+        appointment === undefined ||
+        appointment.status !== "offered" ||
+        appointment.scheduledFor !== undefined ||
+        !isValidActionTime(appointment, action.at)
+      ) {
+        return state;
+      }
+      return {
+        ...state,
+        family: {
+          ...family,
+          appointments: family.appointments.filter(({ id }) => id !== action.appointmentId)
+        },
+        auditEvents: [
+          ...state.auditEvents,
+          recordAuditEvent(state.patient.id, "updated", "Earlier-visit offer declined (demo)")
         ]
       };
     }
