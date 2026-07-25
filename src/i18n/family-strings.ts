@@ -302,7 +302,16 @@ export type FamilyStringKey =
   | "waitChipNotes"
   | "waitChipSteps"
   | "waitChipVisit"
-  | "waitChipSooner";
+  | "waitChipSooner"
+  | "journalTitle"
+  | "journalIntro"
+  | "journalNotePlaceholder"
+  | "journalIncludeLabel"
+  | "journalExcludedBadge"
+  | "journalDeviceLine"
+  | "journalExportNudge"
+  | "journalMonthNote"
+  | "journalEarlierGroup";
 
 export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = {
   en: {
@@ -608,7 +617,16 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     waitChipNotes: "{count} notes",
     waitChipSteps: "{count} steps in motion",
     waitChipVisit: "Visit: {when}",
-    waitChipSooner: "On the earlier-visit list"
+    waitChipSooner: "On the earlier-visit list",
+    journalTitle: "Your notes so far",
+    journalIntro: "Everything you've told us, in your words, with dates. This becomes your visit packet.",
+    journalNotePlaceholder: "What did you notice this week? A sentence is plenty.",
+    journalIncludeLabel: "Include in visit packet",
+    journalExcludedBadge: "Not in packet",
+    journalDeviceLine: "Notes stay on this device. Print or share a copy sometimes so you don't lose them.",
+    journalExportNudge: "You have {count} notes now — a good moment to print or copy your visit packet.",
+    journalMonthNote: "{month} — {count} notes",
+    journalEarlierGroup: "Earlier"
   },
   es: {
     pageTitle: "Ladder — el desarrollo de tu hijo o hija",
@@ -913,7 +931,16 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     waitChipNotes: "{count} notas",
     waitChipSteps: "{count} pasos en marcha",
     waitChipVisit: "Visita: {when}",
-    waitChipSooner: "En la lista de visita anticipada"
+    waitChipSooner: "En la lista de visita anticipada",
+    journalTitle: "Tus notas hasta ahora",
+    journalIntro: "Todo lo que nos has contado, en tus palabras, con fechas. Esto se convierte en tu paquete para la visita.",
+    journalNotePlaceholder: "¿Qué notaste esta semana? Con una frase basta.",
+    journalIncludeLabel: "Incluir en el paquete de la visita",
+    journalExcludedBadge: "Fuera del paquete",
+    journalDeviceLine: "Las notas se quedan en este dispositivo. Imprime o comparte una copia de vez en cuando para no perderlas.",
+    journalExportNudge: "Ya tienes {count} notas — buen momento para imprimir o copiar tu paquete.",
+    journalMonthNote: "{month} — {count} notas",
+    journalEarlierGroup: "Antes"
   }
 };
 

@@ -231,6 +231,61 @@ describe("healthReducer", () => {
     expect(afterConfirm.extractedFacts).toEqual(before.extractedFacts);
   });
 
+  it("excludes only the targeted fact from the visit packet and never deletes it", () => {
+    const facts: FamilyFact[] = [
+      {
+        id: "fact-a",
+        interviewId: "interview-1",
+        label: "Grade",
+        value: "fourth",
+        status: "patient_reported",
+        sourceSnippet: "fourth grade"
+      },
+      {
+        id: "fact-b",
+        interviewId: "interview-1",
+        label: "About school and learning",
+        value: "reading is hard",
+        status: "patient_reported",
+        sourceSnippet: "reading is really hard"
+      }
+    ];
+    const seeded: AppState = { ...demoState, family: { ...schoolAgeFamilyState, facts } };
+
+    const excluded = healthReducer(seeded, {
+      type: "setFamilyFactInclusion",
+      factId: "fact-a",
+      include: false
+    });
+    expect(excluded.family?.facts.map(({ id, includeInSummary }) => [id, includeInSummary])).toEqual([
+      ["fact-a", false],
+      ["fact-b", undefined]
+    ]);
+    expect(excluded.family?.facts).toHaveLength(2);
+
+    const reincluded = healthReducer(excluded, {
+      type: "setFamilyFactInclusion",
+      factId: "fact-a",
+      include: true
+    });
+    expect(reincluded.family?.facts[0].includeInSummary).toBe(true);
+  });
+
+  it("ignores a packet-inclusion toggle for an unknown fact", () => {
+    const seeded: AppState = { ...demoState, family: schoolAgeFamilyState };
+
+    expect(
+      healthReducer(seeded, { type: "setFamilyFactInclusion", factId: "nope", include: false })
+    ).toBe(seeded);
+    expect(
+      healthReducer({ ...demoState, family: null }, {
+        type: "setFamilyFactInclusion",
+        factId: "nope",
+        include: false
+      }).family
+    ).toBeNull();
+  });
+
   it("saves a resource idempotently and toggles enrollment", () => {
     const seeded: AppState = { ...demoState, family: schoolAgeFamilyState };
     const resource: SavedFamilyResource = {

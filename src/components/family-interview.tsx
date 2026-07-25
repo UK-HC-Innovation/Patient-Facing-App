@@ -48,6 +48,8 @@ export type FamilyInterviewProps = {
   draft: string;
   passcode?: string;
   language: Language;
+  /** Overrides the opening prompt once the box is collecting journal notes. */
+  placeholder?: string;
   onDraftChange: (draft: string) => void;
   onExtracted: (result: SanitizedFamilyInterviewResult, meta: FamilyInterviewSubmissionMeta) => void;
   onSafetyEscalation?: (screen: FamilySafetyScreen) => void;
@@ -84,13 +86,14 @@ export function FamilyInterview({
   draft,
   passcode,
   language,
+  placeholder,
   onDraftChange,
   onExtracted,
   onSafetyEscalation
 }: FamilyInterviewProps) {
   const copy = {
     label: tFamily(language, "interviewLabel"),
-    placeholder: tFamily(language, "interviewPlaceholder"),
+    placeholder: placeholder ?? tFamily(language, "interviewPlaceholder"),
     submit: tFamily(language, "interviewSubmit"),
     speak: tFamily(language, "interviewMicStart"),
     done: tFamily(language, "interviewMicDone"),

@@ -108,6 +108,7 @@ export type HealthAction =
   | { type: "submitFamilyScreen"; answers: FamilyScreenAnswer[]; facts: FamilyFact[] }
   | { type: "addFamilyInterview"; interview: FamilyInterview; facts: FamilyFact[]; domains: FamilyNavigatorState["activeDomains"] }
   | { type: "confirmFamilyFact"; factId: string }
+  | { type: "setFamilyFactInclusion"; factId: string; include: boolean }
   | { type: "recordFamilySafetyEvent"; event: FamilySafetyEvent }
   | { type: "acknowledgeFamilySafetyEvent"; eventId: string; at: string }
   | { type: "setFamilyRecommendations"; recommendations: FamilyRecommendationSet | null }
@@ -792,6 +793,21 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
           ...state.family,
           facts: state.family.facts.map((fact) =>
             fact.id === action.factId ? { ...fact, status: "confirmed" } : fact
+          )
+        }
+      };
+    // Curation for the visit packet only — the journal keeps every fact it ever
+    // recorded, so an excluded fact is hidden from the packet, never deleted.
+    case "setFamilyFactInclusion":
+      if (!state.family || !state.family.facts.some(({ id }) => id === action.factId)) {
+        return state;
+      }
+      return {
+        ...state,
+        family: {
+          ...state.family,
+          facts: state.family.facts.map((fact) =>
+            fact.id === action.factId ? { ...fact, includeInSummary: action.include } : fact
           )
         }
       };

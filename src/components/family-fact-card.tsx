@@ -9,6 +9,11 @@ export type FamilyFactCardProps = {
   fact: FamilyFact;
   language: Language;
   onConfirm: (factId: string) => void;
+  /**
+   * Journal-only packet curation. Absent in the in-thread review turn, where the
+   * question is still "did we hear you right", not "what goes to the clinic".
+   */
+  includeToggle?: { included: boolean; onToggle: (include: boolean) => void };
 };
 
 const STATUS_KEYS: Record<FamilyFact["status"], FamilyStringKey> = {
@@ -17,8 +22,12 @@ const STATUS_KEYS: Record<FamilyFact["status"], FamilyStringKey> = {
   confirmed: "evidenceConfirmed"
 };
 
-export function FamilyFactCard({ fact, language, onConfirm }: FamilyFactCardProps) {
+const CONTROL_FOCUS =
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care";
+
+export function FamilyFactCard({ fact, language, onConfirm, includeToggle }: FamilyFactCardProps) {
   const titleId = useId();
+  const includeId = useId();
   const confirmed = fact.status === "confirmed";
 
   return (
@@ -51,6 +60,26 @@ export function FamilyFactCard({ fact, language, onConfirm }: FamilyFactCardProp
           {confirmed ? tFamily(language, "factConfirmed") : tFamily(language, "factConfirm")}
         </button>
       </div>
+      {includeToggle ? (
+        <div className="mt-4 border-t border-ink/10 pt-3">
+          <label htmlFor={includeId} className="flex min-h-12 min-w-0 items-center gap-2 text-sm">
+            <input
+              id={includeId}
+              type="checkbox"
+              checked={includeToggle.included}
+              aria-label={`${tFamily(language, "journalIncludeLabel")}: ${fact.label}`}
+              onChange={(event) => includeToggle.onToggle(event.target.checked)}
+              className={CONTROL_FOCUS}
+            />
+            <span className="min-w-0 break-words">{tFamily(language, "journalIncludeLabel")}</span>
+          </label>
+          {includeToggle.included ? null : (
+            <p className="mt-1 break-words text-xs font-semibold uppercase tracking-wide text-ink/60">
+              {tFamily(language, "journalExcludedBadge")}
+            </p>
+          )}
+        </div>
+      ) : null}
     </article>
   );
 }

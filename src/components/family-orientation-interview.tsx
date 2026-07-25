@@ -61,6 +61,11 @@ export type FamilyOrientationInterviewProps = {
   holdTurn?: boolean;
   /** Dictation stays closed while an unacknowledged safety banner is on screen. */
   voiceLocked?: boolean;
+  /**
+   * Placeholder for the free-text box once the orientation conversation is done
+   * and every further submission is a journal note. Absent on the first visit.
+   */
+  completePlaceholder?: string;
   onDraftChange: (draft: string) => void;
   onInterviewExtracted: (
     result: SanitizedFamilyInterviewResult,
@@ -123,6 +128,7 @@ export function FamilyOrientationInterview({
   interlude,
   holdTurn = false,
   voiceLocked = false,
+  completePlaceholder,
   onDraftChange,
   onInterviewExtracted,
   onSafetyEscalation
@@ -274,6 +280,7 @@ export function FamilyOrientationInterview({
           draft={draft}
           passcode={passcode}
           language={language}
+          placeholder={completePlaceholder}
           onDraftChange={onDraftChange}
           onExtracted={receiveOpening}
           onSafetyEscalation={onSafetyEscalation}

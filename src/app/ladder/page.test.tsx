@@ -38,6 +38,14 @@ async function changeCounty(user: ReturnType<typeof userEvent.setup>, county: st
   await user.click(screen.getByRole("button", { name: "Save these details" }));
 }
 
+// The in-thread "here is what we heard" turn. The journal section repeats the
+// same facts further down the page, so fact assertions name which one they mean.
+function reviewTurn(heading = "Here is what we heard"): HTMLElement {
+  const section = screen.getByRole("heading", { name: heading }).closest("section");
+  if (!section) throw new Error(`No review section for heading: ${heading}`);
+  return section;
+}
+
 // The fixture carries no scripted draft, so tests that submit supply ordinary caregiver text.
 const describedFamily: FamilyNavigatorState = { ...schoolAgeFamilyState, interviewDraft: SAMPLE_CAREGIVER_TEXT };
 
@@ -140,7 +148,10 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     expect(stateAfterCrunch.activeDomains).toEqual(["school_iep", "waivers_financial", "parent_support"]);
 
     await user.click(screen.getAllByRole("button", { name: /Yes, that is right/ })[0]);
-    await waitFor(() => expect(screen.getByText("You said this is right")).toBeVisible());
+    // The journal below renders the same fact, so scope the badge to the review turn.
+    await waitFor(() =>
+      expect(within(reviewTurn()).getByText("You said this is right")).toBeVisible()
+    );
     const stateAfterConfirm = JSON.parse(screen.getByTestId("family-state").textContent || "null") as FamilyNavigatorState;
     expect(stateAfterConfirm.facts.filter(({ status }) => status === "confirmed")).toHaveLength(1);
 
@@ -664,12 +675,13 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     await screen.findByRole("heading", { name: /Esto fue lo que entendimos/i });
     expect(screen.getByRole("heading", { name: "¿Qué ha ofrecido la escuela hasta ahora?" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Nada todavía" })).toBeVisible();
-    expect(screen.getByText("Grado")).toBeVisible();
-    expect(screen.getAllByText("segundo grado")[0]).toBeVisible();
-    expect(screen.getByText("Diagnóstico informado")).toBeVisible();
-    expect(screen.getByText("dislexia")).toBeVisible();
-    expect(screen.getByText("Sobre la escuela y el aprendizaje")).toBeVisible();
-    expect(screen.getByText(/Mencionaste la escuela/)).toBeVisible();
+    const review = reviewTurn("Esto fue lo que entendimos");
+    expect(within(review).getByText("Grado")).toBeVisible();
+    expect(within(review).getAllByText("segundo grado")[0]).toBeVisible();
+    expect(within(review).getByText("Diagnóstico informado")).toBeVisible();
+    expect(within(review).getByText("dislexia")).toBeVisible();
+    expect(within(review).getByText("Sobre la escuela y el aprendizaje")).toBeVisible();
+    expect(within(review).getByText(/Mencionaste la escuela/)).toBeVisible();
     expect(screen.getByText(/vienen directo de las organizaciones.*en inglés/i)).toBeVisible();
     expect(screen.getByRole("heading", { name: "Scott County Schools Exceptional Child Services" })).toBeVisible();
   });

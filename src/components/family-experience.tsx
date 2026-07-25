@@ -11,6 +11,7 @@ import { FamilyAppointmentCard } from "@/components/family-appointment-card";
 import { FamilyCrisisBanner } from "@/components/family-crisis-banner";
 import { FamilyFactCard } from "@/components/family-fact-card";
 import type { FamilyInterviewSubmissionMeta, SanitizedFamilyInterviewResult } from "@/components/family-interview";
+import { FamilyJournal } from "@/components/family-journal";
 import { FamilyNeedsScreen } from "@/components/family-needs-screen";
 import {
   EMPTY_FAMILY_INTERVIEW_PROFILE,
@@ -340,6 +341,9 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   const reviewRef = useRef<HTMLElement>(null);
   const pendingReviewFocusRef = useRef(false);
   const safetyTurnRef = useRef(false);
+  // Set by a turn that owns the next submission (the monthly check-in); otherwise
+  // the first interview is the orientation and everything after it is a note.
+  const interviewKindRef = useRef<"note" | "checkin" | null>(null);
   const latestInterview = family?.interviews.at(-1);
   const latestInterviewId = latestInterview?.id;
   const reviewFacts = family?.facts.filter(({ interviewId }) => interviewId === latestInterviewId) ?? [];
@@ -530,6 +534,9 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     const extractedDomains = result.domains.map(({ domain }) => domain);
     const wasSafetyTurn = safetyTurnRef.current;
     safetyTurnRef.current = false;
+    const kind =
+      interviewKindRef.current ?? ((family?.interviews.length ?? 0) === 0 ? "orientation" : "note");
+    interviewKindRef.current = null;
     const domains = wasSafetyTurn
       ? domainsAfterSafety(extractedDomains, family?.activeDomains ?? [])
       : extractedDomains;
@@ -543,7 +550,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
         source: meta.source,
         createdAt,
         extraction: meta.extraction,
-        kind: "orientation"
+        kind
       },
       facts,
       domains
@@ -697,6 +704,11 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
             interlude={interlude}
             holdTurn={needsBasics}
             voiceLocked={pendingSafetyEvent !== undefined}
+            completePlaceholder={
+              (family?.interviews.length ?? 0) > 0
+                ? tFamily(language, "journalNotePlaceholder")
+                : undefined
+            }
             onDraftChange={(draft) => dispatch({ type: "setFamilyInterviewDraft", draft })}
             onInterviewExtracted={addInterview}
             onSafetyEscalation={recordSafety}
@@ -888,6 +900,17 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
               ) : null}
             </section>
           ) : null}
+
+      {family && family.facts.length > 0 ? (
+        <FamilyJournal
+          family={family}
+          language={language}
+          onConfirm={(factId) => dispatch({ type: "confirmFamilyFact", factId })}
+          onToggleInclude={(factId, include) =>
+            dispatch({ type: "setFamilyFactInclusion", factId, include })
+          }
+        />
+      ) : null}
 
       <section className="rounded-control border border-care/20 bg-white p-4">
         <button
