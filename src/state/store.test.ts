@@ -10,9 +10,12 @@ import type {
   FamilyFact,
   FamilyInterview,
   FamilyScreenAnswer,
+  FamilyStepStatus,
   GlucoseReading,
   SavedFamilyResource
 } from "@/domain/types";
+
+const PLANNED_AT = "2026-07-17T12:00:00.000Z";
 
 describe("healthReducer", () => {
   it("backdates stored family diagnosis months for the demo without replacing the clock", () => {
@@ -335,6 +338,205 @@ describe("healthReducer", () => {
     expect(savedTwice.family?.saved).toEqual([resource]);
     expect(enrolled.family?.alreadyEnrolled).toEqual(["ky-spin"]);
     expect(unenrolled.family?.alreadyEnrolled).toEqual([]);
+  });
+
+  it("plans one step per resource and audits the commitment", () => {
+    const seeded: AppState = { ...demoState, family: schoolAgeFamilyState };
+
+    const planned = healthReducer(seeded, {
+      type: "planFamilyStep",
+      resourceId: "michelle_p_waiver",
+      domain: "waivers_financial",
+      at: PLANNED_AT
+    });
+
+    expect(planned.family?.steps).toHaveLength(1);
+    expect(planned.family?.steps[0]).toMatchObject({
+      resourceId: "michelle_p_waiver",
+      domain: "waivers_financial",
+      status: "planned",
+      plannedAt: PLANNED_AT,
+      updatedAt: PLANNED_AT
+    });
+    expect(planned.auditEvents.at(-1)).toMatchObject({
+      action: "created",
+      label: "Family step planned"
+    });
+
+    // A second "I'll do this" is the same commitment, not a new one.
+    expect(
+      healthReducer(planned, {
+        type: "planFamilyStep",
+        resourceId: "michelle_p_waiver",
+        domain: "waivers_financial",
+        at: "2026-07-20T12:00:00.000Z"
+      })
+    ).toBe(planned);
+    expect(
+      healthReducer(seeded, {
+        type: "planFamilyStep",
+        resourceId: "michelle_p_waiver",
+        domain: "waivers_financial",
+        at: "not-a-timestamp"
+      })
+    ).toBe(seeded);
+  });
+
+  it("moves a planned step through the follow-up statuses and syncs enrollment both ways", () => {
+    const planned = healthReducer(
+      { ...demoState, family: schoolAgeFamilyState },
+      {
+        type: "planFamilyStep",
+        resourceId: "michelle_p_waiver",
+        domain: "waivers_financial",
+        at: PLANNED_AT
+      }
+    );
+    const stepId = planned.family!.steps[0].id;
+
+    const tried = healthReducer(planned, {
+      type: "updateFamilyStep",
+      stepId,
+      status: "tried",
+      at: "2026-07-20T12:00:00.000Z"
+    });
+    const enrolled = healthReducer(tried, {
+      type: "updateFamilyStep",
+      stepId,
+      status: "enrolled",
+      at: "2026-07-25T12:00:00.000Z"
+    });
+    const backOff = healthReducer(enrolled, {
+      type: "updateFamilyStep",
+      stepId,
+      status: "in_touch",
+      at: "2026-07-26T12:00:00.000Z"
+    });
+
+    expect(tried.family?.steps[0]).toMatchObject({
+      status: "tried",
+      plannedAt: PLANNED_AT,
+      updatedAt: "2026-07-20T12:00:00.000Z"
+    });
+    expect(tried.family?.alreadyEnrolled).toEqual([]);
+    expect(enrolled.family?.alreadyEnrolled).toEqual(["michelle_p_waiver"]);
+    expect(backOff.family?.alreadyEnrolled).toEqual([]);
+    expect(backOff.family?.steps[0].status).toBe("in_touch");
+    expect(tried.auditEvents.at(-1)).toMatchObject({
+      action: "updated",
+      label: "Family step updated"
+    });
+  });
+
+  it("refuses step updates that are unknown, undated, or older than the plan", () => {
+    const planned = healthReducer(
+      { ...demoState, family: schoolAgeFamilyState },
+      {
+        type: "planFamilyStep",
+        resourceId: "michelle_p_waiver",
+        domain: "waivers_financial",
+        at: PLANNED_AT
+      }
+    );
+    const stepId = planned.family!.steps[0].id;
+
+    expect(
+      healthReducer(planned, { type: "updateFamilyStep", stepId: "nope", status: "tried", at: PLANNED_AT })
+    ).toBe(planned);
+    expect(
+      healthReducer(planned, { type: "updateFamilyStep", stepId, status: "tried", at: "whenever" })
+    ).toBe(planned);
+    expect(
+      healthReducer(planned, {
+        type: "updateFamilyStep",
+        stepId,
+        status: "tried",
+        at: "2026-07-01T12:00:00.000Z"
+      })
+    ).toBe(planned);
+    expect(
+      healthReducer(
+        { ...demoState, family: null },
+        { type: "updateFamilyStep", stepId, status: "tried", at: PLANNED_AT }
+      ).family
+    ).toBeNull();
+  });
+
+  it("upserts a step from the enrollment checkbox and steps it back when the checkbox clears", () => {
+    const seeded: AppState = { ...demoState, family: schoolAgeFamilyState };
+
+    const enrolled = healthReducer(seeded, {
+      type: "toggleFamilyEnrollment",
+      resourceId: "michelle_p_waiver"
+    });
+    const cleared = healthReducer(enrolled, {
+      type: "toggleFamilyEnrollment",
+      resourceId: "michelle_p_waiver"
+    });
+    const reEnrolled = healthReducer(cleared, {
+      type: "toggleFamilyEnrollment",
+      resourceId: "michelle_p_waiver"
+    });
+
+    expect(enrolled.family?.steps).toHaveLength(1);
+    expect(enrolled.family?.steps[0]).toMatchObject({
+      resourceId: "michelle_p_waiver",
+      domain: "waivers_financial",
+      status: "enrolled"
+    });
+    expect(cleared.family?.steps[0].status).toBe("in_touch");
+    expect(cleared.family?.alreadyEnrolled).toEqual([]);
+    expect(reEnrolled.family?.steps).toHaveLength(1);
+    expect(reEnrolled.family?.steps[0].status).toBe("enrolled");
+    expect(reEnrolled.family?.alreadyEnrolled).toEqual(["michelle_p_waiver"]);
+
+    // A resource the catalog no longer knows gets no invented step.
+    const unknown = healthReducer(seeded, { type: "toggleFamilyEnrollment", resourceId: "ky-spin" });
+    expect(unknown.family?.steps).toEqual([]);
+    expect(unknown.family?.alreadyEnrolled).toEqual(["ky-spin"]);
+  });
+
+  it("keeps alreadyEnrolled and the step tracker agreeing across every entry path", () => {
+    const seeded: AppState = { ...demoState, family: schoolAgeFamilyState };
+    const plan = (state: AppState): AppState =>
+      healthReducer(state, {
+        type: "planFamilyStep",
+        resourceId: "michelle_p_waiver",
+        domain: "waivers_financial",
+        at: PLANNED_AT
+      });
+    // Without an explicit stamp the update lands on the step's own last stamp, so
+    // sequences that start from the checkbox (which stamps the real clock) stay
+    // coherent whatever day the suite runs.
+    const setStatus = (state: AppState, status: FamilyStepStatus, at?: string): AppState => {
+      const step = state.family!.steps[0];
+      return healthReducer(state, {
+        type: "updateFamilyStep",
+        stepId: step.id,
+        status,
+        at: at ?? step.updatedAt
+      });
+    };
+    const toggle = (state: AppState): AppState =>
+      healthReducer(state, { type: "toggleFamilyEnrollment", resourceId: "michelle_p_waiver" });
+
+    const sequences: AppState[] = [
+      setStatus(plan(seeded), "enrolled", "2026-07-20T12:00:00.000Z"),
+      setStatus(setStatus(plan(seeded), "enrolled", "2026-07-20T12:00:00.000Z"), "not_for_us", "2026-07-21T12:00:00.000Z"),
+      toggle(plan(seeded)),
+      toggle(toggle(plan(seeded))),
+      setStatus(toggle(seeded), "tried"),
+      plan(toggle(seeded))
+    ];
+
+    for (const state of sequences) {
+      const family = state.family!;
+      const enrolledStep = family.steps.some(
+        ({ resourceId, status }) => resourceId === "michelle_p_waiver" && status === "enrolled"
+      );
+      expect(family.alreadyEnrolled.includes("michelle_p_waiver")).toBe(enrolledStep);
+      expect(family.steps.filter(({ resourceId }) => resourceId === "michelle_p_waiver")).toHaveLength(1);
+    }
   });
 
   it("clears family data on reset and deletion", () => {

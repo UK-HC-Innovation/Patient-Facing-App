@@ -338,7 +338,19 @@ export type FamilyStringKey =
   | "packetPickTitle"
   | "packetPrint"
   | "packetCopy"
-  | "packetCopied";
+  | "packetCopied"
+  | "stepPlanCta"
+  | "stepStatusPlanned"
+  | "stepStatusTried"
+  | "stepStatusInTouch"
+  | "stepStatusEnrolled"
+  | "stepStatusNotForUs"
+  | "followupQuestion"
+  | "followupGotThrough"
+  | "followupLeftMessage"
+  | "followupNotYet"
+  | "followupNotForUs"
+  | "followupThanks";
 
 export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = {
   en: {
@@ -680,7 +692,19 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     packetPickTitle: "Pick questions to bring",
     packetPrint: "Print",
     packetCopy: "Copy as text",
-    packetCopied: "Copied."
+    packetCopied: "Copied.",
+    stepPlanCta: "I'll do this",
+    stepStatusPlanned: "Planned",
+    stepStatusTried: "Tried",
+    stepStatusInTouch: "In touch",
+    stepStatusEnrolled: "Enrolled",
+    stepStatusNotForUs: "Not for us",
+    followupQuestion: "Last time you planned to contact {name} — how did it go?",
+    followupGotThrough: "Got through",
+    followupLeftMessage: "Left a message",
+    followupNotYet: "Haven't yet",
+    followupNotForUs: "Not for us",
+    followupThanks: "Noted — it's in your packet's services section when it counts."
   },
   es: {
     pageTitle: "Ladder — el desarrollo de tu hijo o hija",
@@ -1021,7 +1045,19 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     packetPickTitle: "Elige preguntas para llevar",
     packetPrint: "Imprimir",
     packetCopy: "Copiar como texto",
-    packetCopied: "Copiado."
+    packetCopied: "Copiado.",
+    stepPlanCta: "Voy a hacerlo",
+    stepStatusPlanned: "Planeado",
+    stepStatusTried: "Intentado",
+    stepStatusInTouch: "En contacto",
+    stepStatusEnrolled: "Inscrito",
+    stepStatusNotForUs: "No es para nosotros",
+    followupQuestion: "La última vez planeaste contactar a {name} — ¿cómo te fue?",
+    followupGotThrough: "Logré comunicarme",
+    followupLeftMessage: "Dejé un mensaje",
+    followupNotYet: "Todavía no",
+    followupNotForUs: "No es para nosotros",
+    followupThanks: "Anotado — aparecerá en la sección de servicios de tu paquete cuando cuente."
   }
 };
 

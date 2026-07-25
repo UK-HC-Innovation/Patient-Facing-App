@@ -35,6 +35,7 @@ import {
   type FamilySafetyScreen
 } from "@/domain/family-safety";
 import type { FamilyDiagnosisBackdateMonths } from "@/domain/family-stages";
+import { checkInDue, oldestStaleStep } from "@/domain/family-journey";
 import { familyFactStatus } from "@/domain/family-interview";
 import {
   extractFamilyBasics,
@@ -58,7 +59,9 @@ import type {
   FamilyFact,
   FamilyProfile,
   FamilyReminderOffset,
-  FamilyScreenAnswer
+  FamilyResourceStep,
+  FamilyScreenAnswer,
+  FamilyStepStatus
 } from "@/domain/types";
 import { tFamily, type FamilyStringKey } from "@/i18n/family-strings";
 import type { HealthAction } from "@/state/store";
@@ -89,6 +92,15 @@ const DOMAIN_KEYS: Record<DevNeedDomain, FamilyStringKey> = {
 
 const CONTROL_FOCUS =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care";
+
+// Four fixed answers, no free text: the follow-up turn moves a step's status, it
+// never opens a new place to write.
+const FOLLOWUP_OPTIONS: ReadonlyArray<{ status: FamilyStepStatus; key: FamilyStringKey }> = [
+  { status: "in_touch", key: "followupGotThrough" },
+  { status: "tried", key: "followupLeftMessage" },
+  { status: "planned", key: "followupNotYet" },
+  { status: "not_for_us", key: "followupNotForUs" }
+];
 
 const BASICS_SCHOOL_OPTIONS: ReadonlyArray<{ value: FamilyProfile["schoolStage"]; key: FamilyStringKey }> = [
   { value: "not_school_age", key: "schoolNotSchoolAge" },
@@ -339,6 +351,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   const latestSafetyEvent = safetyEvents[safetyEvents.length - 1];
   const [needsScreenOpen, setNeedsScreenOpen] = useState(false);
   const [basicsToggled, setBasicsToggled] = useState<boolean | null>(null);
+  const [followupAnswered, setFollowupAnswered] = useState(false);
   const reviewRef = useRef<HTMLElement>(null);
   const pendingReviewFocusRef = useRef(false);
   const safetyTurnRef = useRef(false);
@@ -565,6 +578,20 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     });
   }
 
+  function planStep(resource: FamilyResource, domain: DevNeedDomain): void {
+    dispatch({
+      type: "planFamilyStep",
+      resourceId: resource.id,
+      domain,
+      at: new Date().toISOString()
+    });
+  }
+
+  function answerFollowup(step: FamilyResourceStep, status: FamilyStepStatus): void {
+    setFollowupAnswered(true);
+    dispatch({ type: "updateFamilyStep", stepId: step.id, status, at: new Date().toISOString() });
+  }
+
   function shareResource(resource: FamilyResource): void {
     dispatch({
       type: "addAuditEvent",
@@ -670,6 +697,15 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
         ) : null}
       </>
     ) : null;
+
+  // One follow-up per page visit, and never while the safety message or the
+  // monthly check-in owns the page's single ask.
+  const followupNow = new Date();
+  const followupStep =
+    family && !followupAnswered && pendingSafetyEvent === undefined && !checkInDue(family, followupNow)
+      ? oldestStaleStep(family.steps, followupNow)
+      : undefined;
+  const followupResource = followupStep ? getFamilyResourceById(followupStep.resourceId) : undefined;
 
   return (
     <div
@@ -798,6 +834,41 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
         />
       ) : null}
 
+      {followupAnswered ? (
+        <section
+          id="family-followup"
+          data-testid="family-followup"
+          className="rounded-control border border-care/20 bg-white p-4"
+        >
+          <p role="status" className="break-words text-sm leading-6">
+            {tFamily(language, "followupThanks")}
+          </p>
+        </section>
+      ) : followupStep && followupResource ? (
+        <section
+          id="family-followup"
+          data-testid="family-followup"
+          aria-labelledby="family-followup-question"
+          className="rounded-control border border-care/20 bg-white p-4"
+        >
+          <p id="family-followup-question" className="break-words font-semibold">
+            {tFamily(language, "followupQuestion", { name: followupResource.name })}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {FOLLOWUP_OPTIONS.map(({ status, key }) => (
+              <button
+                key={status}
+                type="button"
+                onClick={() => answerFollowup(followupStep, status)}
+                className={`min-h-12 min-w-0 break-words rounded-control border border-care/30 bg-care/5 px-4 py-2 text-left font-semibold text-care ${CONTROL_FOCUS}`}
+              >
+                {tFamily(language, key)}
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       {family && family.profile && family.activeDomains.length > 0 ? (
             <section
               id="family-resources"
@@ -835,6 +906,8 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
                         resource={resource}
                         domain={domain}
                         language={language}
+                        step={family.steps.find(({ resourceId }) => resourceId === resource.id)}
+                        onPlanStep={planStep}
                         isSaved={family.saved.some(({ resourceId }) => resourceId === resource.id)}
                         isEnrolled={family.alreadyEnrolled.includes(resource.id)}
                         onSave={saveResource}
@@ -854,6 +927,8 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
                       resource={resource}
                       domain={domain}
                       language={language}
+                      step={family.steps.find(({ resourceId }) => resourceId === resource.id)}
+                      onPlanStep={planStep}
                       why={why}
                       becauseYouSaid={quote}
                       urgency={urgency}
@@ -887,6 +962,8 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
                         resource={resource}
                         domain={domain}
                         language={language}
+                        step={family.steps.find(({ resourceId }) => resourceId === resource.id)}
+                        onPlanStep={planStep}
                         isSaved={family.saved.some(({ resourceId }) => resourceId === resource.id)}
                         isEnrolled={family.alreadyEnrolled.includes(resource.id)}
                         onSave={saveResource}

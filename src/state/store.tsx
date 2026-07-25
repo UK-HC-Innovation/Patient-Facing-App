@@ -15,6 +15,7 @@ import {
   backdatedDiagnosisMonth,
   type FamilyDiagnosisBackdateMonths
 } from "@/domain/family-stages";
+import { getFamilyResourceById } from "@/domain/family-resources";
 import { mergeFamilyDomains } from "@/domain/family-screen";
 import { PACKET_QUESTIONS } from "@/domain/family-visit-packet";
 import {
@@ -41,6 +42,7 @@ import type {
   AuditEvent,
   CareContextItem,
   Condition,
+  DevNeedDomain,
   DoseEvent,
   DoseReminderPreference,
   DrReportExtraction,
@@ -54,8 +56,10 @@ import type {
   FamilyReferral,
   FamilyRecommendationSet,
   FamilyReminderOffset,
+  FamilyResourceStep,
   FamilySafetyEvent,
   FamilyScreenAnswer,
+  FamilyStepStatus,
   GlucoseReading,
   HomeReading,
   MealLogEntry,
@@ -116,6 +120,8 @@ export type HealthAction =
   | { type: "setFamilyRecommendations"; recommendations: FamilyRecommendationSet | null }
   | { type: "saveFamilyResource"; resource: SavedFamilyResource }
   | { type: "toggleFamilyEnrollment"; resourceId: string }
+  | { type: "planFamilyStep"; resourceId: string; domain: DevNeedDomain; at: string }
+  | { type: "updateFamilyStep"; stepId: string; status: FamilyStepStatus; at: string }
   | { type: "setFamilyReferral"; referral: FamilyReferral }
   | { type: "offerFamilyAppointment"; appointment: FamilyAppointment }
   | { type: "bookFamilyAppointment"; appointmentId: string; slot: string; at: string }
@@ -180,6 +186,57 @@ function isNonblank(value: string): boolean {
 function isExactIsoTimestamp(value: string): boolean {
   const timestamp = new Date(value);
   return Number.isFinite(timestamp.valueOf()) && timestamp.toISOString() === value;
+}
+
+function withStepStatus(
+  steps: FamilyResourceStep[],
+  stepId: string,
+  status: FamilyStepStatus,
+  at: string
+): FamilyResourceStep[] {
+  return steps.map((step) => (step.id === stepId ? { ...step, status, updatedAt: at } : step));
+}
+
+// `alreadyEnrolled` and an `enrolled` step are one fact seen from two places —
+// the matching exclusion and the tracker — so either surface moving syncs both.
+function syncEnrollment(alreadyEnrolled: string[], resourceId: string, enrolled: boolean): string[] {
+  if (!enrolled) {
+    return alreadyEnrolled.filter((entry) => entry !== resourceId);
+  }
+  return alreadyEnrolled.includes(resourceId) ? alreadyEnrolled : [...alreadyEnrolled, resourceId];
+}
+
+// Toggling the old enrollment checkbox upserts the step it stands for. A resource
+// the catalog no longer knows gets no invented step — the toggle alone still works.
+function stepsAfterEnrollmentToggle(
+  family: FamilyNavigatorState,
+  resourceId: string,
+  enrolling: boolean,
+  at: string
+): FamilyResourceStep[] {
+  const existing = family.steps.find((step) => step.resourceId === resourceId);
+  if (!enrolling) {
+    return existing?.status === "enrolled"
+      ? withStepStatus(family.steps, existing.id, "in_touch", at)
+      : family.steps;
+  }
+  if (existing) {
+    return withStepStatus(family.steps, existing.id, "enrolled", at);
+  }
+  const domain = getFamilyResourceById(resourceId)?.domains[0];
+  return domain === undefined
+    ? family.steps
+    : [
+        ...family.steps,
+        {
+          id: crypto.randomUUID(),
+          resourceId,
+          domain,
+          status: "enrolled",
+          plannedAt: at,
+          updatedAt: at
+        }
+      ];
 }
 
 function isCoherentBarrierAnswer(barriers: FamilyAppointmentBarrier[]): boolean {
@@ -877,19 +934,80 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
         ...state,
         family: { ...state.family, saved: [...state.family.saved, action.resource] }
       };
-    case "toggleFamilyEnrollment":
+    case "toggleFamilyEnrollment": {
       if (!state.family) {
+        return state;
+      }
+      const enrolling = !state.family.alreadyEnrolled.includes(action.resourceId);
+      const at = new Date().toISOString();
+      return {
+        ...state,
+        family: {
+          ...state.family,
+          steps: stepsAfterEnrollmentToggle(state.family, action.resourceId, enrolling, at),
+          alreadyEnrolled: syncEnrollment(state.family.alreadyEnrolled, action.resourceId, enrolling)
+        }
+      };
+    }
+    // One step per resource: a second "I'll do this" is the same commitment, not a
+    // new one, so it keeps the original planned date instead of restarting it.
+    case "planFamilyStep": {
+      if (
+        !state.family ||
+        !isExactIsoTimestamp(action.at) ||
+        state.family.steps.some(({ resourceId }) => resourceId === action.resourceId)
+      ) {
         return state;
       }
       return {
         ...state,
         family: {
           ...state.family,
-          alreadyEnrolled: state.family.alreadyEnrolled.includes(action.resourceId)
-            ? state.family.alreadyEnrolled.filter((resourceId) => resourceId !== action.resourceId)
-            : [...state.family.alreadyEnrolled, action.resourceId]
-        }
+          steps: [
+            ...state.family.steps,
+            {
+              id: crypto.randomUUID(),
+              resourceId: action.resourceId,
+              domain: action.domain,
+              status: "planned",
+              plannedAt: action.at,
+              updatedAt: action.at
+            }
+          ]
+        },
+        auditEvents: [
+          ...state.auditEvents,
+          recordAuditEvent(state.patient.id, "created", "Family step planned")
+        ]
       };
+    }
+    // An update older than the plan itself is impossible history — storage would
+    // drop the row on reload, so it is refused here instead.
+    case "updateFamilyStep": {
+      if (!state.family || !isExactIsoTimestamp(action.at)) {
+        return state;
+      }
+      const target = state.family.steps.find(({ id }) => id === action.stepId);
+      if (!target || new Date(action.at).valueOf() < new Date(target.plannedAt).valueOf()) {
+        return state;
+      }
+      return {
+        ...state,
+        family: {
+          ...state.family,
+          steps: withStepStatus(state.family.steps, target.id, action.status, action.at),
+          alreadyEnrolled: syncEnrollment(
+            state.family.alreadyEnrolled,
+            target.resourceId,
+            action.status === "enrolled"
+          )
+        },
+        auditEvents: [
+          ...state.auditEvents,
+          recordAuditEvent(state.patient.id, "updated", "Family step updated")
+        ]
+      };
+    }
     case "setFamilyReferral": {
       const family = state.family ?? emptyFamilyState(null);
       if (

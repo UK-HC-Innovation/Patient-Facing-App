@@ -3,7 +3,7 @@
 import { Bookmark, ExternalLink, Share2 } from "lucide-react";
 import React, { useId, useRef, useState } from "react";
 import type { FamilyResource } from "@/domain/family-resources";
-import type { DevNeedDomain } from "@/domain/types";
+import type { DevNeedDomain, FamilyResourceStep, FamilyStepStatus } from "@/domain/types";
 import { tFamily, type FamilyStringKey } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
 
@@ -11,6 +11,9 @@ export type FamilyResourceCardProps = {
   resource: FamilyResource;
   domain: DevNeedDomain;
   language: Language;
+  /** The tracked next step for this resource, once the family has committed to one. */
+  step?: FamilyResourceStep;
+  onPlanStep?: (resource: FamilyResource, domain: DevNeedDomain) => void;
   /** Grounded "why this, for you" line. Absent falls back to the catalog summary alone. */
   why?: string;
   /** Verbatim caregiver words, already checked against the transcript. */
@@ -37,8 +40,26 @@ const URGENCY_KEYS: Record<"act_now" | "soon" | "when_ready", FamilyStringKey> =
   when_ready: "rankUrgencyWhenReady"
 };
 
+const STEP_STATUS_KEYS: Record<FamilyStepStatus, FamilyStringKey> = {
+  planned: "stepStatusPlanned",
+  tried: "stepStatusTried",
+  in_touch: "stepStatusInTouch",
+  enrolled: "stepStatusEnrolled",
+  not_for_us: "stepStatusNotForUs"
+};
+
 const CONTROL_FOCUS =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care";
+
+// Status plus the month it last moved — the family's own history of this step,
+// which is also what the follow-up turn counts from.
+function stepStatusLine(step: FamilyResourceStep, language: Language): string {
+  const when = new Date(step.updatedAt).toLocaleDateString(language === "es" ? "es" : "en-US", {
+    month: "long",
+    year: "numeric"
+  });
+  return `${tFamily(language, STEP_STATUS_KEYS[step.status])} · ${when}`;
+}
 
 function ageBand(resource: FamilyResource, language: Language): string {
   const format = new Intl.NumberFormat(language === "es" ? "es-US" : "en-US", {
@@ -65,6 +86,8 @@ export function FamilyResourceCard({
   resource,
   domain,
   language,
+  step,
+  onPlanStep,
   why,
   becauseYouSaid,
   urgency,
@@ -213,6 +236,26 @@ export function FamilyResourceCard({
           {enrollmentLabel}
         </button>
       </div>
+
+      {step ? (
+        <p
+          data-testid="family-step-status"
+          data-step-status={step.status}
+          className="mt-3 inline-flex min-w-0 break-words rounded-control bg-calm px-3 py-2 text-sm font-semibold text-care"
+        >
+          {stepStatusLine(step, language)}
+        </p>
+      ) : onPlanStep ? (
+        <button
+          type="button"
+          data-testid="family-step-plan"
+          aria-label={`${tFamily(language, "stepPlanCta")}: ${resource.name}`}
+          onClick={() => onPlanStep(resource, domain)}
+          className={`mt-3 inline-flex min-h-12 min-w-0 items-center break-words rounded-control border border-care px-4 py-2 text-sm font-semibold text-care ${CONTROL_FOCUS}`}
+        >
+          {tFamily(language, "stepPlanCta")}
+        </button>
+      ) : null}
 
       <div className="mt-4 border-t border-ink/10 pt-4">
         <label htmlFor={consentId} className="flex min-h-12 min-w-0 items-center gap-2 text-sm">

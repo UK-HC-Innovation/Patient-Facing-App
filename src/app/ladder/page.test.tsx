@@ -739,6 +739,83 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
   });
 });
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Two steps the family committed to and has not moved: the oldest is the one the
+// turn asks about. Stamps are relative so the staleness window holds any day.
+function familyWithStaleSteps(daysStale: number): FamilyNavigatorState {
+  const stamp = (days: number): string => new Date(Date.now() - days * DAY_MS).toISOString();
+  return {
+    ...schoolAgeFamilyState,
+    steps: [
+      {
+        id: "step-waiver",
+        resourceId: "michelle_p_waiver",
+        domain: "waivers_financial",
+        status: "planned",
+        plannedAt: stamp(daysStale),
+        updatedAt: stamp(daysStale)
+      },
+      {
+        id: "step-spin",
+        resourceId: "ky_spin",
+        domain: "parent_support",
+        status: "planned",
+        plannedAt: stamp(daysStale - 1),
+        updatedAt: stamp(daysStale - 1)
+      }
+    ]
+  };
+}
+
+function familyStateOutput(): FamilyNavigatorState {
+  return JSON.parse(screen.getByTestId("family-state").textContent || "null") as FamilyNavigatorState;
+}
+
+describe("next-steps follow-up turn", () => {
+  it("asks about the oldest stale step, records the answer, and asks only once per visit", async () => {
+    const user = userEvent.setup();
+    render(<ReducerHarness initialState={withFamily(familyWithStaleSteps(10))} />);
+
+    const followup = screen.getByTestId("family-followup");
+    expect(within(followup).getByText(/Last time you planned to contact Michelle P\. Waiver/)).toBeVisible();
+
+    await user.click(within(followup).getByRole("button", { name: "Left a message" }));
+
+    const family = familyStateOutput();
+    expect(family.steps.find(({ id }) => id === "step-waiver")).toMatchObject({ status: "tried" });
+    // The second stale step waits for the next visit — one ask at a time.
+    expect(family.steps.find(({ id }) => id === "step-spin")).toMatchObject({ status: "planned" });
+    expect(screen.getByTestId("family-followup")).toHaveTextContent(/Noted/);
+    expect(screen.queryByText(/how did it go\?/)).not.toBeInTheDocument();
+  });
+
+  it("keeps a not-yet step planned but restarts its seven-day clock", async () => {
+    const user = userEvent.setup();
+    const seeded = familyWithStaleSteps(10);
+    render(<ReducerHarness initialState={withFamily(seeded)} />);
+
+    await user.click(
+      within(screen.getByTestId("family-followup")).getByRole("button", { name: "Haven't yet" })
+    );
+
+    const step = familyStateOutput().steps.find(({ id }) => id === "step-waiver");
+    expect(step?.status).toBe("planned");
+    expect(new Date(step!.updatedAt).valueOf()).toBeGreaterThan(
+      new Date(seeded.steps[0].updatedAt).valueOf()
+    );
+  });
+
+  it("stays silent while a step is fresh or the monthly check-in is due", () => {
+    const { unmount } = render(<ReducerHarness initialState={withFamily(familyWithStaleSteps(3))} />);
+    expect(screen.queryByTestId("family-followup")).not.toBeInTheDocument();
+    unmount();
+
+    render(<ReducerHarness initialState={withFamily(familyWithStaleSteps(40))} />);
+    expect(screen.queryByTestId("family-followup")).not.toBeInTheDocument();
+  });
+});
+
 describe("P4 eighteen-month family", () => {
   it("renders the development stage and its hub link for an 18-month-old", () => {
     render(<ReducerHarness initialState={withFamily(eighteenMonthFamilyState(new Date()))} />);

@@ -3,9 +3,21 @@ import userEvent from "@testing-library/user-event";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { getFamilyResourceById } from "@/domain/family-resources";
+import type { FamilyResourceStep, FamilyStepStatus } from "@/domain/types";
 import { FamilyResourceCard } from "./family-resource-card";
 
 const michelle = getFamilyResourceById("michelle_p_waiver")!;
+
+function step(status: FamilyStepStatus, updatedAt = "2026-07-17T12:00:00.000Z"): FamilyResourceStep {
+  return {
+    id: "step-1",
+    resourceId: michelle.id,
+    domain: "waivers_financial",
+    status,
+    plannedAt: "2026-06-02T12:00:00.000Z",
+    updatedAt
+  };
+}
 
 function renderCard(overrides: Partial<React.ComponentProps<typeof FamilyResourceCard>> = {}) {
   const props: React.ComponentProps<typeof FamilyResourceCard> = {
@@ -111,6 +123,51 @@ describe("FamilyResourceCard", () => {
     expect(checkboxes).toHaveLength(2);
     expect(checkboxes[0].id).not.toBe(checkboxes[1].id);
     expect(within(checkboxes[0].closest("article")!).getByRole("button", { name: /Share.*Michelle P/i })).toBeDisabled();
+  });
+
+  it("offers the commit CTA only until a step exists, then shows that step's status and month", () => {
+    const { unmount } = renderCard({ onPlanStep: vi.fn() });
+    expect(screen.getByRole("button", { name: /I'll do this.*Michelle P/i })).toBeVisible();
+    expect(screen.queryByTestId("family-step-status")).not.toBeInTheDocument();
+    unmount();
+
+    renderCard({ step: step("in_touch"), onPlanStep: vi.fn() });
+    expect(screen.queryByRole("button", { name: /I'll do this/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId("family-step-status")).toHaveTextContent("In touch · July 2026");
+  });
+
+  it("dispatches the plan with the resource and the domain it was matched under", async () => {
+    const user = userEvent.setup();
+    const onPlanStep = vi.fn();
+    renderCard({ onPlanStep });
+
+    await user.click(screen.getByRole("button", { name: /I'll do this.*Michelle P/i }));
+
+    expect(onPlanStep).toHaveBeenCalledTimes(1);
+    expect(onPlanStep).toHaveBeenCalledWith(michelle, "waivers_financial");
+  });
+
+  it("renders a line for every tracked status, in Spanish too", () => {
+    const expected: Array<[FamilyStepStatus, string]> = [
+      ["planned", "Planned"],
+      ["tried", "Tried"],
+      ["in_touch", "In touch"],
+      ["enrolled", "Enrolled"],
+      ["not_for_us", "Not for us"]
+    ];
+    for (const [status, label] of expected) {
+      const { unmount } = renderCard({ step: step(status) });
+      expect(screen.getByTestId("family-step-status")).toHaveTextContent(label);
+      unmount();
+    }
+
+    renderCard({ step: step("enrolled"), language: "es" });
+    expect(screen.getByTestId("family-step-status")).toHaveTextContent("Inscrito");
+  });
+
+  it("hides the commit CTA when no planner is wired up", () => {
+    renderCard();
+    expect(screen.queryByRole("button", { name: /I'll do this/i })).not.toBeInTheDocument();
   });
 
   it("shows the manual-verification warning when the catalog requires it", () => {
