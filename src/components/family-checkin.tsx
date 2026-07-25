@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { FamilyNavigatorState, FamilyPulse } from "@/domain/types";
 import { tFamily } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
@@ -14,11 +14,25 @@ const ANSWER_BUTTON = `min-h-12 min-w-0 break-words rounded-control border borde
 
 const PULSE_SCORES: ReadonlyArray<FamilyPulse["score"]> = [1, 2, 3, 4, 5];
 
-type CheckinPart = "note" | "probe" | "pulse" | "done";
+export type CheckinPart = "note" | "probe" | "pulse" | "done";
 
 export type FamilyCheckinProps = {
   family: FamilyNavigatorState;
   language: Language;
+  /**
+   * Where the sequence stands. The page owns it, not this card: a probe yes
+   * hands the page to the clinic-now card and unmounts the check-in, and the
+   * caregiver must come back to the part they had not answered yet — never to
+   * the top, which would re-ask the probe and raise a second flag.
+   */
+  part: CheckinPart;
+  onPartChange: (part: CheckinPart) => void;
+  /**
+   * True when this mount continues a check-in the caregiver already started, so
+   * a fresh mount (the return from the clinic-now card) puts focus back on the
+   * card instead of leaving it on the body.
+   */
+  resuming: boolean;
   /** Opens the standing interview box for a `checkin` note. */
   onOpenNote: () => void;
   onProbeAnswer: (answer: "no" | "yes") => void;
@@ -34,31 +48,67 @@ export type FamilyCheckinProps = {
 export function FamilyCheckin({
   family,
   language,
+  part,
+  onPartChange,
+  resuming,
   onOpenNote,
   onProbeAnswer,
   onPulse,
   onSkip
 }: FamilyCheckinProps) {
-  const [part, setPart] = useState<CheckinPart>("note");
   const [showingExamples, setShowingExamples] = useState(false);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  // What was on screen last commit. A change means the caregiver just answered
+  // and the control they pressed is gone, so focus has to be given somewhere.
+  const shownRef = useRef<{ part: CheckinPart; showingExamples: boolean } | null>(null);
+  // "Add a note" deliberately sends focus to the standing interview box; the
+  // probe queued behind it must not snatch focus back out of the caregiver's
+  // typing.
+  const handedOffRef = useRef(false);
   const givenName = family.profile?.childFirstName?.trim() ?? "";
   const name = givenName.length > 0 ? givenName : tFamily(language, "checkinChildFallback");
+
+  const question =
+    part === "note"
+      ? tFamily(language, "checkinNoteInvite", { name })
+      : part === "probe"
+        ? showingExamples
+          ? `${tFamily(language, "probeExamples")} ${tFamily(language, "checkinProbe", { name })}`
+          : tFamily(language, "checkinProbe", { name })
+        : part === "pulse"
+          ? tFamily(language, "pulseQuestion")
+          : "";
+
+  useEffect(() => {
+    const previous = shownRef.current;
+    shownRef.current = { part, showingExamples };
+    const movedOn =
+      previous === null
+        ? resuming
+        : previous.part !== part || previous.showingExamples !== showingExamples;
+    const handedOff = handedOffRef.current;
+    handedOffRef.current = false;
+    if (movedOn && !handedOff) {
+      headingRef.current?.focus();
+    }
+  }, [part, resuming, showingExamples]);
 
   function openNote(): void {
     // The note lands in the standing interview box, which stamps a touch and
     // would otherwise close this card mid-sequence — so the probe is queued up
     // for when the caregiver comes back down the page.
-    setPart("probe");
+    handedOffRef.current = true;
+    onPartChange("probe");
     onOpenNote();
   }
 
   function answerProbe(answer: "no" | "yes"): void {
-    setPart("pulse");
+    onPartChange("pulse");
     onProbeAnswer(answer);
   }
 
   function recordPulse(score: FamilyPulse["score"]): void {
-    setPart("done");
+    onPartChange("done");
     onPulse(score);
   }
 
@@ -70,9 +120,23 @@ export function FamilyCheckin({
       aria-labelledby="family-checkin-title"
       className="rounded-control border border-care/20 bg-white p-4"
     >
-      <h2 id="family-checkin-title" className="text-xl font-semibold">
+      <h2
+        id="family-checkin-title"
+        ref={headingRef}
+        tabIndex={-1}
+        className={`text-xl font-semibold ${CONTROL_FOCUS}`}
+      >
         {tFamily(language, "checkinTitle")}
       </h2>
+      {/* The question that replaced the button the caregiver just pressed. */}
+      <p
+        data-testid="family-checkin-live-turn"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {question ? `${tFamily(language, "checkinTitle")}: ${question}` : ""}
+      </p>
 
       {part === "note" ? (
         <div className="mt-3">
@@ -83,7 +147,7 @@ export function FamilyCheckin({
             <button type="button" onClick={openNote} className={ANSWER_BUTTON}>
               {tFamily(language, "checkinAddNote")}
             </button>
-            <button type="button" onClick={() => setPart("probe")} className={ANSWER_BUTTON}>
+            <button type="button" onClick={() => onPartChange("probe")} className={ANSWER_BUTTON}>
               {tFamily(language, "checkinNothingNew")}
             </button>
           </div>

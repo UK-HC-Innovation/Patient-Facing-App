@@ -867,7 +867,7 @@ describe("monthly check-in", () => {
     expect(screen.getByTestId("family-checkin")).toHaveAttribute("data-checkin-part", "probe");
   });
 
-  it("hands a probe yes to the clinic-now card and keeps one ask on the page", async () => {
+  it("hands a probe yes to the clinic-now card, then resumes the check-in at the pulse", async () => {
     const user = userEvent.setup();
     render(<ReducerHarness initialState={withFamily(familyQuietFor(40))} />);
 
@@ -875,9 +875,38 @@ describe("monthly check-in", () => {
     await user.click(within(checkin).getByRole("button", { name: "Nothing new" }));
     await user.click(within(checkin).getByRole("button", { name: "Yes, I think so" }));
 
+    // One ask at a time: the clinic-now card owns the page until it is read.
     expect(screen.getByTestId("family-clinic-now-card")).toBeVisible();
     expect(screen.queryByTestId("family-checkin")).not.toBeInTheDocument();
     expect(familyStateOutput().flags).toMatchObject([{ type: "regression", source: "probe" }]);
+
+    await user.click(
+      within(screen.getByTestId("family-clinic-now-card")).getByRole("button", {
+        name: "I've noted this"
+      })
+    );
+
+    // The pulse is the whole point of the check-in, so it survives the detour.
+    const resumed = screen.getByTestId("family-checkin");
+    expect(resumed).toHaveAttribute("data-checkin-part", "pulse");
+    expect(within(resumed).getByText("How supported do you feel this month?")).toBeVisible();
+    expect(within(resumed).getByTestId("family-checkin-live-turn")).toHaveTextContent(
+      "Monthly check-in: How supported do you feel this month?"
+    );
+    // Neither earlier part comes back, so the probe cannot raise a second flag.
+    expect(
+      screen.queryByText("It's been about a month. Anything new or different with Riley?")
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Yes, I think so" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add a note" })).not.toBeInTheDocument();
+
+    await user.click(within(resumed).getByRole("button", { name: "4" }));
+
+    const family = familyStateOutput();
+    expect(family.pulses).toMatchObject([{ score: 4 }]);
+    expect(family.flags).toHaveLength(1);
+    expect(family.checkinTouchedAt).not.toBeNull();
+    expect(screen.queryByTestId("family-clinic-now-card")).not.toBeInTheDocument();
   });
 
   it("records the pulse, stamps the touch, and rests until next month", async () => {

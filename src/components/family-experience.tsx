@@ -8,7 +8,7 @@ import React, {
   type Dispatch
 } from "react";
 import { FamilyAppointmentCard } from "@/components/family-appointment-card";
-import { FamilyCheckin } from "@/components/family-checkin";
+import { FamilyCheckin, type CheckinPart } from "@/components/family-checkin";
 import { FamilyClinicNowCard } from "@/components/family-clinic-now-card";
 import { FamilyCrisisBanner } from "@/components/family-crisis-banner";
 import { FamilyFactCard } from "@/components/family-fact-card";
@@ -369,6 +369,12 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   // through; started keeps it open for this visit, skipped closes it for good.
   const [checkinStarted, setCheckinStarted] = useState(false);
   const [checkinSkipped, setCheckinSkipped] = useState(false);
+  // The sequence position lives here, not in the card, because a probe yes
+  // raises a flag and the clinic-now card takes the page — unmounting the card
+  // mid-sequence. Holding the position out here means acknowledging that card
+  // hands the caregiver back the part they had not answered (the pulse) instead
+  // of restarting at the note invite and re-asking the probe.
+  const [checkinPart, setCheckinPart] = useState<CheckinPart>("note");
   const reviewRef = useRef<HTMLElement>(null);
   const pendingReviewFocusRef = useRef(false);
   const safetyTurnRef = useRef(false);
@@ -822,6 +828,9 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
         <FamilyCheckin
           family={family}
           language={language}
+          part={checkinPart}
+          onPartChange={setCheckinPart}
+          resuming={checkinStarted}
           onOpenNote={openCheckinNote}
           onProbeAnswer={answerCheckinProbe}
           onPulse={recordCheckinPulse}

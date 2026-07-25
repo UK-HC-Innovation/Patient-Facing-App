@@ -1,21 +1,39 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import React from "react";
+import React, { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { schoolAgeFamilyState } from "@/domain/family-fixtures";
-import { FamilyCheckin } from "./family-checkin";
+import { FamilyCheckin, type CheckinPart } from "./family-checkin";
 
-function renderCheckin(overrides: Partial<React.ComponentProps<typeof FamilyCheckin>> = {}) {
-  const props: React.ComponentProps<typeof FamilyCheckin> = {
+// The page owns the sequence position, so the tests do too: this harness stands
+// in for FamilyExperience's checkinPart state.
+type CheckinFixedProps = Omit<React.ComponentProps<typeof FamilyCheckin>, "part" | "onPartChange">;
+
+function renderCheckin(
+  overrides: Partial<CheckinFixedProps> & { initialPart?: CheckinPart } = {}
+) {
+  const { initialPart = "note", ...rest } = overrides;
+  const props: CheckinFixedProps = {
     family: schoolAgeFamilyState,
     language: "en",
+    resuming: false,
     onOpenNote: vi.fn(),
     onProbeAnswer: vi.fn(),
     onPulse: vi.fn(),
     onSkip: vi.fn(),
-    ...overrides
+    ...rest
   };
-  return { ...render(<FamilyCheckin {...props} />), props };
+
+  function Harness() {
+    const [part, setPart] = useState<CheckinPart>(initialPart);
+    return <FamilyCheckin {...props} part={part} onPartChange={setPart} />;
+  }
+
+  return { ...render(<Harness />), props };
+}
+
+function liveTurn(): HTMLElement {
+  return screen.getByTestId("family-checkin-live-turn");
 }
 
 describe("FamilyCheckin", () => {
@@ -146,6 +164,95 @@ describe("FamilyCheckin", () => {
     }
   });
 
+  // The page can hand the card back at any part — it never restarts at the top.
+  it("starts wherever the page says the sequence stands", () => {
+    renderCheckin({ initialPart: "pulse" });
+
+    expect(screen.getByText("How supported do you feel this month?")).toBeVisible();
+    expect(
+      screen.queryByText("It's been about a month. Anything new or different with Riley?")
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Yes, I think so" })).toBeNull();
+  });
+
+  describe("focus and announcement", () => {
+    it("announces the question that replaced the button in a polite live region", async () => {
+      const user = userEvent.setup();
+      renderCheckin();
+
+      expect(liveTurn()).toHaveAttribute("aria-live", "polite");
+      expect(liveTurn()).toHaveClass("sr-only");
+      expect(liveTurn()).toHaveTextContent(
+        "Monthly check-in: It's been about a month. Anything new or different with Riley?"
+      );
+
+      await user.click(screen.getByRole("button", { name: "Nothing new" }));
+      expect(liveTurn()).toHaveTextContent(
+        "Monthly check-in: Compared with a few months ago, has Riley lost any skills"
+      );
+
+      await user.click(screen.getByRole("button", { name: "No" }));
+      expect(liveTurn()).toHaveTextContent("Monthly check-in: How supported do you feel this month?");
+    });
+
+    it("announces the cited examples when the caregiver asks what skill loss looks like", async () => {
+      const user = userEvent.setup();
+      renderCheckin();
+
+      await user.click(screen.getByRole("button", { name: "Nothing new" }));
+      await user.click(screen.getByRole("button", { name: "Not sure" }));
+
+      expect(liveTurn()).toHaveTextContent("Skill loss can look like: words that stopped");
+    });
+
+    it("moves focus onto the card instead of dropping it on the body at every step", async () => {
+      const user = userEvent.setup();
+      renderCheckin();
+
+      const heading = screen.getByRole("heading", { name: "Monthly check-in" });
+      expect(heading).toHaveAttribute("tabindex", "-1");
+      // Nothing is stolen on the first paint — the card arrives unasked for.
+      expect(heading).not.toHaveFocus();
+
+      await user.click(screen.getByRole("button", { name: "Nothing new" }));
+      expect(heading).toHaveFocus();
+      expect(document.body).not.toHaveFocus();
+
+      await user.click(screen.getByRole("button", { name: "Not sure" }));
+      expect(heading).toHaveFocus();
+
+      await user.click(screen.getByRole("button", { name: "No" }));
+      expect(heading).toHaveFocus();
+
+      await user.click(screen.getByRole("button", { name: "4" }));
+      expect(heading).toHaveFocus();
+    });
+
+    // The card comes back after the clinic-now card was acknowledged: focus has
+    // nowhere to be, so the resumed question takes it.
+    it("takes focus on a resumed mount, never on a fresh one", () => {
+      const resumed = renderCheckin({ initialPart: "pulse", resuming: true });
+      expect(screen.getByRole("heading", { name: "Monthly check-in" })).toHaveFocus();
+      resumed.unmount();
+
+      renderCheckin({ initialPart: "pulse", resuming: false });
+      expect(screen.getByRole("heading", { name: "Monthly check-in" })).not.toHaveFocus();
+    });
+
+    it("leaves focus in the note box it just handed the caregiver", async () => {
+      const user = userEvent.setup();
+      const box = document.createElement("textarea");
+      document.body.append(box);
+      renderCheckin({ onOpenNote: () => box.focus() });
+
+      await user.click(screen.getByRole("button", { name: "Add a note" }));
+
+      expect(box).toHaveFocus();
+      expect(screen.getByRole("heading", { name: "Monthly check-in" })).not.toHaveFocus();
+      box.remove();
+    });
+  });
+
   it("renders the Spanish check-in", async () => {
     const user = userEvent.setup();
     renderCheckin({ language: "es" });
@@ -160,6 +267,7 @@ describe("FamilyCheckin", () => {
         "Comparado con hace unos meses, ¿Riley ha perdido habilidades — palabras, movimientos, cosas que ya hacía?"
       )
     ).toBeVisible();
+    expect(liveTurn()).toHaveTextContent("Chequeo mensual: Comparado con hace unos meses");
     expect(screen.getByRole("button", { name: "Omitir el chequeo" })).toBeVisible();
   });
 });
