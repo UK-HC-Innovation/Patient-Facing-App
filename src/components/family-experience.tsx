@@ -541,7 +541,8 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
         rawText: meta.rawText,
         source: meta.source,
         createdAt,
-        extraction: meta.extraction
+        extraction: meta.extraction,
+        kind: "orientation"
       },
       facts,
       domains

@@ -183,7 +183,8 @@ describe("healthReducer", () => {
       rawText: "I need school help.",
       source: "typed",
       createdAt: "2026-07-17T12:00:00.000Z",
-      extraction: "mock"
+      extraction: "mock",
+      kind: "orientation"
     };
     const first = healthReducer(seeded, {
       type: "addFamilyInterview",

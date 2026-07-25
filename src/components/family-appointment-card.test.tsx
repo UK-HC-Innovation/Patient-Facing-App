@@ -28,6 +28,11 @@ function familyState(overrides: Partial<FamilyNavigatorState>): FamilyNavigatorS
     activeDomains: [],
     saved: [],
     alreadyEnrolled: [],
+    steps: [],
+    pulses: [],
+    flags: [],
+    soonerList: null,
+    packetQuestionIds: [],
     ...overrides
   };
 }

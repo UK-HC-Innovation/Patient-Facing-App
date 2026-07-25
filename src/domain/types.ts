@@ -358,6 +358,8 @@ export type FamilyInterview = {
   source: "typed" | "voice" | "mixed";
   createdAt: string;
   extraction: "live" | "mock";
+  /** Journal grouping + engagement metrics. Saves written before this existed backfill to "orientation". */
+  kind: "orientation" | "note" | "checkin";
 };
 
 export type FamilyEvidenceStatus = Extract<EvidenceStatus, "patient_reported" | "inferred" | "confirmed">;
@@ -369,6 +371,8 @@ export type FamilyFact = {
   value: string;
   status: FamilyEvidenceStatus;
   sourceSnippet: string;
+  /** Non-destructive curation for the visit packet. Absent means included. */
+  includeInSummary?: boolean;
 };
 
 export type SavedFamilyResource = {
@@ -437,6 +441,39 @@ export type FamilyRecommendationSet = {
   items: FamilyRecommendationItem[];
 };
 
+export type FamilyStepStatus = "planned" | "tried" | "in_touch" | "enrolled" | "not_for_us";
+
+// A resource the caregiver committed to. `enrolled` is kept in sync with
+// `alreadyEnrolled` so matching exclusion keeps working from either entry path.
+export type FamilyResourceStep = {
+  id: string;
+  resourceId: string;
+  domain: DevNeedDomain;
+  status: FamilyStepStatus;
+  plannedAt: string;
+  updatedAt: string;
+};
+
+/** One-question experience pulse taken at check-in. Never gates anything. */
+export type FamilyPulse = { at: string; score: 1 | 2 | 3 | 4 | 5 };
+
+// The clinic-now tier: informational, acknowledge-to-dismiss, never a crisis lock.
+export type FamilyFlag = {
+  id: string;
+  type: "regression";
+  source: "probe" | "text";
+  raisedAt: string;
+  acknowledgedAt?: string;
+};
+
+export type FamilySoonerConstraint =
+  | "weekday_mornings"
+  | "weekday_afternoons"
+  | "any_weekday"
+  | "needs_notice";
+
+export type FamilySoonerList = { optedInAt: string; constraints: FamilySoonerConstraint[] };
+
 export type FamilyNavigatorState = {
   profile: FamilyProfile | null;
   referral: FamilyReferral | null;
@@ -451,6 +488,12 @@ export type FamilyNavigatorState = {
   activeDomains: DevNeedDomain[];
   saved: SavedFamilyResource[];
   alreadyEnrolled: string[];
+  steps: FamilyResourceStep[];
+  pulses: FamilyPulse[];
+  flags: FamilyFlag[];
+  soonerList: FamilySoonerList | null;
+  /** Starter-question ids picked for the visit packet. */
+  packetQuestionIds: string[];
 };
 
 export type AppState = {

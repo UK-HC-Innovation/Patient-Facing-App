@@ -20,15 +20,21 @@ import type {
   FamilyAppointmentBarrier,
   FamilyEvidenceStatus,
   FamilyFact,
+  FamilyFlag,
   FamilyInterview,
   FamilyNavigatorState,
   FamilyProfile,
+  FamilyPulse,
   FamilyRecommendationItem,
   FamilyRecommendationSet,
   FamilyReferral,
   FamilyReminderOffset,
+  FamilyResourceStep,
   FamilySafetyEvent,
   FamilyScreenAnswer,
+  FamilySoonerConstraint,
+  FamilySoonerList,
+  FamilyStepStatus,
   FoodSource,
   GlucoseReading,
   HomeReading,
@@ -823,14 +829,21 @@ function isFamilyScreenAnswer(value: unknown): value is FamilyScreenAnswer {
   );
 }
 
-function isFamilyInterview(value: unknown): value is FamilyInterview {
+const familyInterviewKinds = ["orientation", "note", "checkin"] as const;
+
+function isFamilyInterview(value: unknown): value is Omit<FamilyInterview, "kind"> & {
+  kind?: FamilyInterview["kind"];
+} {
   return (
     isObject(value) &&
     hasString(value, "id") &&
     hasString(value, "rawText") &&
     (value.source === "typed" || value.source === "voice" || value.source === "mixed") &&
     hasString(value, "createdAt") &&
-    (value.extraction === "live" || value.extraction === "mock")
+    (value.extraction === "live" || value.extraction === "mock") &&
+    // Optional in storage on purpose: saves written before spec 13 backfill to
+    // "orientation" in the sanitizer rather than resetting the family slice.
+    (value.kind === undefined || familyInterviewKinds.some((kind) => kind === value.kind))
   );
 }
 
@@ -846,7 +859,8 @@ function isFamilyFact(value: unknown): value is FamilyFact {
     hasString(value, "label") &&
     hasString(value, "value") &&
     isFamilyEvidenceStatus(value.status) &&
-    hasString(value, "sourceSnippet")
+    hasString(value, "sourceSnippet") &&
+    (value.includeInSummary === undefined || typeof value.includeInSummary === "boolean")
   );
 }
 
@@ -959,6 +973,63 @@ function isFamilyAppointment(value: unknown): value is FamilyAppointment {
   return true;
 }
 
+const familyStepStatuses: FamilyStepStatus[] = ["planned", "tried", "in_touch", "enrolled", "not_for_us"];
+const familySoonerConstraints: FamilySoonerConstraint[] = [
+  "weekday_mornings",
+  "weekday_afternoons",
+  "any_weekday",
+  "needs_notice"
+];
+
+function isFamilyResourceStep(value: unknown): value is FamilyResourceStep {
+  return (
+    isObject(value) &&
+    isNonblankString(value.id) &&
+    isNonblankString(value.resourceId) &&
+    isDevNeedDomain(value.domain) &&
+    typeof value.status === "string" &&
+    familyStepStatuses.some((status) => status === value.status) &&
+    isExactIsoTimestamp(value.plannedAt) &&
+    isExactIsoTimestamp(value.updatedAt) &&
+    new Date(value.updatedAt).valueOf() >= new Date(value.plannedAt).valueOf()
+  );
+}
+
+function isFamilyPulse(value: unknown): value is FamilyPulse {
+  return (
+    isObject(value) &&
+    isExactIsoTimestamp(value.at) &&
+    typeof value.score === "number" &&
+    Number.isInteger(value.score) &&
+    value.score >= 1 &&
+    value.score <= 5
+  );
+}
+
+function isFamilyFlag(value: unknown): value is FamilyFlag {
+  return (
+    isObject(value) &&
+    isNonblankString(value.id) &&
+    value.type === "regression" &&
+    (value.source === "probe" || value.source === "text") &&
+    isExactIsoTimestamp(value.raisedAt) &&
+    (value.acknowledgedAt === undefined ||
+      (isExactIsoTimestamp(value.acknowledgedAt) &&
+        new Date(value.acknowledgedAt).valueOf() >= new Date(value.raisedAt).valueOf()))
+  );
+}
+
+function isFamilySoonerList(value: unknown): value is FamilySoonerList {
+  return (
+    isObject(value) &&
+    isExactIsoTimestamp(value.optedInAt) &&
+    Array.isArray(value.constraints) &&
+    value.constraints.length > 0 &&
+    value.constraints.every((entry) => familySoonerConstraints.some((known) => known === entry)) &&
+    new Set(value.constraints).size === value.constraints.length
+  );
+}
+
 function uniqueStrings<T extends string>(values: T[]): T[] {
   return [...new Set(values)];
 }
@@ -977,6 +1048,17 @@ function uniqueSavedFamilyResources(resources: SavedFamilyResource[]): SavedFami
 function uniqueFamilyAppointments(appointments: FamilyAppointment[]): FamilyAppointment[] {
   const seen = new Set<string>();
   return appointments.filter(({ id }) => {
+    if (seen.has(id)) {
+      return false;
+    }
+    seen.add(id);
+    return true;
+  });
+}
+
+function uniqueById<T extends { id: string }>(rows: T[]): T[] {
+  const seen = new Set<string>();
+  return rows.filter(({ id }) => {
     if (seen.has(id)) {
       return false;
     }
@@ -1007,7 +1089,14 @@ function isFamilyNavigatorState(value: unknown): value is FamilyNavigatorState {
     Array.isArray(value.activeDomains) &&
     value.activeDomains.every(isDevNeedDomain) &&
     isArrayOfObjects(value.saved, isSavedFamilyResource) &&
-    isArrayOfStrings(value.alreadyEnrolled)
+    isArrayOfStrings(value.alreadyEnrolled) &&
+    (value.steps === undefined || isArrayOfObjects(value.steps, isFamilyResourceStep)) &&
+    (value.pulses === undefined || isArrayOfObjects(value.pulses, isFamilyPulse)) &&
+    (value.flags === undefined || isArrayOfObjects(value.flags, isFamilyFlag)) &&
+    (value.soonerList === undefined ||
+      value.soonerList === null ||
+      isFamilySoonerList(value.soonerList)) &&
+    (value.packetQuestionIds === undefined || isArrayOfStrings(value.packetQuestionIds))
   );
 }
 
@@ -1042,12 +1131,21 @@ function sanitizeFamilyNavigatorState(value: unknown): FamilyNavigatorState | nu
     recommendations: sanitizeFamilyRecommendations(value.recommendations),
     interviewDraft: typeof value.interviewDraft === "string" ? value.interviewDraft : "",
     screenAnswers: value.screenAnswers.filter(isFamilyScreenAnswer),
-    interviews: value.interviews.filter(isFamilyInterview),
+    interviews: value.interviews
+      .filter(isFamilyInterview)
+      .map((interview) => ({ ...interview, kind: interview.kind ?? "orientation" })),
     facts: value.facts.filter(isFamilyFact),
     latestInterviewDomains: uniqueStrings(latestInterviewDomains),
     activeDomains: uniqueStrings(value.activeDomains.filter(isDevNeedDomain)),
     saved: uniqueSavedFamilyResources(value.saved.filter(isSavedFamilyResource)),
-    alreadyEnrolled: uniqueStrings(value.alreadyEnrolled.filter((entry): entry is string => typeof entry === "string"))
+    alreadyEnrolled: uniqueStrings(value.alreadyEnrolled.filter((entry): entry is string => typeof entry === "string")),
+    steps: Array.isArray(value.steps) ? uniqueById(value.steps.filter(isFamilyResourceStep)) : [],
+    pulses: Array.isArray(value.pulses) ? value.pulses.filter(isFamilyPulse) : [],
+    flags: Array.isArray(value.flags) ? uniqueById(value.flags.filter(isFamilyFlag)) : [],
+    soonerList: isFamilySoonerList(value.soonerList) ? value.soonerList : null,
+    packetQuestionIds: Array.isArray(value.packetQuestionIds)
+      ? uniqueStrings(value.packetQuestionIds.filter((entry): entry is string => typeof entry === "string"))
+      : []
   };
 }
 

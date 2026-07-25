@@ -3,7 +3,12 @@ import { brentState, deletedDemoState, demoState } from "@/domain/fixtures";
 import { INSTRUMENTS } from "@/domain/instruments/registry";
 import type { ScreeningInstrument } from "@/domain/instruments/types";
 import { clearStoredState, loadStoredState, saveStoredState } from "./storage";
-import type { FamilyAppointment, FamilyNavigatorState } from "@/domain/types";
+import type {
+  FamilyAppointment,
+  FamilyFlag,
+  FamilyNavigatorState,
+  FamilyResourceStep
+} from "@/domain/types";
 
 const STORAGE_KEY = "home-health-ai-ownership-state";
 
@@ -36,7 +41,8 @@ describe("storage", () => {
         rawText: "Reading homework is hard.",
         source: "typed",
         createdAt: "2026-07-17T12:00:00.000Z",
-        extraction: "mock"
+        extraction: "mock",
+        kind: "orientation"
       }
     ],
     facts: [
@@ -54,7 +60,12 @@ describe("storage", () => {
     saved: [
       { resourceId: "ky-spin", savedAt: "2026-07-17T12:00:00.000Z", domain: "parent_support" }
     ],
-    alreadyEnrolled: ["first-steps", "first-steps"]
+    alreadyEnrolled: ["first-steps", "first-steps"],
+    steps: [],
+    pulses: [],
+    flags: [],
+    soonerList: null,
+    packetQuestionIds: []
   };
 
   it("backfills a pre-family payload to null without resetting adult state", () => {
@@ -370,6 +381,110 @@ describe("storage", () => {
 
     expect(loaded.family?.referral).toBeNull();
     expect(loaded.family?.profile).toEqual(validFamily.profile);
+  });
+
+  it("backfills companion fields on saves written before spec 13", () => {
+    const legacyFamily: Record<string, unknown> = { ...validFamily };
+    delete legacyFamily.steps;
+    delete legacyFamily.pulses;
+    delete legacyFamily.flags;
+    delete legacyFamily.soonerList;
+    delete legacyFamily.packetQuestionIds;
+    legacyFamily.interviews = validFamily.interviews.map((interview) => {
+      const legacyInterview: Record<string, unknown> = { ...interview };
+      delete legacyInterview.kind;
+      return legacyInterview;
+    });
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...demoState, family: legacyFamily }));
+
+    const loaded = loadStoredState();
+
+    expect(loaded.family).not.toBeNull();
+    expect(loaded.family?.steps).toEqual([]);
+    expect(loaded.family?.pulses).toEqual([]);
+    expect(loaded.family?.flags).toEqual([]);
+    expect(loaded.family?.soonerList).toBeNull();
+    expect(loaded.family?.packetQuestionIds).toEqual([]);
+    expect(loaded.family?.interviews.every((row) => row.kind === "orientation")).toBe(true);
+  });
+
+  it("drops incoherent companion rows without resetting the family slice", () => {
+    saveStoredState({
+      ...demoState,
+      family: {
+        ...validFamily,
+        steps: [
+          {
+            id: "s1",
+            resourceId: "r",
+            domain: "therapies",
+            status: "sideways",
+            plannedAt: "2026-07-01T00:00:00.000Z",
+            updatedAt: "2026-07-02T00:00:00.000Z"
+          }
+        ],
+        pulses: [{ at: "2026-07-01T00:00:00.000Z", score: 9 }],
+        flags: [
+          {
+            id: "f1",
+            type: "regression",
+            source: "probe",
+            raisedAt: "2026-07-02T00:00:00.000Z",
+            acknowledgedAt: "2026-07-01T00:00:00.000Z"
+          }
+        ],
+        soonerList: { optedInAt: "2026-07-01T00:00:00.000Z", constraints: [] }
+      } as unknown as FamilyNavigatorState
+    });
+
+    const loaded = loadStoredState();
+
+    expect(loaded.family).not.toBeNull();
+    expect(loaded.family?.steps).toEqual([]);
+    expect(loaded.family?.pulses).toEqual([]);
+    expect(loaded.family?.flags).toEqual([]);
+    expect(loaded.family?.soonerList).toBeNull();
+    expect(loaded.family?.profile).toEqual(validFamily.profile);
+  });
+
+  it("keeps coherent companion rows and dedupes steps, flags, and packet questions by id", () => {
+    const step: FamilyResourceStep = {
+      id: "step-1",
+      resourceId: "first-steps",
+      domain: "early_intervention",
+      status: "in_touch",
+      plannedAt: "2026-07-01T00:00:00.000Z",
+      updatedAt: "2026-07-08T00:00:00.000Z"
+    };
+    const flag: FamilyFlag = {
+      id: "flag-1",
+      type: "regression",
+      source: "probe",
+      raisedAt: "2026-07-02T00:00:00.000Z",
+      acknowledgedAt: "2026-07-03T00:00:00.000Z"
+    };
+    saveStoredState({
+      ...demoState,
+      family: {
+        ...validFamily,
+        steps: [step, { ...step, status: "planned" }],
+        pulses: [{ at: "2026-07-02T00:00:00.000Z", score: 4 }],
+        flags: [flag, { ...flag, source: "text" }],
+        soonerList: { optedInAt: "2026-07-01T00:00:00.000Z", constraints: ["weekday_mornings"] },
+        packetQuestionIds: ["who_to_call", "who_to_call", "home_help"]
+      }
+    });
+
+    const loaded = loadStoredState();
+
+    expect(loaded.family?.steps).toEqual([step]);
+    expect(loaded.family?.pulses).toEqual([{ at: "2026-07-02T00:00:00.000Z", score: 4 }]);
+    expect(loaded.family?.flags).toEqual([flag]);
+    expect(loaded.family?.soonerList).toEqual({
+      optedInAt: "2026-07-01T00:00:00.000Z",
+      constraints: ["weekday_mornings"]
+    });
+    expect(loaded.family?.packetQuestionIds).toEqual(["who_to_call", "home_help"]);
   });
 
   it("starts a fresh browser on the retinopathy-due demo state", () => {
@@ -1482,7 +1597,12 @@ describe("P4 assessment storage", () => {
     latestInterviewDomains: [],
     activeDomains: [],
     saved: [],
-    alreadyEnrolled: []
+    alreadyEnrolled: [],
+    steps: [],
+    pulses: [],
+    flags: [],
+    soonerList: null,
+    packetQuestionIds: []
   };
 
   const posiEvent = {

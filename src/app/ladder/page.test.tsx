@@ -86,7 +86,8 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
           rawText: "Riley is in fourth grade.",
           source: "typed",
           createdAt: "2026-07-16T12:00:00.000Z",
-          extraction: "mock"
+          extraction: "mock",
+          kind: "orientation"
         }
       ],
       facts: [

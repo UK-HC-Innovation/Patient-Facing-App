@@ -16,7 +16,12 @@ function familyWith(profile: FamilyProfile): FamilyNavigatorState {
     latestInterviewDomains: [],
     activeDomains: [],
     saved: [],
-    alreadyEnrolled: []
+    alreadyEnrolled: [],
+    steps: [],
+    pulses: [],
+    flags: [],
+    soonerList: null,
+    packetQuestionIds: []
   };
 }
 

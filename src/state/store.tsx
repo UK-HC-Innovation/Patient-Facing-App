@@ -154,7 +154,12 @@ function emptyFamilyState(profile: FamilyProfile | null): FamilyNavigatorState {
     latestInterviewDomains: [],
     activeDomains: [],
     saved: [],
-    alreadyEnrolled: []
+    alreadyEnrolled: [],
+    steps: [],
+    pulses: [],
+    flags: [],
+    soonerList: null,
+    packetQuestionIds: []
   };
 }
 

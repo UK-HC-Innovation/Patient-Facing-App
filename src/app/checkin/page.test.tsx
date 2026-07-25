@@ -61,7 +61,12 @@ describe("screening hub", () => {
         latestInterviewDomains: [],
         activeDomains: [],
         saved: [],
-        alreadyEnrolled: []
+        alreadyEnrolled: [],
+        steps: [],
+        pulses: [],
+        flags: [],
+        soonerList: null,
+        packetQuestionIds: []
       },
       assessmentEvents: [
         {
@@ -335,7 +340,12 @@ describe("screening hub", () => {
         latestInterviewDomains: [],
         activeDomains: [],
         saved: [],
-        alreadyEnrolled: []
+        alreadyEnrolled: [],
+        steps: [],
+        pulses: [],
+        flags: [],
+        soonerList: null,
+        packetQuestionIds: []
       }
     };
 
@@ -382,7 +392,12 @@ describe("screening hub", () => {
       latestInterviewDomains: [],
       activeDomains: [],
       saved: [],
-      alreadyEnrolled: []
+      alreadyEnrolled: [],
+      steps: [],
+      pulses: [],
+      flags: [],
+      soonerList: null,
+      packetQuestionIds: []
     };
     context.state = { ...demoState, family };
     const { unmount } = render(<CheckinPage />);

@@ -113,7 +113,12 @@ describe("dynamic instrument route", () => {
         latestInterviewDomains: [],
         activeDomains: [],
         saved: [],
-        alreadyEnrolled: []
+        alreadyEnrolled: [],
+        steps: [],
+        pulses: [],
+        flags: [],
+        soonerList: null,
+        packetQuestionIds: []
       }
     };
     route.instrumentId = "swyc_18mo";
@@ -155,7 +160,12 @@ describe("dynamic instrument route", () => {
         latestInterviewDomains: [],
         activeDomains: [],
         saved: [],
-        alreadyEnrolled: []
+        alreadyEnrolled: [],
+        steps: [],
+        pulses: [],
+        flags: [],
+        soonerList: null,
+        packetQuestionIds: []
       }
     };
 
@@ -199,7 +209,12 @@ describe("dynamic instrument route", () => {
         latestInterviewDomains: [],
         activeDomains: [],
         saved: [],
-        alreadyEnrolled: []
+        alreadyEnrolled: [],
+        steps: [],
+        pulses: [],
+        flags: [],
+        soonerList: null,
+        packetQuestionIds: []
       }
     };
     render(<InstrumentPage />);

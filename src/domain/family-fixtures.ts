@@ -32,7 +32,12 @@ export const schoolAgeFamilyState: FamilyNavigatorState = {
   latestInterviewDomains: [],
   activeDomains: [],
   saved: [],
-  alreadyEnrolled: []
+  alreadyEnrolled: [],
+  steps: [],
+  pulses: [],
+  flags: [],
+  soonerList: null,
+  packetQuestionIds: []
 };
 
 export function eighteenMonthFamilyState(now: Date): FamilyNavigatorState {
@@ -60,6 +65,11 @@ export function eighteenMonthFamilyState(now: Date): FamilyNavigatorState {
     latestInterviewDomains: [],
     activeDomains: [],
     saved: [],
-    alreadyEnrolled: []
+    alreadyEnrolled: [],
+    steps: [],
+    pulses: [],
+    flags: [],
+    soonerList: null,
+    packetQuestionIds: []
   };
 }
