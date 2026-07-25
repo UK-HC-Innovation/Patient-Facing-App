@@ -65,7 +65,8 @@ describe("storage", () => {
     pulses: [],
     flags: [],
     soonerList: null,
-    packetQuestionIds: []
+    packetQuestionIds: [],
+    checkinTouchedAt: null
   };
 
   it("backfills a pre-family payload to null without resetting adult state", () => {
@@ -390,6 +391,7 @@ describe("storage", () => {
     delete legacyFamily.flags;
     delete legacyFamily.soonerList;
     delete legacyFamily.packetQuestionIds;
+    delete legacyFamily.checkinTouchedAt;
     legacyFamily.interviews = validFamily.interviews.map((interview) => {
       const legacyInterview: Record<string, unknown> = { ...interview };
       delete legacyInterview.kind;
@@ -405,6 +407,7 @@ describe("storage", () => {
     expect(loaded.family?.flags).toEqual([]);
     expect(loaded.family?.soonerList).toBeNull();
     expect(loaded.family?.packetQuestionIds).toEqual([]);
+    expect(loaded.family?.checkinTouchedAt).toBeNull();
     expect(loaded.family?.interviews.every((row) => row.kind === "orientation")).toBe(true);
   });
 
@@ -433,7 +436,8 @@ describe("storage", () => {
             acknowledgedAt: "2026-07-01T00:00:00.000Z"
           }
         ],
-        soonerList: { optedInAt: "2026-07-01T00:00:00.000Z", constraints: [] }
+        soonerList: { optedInAt: "2026-07-01T00:00:00.000Z", constraints: [] },
+        checkinTouchedAt: "last Tuesday"
       } as unknown as FamilyNavigatorState
     });
 
@@ -444,6 +448,7 @@ describe("storage", () => {
     expect(loaded.family?.pulses).toEqual([]);
     expect(loaded.family?.flags).toEqual([]);
     expect(loaded.family?.soonerList).toBeNull();
+    expect(loaded.family?.checkinTouchedAt).toBeNull();
     expect(loaded.family?.profile).toEqual(validFamily.profile);
   });
 
@@ -471,7 +476,8 @@ describe("storage", () => {
         pulses: [{ at: "2026-07-02T00:00:00.000Z", score: 4 }],
         flags: [flag, { ...flag, source: "text" }],
         soonerList: { optedInAt: "2026-07-01T00:00:00.000Z", constraints: ["weekday_mornings"] },
-        packetQuestionIds: ["who_to_call", "who_to_call", "home_help"]
+        packetQuestionIds: ["who_to_call", "who_to_call", "home_help"],
+        checkinTouchedAt: "2026-07-05T00:00:00.000Z"
       }
     });
 
@@ -485,6 +491,7 @@ describe("storage", () => {
       constraints: ["weekday_mornings"]
     });
     expect(loaded.family?.packetQuestionIds).toEqual(["who_to_call", "home_help"]);
+    expect(loaded.family?.checkinTouchedAt).toBe("2026-07-05T00:00:00.000Z");
   });
 
   it("starts a fresh browser on the retinopathy-due demo state", () => {
@@ -1602,7 +1609,8 @@ describe("P4 assessment storage", () => {
     pulses: [],
     flags: [],
     soonerList: null,
-    packetQuestionIds: []
+    packetQuestionIds: [],
+    checkinTouchedAt: null
   };
 
   const posiEvent = {

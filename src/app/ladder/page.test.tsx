@@ -816,6 +816,99 @@ describe("next-steps follow-up turn", () => {
   });
 });
 
+// One orientation interview and nothing since — the only touch on the clock.
+function familyQuietFor(days: number): FamilyNavigatorState {
+  return {
+    ...schoolAgeFamilyState,
+    interviewDraft: SAMPLE_CAREGIVER_TEXT,
+    interviews: [
+      {
+        id: "interview-old",
+        rawText: "Riley is in fourth grade and reading is hard.",
+        source: "typed",
+        createdAt: new Date(Date.now() - days * DAY_MS).toISOString(),
+        extraction: "mock",
+        kind: "orientation"
+      }
+    ]
+  };
+}
+
+describe("monthly check-in", () => {
+  it("stays away until a month of silence, and the demo control produces one", async () => {
+    const user = userEvent.setup();
+    render(<ReducerHarness initialState={withFamily(familyQuietFor(3))} />);
+
+    expect(screen.queryByTestId("family-checkin")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Demo: pretend a month passed" }));
+
+    expect(screen.getByTestId("family-checkin")).toBeVisible();
+    expect(screen.queryByTestId("family-checkin-demo")).not.toBeInTheDocument();
+    expect(screen.getByTestId("audit-events")).toHaveTextContent(
+      "Demo control: family activity moved 31 days back"
+    );
+  });
+
+  it("files the note it invites under the check-in kind", async () => {
+    const user = userEvent.setup();
+    render(<ReducerHarness initialState={withFamily(familyQuietFor(40))} />);
+
+    await user.click(
+      within(screen.getByTestId("family-checkin")).getByRole("button", { name: "Add a note" })
+    );
+    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await screen.findByRole("heading", { name: "Here is what we heard" });
+
+    const interviews = familyStateOutput().interviews;
+    expect(interviews).toHaveLength(2);
+    expect(interviews.at(-1)?.kind).toBe("checkin");
+    // The card stays for its remaining part instead of vanishing mid-sequence.
+    expect(screen.getByTestId("family-checkin")).toHaveAttribute("data-checkin-part", "probe");
+  });
+
+  it("hands a probe yes to the clinic-now card and keeps one ask on the page", async () => {
+    const user = userEvent.setup();
+    render(<ReducerHarness initialState={withFamily(familyQuietFor(40))} />);
+
+    const checkin = screen.getByTestId("family-checkin");
+    await user.click(within(checkin).getByRole("button", { name: "Nothing new" }));
+    await user.click(within(checkin).getByRole("button", { name: "Yes, I think so" }));
+
+    expect(screen.getByTestId("family-clinic-now-card")).toBeVisible();
+    expect(screen.queryByTestId("family-checkin")).not.toBeInTheDocument();
+    expect(familyStateOutput().flags).toMatchObject([{ type: "regression", source: "probe" }]);
+  });
+
+  it("records the pulse, stamps the touch, and rests until next month", async () => {
+    const user = userEvent.setup();
+    render(<ReducerHarness initialState={withFamily(familyQuietFor(40))} />);
+
+    const checkin = screen.getByTestId("family-checkin");
+    await user.click(within(checkin).getByRole("button", { name: "Nothing new" }));
+    await user.click(within(checkin).getByRole("button", { name: "No" }));
+    await user.click(within(checkin).getByRole("button", { name: "4" }));
+
+    const family = familyStateOutput();
+    expect(family.pulses).toMatchObject([{ score: 4 }]);
+    expect(family.checkinTouchedAt).not.toBeNull();
+    expect(within(screen.getByTestId("family-checkin")).getByText("Thanks — see you next month.")).toBeVisible();
+  });
+
+  it("skips for the whole visit and stops asking", async () => {
+    const user = userEvent.setup();
+    render(<ReducerHarness initialState={withFamily(familyQuietFor(40))} />);
+
+    await user.click(
+      within(screen.getByTestId("family-checkin")).getByRole("button", { name: "Skip check-in" })
+    );
+
+    expect(screen.queryByTestId("family-checkin")).not.toBeInTheDocument();
+    expect(familyStateOutput().checkinTouchedAt).not.toBeNull();
+    expect(familyStateOutput().pulses).toEqual([]);
+  });
+});
+
 describe("P4 eighteen-month family", () => {
   it("renders the development stage and its hub link for an 18-month-old", () => {
     render(<ReducerHarness initialState={withFamily(eighteenMonthFamilyState(new Date()))} />);

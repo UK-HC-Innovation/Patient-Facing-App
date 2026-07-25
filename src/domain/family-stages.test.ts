@@ -21,7 +21,8 @@ function familyWith(profile: FamilyProfile): FamilyNavigatorState {
     pulses: [],
     flags: [],
     soonerList: null,
-    packetQuestionIds: []
+    packetQuestionIds: [],
+    checkinTouchedAt: null
   };
 }
 

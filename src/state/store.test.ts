@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { brentState, demoState } from "@/domain/fixtures";
 import { schoolAgeFamilyState } from "@/domain/family-fixtures";
 import { buildDemoSlotOffers, createFamilyAppointmentOffer } from "@/domain/family-appointments";
+import { checkInDue } from "@/domain/family-journey";
 import { recordAuditEvent } from "@/domain/audit";
 import { healthReducer } from "./store";
 import type { HealthAction } from "./store";
@@ -9,6 +10,7 @@ import type {
   AppState,
   FamilyFact,
   FamilyInterview,
+  FamilyPulse,
   FamilyScreenAnswer,
   FamilyStepStatus,
   GlucoseReading,
@@ -633,6 +635,139 @@ describe("healthReducer", () => {
         { type: "acknowledgeFamilyRegressionFlag", flagId, at: PLANNED_AT }
       ).family
     ).toBeNull();
+  });
+
+  it("records a pulse, stamps the check-in touch, and audits it", () => {
+    const seeded: AppState = { ...demoState, family: schoolAgeFamilyState };
+
+    const recorded = healthReducer(seeded, {
+      type: "recordFamilyPulse",
+      pulse: { at: PLANNED_AT, score: 4 }
+    });
+
+    expect(recorded.family?.pulses).toEqual([{ at: PLANNED_AT, score: 4 }]);
+    expect(recorded.family?.checkinTouchedAt).toBe(PLANNED_AT);
+    expect(recorded.auditEvents.at(-1)).toMatchObject({
+      action: "created",
+      label: "Family pulse recorded"
+    });
+  });
+
+  it("refuses pulse scores and stamps storage would drop on reload", () => {
+    const seeded: AppState = { ...demoState, family: schoolAgeFamilyState };
+    const badScore = (score: number) => ({
+      type: "recordFamilyPulse" as const,
+      pulse: { at: PLANNED_AT, score: score as FamilyPulse["score"] }
+    });
+
+    expect(healthReducer(seeded, badScore(0))).toBe(seeded);
+    expect(healthReducer(seeded, badScore(6))).toBe(seeded);
+    expect(healthReducer(seeded, badScore(3.5))).toBe(seeded);
+    expect(
+      healthReducer(seeded, { type: "recordFamilyPulse", pulse: { at: "whenever", score: 3 } })
+    ).toBe(seeded);
+    expect(
+      healthReducer({ ...demoState, family: null }, {
+        type: "recordFamilyPulse",
+        pulse: { at: PLANNED_AT, score: 3 }
+      }).family
+    ).toBeNull();
+  });
+
+  // Skipping stores nothing about the child and still has to reset due-ness.
+  it("skips the check-in by stamping a touch, and the selector agrees", () => {
+    const quiet: FamilyInterview = {
+      id: "interview-quiet",
+      rawText: "She is doing about the same as last month.",
+      source: "typed",
+      createdAt: "2026-06-01T12:00:00.000Z",
+      extraction: "mock",
+      kind: "note"
+    };
+    const seeded: AppState = {
+      ...demoState,
+      family: { ...schoolAgeFamilyState, interviews: [quiet] }
+    };
+    const now = new Date(PLANNED_AT);
+
+    expect(checkInDue(seeded.family!, now)).toBe(true);
+
+    const skipped = healthReducer(seeded, { type: "skipFamilyCheckin", at: PLANNED_AT });
+
+    expect(skipped.family?.checkinTouchedAt).toBe(PLANNED_AT);
+    expect(skipped.family?.pulses).toEqual([]);
+    expect(skipped.family?.interviews).toEqual([quiet]);
+    expect(checkInDue(skipped.family!, now)).toBe(false);
+    expect(skipped.auditEvents.at(-1)).toMatchObject({
+      action: "updated",
+      label: "Family check-in skipped"
+    });
+    expect(healthReducer(seeded, { type: "skipFamilyCheckin", at: "whenever" })).toBe(seeded);
+    expect(
+      healthReducer({ ...demoState, family: null }, { type: "skipFamilyCheckin", at: PLANNED_AT })
+        .family
+    ).toBeNull();
+  });
+
+  it("moves every family touch back for the demo and audits the move", () => {
+    const seeded: AppState = {
+      ...demoState,
+      family: {
+        ...schoolAgeFamilyState,
+        interviews: [
+          {
+            id: "interview-1",
+            rawText: "He is pointing at pictures now.",
+            source: "typed",
+            createdAt: PLANNED_AT,
+            extraction: "mock",
+            kind: "checkin"
+          }
+        ],
+        pulses: [{ at: PLANNED_AT, score: 5 }],
+        steps: [
+          {
+            id: "step-1",
+            resourceId: "ky_spin",
+            domain: "parent_support",
+            status: "planned",
+            plannedAt: PLANNED_AT,
+            updatedAt: PLANNED_AT
+          }
+        ],
+        saved: [{ resourceId: "ky_spin", savedAt: PLANNED_AT, domain: "parent_support" }],
+        checkinTouchedAt: PLANNED_AT
+      }
+    };
+
+    const moved = healthReducer(seeded, {
+      type: "backdateFamilyTouches",
+      days: 31,
+      now: PLANNED_AT
+    });
+    const shifted = "2026-06-16T12:00:00.000Z";
+
+    expect(moved.family?.interviews[0].createdAt).toBe(shifted);
+    expect(moved.family?.pulses[0].at).toBe(shifted);
+    // Both step stamps move together, so updatedAt never falls before plannedAt.
+    expect(moved.family?.steps[0]).toMatchObject({ plannedAt: shifted, updatedAt: shifted });
+    expect(moved.family?.saved[0].savedAt).toBe(shifted);
+    expect(moved.family?.checkinTouchedAt).toBe(shifted);
+    expect(checkInDue(moved.family!, new Date(PLANNED_AT))).toBe(true);
+    expect(moved.auditEvents.at(-1)).toMatchObject({
+      action: "updated",
+      label: "Demo control: family activity moved 31 days back"
+    });
+
+    expect(healthReducer(seeded, { type: "backdateFamilyTouches", days: 0, now: PLANNED_AT })).toBe(
+      seeded
+    );
+    expect(
+      healthReducer(seeded, { type: "backdateFamilyTouches", days: 1.5, now: PLANNED_AT })
+    ).toBe(seeded);
+    expect(healthReducer(seeded, { type: "backdateFamilyTouches", days: 31, now: "whenever" })).toBe(
+      seeded
+    );
   });
 
   it("clears family data on reset and deletion", () => {

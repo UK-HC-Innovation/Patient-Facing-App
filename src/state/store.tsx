@@ -53,6 +53,7 @@ import type {
   FamilyInterview,
   FamilyNavigatorState,
   FamilyProfile,
+  FamilyPulse,
   FamilyReferral,
   FamilyRecommendationSet,
   FamilyReminderOffset,
@@ -124,6 +125,9 @@ export type HealthAction =
   | { type: "toggleFamilyEnrollment"; resourceId: string }
   | { type: "planFamilyStep"; resourceId: string; domain: DevNeedDomain; at: string }
   | { type: "updateFamilyStep"; stepId: string; status: FamilyStepStatus; at: string }
+  | { type: "recordFamilyPulse"; pulse: FamilyPulse }
+  | { type: "skipFamilyCheckin"; at: string }
+  | { type: "backdateFamilyTouches"; days: number; now: string }
   | { type: "setFamilyReferral"; referral: FamilyReferral }
   | { type: "offerFamilyAppointment"; appointment: FamilyAppointment }
   | { type: "bookFamilyAppointment"; appointmentId: string; slot: string; at: string }
@@ -170,7 +174,8 @@ function emptyFamilyState(profile: FamilyProfile | null): FamilyNavigatorState {
     pulses: [],
     flags: [],
     soonerList: null,
-    packetQuestionIds: []
+    packetQuestionIds: [],
+    checkinTouchedAt: null
   };
 }
 
@@ -239,6 +244,48 @@ function stepsAfterEnrollmentToggle(
           updatedAt: at
         }
       ];
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// The demo control moves the family's own history back, never the clock. Every
+// stamp shifts by the same amount, so pairs that storage checks for coherence
+// (a step's plan/update, a flag's raise/acknowledge) stay in the same order.
+function movedBack(stamp: string, days: number): string {
+  const at = new Date(stamp);
+  return Number.isNaN(at.valueOf()) ? stamp : new Date(at.valueOf() - days * DAY_MS).toISOString();
+}
+
+function backdatedFamilyTouches(family: FamilyNavigatorState, days: number): FamilyNavigatorState {
+  const back = (stamp: string): string => movedBack(stamp, days);
+  return {
+    ...family,
+    interviews: family.interviews.map((interview) => ({
+      ...interview,
+      createdAt: back(interview.createdAt)
+    })),
+    steps: family.steps.map((step) => ({
+      ...step,
+      plannedAt: back(step.plannedAt),
+      updatedAt: back(step.updatedAt)
+    })),
+    pulses: family.pulses.map((pulse) => ({ ...pulse, at: back(pulse.at) })),
+    flags: family.flags.map((flag) => ({
+      ...flag,
+      raisedAt: back(flag.raisedAt),
+      acknowledgedAt: flag.acknowledgedAt === undefined ? undefined : back(flag.acknowledgedAt)
+    })),
+    saved: family.saved.map((saved) => ({ ...saved, savedAt: back(saved.savedAt) })),
+    appointments: family.appointments.map((appointment) => ({
+      ...appointment,
+      createdAt: back(appointment.createdAt),
+      reminderAcks: appointment.reminderAcks.map((ack) => ({
+        ...ack,
+        acknowledgedAt: back(ack.acknowledgedAt)
+      }))
+    })),
+    checkinTouchedAt: family.checkinTouchedAt === null ? null : back(family.checkinTouchedAt)
+  };
 }
 
 function isCoherentBarrierAnswer(barriers: FamilyAppointmentBarrier[]): boolean {
@@ -1059,6 +1106,70 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
         auditEvents: [
           ...state.auditEvents,
           recordAuditEvent(state.patient.id, "updated", "Family step updated")
+        ]
+      };
+    }
+    // One question, never a gate. An out-of-range score is a bad payload, not a
+    // feeling to store — storage would drop it on reload either way.
+    case "recordFamilyPulse": {
+      const { at, score } = action.pulse;
+      if (
+        !state.family ||
+        !isExactIsoTimestamp(at) ||
+        !Number.isInteger(score) ||
+        score < 1 ||
+        score > 5
+      ) {
+        return state;
+      }
+      return {
+        ...state,
+        family: {
+          ...state.family,
+          pulses: [...state.family.pulses, action.pulse],
+          checkinTouchedAt: at
+        },
+        auditEvents: [
+          ...state.auditEvents,
+          recordAuditEvent(state.patient.id, "created", "Family pulse recorded")
+        ]
+      };
+    }
+    // Skipping is a real answer: it records nothing about the child and still
+    // resets due-ness, so the caregiver is not asked again tomorrow.
+    case "skipFamilyCheckin": {
+      if (!state.family || !isExactIsoTimestamp(action.at)) {
+        return state;
+      }
+      return {
+        ...state,
+        family: { ...state.family, checkinTouchedAt: action.at },
+        auditEvents: [
+          ...state.auditEvents,
+          recordAuditEvent(state.patient.id, "updated", "Family check-in skipped")
+        ]
+      };
+    }
+    case "backdateFamilyTouches": {
+      const family = state.family;
+      if (
+        !family ||
+        !isExactIsoTimestamp(action.now) ||
+        !Number.isInteger(action.days) ||
+        action.days <= 0
+      ) {
+        return state;
+      }
+      return {
+        ...state,
+        family: backdatedFamilyTouches(family, action.days),
+        auditEvents: [
+          ...state.auditEvents,
+          recordAuditEvent(
+            state.patient.id,
+            "updated",
+            `Demo control: family activity moved ${action.days} days back`
+          )
         ]
       };
     }

@@ -8,6 +8,7 @@ import React, {
   type Dispatch
 } from "react";
 import { FamilyAppointmentCard } from "@/components/family-appointment-card";
+import { FamilyCheckin } from "@/components/family-checkin";
 import { FamilyClinicNowCard } from "@/components/family-clinic-now-card";
 import { FamilyCrisisBanner } from "@/components/family-crisis-banner";
 import { FamilyFactCard } from "@/components/family-fact-card";
@@ -65,6 +66,7 @@ import type {
   FamilyAppointmentBarrier,
   FamilyFact,
   FamilyProfile,
+  FamilyPulse,
   FamilyReminderOffset,
   FamilyResourceStep,
   FamilyScreenAnswer,
@@ -359,6 +361,10 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   const [needsScreenOpen, setNeedsScreenOpen] = useState(false);
   const [basicsToggled, setBasicsToggled] = useState<boolean | null>(null);
   const [followupAnswered, setFollowupAnswered] = useState(false);
+  // The check-in's own parts stamp touches, which would close the card halfway
+  // through; started keeps it open for this visit, skipped closes it for good.
+  const [checkinStarted, setCheckinStarted] = useState(false);
+  const [checkinSkipped, setCheckinSkipped] = useState(false);
   const reviewRef = useRef<HTMLElement>(null);
   const pendingReviewFocusRef = useRef(false);
   const safetyTurnRef = useRef(false);
@@ -626,6 +632,34 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     dispatch({ type: "acknowledgeFamilyRegressionFlag", flagId, at: new Date().toISOString() });
   }
 
+  // The check-in never opens a second writing surface: it hands the caregiver
+  // the same interview box, tagged so the note files as a check-in.
+  function openCheckinNote(): void {
+    setCheckinStarted(true);
+    interviewKindRef.current = "checkin";
+    const box = document.getElementById("family-interview-text");
+    if (box instanceof HTMLElement) {
+      box.focus();
+    }
+  }
+
+  function answerCheckinProbe(answer: "no" | "yes"): void {
+    setCheckinStarted(true);
+    if (answer === "yes") {
+      dispatch({ type: "raiseFamilyRegressionFlag", source: "probe", at: new Date().toISOString() });
+    }
+  }
+
+  function recordCheckinPulse(score: FamilyPulse["score"]): void {
+    setCheckinStarted(true);
+    dispatch({ type: "recordFamilyPulse", pulse: { at: new Date().toISOString(), score } });
+  }
+
+  function skipCheckin(): void {
+    setCheckinSkipped(true);
+    dispatch({ type: "skipFamilyCheckin", at: new Date().toISOString() });
+  }
+
   // Everything the caregiver has already typed, so the basics turns can skip
   // whatever they told us instead of asking for it again.
   const basicsHints: FamilyBasicsHints = useMemo(() => {
@@ -731,12 +765,21 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   // One follow-up per page visit, and never while the safety message, the
   // clinic-now card, or the monthly check-in owns the page's single ask.
   const followupNow = new Date();
+  // The check-in is the page's one ask while it is up, and it yields to both the
+  // safety banner and the clinic-now card above it.
+  const checkinVisible =
+    family !== null &&
+    family.profile !== null &&
+    pendingSafetyEvent === undefined &&
+    openFlag === undefined &&
+    !checkinSkipped &&
+    (checkinStarted || checkInDue(family, followupNow));
   const followupStep =
     family &&
     !followupAnswered &&
     pendingSafetyEvent === undefined &&
     openFlag === undefined &&
-    !checkInDue(family, followupNow)
+    !checkinVisible
       ? oldestStaleStep(family.steps, followupNow)
       : undefined;
   const followupResource = followupStep ? getFamilyResourceById(followupStep.resourceId) : undefined;
@@ -763,6 +806,34 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
       className="grid min-w-0 gap-5 pb-8"
     >
       {family?.profile ? <FamilyWaitHeader family={family} language={language} /> : null}
+
+      {family && checkinVisible ? (
+        <FamilyCheckin
+          family={family}
+          language={language}
+          onOpenNote={openCheckinNote}
+          onProbeAnswer={answerCheckinProbe}
+          onPulse={recordCheckinPulse}
+          onSkip={skipCheckin}
+        />
+      ) : null}
+
+      {family?.profile && !checkinVisible ? (
+        <section
+          data-testid="family-checkin-demo"
+          className="rounded-control border border-care/20 bg-calm/40 p-3"
+        >
+          <button
+            type="button"
+            onClick={() =>
+              dispatch({ type: "backdateFamilyTouches", days: 31, now: new Date().toISOString() })
+            }
+            className={`min-h-12 min-w-0 break-words rounded-control border border-care/30 bg-white px-4 py-2 text-sm font-semibold text-care ${CONTROL_FOCUS}`}
+          >
+            {tFamily(language, "checkinDemoControl")}
+          </button>
+        </section>
+      ) : null}
 
       <section className="rounded-control border border-care/20 bg-white p-4" aria-labelledby="family-interview-title">
         <p className="inline-flex rounded-full bg-calm px-3 py-1 text-xs font-semibold text-care">

@@ -1096,7 +1096,10 @@ function isFamilyNavigatorState(value: unknown): value is FamilyNavigatorState {
     (value.soonerList === undefined ||
       value.soonerList === null ||
       isFamilySoonerList(value.soonerList)) &&
-    (value.packetQuestionIds === undefined || isArrayOfStrings(value.packetQuestionIds))
+    (value.packetQuestionIds === undefined || isArrayOfStrings(value.packetQuestionIds)) &&
+    (value.checkinTouchedAt === undefined ||
+      value.checkinTouchedAt === null ||
+      isExactIsoTimestamp(value.checkinTouchedAt))
   );
 }
 
@@ -1145,7 +1148,8 @@ function sanitizeFamilyNavigatorState(value: unknown): FamilyNavigatorState | nu
     soonerList: isFamilySoonerList(value.soonerList) ? value.soonerList : null,
     packetQuestionIds: Array.isArray(value.packetQuestionIds)
       ? uniqueStrings(value.packetQuestionIds.filter((entry): entry is string => typeof entry === "string"))
-      : []
+      : [],
+    checkinTouchedAt: isExactIsoTimestamp(value.checkinTouchedAt) ? value.checkinTouchedAt : null
   };
 }
 

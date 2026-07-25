@@ -357,7 +357,23 @@ export type FamilyStringKey =
   | "factRegressionValue"
   | "clinicNowTitle"
   | "clinicNowBody"
-  | "clinicNowAck";
+  | "clinicNowAck"
+  | "checkinTitle"
+  | "checkinNoteInvite"
+  | "checkinChildFallback"
+  | "checkinAddNote"
+  | "checkinNothingNew"
+  | "checkinProbe"
+  | "checkinProbeNo"
+  | "checkinProbeUnsure"
+  | "checkinProbeYes"
+  | "probeExamples"
+  | "probeExamplesSource"
+  | "pulseQuestion"
+  | "pulseSkip"
+  | "checkinSkip"
+  | "checkinDone"
+  | "checkinDemoControl";
 
 export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = {
   en: {
@@ -721,7 +737,25 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     clinicNowTitle: "Worth telling the clinic now",
     clinicNowBody:
       "Losing skills is worth reporting now — not waiting for the visit. Call {clinic}. It can matter for how soon your child is seen.",
-    clinicNowAck: "I've noted this"
+    clinicNowAck: "I've noted this",
+    checkinTitle: "Monthly check-in",
+    checkinNoteInvite: "It's been about a month. Anything new or different with {name}?",
+    checkinChildFallback: "your child",
+    checkinAddNote: "Add a note",
+    checkinNothingNew: "Nothing new",
+    checkinProbe:
+      "Compared with a few months ago, has {name} lost any skills — words, movements, things they could do?",
+    checkinProbeNo: "No",
+    checkinProbeUnsure: "Not sure",
+    checkinProbeYes: "Yes, I think so",
+    probeExamples:
+      "Skill loss can look like: words that stopped, waving or pointing that went away, or steps backward in things like feeding or stairs.",
+    probeExamplesSource: "Source: CDC, Learn the Signs. Act Early.",
+    pulseQuestion: "How supported do you feel this month?",
+    pulseSkip: "Skip",
+    checkinSkip: "Skip check-in",
+    checkinDone: "Thanks — see you next month.",
+    checkinDemoControl: "Demo: pretend a month passed"
   },
   es: {
     pageTitle: "Ladder — el desarrollo de tu hijo o hija",
@@ -1084,7 +1118,25 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     clinicNowTitle: "Vale la pena avisar a la clínica ahora",
     clinicNowBody:
       "Perder habilidades vale la pena reportarlo ahora — sin esperar la visita. Llama a {clinic}. Puede influir en qué tan pronto atienden a tu hijo o hija.",
-    clinicNowAck: "Lo tengo anotado"
+    clinicNowAck: "Lo tengo anotado",
+    checkinTitle: "Chequeo mensual",
+    checkinNoteInvite: "Ha pasado como un mes. ¿Algo nuevo o diferente con {name}?",
+    checkinChildFallback: "tu hijo o hija",
+    checkinAddNote: "Agregar una nota",
+    checkinNothingNew: "Nada nuevo",
+    checkinProbe:
+      "Comparado con hace unos meses, ¿{name} ha perdido habilidades — palabras, movimientos, cosas que ya hacía?",
+    checkinProbeNo: "No",
+    checkinProbeUnsure: "No estoy segura",
+    checkinProbeYes: "Sí, creo que sí",
+    probeExamples:
+      "La pérdida de habilidades puede verse así: palabras que dejaron de decirse, saludar o señalar que desapareció, o retrocesos en comer o subir escaleras.",
+    probeExamplesSource: "Fuente: CDC, Learn the Signs. Act Early. (en inglés)",
+    pulseQuestion: "¿Qué tan apoyada o apoyado te sientes este mes?",
+    pulseSkip: "Omitir",
+    checkinSkip: "Omitir el chequeo",
+    checkinDone: "Gracias — nos vemos el próximo mes.",
+    checkinDemoControl: "Demo: imagina que pasó un mes"
   }
 };
 

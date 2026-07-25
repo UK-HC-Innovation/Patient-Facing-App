@@ -33,6 +33,7 @@ function familyState(overrides: Partial<FamilyNavigatorState>): FamilyNavigatorS
     flags: [],
     soonerList: null,
     packetQuestionIds: [],
+    checkinTouchedAt: null,
     ...overrides
   };
 }

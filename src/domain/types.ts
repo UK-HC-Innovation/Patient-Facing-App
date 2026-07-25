@@ -494,6 +494,12 @@ export type FamilyNavigatorState = {
   soonerList: FamilySoonerList | null;
   /** Starter-question ids picked for the visit packet. */
   packetQuestionIds: string[];
+  /**
+   * Last time the monthly check-in was answered or skipped. A skip has nothing
+   * honest to store as data, but due-ness still has to reset — so it stamps here
+   * instead of inventing a pulse or a note.
+   */
+  checkinTouchedAt: string | null;
 };
 
 export type AppState = {

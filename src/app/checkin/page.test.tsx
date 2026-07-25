@@ -66,7 +66,8 @@ describe("screening hub", () => {
         pulses: [],
         flags: [],
         soonerList: null,
-        packetQuestionIds: []
+        packetQuestionIds: [],
+        checkinTouchedAt: null
       },
       assessmentEvents: [
         {
@@ -345,7 +346,8 @@ describe("screening hub", () => {
         pulses: [],
         flags: [],
         soonerList: null,
-        packetQuestionIds: []
+        packetQuestionIds: [],
+        checkinTouchedAt: null
       }
     };
 
@@ -397,7 +399,8 @@ describe("screening hub", () => {
       pulses: [],
       flags: [],
       soonerList: null,
-      packetQuestionIds: []
+      packetQuestionIds: [],
+      checkinTouchedAt: null
     };
     context.state = { ...demoState, family };
     const { unmount } = render(<CheckinPage />);

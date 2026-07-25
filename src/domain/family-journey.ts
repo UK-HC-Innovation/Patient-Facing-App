@@ -44,7 +44,10 @@ function familyTouchTimestamps(family: FamilyNavigatorState): string[] {
     ...family.appointments.flatMap(({ createdAt, reminderAcks }) => [
       createdAt,
       ...reminderAcks.map(({ acknowledgedAt }) => acknowledgedAt)
-    ])
+    ]),
+    // A skipped check-in leaves no data behind, only this stamp — otherwise the
+    // question would come straight back tomorrow.
+    ...(family.checkinTouchedAt === null ? [] : [family.checkinTouchedAt])
   ].filter(isRealTimestamp);
 }
 

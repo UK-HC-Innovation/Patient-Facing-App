@@ -113,7 +113,9 @@ describe("familyLastTouchAt", () => {
           })
         ]
       }
-    }
+    },
+    // A skipped check-in leaves no data, only this stamp — and it still counts.
+    { source: "a skipped check-in", state: { ...base, checkinTouchedAt: STAMP } }
   ];
 
   it.each(singleSourceStates)("counts $source as a touch", ({ state }) => {
@@ -170,6 +172,14 @@ describe("checkInDue", () => {
       false
     );
     expect(checkInDue({ ...base, interviews: [interview(daysAgo(31))] }, NOW)).toBe(true);
+  });
+
+  it("rests for a month once the check-in is answered or skipped", () => {
+    const stale: FamilyNavigatorState = { ...base, interviews: [interview(daysAgo(45))] };
+
+    expect(checkInDue(stale, NOW)).toBe(true);
+    expect(checkInDue({ ...stale, checkinTouchedAt: daysAgo(1) }, NOW)).toBe(false);
+    expect(checkInDue({ ...stale, checkinTouchedAt: daysAgo(31) }, NOW)).toBe(true);
   });
 
   it("never fires before a profile exists", () => {

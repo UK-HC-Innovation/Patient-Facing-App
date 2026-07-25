@@ -118,7 +118,8 @@ describe("dynamic instrument route", () => {
         pulses: [],
         flags: [],
         soonerList: null,
-        packetQuestionIds: []
+        packetQuestionIds: [],
+        checkinTouchedAt: null
       }
     };
     route.instrumentId = "swyc_18mo";
@@ -165,7 +166,8 @@ describe("dynamic instrument route", () => {
         pulses: [],
         flags: [],
         soonerList: null,
-        packetQuestionIds: []
+        packetQuestionIds: [],
+        checkinTouchedAt: null
       }
     };
 
@@ -214,7 +216,8 @@ describe("dynamic instrument route", () => {
         pulses: [],
         flags: [],
         soonerList: null,
-        packetQuestionIds: []
+        packetQuestionIds: [],
+        checkinTouchedAt: null
       }
     };
     render(<InstrumentPage />);

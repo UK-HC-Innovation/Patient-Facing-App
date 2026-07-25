@@ -37,7 +37,8 @@ export const schoolAgeFamilyState: FamilyNavigatorState = {
   pulses: [],
   flags: [],
   soonerList: null,
-  packetQuestionIds: []
+  packetQuestionIds: [],
+  checkinTouchedAt: null
 };
 
 export function eighteenMonthFamilyState(now: Date): FamilyNavigatorState {
@@ -70,6 +71,7 @@ export function eighteenMonthFamilyState(now: Date): FamilyNavigatorState {
     pulses: [],
     flags: [],
     soonerList: null,
-    packetQuestionIds: []
+    packetQuestionIds: [],
+    checkinTouchedAt: null
   };
 }

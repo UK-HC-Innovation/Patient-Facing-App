@@ -32,7 +32,8 @@ function familyAt(ageMonths: number): FamilyNavigatorState {
     pulses: [],
     flags: [],
     soonerList: null,
-    packetQuestionIds: []
+    packetQuestionIds: [],
+    checkinTouchedAt: null
   };
 }
 
