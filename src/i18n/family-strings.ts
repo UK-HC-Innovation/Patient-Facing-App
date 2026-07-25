@@ -373,7 +373,9 @@ export type FamilyStringKey =
   | "pulseSkip"
   | "checkinSkip"
   | "checkinDone"
-  | "checkinDemoControl";
+  | "checkinDemoControl"
+  | "guidesTitle"
+  | "guidesIntro";
 
 export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = {
   en: {
@@ -755,7 +757,9 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     pulseSkip: "Skip",
     checkinSkip: "Skip check-in",
     checkinDone: "Thanks — see you next month.",
-    checkinDemoControl: "Demo: pretend a month passed"
+    checkinDemoControl: "Demo: pretend a month passed",
+    guidesTitle: "Things to try at home",
+    guidesIntro: "Small, checked ideas for the meantime — from the sources named on each card."
   },
   es: {
     pageTitle: "Ladder — el desarrollo de tu hijo o hija",
@@ -1136,7 +1140,10 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     pulseSkip: "Omitir",
     checkinSkip: "Omitir el chequeo",
     checkinDone: "Gracias — nos vemos el próximo mes.",
-    checkinDemoControl: "Demo: imagina que pasó un mes"
+    checkinDemoControl: "Demo: imagina que pasó un mes",
+    guidesTitle: "Cosas para probar en casa",
+    guidesIntro:
+      "Ideas pequeñas y verificadas para mientras tanto — de las fuentes que aparecen en cada tarjeta."
   }
 };
 

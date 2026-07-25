@@ -909,6 +909,37 @@ describe("monthly check-in", () => {
   });
 });
 
+describe("while-you-wait guide strip", () => {
+  it("renders matched guides with their source under the resources, capped at two", () => {
+    render(
+      <ReducerHarness
+        initialState={withFamily({ ...schoolAgeFamilyState, activeDomains: ["school_iep"] })}
+      />
+    );
+
+    const strip = screen.getByTestId("family-guides");
+    expect(within(strip).getByRole("heading", { name: "Things to try at home" })).toBeVisible();
+    expect(
+      within(strip).getByText(
+        "Small, checked ideas for the meantime — from the sources named on each card."
+      )
+    ).toBeVisible();
+
+    const cards = within(strip).getAllByTestId("family-guide-card");
+    expect(cards.length).toBeLessThanOrEqual(2);
+    expect(cards.map((card) => card.getAttribute("data-guide-id"))).toEqual(["kyspin_resources"]);
+    expect(within(cards[0]).getByTestId("family-guide-source")).toHaveTextContent(
+      /Source: KY-SPIN, Inc\. · Checked on \d{4}-\d{2}-\d{2}/
+    );
+  });
+
+  it("stays away until a domain is active", () => {
+    render(<ReducerHarness initialState={withFamily(schoolAgeFamilyState)} />);
+
+    expect(screen.queryByTestId("family-guides")).not.toBeInTheDocument();
+  });
+});
+
 describe("P4 eighteen-month family", () => {
   it("renders the development stage and its hub link for an 18-month-old", () => {
     render(<ReducerHarness initialState={withFamily(eighteenMonthFamilyState(new Date()))} />);

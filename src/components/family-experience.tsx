@@ -12,6 +12,7 @@ import { FamilyCheckin } from "@/components/family-checkin";
 import { FamilyClinicNowCard } from "@/components/family-clinic-now-card";
 import { FamilyCrisisBanner } from "@/components/family-crisis-banner";
 import { FamilyFactCard } from "@/components/family-fact-card";
+import { FamilyGuideCard } from "@/components/family-guide-card";
 import type { FamilyInterviewSubmissionMeta, SanitizedFamilyInterviewResult } from "@/components/family-interview";
 import { FamilyJournal } from "@/components/family-journal";
 import { FamilyNeedsScreen } from "@/components/family-needs-screen";
@@ -38,6 +39,7 @@ import {
 } from "@/domain/family-safety";
 import type { FamilyDiagnosisBackdateMonths } from "@/domain/family-stages";
 import { firstStepsClock, hasEnrolledFirstSteps } from "@/domain/family-clocks";
+import { matchFamilyGuides } from "@/domain/family-guides";
 import { checkInDue, oldestStaleStep } from "@/domain/family-journey";
 import { detectRegressionCue, familyFactStatus } from "@/domain/family-interview";
 import {
@@ -798,6 +800,13 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   const clockLineFor = (resource: FamilyResource): string | undefined =>
     isFirstStepsResource(resource.id) ? firstStepsClockLine : undefined;
 
+  // Catalog content, matched on the same lead domain the resources use — the
+  // ranker's lead when it produced one, the deterministic first domain otherwise.
+  const guides =
+    family?.profile && family.activeDomains.length > 0
+      ? matchFamilyGuides(family.profile, rankedSet?.lead ?? family.activeDomains[0], followupNow)
+      : [];
+
   return (
     <div
       id="family-experience"
@@ -1064,6 +1073,23 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
                   ))}
                 </div>
               )}
+              {guides.length > 0 ? (
+                <section
+                  id="family-guides"
+                  data-testid="family-guides"
+                  role="region"
+                  aria-label={tFamily(language, "guidesTitle")}
+                  className="mt-5 border-t border-care/20 pt-4"
+                >
+                  <h3 className="text-lg font-semibold">{tFamily(language, "guidesTitle")}</h3>
+                  <p className="mt-1 text-sm leading-6 text-ink/75">{tFamily(language, "guidesIntro")}</p>
+                  <div className="mt-3 grid gap-3">
+                    {guides.map((guide) => (
+                      <FamilyGuideCard key={guide.id} guide={guide} language={language} />
+                    ))}
+                  </div>
+                </section>
+              ) : null}
               {nearbyTherapeuticRecreation.length > 0 ? (
                 <section
                   role="region"
