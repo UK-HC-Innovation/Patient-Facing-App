@@ -67,7 +67,7 @@ function buildTroubleAnswer(patientInput: string): string {
     return "Write down what feels confusing or scary and share those words with your care team. They can explain the plan and answer the concern without you changing the medicine on your own.";
   }
 
-  return "Tell me what got in the way â€” for example cost, a refill problem, forgetting, confusion, or a concern about how you felt â€” and I can help turn it into a question for your care team.";
+  return "Tell me what got in the way — for example cost, a refill problem, forgetting, confusion, or a concern about how you felt — and I can help turn it into a question for your care team.";
 }
 
 function buildFoodAnswer(food: IdentifiedFood | undefined, aceMedication: Medication | null): string {

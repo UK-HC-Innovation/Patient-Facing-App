@@ -21,7 +21,8 @@ import type { Language } from "@/i18n/strings";
 const CONTROL_FOCUS =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care";
 
-const PREP_SOURCE_URL = "https://www.cdc.gov/ncbddd/actearly/concerned.html";
+// Verified 2026-07-24: the legacy /ncbddd/actearly/concerned.html path 301s here.
+const PREP_SOURCE_URL = "https://www.cdc.gov/act-early/";
 
 const REMINDER_KEYS: Record<FamilyReminderOffset, FamilyStringKey> = {
   t14: "apptReminderT14",

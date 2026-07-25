@@ -18,7 +18,7 @@ export const REMINDER_OFFSET_DAYS: Record<FamilyReminderOffset, number> = {
 export type FamilyAppointmentCountdownDays = 13 | 2 | 1 | -1;
 export const FAMILY_APPOINTMENT_COUNTDOWNS: FamilyAppointmentCountdownDays[] = [13, 2, 1, -1];
 
-// A barrier is a need â€” it routes into the same domains the navigator already
+// A barrier is a need — it routes into the same domains the navigator already
 // matches resources for. That is the no-show mechanism: remove the barrier.
 export const BARRIER_DOMAINS: Record<Exclude<FamilyAppointmentBarrier, "none">, DevNeedDomain> = {
   ride: "transportation",
@@ -65,7 +65,7 @@ export function daysUntilFamilyAppointment(
   return (new Date(appointment.scheduledFor).valueOf() - now.valueOf()) / DAY_MS;
 }
 
-// The most urgent open, unacknowledged reminder â€” one turn at a time. Acking
+// The most urgent open, unacknowledged reminder — one turn at a time. Acking
 // the urgent one satisfies the wider windows behind it by construction.
 export function dueFamilyReminder(
   appointment: FamilyAppointment,
