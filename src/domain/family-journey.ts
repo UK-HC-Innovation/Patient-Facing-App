@@ -1,3 +1,4 @@
+import { firstStepsClock, hasEnrolledFirstSteps } from "./family-clocks";
 import { pendingFamilySafetyEvent } from "./family-safety";
 import {
   activeFamilyAppointment,
@@ -18,14 +19,6 @@ const STEP_STALE_DAYS = 7;
 // The header rung only shouts about the First Steps cutoff in its urgent tail.
 // The resource card carries the calmer, wider window.
 const RUNG_CLOCK_WEEKS = 8;
-
-type FirstStepsClockReading = { weeksLeft: number } | null;
-
-// Task 8 replaces this stub with the real `firstStepsClock` from
-// ./family-clocks. Until then the clock rung never fires.
-function firstStepsClock(): FirstStepsClockReading {
-  return null;
-}
 
 function daysBetween(from: Date, to: Date): number {
   return (to.valueOf() - from.valueOf()) / DAY_MS;
@@ -140,7 +133,9 @@ export function nextFamilyRung(family: FamilyNavigatorState, now: Date): FamilyR
     return { kind: "clinic_now" };
   }
 
-  const clock = family.profile ? firstStepsClock() : null;
+  const clock = family.profile
+    ? firstStepsClock(family.profile, now, hasEnrolledFirstSteps(family))
+    : null;
   if (clock !== null && clock.weeksLeft <= RUNG_CLOCK_WEEKS) {
     return { kind: "clock", weeksLeft: clock.weeksLeft };
   }

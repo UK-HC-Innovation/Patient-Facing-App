@@ -170,6 +170,21 @@ describe("FamilyResourceCard", () => {
     expect(screen.queryByRole("button", { name: /I'll do this/i })).not.toBeInTheDocument();
   });
 
+  it("renders the deadline clock line only when one is supplied", () => {
+    renderCard();
+    expect(screen.queryByTestId("family-resource-clock")).not.toBeInTheDocument();
+
+    const firstSteps = getFamilyResourceById("first_steps_statewide")!;
+    renderCard({
+      resource: firstSteps,
+      domain: "early_intervention",
+      clockLine: "About 4 weeks left to start First Steps."
+    });
+    expect(screen.getByTestId("family-resource-clock")).toHaveTextContent(
+      "About 4 weeks left to start First Steps."
+    );
+  });
+
   it("shows the manual-verification warning when the catalog requires it", () => {
     const stable = getFamilyResourceById("stable_kentucky")!;
     renderCard({ resource: stable, domain: "future_planning" });

@@ -35,6 +35,7 @@ import {
   type FamilySafetyScreen
 } from "@/domain/family-safety";
 import type { FamilyDiagnosisBackdateMonths } from "@/domain/family-stages";
+import { firstStepsClock, hasEnrolledFirstSteps } from "@/domain/family-clocks";
 import { checkInDue, oldestStaleStep } from "@/domain/family-journey";
 import { familyFactStatus } from "@/domain/family-interview";
 import {
@@ -42,7 +43,12 @@ import {
   hasFamilyBasicsHints,
   type FamilyBasicsHints
 } from "@/domain/family-basics-extract";
-import { KY_COUNTIES, getFamilyResourceById, type FamilyResource } from "@/domain/family-resources";
+import {
+  KY_COUNTIES,
+  getFamilyResourceById,
+  isFirstStepsResource,
+  type FamilyResource
+} from "@/domain/family-resources";
 import {
   buildNearbyTherapeuticRecreation,
   buildRankCandidates,
@@ -707,6 +713,20 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
       : undefined;
   const followupResource = followupStep ? getFamilyResourceById(followupStep.resourceId) : undefined;
 
+  // One reading per render, so every First Steps card in the list counts down to
+  // the same dated cutoff.
+  const clock = family?.profile
+    ? firstStepsClock(family.profile, followupNow, hasEnrolledFirstSteps(family))
+    : null;
+  const firstStepsClockLine =
+    clock === null
+      ? undefined
+      : tFamily(language, clock.yearOnly ? "clockFirstStepsYearOnly" : "clockFirstSteps", {
+          weeks: clock.weeksLeft
+        });
+  const clockLineFor = (resource: FamilyResource): string | undefined =>
+    isFirstStepsResource(resource.id) ? firstStepsClockLine : undefined;
+
   return (
     <div
       id="family-experience"
@@ -908,6 +928,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
                         language={language}
                         step={family.steps.find(({ resourceId }) => resourceId === resource.id)}
                         onPlanStep={planStep}
+                        clockLine={clockLineFor(resource)}
                         isSaved={family.saved.some(({ resourceId }) => resourceId === resource.id)}
                         isEnrolled={family.alreadyEnrolled.includes(resource.id)}
                         onSave={saveResource}
@@ -929,6 +950,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
                       language={language}
                       step={family.steps.find(({ resourceId }) => resourceId === resource.id)}
                       onPlanStep={planStep}
+                      clockLine={clockLineFor(resource)}
                       why={why}
                       becauseYouSaid={quote}
                       urgency={urgency}
@@ -964,6 +986,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
                         language={language}
                         step={family.steps.find(({ resourceId }) => resourceId === resource.id)}
                         onPlanStep={planStep}
+                        clockLine={clockLineFor(resource)}
                         isSaved={family.saved.some(({ resourceId }) => resourceId === resource.id)}
                         isEnrolled={family.alreadyEnrolled.includes(resource.id)}
                         onSave={saveResource}

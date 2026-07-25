@@ -234,12 +234,54 @@ describe("nextFamilyRung", () => {
     expect(nextFamilyRung(family, NOW)).toEqual({ kind: "clinic_now" });
   });
 
-  it("raises no clock rung while the First Steps clock is stubbed (Task 8 lands it)", () => {
+  // The card chip shows from 26 weeks out; the header only spends its one rung on
+  // the urgent tail, so an 8-week threshold separates these three cases.
+  it("puts the First Steps cutoff above a due check-in inside the urgent tail", () => {
     const family: FamilyNavigatorState = {
       ...eighteenMonthFamilyState(NOW),
+      // Born 2023-10 ⇒ cutoff 2026-08-17, four weeks out.
+      profile: { ...eighteenMonthFamilyState(NOW).profile!, birthYear: 2023, birthMonth: 10 },
+      interviews: [interview(daysAgo(45))]
+    };
+    expect(checkInDue(family, NOW)).toBe(true);
+    expect(nextFamilyRung(family, NOW)).toEqual({ kind: "clock", weeksLeft: 4 });
+  });
+
+  it("leaves the cutoff to the resource card until it reaches eight weeks", () => {
+    const family: FamilyNavigatorState = {
+      ...eighteenMonthFamilyState(NOW),
+      // Born 2023-12 ⇒ cutoff 2026-10-17, thirteen weeks out: chip yes, rung no.
+      profile: { ...eighteenMonthFamilyState(NOW).profile!, birthYear: 2023, birthMonth: 12 },
       interviews: [interview(daysAgo(45))]
     };
     expect(nextFamilyRung(family, NOW)).toEqual({ kind: "checkin" });
+  });
+
+  it("drops the clock rung once First Steps is enrolled", () => {
+    const family: FamilyNavigatorState = {
+      ...eighteenMonthFamilyState(NOW),
+      profile: { ...eighteenMonthFamilyState(NOW).profile!, birthYear: 2023, birthMonth: 10 },
+      interviews: [interview(daysAgo(45))],
+      steps: [
+        step({
+          id: "first-steps-step",
+          resourceId: "first_steps_statewide",
+          status: "enrolled",
+          plannedAt: daysAgo(50),
+          updatedAt: daysAgo(45)
+        })
+      ]
+    };
+    expect(nextFamilyRung(family, NOW)).toEqual({ kind: "checkin" });
+  });
+
+  it("raises no clock rung for a family with no profile", () => {
+    const family: FamilyNavigatorState = {
+      ...base,
+      profile: null,
+      interviews: [interview(daysAgo(45))]
+    };
+    expect(nextFamilyRung(family, NOW)).toEqual({ kind: "journal" });
   });
 
   it("puts a due check-in above a stale step", () => {

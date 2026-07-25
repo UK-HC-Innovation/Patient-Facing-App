@@ -708,6 +708,11 @@ export function getFamilyResourceById(id: string): FamilyResource | undefined {
   return FAMILY_RESOURCE_CATALOG.find((resource) => resource.id === id);
 }
 
+/** The statewide entry plus every generated POE district share this prefix. */
+export function isFirstStepsResource(resourceId: string): boolean {
+  return resourceId.startsWith("first_steps");
+}
+
 const FAMILY_DOMAIN_LABELS: Record<DevNeedDomain, string> = {
   early_intervention: "Early intervention",
   therapies: "Therapies",

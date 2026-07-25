@@ -350,7 +350,9 @@ export type FamilyStringKey =
   | "followupLeftMessage"
   | "followupNotYet"
   | "followupNotForUs"
-  | "followupThanks";
+  | "followupThanks"
+  | "clockFirstSteps"
+  | "clockFirstStepsYearOnly";
 
 export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = {
   en: {
@@ -704,7 +706,11 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     followupLeftMessage: "Left a message",
     followupNotYet: "Haven't yet",
     followupNotForUs: "Not for us",
-    followupThanks: "Noted — it's in your packet's services section when it counts."
+    followupThanks: "Noted — it's in your packet's services section when it counts.",
+    clockFirstSteps:
+      "About {weeks} weeks left to start First Steps — after the cutoff, the school system takes over referrals.",
+    clockFirstStepsYearOnly:
+      "About {weeks} weeks left to start First Steps — after the cutoff, the school system takes over referrals. Timing is shown early because only the birth year is known."
   },
   es: {
     pageTitle: "Ladder — el desarrollo de tu hijo o hija",
@@ -1057,7 +1063,11 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     followupLeftMessage: "Dejé un mensaje",
     followupNotYet: "Todavía no",
     followupNotForUs: "No es para nosotros",
-    followupThanks: "Anotado — aparecerá en la sección de servicios de tu paquete cuando cuente."
+    followupThanks: "Anotado — aparecerá en la sección de servicios de tu paquete cuando cuente.",
+    clockFirstSteps:
+      "Quedan unas {weeks} semanas para empezar First Steps — después del corte, el sistema escolar se encarga de los referidos.",
+    clockFirstStepsYearOnly:
+      "Quedan unas {weeks} semanas para empezar First Steps — después del corte, el sistema escolar se encarga de los referidos. El tiempo se muestra temprano porque solo se conoce el año de nacimiento."
   }
 };
 

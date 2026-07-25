@@ -14,6 +14,8 @@ export type FamilyResourceCardProps = {
   /** The tracked next step for this resource, once the family has committed to one. */
   step?: FamilyResourceStep;
   onPlanStep?: (resource: FamilyResource, domain: DevNeedDomain) => void;
+  /** Dated deadline line for this resource, already localized. Calm, never a siren. */
+  clockLine?: string;
   /** Grounded "why this, for you" line. Absent falls back to the catalog summary alone. */
   why?: string;
   /** Verbatim caregiver words, already checked against the transcript. */
@@ -88,6 +90,7 @@ export function FamilyResourceCard({
   language,
   step,
   onPlanStep,
+  clockLine,
   why,
   becauseYouSaid,
   urgency,
@@ -213,6 +216,15 @@ export function FamilyResourceCard({
           <h4 className="text-sm font-semibold">{tFamily(language, "resourceActNow")}</h4>
           <p className="mt-1 break-words text-sm leading-6">{resource.actNow}</p>
         </div>
+      ) : null}
+
+      {clockLine ? (
+        <p
+          data-testid="family-resource-clock"
+          className="mt-3 break-words rounded-control bg-note/30 p-3 text-sm font-medium leading-6"
+        >
+          {clockLine}
+        </p>
       ) : null}
 
       <div className="mt-4 flex flex-wrap gap-2">
