@@ -332,7 +332,13 @@ export type FamilyStringKey =
   | "packetQHomeHelp"
   | "packetQRegressionMeaning"
   | "packetQSiblingsRisk"
-  | "packetQWhoToCall";
+  | "packetQWhoToCall"
+  | "packetPrepTitle"
+  | "packetBringPacket"
+  | "packetPickTitle"
+  | "packetPrint"
+  | "packetCopy"
+  | "packetCopied";
 
 export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = {
   en: {
@@ -668,7 +674,13 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     packetQHomeHelp: "What can we keep doing at home?",
     packetQRegressionMeaning: "What does the change we noticed mean?",
     packetQSiblingsRisk: "Should the siblings be checked too?",
-    packetQWhoToCall: "Who do we call with questions after today?"
+    packetQWhoToCall: "Who do we call with questions after today?",
+    packetPrepTitle: "Getting ready for the visit",
+    packetBringPacket: "Bring this packet — it's your notes in your words.",
+    packetPickTitle: "Pick questions to bring",
+    packetPrint: "Print",
+    packetCopy: "Copy as text",
+    packetCopied: "Copied."
   },
   es: {
     pageTitle: "Ladder — el desarrollo de tu hijo o hija",
@@ -1003,7 +1015,13 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     packetQHomeHelp: "¿Qué podemos seguir haciendo en casa?",
     packetQRegressionMeaning: "¿Qué significa el cambio que notamos?",
     packetQSiblingsRisk: "¿Deberíamos revisar también a los hermanos?",
-    packetQWhoToCall: "¿A quién llamamos si tenemos preguntas después de hoy?"
+    packetQWhoToCall: "¿A quién llamamos si tenemos preguntas después de hoy?",
+    packetPrepTitle: "Prepararse para la visita",
+    packetBringPacket: "Lleva este paquete — son tus notas en tus palabras.",
+    packetPickTitle: "Elige preguntas para llevar",
+    packetPrint: "Imprimir",
+    packetCopy: "Copiar como texto",
+    packetCopied: "Copiado."
   }
 };
 

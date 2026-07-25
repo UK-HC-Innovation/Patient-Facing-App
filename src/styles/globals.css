@@ -33,4 +33,21 @@ select {
   .health-brief-card__actions {
     display: none !important;
   }
+
+  /* The packet prints alone. Everything else on the Ladder page is the family's
+     working surface; the sheet the clinician reads is only the packet. */
+  #family-experience > *:not(.family-visit-packet) {
+    display: none !important;
+  }
+
+  .family-visit-packet {
+    border: 0;
+    padding: 0;
+    break-inside: avoid;
+  }
+
+  .family-visit-packet__actions,
+  .family-visit-packet__picker {
+    display: none !important;
+  }
 }

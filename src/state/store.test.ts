@@ -286,6 +286,37 @@ describe("healthReducer", () => {
     ).toBeNull();
   });
 
+  it("toggles packet starter questions and keeps unknown ids out of storage", () => {
+    const seeded: AppState = { ...demoState, family: schoolAgeFamilyState };
+
+    const picked = healthReducer(seeded, {
+      type: "toggleFamilyPacketQuestion",
+      questionId: "results_school"
+    });
+    const pickedTwo = healthReducer(picked, {
+      type: "toggleFamilyPacketQuestion",
+      questionId: "who_to_call"
+    });
+    const unpicked = healthReducer(pickedTwo, {
+      type: "toggleFamilyPacketQuestion",
+      questionId: "results_school"
+    });
+
+    expect(picked.family?.packetQuestionIds).toEqual(["results_school"]);
+    expect(pickedTwo.family?.packetQuestionIds).toEqual(["results_school", "who_to_call"]);
+    expect(unpicked.family?.packetQuestionIds).toEqual(["who_to_call"]);
+
+    expect(
+      healthReducer(pickedTwo, { type: "toggleFamilyPacketQuestion", questionId: "make_it_up" })
+    ).toBe(pickedTwo);
+    expect(
+      healthReducer({ ...demoState, family: null }, {
+        type: "toggleFamilyPacketQuestion",
+        questionId: "results_school"
+      }).family
+    ).toBeNull();
+  });
+
   it("saves a resource idempotently and toggles enrollment", () => {
     const seeded: AppState = { ...demoState, family: schoolAgeFamilyState };
     const resource: SavedFamilyResource = {

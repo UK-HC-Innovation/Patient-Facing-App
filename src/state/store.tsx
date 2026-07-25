@@ -16,6 +16,7 @@ import {
   type FamilyDiagnosisBackdateMonths
 } from "@/domain/family-stages";
 import { mergeFamilyDomains } from "@/domain/family-screen";
+import { PACKET_QUESTIONS } from "@/domain/family-visit-packet";
 import {
   BARRIER_DOMAINS,
   FAMILY_APPOINTMENT_COUNTDOWNS,
@@ -109,6 +110,7 @@ export type HealthAction =
   | { type: "addFamilyInterview"; interview: FamilyInterview; facts: FamilyFact[]; domains: FamilyNavigatorState["activeDomains"] }
   | { type: "confirmFamilyFact"; factId: string }
   | { type: "setFamilyFactInclusion"; factId: string; include: boolean }
+  | { type: "toggleFamilyPacketQuestion"; questionId: string }
   | { type: "recordFamilySafetyEvent"; event: FamilySafetyEvent }
   | { type: "acknowledgeFamilySafetyEvent"; eventId: string; at: string }
   | { type: "setFamilyRecommendations"; recommendations: FamilyRecommendationSet | null }
@@ -811,6 +813,23 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
           )
         }
       };
+    // Only catalog ids reach storage: the picker offers a fixed list, so anything
+    // else is a stale save or a bad payload and is dropped rather than printed.
+    case "toggleFamilyPacketQuestion": {
+      if (!state.family || !PACKET_QUESTIONS.some(({ id }) => id === action.questionId)) {
+        return state;
+      }
+      const picked = state.family.packetQuestionIds.includes(action.questionId);
+      return {
+        ...state,
+        family: {
+          ...state.family,
+          packetQuestionIds: picked
+            ? state.family.packetQuestionIds.filter((id) => id !== action.questionId)
+            : [...state.family.packetQuestionIds, action.questionId]
+        }
+      };
+    }
     case "setFamilyRecommendations": {
       if (!state.family) {
         return state;

@@ -20,6 +20,7 @@ import {
 import { FamilyProfileForm } from "@/components/family-profile-form";
 import { FamilyResourceCard } from "@/components/family-resource-card";
 import { FamilyStageTimeline } from "@/components/family-stage-timeline";
+import { FamilyVisitPacket } from "@/components/family-visit-packet";
 import { FamilyWaitHeader } from "@/components/family-wait-header";
 import { recordAuditEvent } from "@/domain/audit";
 import {
@@ -908,6 +909,22 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
           onConfirm={(factId) => dispatch({ type: "confirmFamilyFact", factId })}
           onToggleInclude={(factId, include) =>
             dispatch({ type: "setFamilyFactInclusion", factId, include })
+          }
+        />
+      ) : null}
+
+      {family?.profile ? (
+        <FamilyVisitPacket
+          family={family}
+          language={language}
+          onToggleQuestion={(questionId) =>
+            dispatch({ type: "toggleFamilyPacketQuestion", questionId })
+          }
+          onExport={(verb) =>
+            dispatch({
+              type: "addAuditEvent",
+              event: recordAuditEvent(state.patient.id, "shared", `Family visit packet ${verb}`)
+            })
           }
         />
       ) : null}
