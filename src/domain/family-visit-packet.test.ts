@@ -1,0 +1,249 @@
+import { describe, expect, it } from "vitest";
+import { schoolAgeFamilyState } from "./family-fixtures";
+import { PACKET_QUESTIONS, buildFamilyVisitSummary } from "./family-visit-packet";
+import type {
+  FamilyAppointment,
+  FamilyFact,
+  FamilyInterview,
+  FamilyNavigatorState,
+  FamilyResourceStep
+} from "./types";
+
+const NOW = new Date("2026-07-17T12:00:00.000Z");
+
+function interview(id: string, createdAt: string): FamilyInterview {
+  return {
+    id,
+    rawText: "Note text for the packet fixture.",
+    source: "typed",
+    createdAt,
+    extraction: "mock",
+    kind: "note"
+  };
+}
+
+function fact(id: string, overrides: Partial<FamilyFact> = {}): FamilyFact {
+  return {
+    id,
+    label: "What we noticed",
+    value: "reading is hard",
+    status: "patient_reported",
+    sourceSnippet: "reading is really hard for him",
+    ...overrides
+  };
+}
+
+function step(overrides: Partial<FamilyResourceStep> = {}): FamilyResourceStep {
+  const plannedAt = overrides.plannedAt ?? overrides.updatedAt ?? "2026-05-04T12:00:00.000Z";
+  return {
+    id: "step-1",
+    resourceId: "first_steps_statewide",
+    domain: "early_intervention",
+    status: "in_touch",
+    plannedAt,
+    updatedAt: plannedAt,
+    ...overrides
+  };
+}
+
+function appointment(overrides: Partial<FamilyAppointment> = {}): FamilyAppointment {
+  return {
+    id: "appointment-1",
+    clinic: "UK Developmental Pediatrics",
+    offeredSlots: [],
+    status: "booked",
+    barriers: [],
+    barriersAsked: true,
+    reminderAcks: [],
+    createdAt: "2026-06-01T12:00:00.000Z",
+    ...overrides
+  };
+}
+
+/** Every section populated, so one fixture exercises the whole builder. */
+const fatFamily: FamilyNavigatorState = {
+  ...schoolAgeFamilyState,
+  interviews: [
+    interview("interview-may", "2026-05-09T12:00:00.000Z"),
+    interview("interview-june", "2026-06-12T12:00:00.000Z")
+  ],
+  facts: [
+    fact("fact-june", {
+      interviewId: "interview-june",
+      sourceSnippet: "he stopped asking for help at school"
+    }),
+    fact("fact-may", {
+      interviewId: "interview-may",
+      sourceSnippet: "reading is really hard for him"
+    }),
+    fact("fact-guess", {
+      interviewId: "interview-may",
+      status: "inferred",
+      sourceSnippet: "maybe he needs an IEP"
+    }),
+    fact("fact-excluded", {
+      interviewId: "interview-june",
+      includeInSummary: false,
+      sourceSnippet: "I said that wrong"
+    }),
+    fact("fact-screen", { sourceSnippet: "we need respite" })
+  ],
+  flags: [
+    { id: "flag-1", type: "regression", source: "probe", raisedAt: "2026-06-20T12:00:00.000Z" }
+  ],
+  steps: [
+    step({ id: "step-first-steps", status: "in_touch", updatedAt: "2026-06-02T12:00:00.000Z" }),
+    step({
+      id: "step-waiver",
+      resourceId: "michelle_p_waiver",
+      domain: "waivers_financial",
+      status: "enrolled",
+      updatedAt: "2026-07-01T12:00:00.000Z"
+    }),
+    step({
+      id: "step-planned",
+      resourceId: "ky_spin",
+      domain: "parent_support",
+      status: "planned",
+      updatedAt: "2026-07-05T12:00:00.000Z"
+    })
+  ],
+  appointments: [appointment({ barriers: ["ride"] })],
+  packetQuestionIds: ["who_to_call", "results_school"]
+};
+
+describe("PACKET_QUESTIONS", () => {
+  it("is a fixed list of ten uniquely-identified starter questions", () => {
+    expect(PACKET_QUESTIONS).toHaveLength(10);
+    expect(new Set(PACKET_QUESTIONS.map(({ id }) => id)).size).toBe(10);
+    expect(new Set(PACKET_QUESTIONS.map(({ labelKey }) => labelKey)).size).toBe(10);
+  });
+});
+
+describe("buildFamilyVisitSummary", () => {
+  it("prints only testimony — never a guess and never an excluded fact", () => {
+    const summary = buildFamilyVisitSummary(fatFamily, "en", NOW);
+
+    expect(summary).toContain("What we noticed, over time");
+    expect(summary).toContain('"reading is really hard for him"');
+    expect(summary).toContain('"he stopped asking for help at school"');
+    expect(summary).not.toContain("maybe he needs an IEP");
+    expect(summary).not.toContain("I said that wrong");
+  });
+
+  it("dates the noticed lines by their note's month, oldest first", () => {
+    const summary = buildFamilyVisitSummary(fatFamily, "en", NOW);
+
+    expect(summary).toContain('May 2026: "reading is really hard for him"');
+    expect(summary).toContain('June 2026: "he stopped asking for help at school"');
+    expect(summary.indexOf("reading is really hard")).toBeLessThan(
+      summary.indexOf("he stopped asking for help")
+    );
+    // Screen answers carry no note and so no month; they trail the dated ones.
+    expect(summary).toContain('- "we need respite"');
+    expect(summary.indexOf("he stopped asking for help")).toBeLessThan(
+      summary.indexOf("we need respite")
+    );
+  });
+
+  it("carries basics, flags, services in motion, picked questions, and the footer", () => {
+    const summary = buildFamilyVisitSummary(fatFamily, "en", NOW);
+
+    expect(summary).toContain("Our visit packet");
+    expect(summary).toContain("Riley · born 2017 · Scott");
+    expect(summary).toContain("- Dyslexia (2026-05)");
+    expect(summary).toContain("Changes we're flagging");
+    expect(summary).toContain("Possible loss of skills, noticed June 2026");
+    expect(summary).toContain("Services already in motion");
+    expect(summary).toContain("- Kentucky First Steps — in touch (June 2026)");
+    expect(summary).toContain("- Michelle P. Waiver — enrolled (July 2026)");
+    // Planned steps are not "in motion" yet.
+    expect(summary).not.toContain("KY-SPIN Parent Center");
+    expect(summary).toContain("Questions we want to ask");
+    expect(summary).toContain("- What do the results mean for school?");
+    expect(summary).toContain("- Who do we call with questions after today?");
+    expect(summary).toContain("We may need help with transportation.");
+    expect(summary).toContain("Written from our own notes in Ladder · printed 7/17/2026 · not a medical record.");
+  });
+
+  it("prints picked questions in catalog order, not pick order", () => {
+    const summary = buildFamilyVisitSummary(fatFamily, "en", NOW);
+
+    expect(summary.indexOf("What do the results mean for school?")).toBeLessThan(
+      summary.indexOf("Who do we call with questions after today?")
+    );
+  });
+
+  it("hides unpicked starter questions", () => {
+    const summary = buildFamilyVisitSummary(fatFamily, "en", NOW);
+
+    expect(summary).not.toContain("Which therapy should start first?");
+  });
+
+  it("builds the identical string from identical state", () => {
+    expect(buildFamilyVisitSummary(fatFamily, "en", NOW)).toBe(
+      buildFamilyVisitSummary(fatFamily, "en", NOW)
+    );
+  });
+
+  it("skips every empty section rather than printing a bare heading", () => {
+    const summary = buildFamilyVisitSummary(schoolAgeFamilyState, "en", NOW);
+
+    expect(summary).toContain("Our visit packet");
+    expect(summary).toContain("Riley · born 2017 · Scott");
+    expect(summary).not.toContain("What we noticed, over time");
+    expect(summary).not.toContain("Changes we're flagging");
+    expect(summary).not.toContain("Services already in motion");
+    expect(summary).not.toContain("Questions we want to ask");
+    expect(summary).not.toContain("We may need help with transportation.");
+    expect(summary).toContain("not a medical record.");
+  });
+
+  it("skips the services heading when no in-motion step resolves to a catalog entry", () => {
+    const summary = buildFamilyVisitSummary(
+      {
+        ...schoolAgeFamilyState,
+        steps: [step({ resourceId: "retired_resource", status: "enrolled" })]
+      },
+      "en",
+      NOW
+    );
+
+    expect(summary).not.toContain("Services already in motion");
+  });
+
+  it("prints the ride line only when a ride barrier is on record", () => {
+    const noRide = buildFamilyVisitSummary(
+      { ...fatFamily, appointments: [appointment({ barriers: ["work_schedule"] })] },
+      "en",
+      NOW
+    );
+
+    expect(noRide).not.toContain("We may need help with transportation.");
+  });
+
+  it("builds the Spanish packet with Spanish headings", () => {
+    const summary = buildFamilyVisitSummary(fatFamily, "es", NOW);
+
+    expect(summary).toContain("Nuestro paquete para la visita");
+    expect(summary).toContain("Lo que notamos, con el tiempo");
+    expect(summary).toContain("Cambios que señalamos");
+    expect(summary).toContain("Servicios ya en marcha");
+    expect(summary).toContain("Preguntas que queremos hacer");
+    expect(summary).toContain("Podríamos necesitar ayuda con el transporte.");
+    expect(summary).toContain("no es un expediente médico.");
+    // The family's own words are never translated.
+    expect(summary).toContain('"reading is really hard for him"');
+  });
+
+  it("works without a profile and without inventing a child line", () => {
+    const summary = buildFamilyVisitSummary(
+      { ...schoolAgeFamilyState, profile: null },
+      "en",
+      NOW
+    );
+
+    expect(summary).toContain("Our visit packet");
+    expect(summary).not.toContain("born 2017");
+  });
+});

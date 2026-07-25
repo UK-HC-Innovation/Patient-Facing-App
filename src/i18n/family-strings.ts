@@ -311,7 +311,28 @@ export type FamilyStringKey =
   | "journalDeviceLine"
   | "journalExportNudge"
   | "journalMonthNote"
-  | "journalEarlierGroup";
+  | "journalEarlierGroup"
+  | "packetHeading"
+  | "packetBornLine"
+  | "packetNoticedHeading"
+  | "packetFlagsHeading"
+  | "packetFlagRegression"
+  | "packetServicesHeading"
+  | "packetStatusEnrolled"
+  | "packetStatusInTouch"
+  | "packetQuestionsHeading"
+  | "packetRideLine"
+  | "packetFooter"
+  | "packetQResultsSchool"
+  | "packetQCoordinatesNext"
+  | "packetQTherapyStart"
+  | "packetQWaiverEffect"
+  | "packetQSchoolShare"
+  | "packetQSecondVisit"
+  | "packetQHomeHelp"
+  | "packetQRegressionMeaning"
+  | "packetQSiblingsRisk"
+  | "packetQWhoToCall";
 
 export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = {
   en: {
@@ -626,7 +647,28 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     journalDeviceLine: "Notes stay on this device. Print or share a copy sometimes so you don't lose them.",
     journalExportNudge: "You have {count} notes now — a good moment to print or copy your visit packet.",
     journalMonthNote: "{month} — {count} notes",
-    journalEarlierGroup: "Earlier"
+    journalEarlierGroup: "Earlier",
+    packetHeading: "Our visit packet",
+    packetBornLine: "born {year}",
+    packetNoticedHeading: "What we noticed, over time",
+    packetFlagsHeading: "Changes we're flagging",
+    packetFlagRegression: "Possible loss of skills, noticed {month}",
+    packetServicesHeading: "Services already in motion",
+    packetStatusEnrolled: "enrolled",
+    packetStatusInTouch: "in touch",
+    packetQuestionsHeading: "Questions we want to ask",
+    packetRideLine: "We may need help with transportation.",
+    packetFooter: "Written from our own notes in Ladder · printed {date} · not a medical record.",
+    packetQResultsSchool: "What do the results mean for school?",
+    packetQCoordinatesNext: "Who coordinates the next steps?",
+    packetQTherapyStart: "Which therapy should start first?",
+    packetQWaiverEffect: "Does this change our waiver applications?",
+    packetQSchoolShare: "What should we share with the school?",
+    packetQSecondVisit: "Will there be a follow-up visit?",
+    packetQHomeHelp: "What can we keep doing at home?",
+    packetQRegressionMeaning: "What does the change we noticed mean?",
+    packetQSiblingsRisk: "Should the siblings be checked too?",
+    packetQWhoToCall: "Who do we call with questions after today?"
   },
   es: {
     pageTitle: "Ladder — el desarrollo de tu hijo o hija",
@@ -940,7 +982,28 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     journalDeviceLine: "Las notas se quedan en este dispositivo. Imprime o comparte una copia de vez en cuando para no perderlas.",
     journalExportNudge: "Ya tienes {count} notas — buen momento para imprimir o copiar tu paquete.",
     journalMonthNote: "{month} — {count} notas",
-    journalEarlierGroup: "Antes"
+    journalEarlierGroup: "Antes",
+    packetHeading: "Nuestro paquete para la visita",
+    packetBornLine: "nace en {year}",
+    packetNoticedHeading: "Lo que notamos, con el tiempo",
+    packetFlagsHeading: "Cambios que señalamos",
+    packetFlagRegression: "Posible pérdida de habilidades, notada en {month}",
+    packetServicesHeading: "Servicios ya en marcha",
+    packetStatusEnrolled: "inscrito",
+    packetStatusInTouch: "en contacto",
+    packetQuestionsHeading: "Preguntas que queremos hacer",
+    packetRideLine: "Podríamos necesitar ayuda con el transporte.",
+    packetFooter: "Escrito con nuestras propias notas en Ladder · impreso {date} · no es un expediente médico.",
+    packetQResultsSchool: "¿Qué significan los resultados para la escuela?",
+    packetQCoordinatesNext: "¿Quién coordina los próximos pasos?",
+    packetQTherapyStart: "¿Qué terapia debería empezar primero?",
+    packetQWaiverEffect: "¿Esto cambia nuestras solicitudes de exención?",
+    packetQSchoolShare: "¿Qué debemos compartir con la escuela?",
+    packetQSecondVisit: "¿Habrá una visita de seguimiento?",
+    packetQHomeHelp: "¿Qué podemos seguir haciendo en casa?",
+    packetQRegressionMeaning: "¿Qué significa el cambio que notamos?",
+    packetQSiblingsRisk: "¿Deberíamos revisar también a los hermanos?",
+    packetQWhoToCall: "¿A quién llamamos si tenemos preguntas después de hoy?"
   }
 };
 
