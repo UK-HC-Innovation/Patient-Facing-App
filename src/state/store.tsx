@@ -117,6 +117,8 @@ export type HealthAction =
   | { type: "toggleFamilyPacketQuestion"; questionId: string }
   | { type: "recordFamilySafetyEvent"; event: FamilySafetyEvent }
   | { type: "acknowledgeFamilySafetyEvent"; eventId: string; at: string }
+  | { type: "raiseFamilyRegressionFlag"; source: "probe" | "text"; at: string }
+  | { type: "acknowledgeFamilyRegressionFlag"; flagId: string; at: string }
   | { type: "setFamilyRecommendations"; recommendations: FamilyRecommendationSet | null }
   | { type: "saveFamilyResource"; resource: SavedFamilyResource }
   | { type: "toggleFamilyEnrollment"; resourceId: string }
@@ -923,6 +925,58 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
         auditEvents: [
           ...state.auditEvents,
           recordAuditEvent(state.patient.id, "updated", "Family safety resources acknowledged")
+        ]
+      };
+    }
+    // The clinic-now tier. One open flag at a time: the probe and the text
+    // lexicon describe the same worry, and a family should be asked to call the
+    // clinic once, not once per sentence.
+    case "raiseFamilyRegressionFlag": {
+      const family = state.family ?? emptyFamilyState(null);
+      if (
+        !isExactIsoTimestamp(action.at) ||
+        family.flags.some(({ type, acknowledgedAt }) => type === "regression" && acknowledgedAt === undefined)
+      ) {
+        return state;
+      }
+      return {
+        ...state,
+        family: {
+          ...family,
+          flags: [
+            ...family.flags,
+            { id: crypto.randomUUID(), type: "regression", source: action.source, raisedAt: action.at }
+          ]
+        },
+        auditEvents: [
+          ...state.auditEvents,
+          recordAuditEvent(state.patient.id, "created", "Family regression flag raised")
+        ]
+      };
+    }
+    case "acknowledgeFamilyRegressionFlag": {
+      if (!state.family || !isExactIsoTimestamp(action.at)) {
+        return state;
+      }
+      const target = state.family.flags.find(({ id }) => id === action.flagId);
+      if (
+        !target ||
+        target.acknowledgedAt !== undefined ||
+        new Date(action.at).valueOf() < new Date(target.raisedAt).valueOf()
+      ) {
+        return state;
+      }
+      return {
+        ...state,
+        family: {
+          ...state.family,
+          flags: state.family.flags.map((flag) =>
+            flag.id === action.flagId ? { ...flag, acknowledgedAt: action.at } : flag
+          )
+        },
+        auditEvents: [
+          ...state.auditEvents,
+          recordAuditEvent(state.patient.id, "updated", "Family regression flag acknowledged")
         ]
       };
     }

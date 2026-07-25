@@ -165,7 +165,29 @@ type ConcernCategory = {
   patterns: Record<Language, RegExp>;
 };
 
+// Skill regression is a "tell the clinic now" signal, not a crisis and not a
+// diagnosis. Verb-list patterns on purpose: "stopped talking" fires, "stopped
+// crying at drop-off" must not — the corpus in family-regression.corpus.ts is
+// the build-breaking contract.
+export const REGRESSION_CUES: Record<Language, RegExp> = {
+  en: /(?:stopped\s+(?:say|talk|walk|point|us|sign)\w*|lost\s+(?:words?|skills?|the\s+words?|his\s+words?|her\s+words?)|used\s+to\s+\w+(?:\s+\w+){0,3}\s+(?:but\s+)?(?:now|no\s+longer|doesn'?t|stopped)|no\s+longer\s+(?:say|talk|walk|point|sign|do)\w*|forgot\s+how\s+to)/i,
+  es: /(?:dej[oó]\s+de\s+(?:hablar|decir|caminar|señalar|usar)|perdi[oó]\s+(?:palabras|habilidades|las\s+palabras)|antes\s+\w+(?:\s+\w+){0,3}\s+y\s+ya\s+no|ya\s+no\s+(?:habla|dice|camina|señala|hace)|olvid[oó]\s+c[oó]mo)/i
+};
+
+/** The caregiver's own sentence that reads as loss of an acquired skill. */
+export function detectRegressionCue(text: string, language: Language): string | null {
+  const sentence = splitSentences(text).find((candidate) => REGRESSION_CUES[language].test(candidate));
+  return sentence ? clampSnippet(sentence) : null;
+}
+
 const CONCERN_CATEGORIES: readonly ConcernCategory[] = [
+  {
+    // First on purpose: when a family describes lost skills, that sentence is
+    // the one the journal and the visit packet must carry, verbatim.
+    labelKey: "factRegressionLabel",
+    valueKey: "factRegressionValue",
+    patterns: REGRESSION_CUES
+  },
   {
     labelKey: "factConcernSchoolLabel",
     valueKey: "factConcernSchoolValue",

@@ -539,6 +539,102 @@ describe("healthReducer", () => {
     }
   });
 
+  it("raises exactly one open regression flag at a time and lets a new one open after acknowledgement", () => {
+    const seeded: AppState = { ...demoState, family: schoolAgeFamilyState };
+
+    const raised = healthReducer(seeded, {
+      type: "raiseFamilyRegressionFlag",
+      source: "text",
+      at: PLANNED_AT
+    });
+
+    expect(raised.family?.flags).toHaveLength(1);
+    expect(raised.family?.flags[0]).toMatchObject({
+      type: "regression",
+      source: "text",
+      raisedAt: PLANNED_AT
+    });
+    expect(raised.family?.flags[0].acknowledgedAt).toBeUndefined();
+    expect(raised.auditEvents.at(-1)).toMatchObject({
+      action: "created",
+      label: "Family regression flag raised"
+    });
+
+    // The probe and the text lexicon describe the same worry: ask once.
+    const raisedAgain = healthReducer(raised, {
+      type: "raiseFamilyRegressionFlag",
+      source: "probe",
+      at: "2026-07-20T12:00:00.000Z"
+    });
+    expect(raisedAgain).toBe(raised);
+
+    const acknowledged = healthReducer(raised, {
+      type: "acknowledgeFamilyRegressionFlag",
+      flagId: raised.family!.flags[0].id,
+      at: "2026-07-20T12:00:00.000Z"
+    });
+    const reRaised = healthReducer(acknowledged, {
+      type: "raiseFamilyRegressionFlag",
+      source: "probe",
+      at: "2026-07-21T12:00:00.000Z"
+    });
+
+    expect(acknowledged.family?.flags[0].acknowledgedAt).toBe("2026-07-20T12:00:00.000Z");
+    expect(acknowledged.auditEvents.at(-1)).toMatchObject({
+      action: "updated",
+      label: "Family regression flag acknowledged"
+    });
+    expect(reRaised.family?.flags).toHaveLength(2);
+    expect(reRaised.family?.flags[1]).toMatchObject({ source: "probe", raisedAt: "2026-07-21T12:00:00.000Z" });
+  });
+
+  it("refuses regression flag history that storage would drop on reload", () => {
+    const seeded: AppState = { ...demoState, family: schoolAgeFamilyState };
+    const raised = healthReducer(seeded, {
+      type: "raiseFamilyRegressionFlag",
+      source: "text",
+      at: PLANNED_AT
+    });
+    const flagId = raised.family!.flags[0].id;
+
+    expect(
+      healthReducer(seeded, { type: "raiseFamilyRegressionFlag", source: "text", at: "whenever" })
+    ).toBe(seeded);
+    expect(
+      healthReducer(raised, { type: "acknowledgeFamilyRegressionFlag", flagId, at: "whenever" })
+    ).toBe(raised);
+    expect(
+      healthReducer(raised, { type: "acknowledgeFamilyRegressionFlag", flagId: "nope", at: PLANNED_AT })
+    ).toBe(raised);
+    // An acknowledgement older than the flag itself is impossible history.
+    expect(
+      healthReducer(raised, {
+        type: "acknowledgeFamilyRegressionFlag",
+        flagId,
+        at: "2026-07-01T12:00:00.000Z"
+      })
+    ).toBe(raised);
+    // Acknowledging twice is a no-op, not a second stamp.
+    const acknowledged = healthReducer(raised, {
+      type: "acknowledgeFamilyRegressionFlag",
+      flagId,
+      at: "2026-07-20T12:00:00.000Z"
+    });
+    expect(
+      healthReducer(acknowledged, {
+        type: "acknowledgeFamilyRegressionFlag",
+        flagId,
+        at: "2026-07-21T12:00:00.000Z"
+      })
+    ).toBe(acknowledged);
+    expect(
+      healthReducer(
+        { ...demoState, family: null },
+        { type: "acknowledgeFamilyRegressionFlag", flagId, at: PLANNED_AT }
+      ).family
+    ).toBeNull();
+  });
+
   it("clears family data on reset and deletion", () => {
     const seeded: AppState = { ...demoState, family: schoolAgeFamilyState };
 

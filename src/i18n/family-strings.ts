@@ -352,7 +352,12 @@ export type FamilyStringKey =
   | "followupNotForUs"
   | "followupThanks"
   | "clockFirstSteps"
-  | "clockFirstStepsYearOnly";
+  | "clockFirstStepsYearOnly"
+  | "factRegressionLabel"
+  | "factRegressionValue"
+  | "clinicNowTitle"
+  | "clinicNowBody"
+  | "clinicNowAck";
 
 export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = {
   en: {
@@ -710,7 +715,13 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     clockFirstSteps:
       "About {weeks} weeks left to start First Steps — after the cutoff, the school system takes over referrals.",
     clockFirstStepsYearOnly:
-      "About {weeks} weeks left to start First Steps — after the cutoff, the school system takes over referrals. Timing is shown early because only the birth year is known."
+      "About {weeks} weeks left to start First Steps — after the cutoff, the school system takes over referrals. Timing is shown early because only the birth year is known.",
+    factRegressionLabel: "Change you noticed",
+    factRegressionValue: "Possible loss of skills — from your words",
+    clinicNowTitle: "Worth telling the clinic now",
+    clinicNowBody:
+      "Losing skills is worth reporting now — not waiting for the visit. Call {clinic}. It can matter for how soon your child is seen.",
+    clinicNowAck: "I've noted this"
   },
   es: {
     pageTitle: "Ladder — el desarrollo de tu hijo o hija",
@@ -1067,7 +1078,13 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     clockFirstSteps:
       "Quedan unas {weeks} semanas para empezar First Steps — después del corte, el sistema escolar se encarga de los referidos.",
     clockFirstStepsYearOnly:
-      "Quedan unas {weeks} semanas para empezar First Steps — después del corte, el sistema escolar se encarga de los referidos. El tiempo se muestra temprano porque solo se conoce el año de nacimiento."
+      "Quedan unas {weeks} semanas para empezar First Steps — después del corte, el sistema escolar se encarga de los referidos. El tiempo se muestra temprano porque solo se conoce el año de nacimiento.",
+    factRegressionLabel: "Cambio que notaste",
+    factRegressionValue: "Posible pérdida de habilidades — según tus palabras",
+    clinicNowTitle: "Vale la pena avisar a la clínica ahora",
+    clinicNowBody:
+      "Perder habilidades vale la pena reportarlo ahora — sin esperar la visita. Llama a {clinic}. Puede influir en qué tan pronto atienden a tu hijo o hija.",
+    clinicNowAck: "Lo tengo anotado"
   }
 };
 

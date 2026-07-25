@@ -8,6 +8,7 @@ import React, {
   type Dispatch
 } from "react";
 import { FamilyAppointmentCard } from "@/components/family-appointment-card";
+import { FamilyClinicNowCard } from "@/components/family-clinic-now-card";
 import { FamilyCrisisBanner } from "@/components/family-crisis-banner";
 import { FamilyFactCard } from "@/components/family-fact-card";
 import type { FamilyInterviewSubmissionMeta, SanitizedFamilyInterviewResult } from "@/components/family-interview";
@@ -37,7 +38,7 @@ import {
 import type { FamilyDiagnosisBackdateMonths } from "@/domain/family-stages";
 import { firstStepsClock, hasEnrolledFirstSteps } from "@/domain/family-clocks";
 import { checkInDue, oldestStaleStep } from "@/domain/family-journey";
-import { familyFactStatus } from "@/domain/family-interview";
+import { detectRegressionCue, familyFactStatus } from "@/domain/family-interview";
 import {
   extractFamilyBasics,
   hasFamilyBasicsHints,
@@ -575,6 +576,11 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
       facts,
       domains
     });
+    // Loss of an acquired skill is a "call the clinic" signal, not a crisis. The
+    // reducer keeps it to one open flag, so a note that says it twice asks once.
+    if (detectRegressionCue(meta.rawText, language)) {
+      dispatch({ type: "raiseFamilyRegressionFlag", source: "text", at: createdAt });
+    }
   }
 
   function saveResource(resource: FamilyResource, domain: DevNeedDomain): void {
@@ -614,6 +620,10 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
 
   function acknowledgeSafety(eventId: string): void {
     dispatch({ type: "acknowledgeFamilySafetyEvent", eventId, at: new Date().toISOString() });
+  }
+
+  function acknowledgeClinicNow(flagId: string): void {
+    dispatch({ type: "acknowledgeFamilyRegressionFlag", flagId, at: new Date().toISOString() });
   }
 
   // Everything the caregiver has already typed, so the basics turns can skip
@@ -677,10 +687,24 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     />
   ) : null;
 
+  // Directly under the safety slot, and never styled like it: informational,
+  // dismissible, and the page keeps working around it.
+  const openFlag = family?.flags.find(({ acknowledgedAt }) => acknowledgedAt === undefined);
+  const clinicNowTurn = openFlag ? (
+    <FamilyClinicNowCard
+      key={openFlag.id}
+      flag={openFlag}
+      language={language}
+      clinic={family?.referral?.clinic ?? FAMILY_APPOINTMENT_CLINIC}
+      onAcknowledge={acknowledgeClinicNow}
+    />
+  ) : null;
+
   const interlude =
-    safetyTurn || reviewTurn || needsBasics || matchResult.resources.length > 0 ? (
+    safetyTurn || clinicNowTurn || reviewTurn || needsBasics || matchResult.resources.length > 0 ? (
       <>
         {safetyTurn}
+        {clinicNowTurn}
         {reviewTurn}
         {needsBasics ? (
           <FamilyBasicsTurns
@@ -704,11 +728,15 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
       </>
     ) : null;
 
-  // One follow-up per page visit, and never while the safety message or the
-  // monthly check-in owns the page's single ask.
+  // One follow-up per page visit, and never while the safety message, the
+  // clinic-now card, or the monthly check-in owns the page's single ask.
   const followupNow = new Date();
   const followupStep =
-    family && !followupAnswered && pendingSafetyEvent === undefined && !checkInDue(family, followupNow)
+    family &&
+    !followupAnswered &&
+    pendingSafetyEvent === undefined &&
+    openFlag === undefined &&
+    !checkInDue(family, followupNow)
       ? oldestStaleStep(family.steps, followupNow)
       : undefined;
   const followupResource = followupStep ? getFamilyResourceById(followupStep.resourceId) : undefined;
