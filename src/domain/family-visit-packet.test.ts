@@ -86,7 +86,22 @@ const fatFamily: FamilyNavigatorState = {
       includeInSummary: false,
       sourceSnippet: "I said that wrong"
     }),
-    fact("fact-screen", { sourceSnippet: "we need respite" })
+    // Screen rows carry no interview: their "source" is the app's own question.
+    fact("fact-screen-yes", {
+      label: "Family need — Respite",
+      value: "Reported a need",
+      sourceSnippet: "Would a break from caregiving or respite support help your family?"
+    }),
+    fact("fact-screen-no", {
+      label: "Family need — Transportation",
+      value: "No need reported",
+      sourceSnippet: "Does transportation make it hard to get to services or appointments?"
+    }),
+    fact("fact-screen-declined", {
+      label: "Family need — Therapies",
+      value: "Declined to answer",
+      sourceSnippet: "Would help finding speech, occupational, physical, or behavioral therapies be useful?"
+    })
   ],
   flags: [
     { id: "flag-1", type: "regression", source: "probe", raisedAt: "2026-06-20T12:00:00.000Z" }
@@ -140,10 +155,62 @@ describe("buildFamilyVisitSummary", () => {
       summary.indexOf("he stopped asking for help")
     );
     // Screen answers carry no note and so no month; they trail the dated ones.
-    expect(summary).toContain('- "we need respite"');
+    expect(summary).toContain("- Family need — Respite: Reported a need");
     expect(summary.indexOf("he stopped asking for help")).toBeLessThan(
-      summary.indexOf("we need respite")
+      summary.indexOf("Family need — Respite")
     );
+  });
+
+  it("quotes only sentences a caregiver actually wrote", () => {
+    const summary = buildFamilyVisitSummary(fatFamily, "en", NOW);
+    const spoken = new Set(
+      fatFamily.facts
+        .filter(({ interviewId }) => interviewId !== undefined)
+        .map(({ sourceSnippet }) => sourceSnippet)
+    );
+    const quoted = [...summary.matchAll(/"([^"]*)"/g)].map(([, inner]) => inner);
+
+    expect(quoted.length).toBeGreaterThan(0);
+    for (const quote of quoted) {
+      expect(spoken).toContain(quote);
+    }
+  });
+
+  it("prints a screen answer as label and value, never as words the family said", () => {
+    const summary = buildFamilyVisitSummary(fatFamily, "en", NOW);
+
+    expect(summary).toContain("- Family need — Respite: Reported a need");
+    // The app's own question is what the screen fact stores as its source.
+    expect(summary).not.toContain("Would a break from caregiving");
+    expect(summary).not.toContain('"Family need — Respite');
+  });
+
+  it("leaves out screen rows the family answered no or declined", () => {
+    const summary = buildFamilyVisitSummary(fatFamily, "en", NOW);
+
+    expect(summary).not.toContain("Family need — Transportation");
+    expect(summary).not.toContain("No need reported");
+    expect(summary).not.toContain("Family need — Therapies");
+    expect(summary).not.toContain("Declined to answer");
+  });
+
+  it("skips the noticed heading when every remaining fact is a screen no", () => {
+    const summary = buildFamilyVisitSummary(
+      {
+        ...schoolAgeFamilyState,
+        facts: [
+          fact("fact-screen-no", {
+            label: "Family need — Transportation",
+            value: "No need reported",
+            sourceSnippet: "Does transportation make it hard to get to services or appointments?"
+          })
+        ]
+      },
+      "en",
+      NOW
+    );
+
+    expect(summary).not.toContain("What we noticed, over time");
   });
 
   it("carries basics, flags, services in motion, picked questions, and the footer", () => {
@@ -234,6 +301,32 @@ describe("buildFamilyVisitSummary", () => {
     expect(summary).toContain("no es un expediente médico.");
     // The family's own words are never translated.
     expect(summary).toContain('"reading is really hard for him"');
+  });
+
+  it("reads a screen answer saved in Spanish the same way", () => {
+    const summary = buildFamilyVisitSummary(
+      {
+        ...schoolAgeFamilyState,
+        facts: [
+          fact("fact-screen-yes-es", {
+            label: "Necesidad familiar — Relevo",
+            value: "Necesidad reportada",
+            sourceSnippet: "¿Un descanso del cuidado o apoyo de relevo ayudaría a su familia?"
+          }),
+          fact("fact-screen-no-es", {
+            label: "Necesidad familiar — Transporte",
+            value: "No se reportó una necesidad",
+            sourceSnippet: "¿El transporte dificulta llegar a servicios o citas?"
+          })
+        ]
+      },
+      "es",
+      NOW
+    );
+
+    expect(summary).toContain("- Necesidad familiar — Relevo: Necesidad reportada");
+    expect(summary).not.toContain("Necesidad familiar — Transporte");
+    expect(summary).not.toContain('"');
   });
 
   it("works without a profile and without inventing a child line", () => {

@@ -397,7 +397,17 @@ function sameFamilyAppointment(left: FamilyAppointment, right: FamilyAppointment
 // caregiver words. Case and edge whitespace vary between a live extraction and
 // the on-device one, so they are normalized away before comparing.
 function familyFactIdentity({ label, sourceSnippet }: Pick<FamilyFact, "label" | "sourceSnippet">): string {
-  return `${label.trim().toLowerCase()} ${sourceSnippet.trim().toLowerCase()}`;
+  return `${label.trim().toLowerCase()} ${sourceSnippet.trim().toLowerCase()}`;
+}
+
+// Screen rows are rewritten wholesale on every save, so a row is the same row
+// when it still records the same answer to the same question. The value is part
+// of the identity on purpose: changing an answer is a new statement, not an edit
+// to the old one.
+function familyScreenFactIdentity(
+  fact: Pick<FamilyFact, "label" | "value" | "sourceSnippet">
+): string {
+  return `${familyFactIdentity(fact)} ${fact.value.trim().toLowerCase()}`;
 }
 
 function updateFamilyAppointment(
@@ -898,6 +908,15 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
     case "submitFamilyScreen": {
       const family = state.family ?? emptyFamilyState(null);
       const interviewFacts = family.facts.filter((fact) => fact.interviewId !== undefined);
+      // The family curates screen rows in the journal — taking one out of the
+      // packet, or confirming it. Saving the screen again rewrites those rows, so
+      // a row still saying the same thing keeps the decisions already made about
+      // it instead of quietly walking back into the packet.
+      const priorScreenFacts = new Map(
+        family.facts
+          .filter((fact) => fact.interviewId === undefined)
+          .map((fact) => [familyScreenFactIdentity(fact), fact])
+      );
       return {
         ...state,
         family: {
@@ -905,13 +924,19 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
           screenAnswers: action.answers,
           facts: [
             ...interviewFacts,
-            ...action.facts.map(({ id, label, value, status, sourceSnippet }) => ({
-              id,
-              label,
-              value,
-              status,
-              sourceSnippet
-            }))
+            ...action.facts.map(({ id, label, value, status, sourceSnippet }) => {
+              const prior = priorScreenFacts.get(
+                familyScreenFactIdentity({ label, value, sourceSnippet })
+              );
+              return {
+                id,
+                label,
+                value,
+                status: prior?.status ?? status,
+                sourceSnippet,
+                includeInSummary: prior?.includeInSummary
+              };
+            })
           ],
           activeDomains: mergeFamilyDomains(action.answers, family.latestInterviewDomains)
         }

@@ -81,23 +81,36 @@ export function computeFamilyFlags(answers: FamilyScreenAnswer[]): DevNeedDomain
   return FAMILY_SCREEN_QUESTIONS.map(({ domain }) => domain).filter((domain) => flagged.has(domain));
 }
 
+const SCREEN_ANSWER_VALUES: Record<Language, Record<FamilyScreenAnswer["response"], string>> = {
+  en: { yes: "Reported a need", no: "No need reported", declined: "Declined to answer" },
+  es: {
+    yes: "Necesidad reportada",
+    no: "No se reportó una necesidad",
+    declined: "Prefirió no responder"
+  }
+};
+
+const SCREEN_LABEL_PREFIX: Record<Language, string> = { en: "Family need", es: "Necesidad familiar" };
+
+/**
+ * A screen fact records an answer, not testimony, and its value is the only
+ * thing on the fact that says which answer it was — written in whichever
+ * language the family was answering in. Only a yes is a need worth carrying to
+ * the clinic.
+ */
+export function isFamilyReportedNeed(value: string): boolean {
+  const trimmed = value.trim();
+  return Object.values(SCREEN_ANSWER_VALUES).some((values) => values.yes === trimmed);
+}
+
 export function familyAnswersToFacts(answers: FamilyScreenAnswer[], language: Language): FamilyFact[] {
   return answers.map((answer) => {
     const question = FAMILY_SCREEN_QUESTIONS.find(({ id }) => id === answer.questionId);
-    const values: Record<Language, Record<FamilyScreenAnswer["response"], string>> = {
-      en: { yes: "Reported a need", no: "No need reported", declined: "Declined to answer" },
-      es: {
-        yes: "Necesidad reportada",
-        no: "No se reportó una necesidad",
-        declined: "Prefirió no responder"
-      }
-    };
-    const labelPrefix: Record<Language, string> = { en: "Family need", es: "Necesidad familiar" };
 
     return {
       id: crypto.randomUUID(),
-      label: `${labelPrefix[language]} — ${FAMILY_DOMAIN_LABELS[answer.domain][language]}`,
-      value: values[language][answer.response],
+      label: `${SCREEN_LABEL_PREFIX[language]} — ${FAMILY_DOMAIN_LABELS[answer.domain][language]}`,
+      value: SCREEN_ANSWER_VALUES[language][answer.response],
       status: "patient_reported",
       sourceSnippet: question ? question[language] : answer.questionId
     };

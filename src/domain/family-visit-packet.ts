@@ -1,4 +1,5 @@
 import { getFamilyResourceById } from "./family-resources";
+import { isFamilyReportedNeed } from "./family-screen";
 import type {
   ChildDiagnosis,
   DevDiagnosis,
@@ -134,12 +135,19 @@ export function buildFamilyVisitSummary(
   const included = family.facts.filter(
     (fact) => fact.includeInSummary !== false && fact.status !== "inferred"
   );
-  if (included.length > 0) {
-    lines.push("", t("packetNoticedHeading"));
-    for (const fact of sortFactsByInterviewDate(included, family.interviews)) {
-      const when = interviewMonth(fact, family.interviews, language);
-      lines.push(`- ${when.length > 0 ? `${when}: ` : ""}"${fact.sourceSnippet}"`);
+  // Everything in quotation marks below is a caregiver sentence, verbatim. A fact
+  // with no interview behind it came from the yes/no screen, where the "source"
+  // is our own question — those print as label and value, never quoted, and a no
+  // or a decline is not something we noticed, so it does not print at all.
+  const noticedLines = sortFactsByInterviewDate(included, family.interviews).flatMap((fact) => {
+    if (fact.interviewId === undefined) {
+      return isFamilyReportedNeed(fact.value) ? [`- ${fact.label}: ${fact.value}`] : [];
     }
+    const when = interviewMonth(fact, family.interviews, language);
+    return [`- ${when.length > 0 ? `${when}: ` : ""}"${fact.sourceSnippet}"`];
+  });
+  if (noticedLines.length > 0) {
+    lines.push("", t("packetNoticedHeading"), ...noticedLines);
   }
 
   // Every flag belongs in the packet, acknowledged or not — the clinic wants the

@@ -186,6 +186,70 @@ describe("healthReducer", () => {
     expect(second.family?.activeDomains).not.toContain("school_iep");
   });
 
+  it("keeps a screen row out of the packet after the screen is saved again", () => {
+    const seeded: AppState = { ...demoState, family: schoolAgeFamilyState };
+    const answers: FamilyScreenAnswer[] = [
+      { questionId: "family_respite", domain: "respite", response: "yes" }
+    ];
+    const screenFact: FamilyFact = {
+      id: "screen-fact-1",
+      label: "Family need — Respite",
+      value: "Reported a need",
+      status: "patient_reported",
+      sourceSnippet: "Would a break from caregiving or respite support help your family?"
+    };
+    const saved = healthReducer(seeded, { type: "submitFamilyScreen", answers, facts: [screenFact] });
+    const curated = healthReducer(saved, {
+      type: "setFamilyFactInclusion",
+      factId: "screen-fact-1",
+      include: false
+    });
+    const confirmed = healthReducer(curated, {
+      type: "confirmFamilyFact",
+      factId: "screen-fact-1"
+    });
+    // The family opens the screen again and re-saves the same answers.
+    const resaved = healthReducer(confirmed, {
+      type: "submitFamilyScreen",
+      answers,
+      facts: [{ ...screenFact, id: "screen-fact-2" }]
+    });
+
+    expect(resaved.family?.facts).toHaveLength(1);
+    expect(resaved.family?.facts[0].includeInSummary).toBe(false);
+    expect(resaved.family?.facts[0].status).toBe("confirmed");
+  });
+
+  it("treats a changed screen answer as a new statement rather than a curated one", () => {
+    const seeded: AppState = { ...demoState, family: schoolAgeFamilyState };
+    const screenFact: FamilyFact = {
+      id: "screen-fact-1",
+      label: "Family need — Respite",
+      value: "Reported a need",
+      status: "patient_reported",
+      sourceSnippet: "Would a break from caregiving or respite support help your family?"
+    };
+    const saved = healthReducer(seeded, {
+      type: "submitFamilyScreen",
+      answers: [{ questionId: "family_respite", domain: "respite", response: "yes" }],
+      facts: [screenFact]
+    });
+    const curated = healthReducer(saved, {
+      type: "setFamilyFactInclusion",
+      factId: "screen-fact-1",
+      include: false
+    });
+    const reanswered = healthReducer(curated, {
+      type: "submitFamilyScreen",
+      answers: [{ questionId: "family_respite", domain: "respite", response: "no" }],
+      facts: [{ ...screenFact, id: "screen-fact-2", value: "No need reported" }]
+    });
+
+    expect(reanswered.family?.facts[0].id).toBe("screen-fact-2");
+    expect(reanswered.family?.facts[0].includeInSummary).toBeUndefined();
+    expect(reanswered.family?.facts[0].status).toBe("patient_reported");
+  });
+
   it("appends interviews, clears the draft, and replaces the latest interview domains", () => {
     const seeded: AppState = { ...demoState, family: schoolAgeFamilyState };
     const firstInterview: FamilyInterview = {
