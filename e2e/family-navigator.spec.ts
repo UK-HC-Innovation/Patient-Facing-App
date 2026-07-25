@@ -10,6 +10,11 @@ const SPANISH_PARENT_DESCRIPTION =
   "Mi hijo está en segundo grado y le cuesta mucho leer. A mi hijo le diagnosticaron dislexia. No sé qué pedirle a la escuela y el dinero está escaso, sigo escuchando sobre exenciones pero no tengo idea de por dónde empezar.";
 const SAFETY_PHRASE = "honestly she's been saying she wants to die";
 const SPANISH_SAFETY_PHRASE = "mi hija dice que quiere morir";
+// A toddler on the First Steps clock — the companion journeys start here.
+const TODDLER_DESCRIPTION =
+  "My son is two and barely talking. Someone said to ask about First Steps but I do not know who to call.";
+// Loss of an acquired skill, in a caregiver's own plain words.
+const REGRESSION_NOTE = "He stopped saying more at dinner.";
 const SCOTT_SOURCE_URL =
   "https://www.scott.kyschools.us/departments/student-learning/exceptional-child-services/special-education";
 
@@ -609,4 +614,123 @@ test("ladder walks a family from waitlist to a confirmed evaluation visit", asyn
   await card.getByRole("button", { name: "Date passed" }).click();
   await page.getByRole("button", { name: "We made it" }).click();
   await expect(card.locator("p:not(.sr-only)", { hasText: /Glad you made it \(demo\)/ })).toBeVisible();
+});
+
+test("ladder companion: notes accrue, check-in watches, packet prints", async ({ page }) => {
+  await stubUnconfiguredFamilyInterview(page);
+  await page.goto("/ladder");
+  await fillBasics(page, {
+    county: "Scott",
+    birthYear: "2024",
+    birthMonth: "1",
+    schoolStage: "not_school_age"
+  });
+
+  // The wait status leads the page as soon as there is a child to wait for.
+  const header = page.getByTestId("family-wait-header");
+  await expect(header).toBeVisible();
+
+  // Orientation, through the same box a caregiver already uses.
+  await page.getByLabel("What would you like help with?").fill(TODDLER_DESCRIPTION);
+  await page.getByRole("button", { name: "Find help" }).click();
+  await expect(page.getByRole("region", { name: "Here is what we heard" })).toBeVisible();
+
+  // A dated deadline the family would otherwise never see: 2024-01 birth, 45-day
+  // First Steps cutoff before the third birthday, read at the frozen clock.
+  await expect(page.getByText(/About 17 weeks left to start First Steps/).first()).toBeVisible();
+
+  // Every submission after the first is a dated note, not a new orientation.
+  await page.getByRole("button", { name: "Start over" }).click();
+  await page.getByLabel("What would you like help with?").fill(REGRESSION_NOTE);
+  await page.getByRole("button", { name: "Find help" }).click();
+
+  // Lost skills route to the clinic now — informational, never a crisis lock.
+  const clinicNow = page.getByTestId("family-clinic-now-card");
+  await expect(clinicNow).toBeVisible();
+  await expect(clinicNow).toHaveAttribute("data-flag-source", "text");
+  await expect(clinicNow.getByText("Worth telling the clinic now")).toBeVisible();
+  await expect(page.getByTestId("family-crisis-banner")).toHaveCount(0);
+  await clinicNow.getByRole("button", { name: "I've noted this" }).click();
+  await expect(page.getByTestId("family-clinic-now-card")).toHaveCount(0);
+
+  // The journal is the record: grouped by month, with the caregiver's raw words.
+  const journal = page.getByTestId("family-journal");
+  await expect(journal.getByRole("heading", { name: "Your notes so far" })).toBeVisible();
+  await expect(journal.getByTestId("family-journal-month").first()).toContainText("July 2026");
+  const rawNote = journal.getByTestId("family-journal-raw-note").last();
+  await rawNote.locator("summary").click();
+  await expect(rawNote.getByText(REGRESSION_NOTE)).toBeVisible();
+  await expect(header).toContainText("notes");
+
+  // Demo time-travel: a month of quiet brings the check-in back.
+  await page.getByTestId("family-checkin-demo").getByRole("button").click();
+  const checkin = page.getByTestId("family-checkin");
+  await expect(checkin).toBeVisible();
+  await expect(checkin.getByRole("heading", { name: "Monthly check-in" })).toBeVisible();
+  await checkin.getByRole("button", { name: "Nothing new" }).click();
+  await expect(checkin).toHaveAttribute("data-checkin-part", "probe");
+  await checkin.getByRole("button", { name: "No", exact: true }).click();
+  await expect(checkin).toHaveAttribute("data-checkin-part", "pulse");
+  await expect(checkin.getByText("How supported do you feel this month?")).toBeVisible();
+  await checkin.getByRole("button", { name: "4", exact: true }).click();
+  await expect(checkin.getByText("Thanks — see you next month.")).toBeVisible();
+
+  // The packet carries the family's own sentence and whatever they chose to ask.
+  await page.getByRole("checkbox", { name: "Who coordinates the next steps?" }).check();
+  const packet = page.getByTestId("family-visit-packet-body");
+  await expect(packet).toContainText("Questions we want to ask");
+  await expect(packet).toContainText("Who coordinates the next steps?");
+  await expect(packet).toContainText("Changes we're flagging");
+  await expect(packet).toContainText(REGRESSION_NOTE);
+  await expect(packet).toContainText("not a medical record");
+});
+
+test("ladder companion: a planned step and the earlier-visit list", async ({ page }) => {
+  await stubUnconfiguredFamilyInterview(page);
+  await page.goto("/ladder");
+  await fillBasics(page, {
+    county: "Scott",
+    birthYear: "2024",
+    birthMonth: "1",
+    schoolStage: "not_school_age"
+  });
+  await page.getByLabel("What would you like help with?").fill(TODDLER_DESCRIPTION);
+  await page.getByRole("button", { name: "Find help" }).click();
+
+  // Commit to a step: the card swaps its offer for a dated status the packet reads.
+  const firstCard = page.getByTestId("matched-family-resources").locator("[data-family-resource-card]").first();
+  await firstCard.getByTestId("family-step-plan").click();
+  const stepStatus = firstCard.getByTestId("family-step-status");
+  await expect(stepStatus).toHaveAttribute("data-step-status", "planned");
+  await expect(stepStatus).toContainText("Planned");
+  const header = page.getByTestId("family-wait-header");
+  await expect(header).toContainText("steps in motion");
+
+  // Seed the waitlist and book the offered visit, then answer the barriers turn
+  // so the card is quiet enough to ask about earlier openings.
+  const card = page.getByTestId("family-appointment-card");
+  await card.getByRole("button", { name: "Show me (demo)" }).click();
+  await card.getByRole("button").filter({ hasText: /,/ }).first().click();
+  await expect(card.getByText(/Booked for.*\(demo\)/)).toBeVisible();
+  await card.getByRole("button", { name: "We need a ride" }).click();
+
+  const soonerTurn = card.getByTestId("family-sooner-turn");
+  await expect(soonerTurn).toBeVisible();
+  await soonerTurn.getByRole("button", { name: "Yes, put us on the list" }).click();
+  await soonerTurn.getByRole("button", { name: "Weekday mornings" }).click();
+  await soonerTurn.getByRole("button", { name: "Add us" }).click();
+  await expect(card.getByTestId("family-sooner-status")).toBeVisible();
+  await expect(header).toContainText("On the earlier-visit list");
+
+  // A cancellation backfill: one slot, and the current time is never lost by accident.
+  await card.getByRole("button", { name: "Demo: move the visit closer" }).click();
+  await card.getByTestId("family-sooner-demo").click();
+  const offer = card.locator('[data-sooner-offer="true"]');
+  await expect(offer).toBeVisible();
+  await expect(offer.getByRole("button", { name: "Keep our current time" })).toBeVisible();
+  const slots = offer.getByRole("button").filter({ hasText: /,/ });
+  await expect(slots).toHaveCount(1);
+  const earlierSlot = (await slots.first().innerText()).trim();
+  await slots.first().click();
+  await expect(card.getByText(/Booked for.*\(demo\)/)).toContainText(earlierSlot);
 });
