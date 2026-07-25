@@ -287,7 +287,22 @@ export type FamilyStringKey =
   | "timelineDevelopmentEighteenCta"
   | "timelineDevelopmentThirtyTitle"
   | "timelineDevelopmentThirtyBody"
-  | "timelineDevelopmentThirtyCta";
+  | "timelineDevelopmentThirtyCta"
+  | "waitHeaderTitle"
+  | "waitHeaderOnList"
+  | "waitHeaderOnListFresh"
+  | "waitHeaderNoPrediction"
+  | "rungSafety"
+  | "rungVisit"
+  | "rungClinicNow"
+  | "rungClock"
+  | "rungCheckin"
+  | "rungStep"
+  | "rungJournal"
+  | "waitChipNotes"
+  | "waitChipSteps"
+  | "waitChipVisit"
+  | "waitChipSooner";
 
 export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = {
   en: {
@@ -578,7 +593,22 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     timelineDevelopmentEighteenCta: "Open family check-ins",
     timelineDevelopmentThirtyTitle: "30-month development check",
     timelineDevelopmentThirtyBody: "You can do a short check on how your child is growing and learning, right here in the app.",
-    timelineDevelopmentThirtyCta: "Open family check-ins"
+    timelineDevelopmentThirtyCta: "Open family check-ins",
+    waitHeaderTitle: "Your Ladder",
+    waitHeaderOnList: "On the list at {clinic} since {month} — about {months} months so far.",
+    waitHeaderOnListFresh: "On the list at {clinic} since {month}.",
+    waitHeaderNoPrediction: "We can't predict the exact date — here's how to make the wait count.",
+    rungSafety: "Please look at the safety message above",
+    rungVisit: "Your evaluation visit needs a look",
+    rungClinicNow: "Something to tell the clinic — see below",
+    rungClock: "About {weeks} weeks left to start First Steps",
+    rungCheckin: "Monthly check-in (about 30 seconds)",
+    rungStep: "Quick follow-up on a step you planned",
+    rungJournal: "Add a 10-second note about your child",
+    waitChipNotes: "{count} notes",
+    waitChipSteps: "{count} steps in motion",
+    waitChipVisit: "Visit: {when}",
+    waitChipSooner: "On the earlier-visit list"
   },
   es: {
     pageTitle: "Ladder — el desarrollo de tu hijo o hija",
@@ -868,7 +898,22 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     timelineDevelopmentEighteenCta: "Abrir chequeos familiares",
     timelineDevelopmentThirtyTitle: "Chequeo del desarrollo de 30 meses",
     timelineDevelopmentThirtyBody: "Puedes hacer un chequeo corto sobre cómo crece y aprende tu hijo o hija, aquí mismo en la aplicación.",
-    timelineDevelopmentThirtyCta: "Abrir chequeos familiares"
+    timelineDevelopmentThirtyCta: "Abrir chequeos familiares",
+    waitHeaderTitle: "Tu Ladder",
+    waitHeaderOnList: "En la lista de {clinic} desde {month} — unos {months} meses hasta ahora.",
+    waitHeaderOnListFresh: "En la lista de {clinic} desde {month}.",
+    waitHeaderNoPrediction: "No podemos predecir la fecha exacta — así puedes aprovechar la espera.",
+    rungSafety: "Por favor mira el mensaje de seguridad de arriba",
+    rungVisit: "Tu visita de evaluación necesita atención",
+    rungClinicNow: "Algo que contarle a la clínica — mira abajo",
+    rungClock: "Quedan unas {weeks} semanas para empezar First Steps",
+    rungCheckin: "Chequeo mensual (unos 30 segundos)",
+    rungStep: "Seguimiento rápido de un paso que planeaste",
+    rungJournal: "Agrega una nota de 10 segundos sobre tu hijo o hija",
+    waitChipNotes: "{count} notas",
+    waitChipSteps: "{count} pasos en marcha",
+    waitChipVisit: "Visita: {when}",
+    waitChipSooner: "En la lista de visita anticipada"
   }
 };
 

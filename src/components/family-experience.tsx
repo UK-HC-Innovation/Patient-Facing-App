@@ -19,6 +19,7 @@ import {
 import { FamilyProfileForm } from "@/components/family-profile-form";
 import { FamilyResourceCard } from "@/components/family-resource-card";
 import { FamilyStageTimeline } from "@/components/family-stage-timeline";
+import { FamilyWaitHeader } from "@/components/family-wait-header";
 import { recordAuditEvent } from "@/domain/audit";
 import {
   createFamilyAppointmentOffer,
@@ -663,7 +664,14 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     ) : null;
 
   return (
-    <div lang={language} data-testid="family-experience" className="grid min-w-0 gap-5 pb-8">
+    <div
+      id="family-experience"
+      lang={language}
+      data-testid="family-experience"
+      className="grid min-w-0 gap-5 pb-8"
+    >
+      {family?.profile ? <FamilyWaitHeader family={family} language={language} /> : null}
+
       <section className="rounded-control border border-care/20 bg-white p-4" aria-labelledby="family-interview-title">
         <p className="inline-flex rounded-full bg-calm px-3 py-1 text-xs font-semibold text-care">
           {tFamily(language, "demoBadge")}
