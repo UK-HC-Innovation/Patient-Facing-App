@@ -938,6 +938,88 @@ describe("monthly check-in", () => {
   });
 });
 
+// Every follow-up round re-extracts the whole conversation so far, so the same
+// observation comes back word for word. What the family sees must not repeat.
+describe("orientation follow-up rounds", () => {
+  const REGRESSION_TEXT =
+    "He stopped saying the words he knew, like more and mama. He is in second grade and reading is really hard for him.";
+
+  it("records each observation once and files every round under the orientation", async () => {
+    const user = userEvent.setup();
+    render(<ReducerHarness initialState={withFamily(describedFamily)} />);
+
+    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await screen.findByRole("heading", { name: "What has the school offered so far?" });
+    await user.click(screen.getByRole("button", { name: "Nothing yet" }));
+    await screen.findByRole("heading", { name: "Have you applied for any state programs yet?" });
+    await user.click(screen.getByRole("button", { name: "Not yet" }));
+    await screen.findByText("Thanks. That is enough to get you started.");
+
+    const family = familyStateOutput();
+    expect(family.interviews).toHaveLength(3);
+    // Rounds one and two continue the first conversation, so none of them is a note.
+    expect(family.interviews.map(({ kind }) => kind)).toEqual([
+      "orientation",
+      "orientation",
+      "orientation"
+    ]);
+    expect(family.facts.map(({ label }) => label)).toEqual([
+      "Grade",
+      "Reported diagnosis",
+      "About school and learning"
+    ]);
+    expect(family.facts.every(({ interviewId }) => interviewId === family.interviews[0].id)).toBe(true);
+
+    const journal = screen.getByTestId("family-journal");
+    expect(within(journal).getAllByRole("article")).toHaveLength(3);
+    expect(within(journal).getByRole("heading", { level: 3, name: /— 3 notes$/ })).toBeVisible();
+
+    // A packet that says the same sentence three times reads as careless.
+    const packet = screen.getByTestId("family-visit-packet-body").textContent ?? "";
+    expect(packet.split("reading is really hard for him").length - 1).toBe(1);
+
+    // Nothing was written as a journal note, so the header claims none.
+    expect(within(screen.getByTestId("family-wait-header")).queryByText(/notes/)).not.toBeInTheDocument();
+  });
+
+  it("keeps a check-in's own follow-up round filed as a check-in", async () => {
+    const user = userEvent.setup();
+    render(<ReducerHarness initialState={withFamily(familyQuietFor(40))} />);
+
+    await user.click(
+      within(screen.getByTestId("family-checkin")).getByRole("button", { name: "Add a note" })
+    );
+    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await screen.findByRole("heading", { name: "What has the school offered so far?" });
+    await user.click(screen.getByRole("button", { name: "Nothing yet" }));
+    await screen.findByRole("heading", { name: "Have you applied for any state programs yet?" });
+
+    const interviews = familyStateOutput().interviews;
+    expect(interviews.map(({ kind }) => kind)).toEqual(["orientation", "checkin", "checkin"]);
+  });
+
+  it("asks about one regression sentence once, even after the card is acknowledged", async () => {
+    const user = userEvent.setup();
+    render(
+      <ReducerHarness
+        initialState={withFamily({ ...schoolAgeFamilyState, interviewDraft: REGRESSION_TEXT })}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Find help" }));
+    const card = await screen.findByTestId("family-clinic-now-card");
+    await user.click(within(card).getByRole("button", { name: "I've noted this" }));
+    expect(screen.queryByTestId("family-clinic-now-card")).not.toBeInTheDocument();
+
+    await user.click(await screen.findByRole("button", { name: "Nothing yet" }));
+    await screen.findByRole("heading", { name: "Has anyone talked with you about therapy visits?" });
+
+    // The sentence is still in the transcript, but it was written once, so it asks once.
+    expect(familyStateOutput().flags).toHaveLength(1);
+    expect(screen.queryByTestId("family-clinic-now-card")).not.toBeInTheDocument();
+  });
+});
+
 describe("while-you-wait guide strip", () => {
   it("renders matched guides with their source under the resources, capped at two", () => {
     render(

@@ -393,6 +393,13 @@ function sameFamilyAppointment(left: FamilyAppointment, right: FamilyAppointment
   );
 }
 
+// Two facts are the same observation when the same label was drawn from the same
+// caregiver words. Case and edge whitespace vary between a live extraction and
+// the on-device one, so they are normalized away before comparing.
+function familyFactIdentity({ label, sourceSnippet }: Pick<FamilyFact, "label" | "sourceSnippet">): string {
+  return `${label.trim().toLowerCase()} ${sourceSnippet.trim().toLowerCase()}`;
+}
+
 function updateFamilyAppointment(
   state: AppState,
   appointmentId: string,
@@ -913,16 +920,26 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
     case "addFamilyInterview": {
       const family = state.family ?? emptyFamilyState(null);
       const latestInterviewDomains = [...new Set(action.domains)];
+      // Every follow-up round re-extracts from the whole conversation, so the
+      // observations from earlier rounds arrive again word for word. The first
+      // copy is kept and the rest dropped, so the journal and the visit packet
+      // say a thing once instead of once per round.
+      const known = new Set(family.facts.map(familyFactIdentity));
+      const newFacts = action.facts.flatMap((fact) => {
+        const identity = familyFactIdentity(fact);
+        if (known.has(identity)) {
+          return [];
+        }
+        known.add(identity);
+        return [{ ...fact, interviewId: action.interview.id }];
+      });
       return {
         ...state,
         family: {
           ...family,
           interviewDraft: "",
           interviews: [...family.interviews, action.interview],
-          facts: [
-            ...family.facts,
-            ...action.facts.map((fact) => ({ ...fact, interviewId: action.interview.id }))
-          ],
+          facts: [...family.facts, ...newFacts],
           // A new interview invalidates any ranking built from the old one.
           recommendations: null,
           latestInterviewDomains,

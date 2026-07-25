@@ -67,10 +67,15 @@ export type FamilyOrientationInterviewProps = {
    */
   completePlaceholder?: string;
   onDraftChange: (draft: string) => void;
+  /**
+   * `meta.rawText` is the whole conversation so far, re-extracted every round.
+   * `newText` is only what the caregiver just wrote, for anything that must fire
+   * once per sentence rather than once per round.
+   */
   onInterviewExtracted: (
     result: SanitizedFamilyInterviewResult,
     meta: FamilyInterviewSubmissionMeta,
-    context: { round: number }
+    context: { round: number; newText: string }
   ) => void;
   onSafetyEscalation: (screen: FamilySafetyScreen) => void;
 };
@@ -168,7 +173,7 @@ export function FamilyOrientationInterview({
   }
 
   function receiveOpening(result: SanitizedFamilyInterviewResult, meta: FamilyInterviewSubmissionMeta): void {
-    onInterviewExtracted(result, meta, { round: 0 });
+    onInterviewExtracted(result, meta, { round: 0, newText: meta.rawText });
     const candidates = uniqueUnaskedFollowUps(result.followUps, []);
     const canAsk = candidates.length > 0 && hasFollowUpHeadroom(meta.rawText);
     setThread({
@@ -246,7 +251,7 @@ export function FamilyOrientationInterview({
           source: combinedSource([thread.openingSource, ...answeredRounds.map(({ source }) => source)]),
           rawText: caregiverTranscript
         },
-        { round }
+        { round, newText: answer }
       );
 
       const candidates = uniqueUnaskedFollowUps(

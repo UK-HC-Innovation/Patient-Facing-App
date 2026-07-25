@@ -68,6 +68,7 @@ import type {
   DevNeedDomain,
   FamilyAppointmentBarrier,
   FamilyFact,
+  FamilyInterview,
   FamilyProfile,
   FamilyPulse,
   FamilyReminderOffset,
@@ -555,7 +556,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   function addInterview(
     result: SanitizedFamilyInterviewResult,
     meta: FamilyInterviewSubmissionMeta,
-    { round }: { round: number }
+    { round, newText }: { round: number; newText: string }
   ): void {
     pendingReviewFocusRef.current = round === 0;
     const interviewId = crypto.randomUUID();
@@ -571,8 +572,14 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     const extractedDomains = result.domains.map(({ domain }) => domain);
     const wasSafetyTurn = safetyTurnRef.current;
     safetyTurnRef.current = false;
-    const kind =
-      interviewKindRef.current ?? ((family?.interviews.length ?? 0) === 0 ? "orientation" : "note");
+    // A follow-up round continues the conversation it belongs to, so it files
+    // under that conversation's kind: the orientation's rounds stay orientation
+    // and never inflate the journal's note count, and a check-in's rounds stay
+    // check-in.
+    const kind: FamilyInterview["kind"] =
+      interviewKindRef.current ??
+      (round > 0 ? latestInterview?.kind : undefined) ??
+      ((family?.interviews.length ?? 0) === 0 ? "orientation" : "note");
     interviewKindRef.current = null;
     const domains = wasSafetyTurn
       ? domainsAfterSafety(extractedDomains, family?.activeDomains ?? [])
@@ -594,7 +601,10 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     });
     // Loss of an acquired skill is a "call the clinic" signal, not a crisis. The
     // reducer keeps it to one open flag, so a note that says it twice asks once.
-    if (detectRegressionCue(meta.rawText, language)) {
+    // Only the words just written are read: `meta.rawText` carries the whole
+    // conversation, so scanning it every round would re-raise the same sentence
+    // each time the caregiver acknowledged the card and answered on.
+    if (detectRegressionCue(newText, language)) {
       dispatch({ type: "raiseFamilyRegressionFlag", source: "text", at: createdAt });
     }
   }

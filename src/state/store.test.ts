@@ -217,6 +217,55 @@ describe("healthReducer", () => {
     expect(second.family?.activeDomains).not.toContain("school_iep");
   });
 
+  it("keeps one copy of a fact a later round re-extracted from the same words", () => {
+    const seeded: AppState = { ...demoState, family: schoolAgeFamilyState };
+    const openingFact: FamilyFact = {
+      id: "fact-1",
+      label: "About school and learning",
+      value: "Something to bring up at the visit",
+      status: "patient_reported",
+      sourceSnippet: "Reading is really hard for him."
+    };
+    const interview: FamilyInterview = {
+      id: "interview-1",
+      rawText: "Reading is really hard for him.",
+      source: "typed",
+      createdAt: "2026-07-17T12:00:00.000Z",
+      extraction: "mock",
+      kind: "orientation"
+    };
+    const opening = healthReducer(seeded, {
+      type: "addFamilyInterview",
+      interview,
+      facts: [openingFact],
+      domains: ["school_iep"]
+    });
+    const followUp = healthReducer(opening, {
+      type: "addFamilyInterview",
+      interview: { ...interview, id: "interview-2", rawText: "Reading is really hard for him.\nNothing yet" },
+      facts: [
+        // The same observation, re-extracted; casing and stray spaces vary between
+        // the live extraction and the on-device one.
+        { ...openingFact, id: "fact-2", sourceSnippet: " reading is really hard for him. " },
+        {
+          id: "fact-3",
+          label: "Grade",
+          value: "second grade",
+          status: "patient_reported",
+          sourceSnippet: "second grade"
+        }
+      ],
+      domains: ["school_iep"]
+    });
+
+    expect(followUp.family?.facts.map(({ id }) => id)).toEqual(["fact-1", "fact-3"]);
+    expect(followUp.family?.facts.map(({ interviewId }) => interviewId)).toEqual([
+      "interview-1",
+      "interview-2"
+    ]);
+    expect(followUp.family?.interviews.map(({ id }) => id)).toEqual(["interview-1", "interview-2"]);
+  });
+
   it("confirms only family facts and leaves adult extracted facts untouched", () => {
     const seeded: AppState = { ...demoState, family: schoolAgeFamilyState };
     const before = {

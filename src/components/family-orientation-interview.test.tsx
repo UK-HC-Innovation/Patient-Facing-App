@@ -120,7 +120,10 @@ describe("FamilyOrientationInterview", () => {
       source: "typed",
       rawText: familyOnlyTranscript
     });
-    expect(onInterviewExtracted.mock.calls[1][2]).toEqual({ round: 1 });
+    // The cumulative transcript is what gets re-extracted; the round context
+    // carries only the words just written, so per-sentence checks fire once.
+    expect(onInterviewExtracted.mock.calls[0][2]).toEqual({ round: 0, newText: SAMPLE_CAREGIVER_TEXT });
+    expect(onInterviewExtracted.mock.calls[1][2]).toEqual({ round: 1, newText: "Nothing yet" });
   });
 
   it("accepts a typed answer shorter than the opening interview minimum", async () => {
