@@ -35,7 +35,7 @@
 **Interfaces:**
 - Produces: new `pageTitle` / `demoBadge` copy that Task 2's moved page test and Task 6's e2e assert against.
 
-- [ ] **Step 1: Update the brand strings (en + es)**
+- [x] **Step 1: Update the brand strings (en + es)**
 
 In `src/i18n/family-strings.ts`, change these existing values (keys and all other strings stay):
 
@@ -53,7 +53,7 @@ demoBadge: "UKHCI Ladder · demo conceptual — no es un servicio oficial",
 
 Leave `intro`, `interviewTitle`, `interviewIntro` unchanged — they are working plain-language copy and the brand should not crowd the clinical honesty lines.
 
-- [ ] **Step 2: Update entry-point labels**
+- [x] **Step 2: Update entry-point labels**
 
 `src/domain/front-door.ts` — five sites reference the old label:
 
@@ -88,7 +88,7 @@ familyBody: "Continúa al apoyo para familias y personas cuidadoras.",
 
 (`familyBody` values unchanged — shown for context.)
 
-- [ ] **Step 3: Find and update tests asserting old copy**
+- [x] **Step 3: Find and update tests asserting old copy**
 
 ```bash
 grep -rn "Your child's development\|El desarrollo de tu hijo\|Demo — not an official service\|Demo — no es un servicio oficial" src e2e --include="*.ts" --include="*.tsx"
@@ -96,7 +96,7 @@ grep -rn "Your child's development\|El desarrollo de tu hijo\|Demo — not an of
 
 Update every test assertion to the new strings (source hits in `front-door.ts` are already handled above; e2e hits are updated here too if they assert the heading/badge — the e2e route change itself is Task 2). Do not weaken assertions to regexes that would pass on both old and new copy.
 
-- [ ] **Step 4: Run scoped tests**
+- [x] **Step 4: Run scoped tests**
 
 ```bash
 npm run test -- src/domain/front-door.test.ts src/app/family src/components
@@ -104,7 +104,7 @@ npm run test -- src/domain/front-door.test.ts src/app/family src/components
 
 Expected: PASS (if `front-door.test.ts` doesn't exist under that exact name, run `npm run test` and confirm no failures mention front-door, family page, or checkin).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/i18n/family-strings.ts src/domain/front-door.ts src/domain/route-classifier.ts src/app/checkin/page.tsx
@@ -127,7 +127,7 @@ git commit -m "feat: rebrand family navigator to UKHCI Ladder (strings + entry l
 - Consumes: Task 1's labels.
 - Produces: canonical `/ladder` URL every later task uses; `/family` (with query string) permanently redirects.
 
-- [ ] **Step 1: Move the page (keep `/api/family/*` where it is)**
+- [x] **Step 1: Move the page (keep `/api/family/*` where it is)**
 
 ```bash
 git mv src/app/family/page.tsx src/app/ladder/page.tsx
@@ -136,7 +136,7 @@ git mv src/app/family/page.test.tsx src/app/ladder/page.test.tsx
 
 Fix any relative-import or snapshot-name fallout inside the moved test (imports are `@/`-aliased so usually none). `src/app/family/` should now contain nothing (the `api/family` routes live under `src/app/api/family/`, untouched).
 
-- [ ] **Step 2: Add the redirect**
+- [x] **Step 2: Add the redirect**
 
 In `next.config.mjs`, add inside `nextConfig` (alongside `headers()`):
 
@@ -154,7 +154,7 @@ async redirects() {
 
 Next.js preserves the query string by default, so `/family?k=<passcode>` → `/ladder?k=<passcode>` — the passcode gate keeps working for shared links.
 
-- [ ] **Step 3: Repoint internal hrefs**
+- [x] **Step 3: Repoint internal hrefs**
 
 ```bash
 grep -rn '"/family"' src --include="*.ts" --include="*.tsx" | grep -v "api/family"
@@ -162,7 +162,7 @@ grep -rn '"/family"' src --include="*.ts" --include="*.tsx" | grep -v "api/famil
 
 Update each hit to `"/ladder"`: the `front-door.ts` map key (line 25) and both chip-rule `href:` values per language, the `route-classifier.ts` map key (line 28), and the `checkin/page.tsx` `<Link href>` (line 186). Update any route-map tests that assert the `"/family"` key.
 
-- [ ] **Step 4: Update e2e navigation + add redirect proof**
+- [x] **Step 4: Update e2e navigation + add redirect proof**
 
 In `e2e/family-navigator.spec.ts`, change every `page.goto("/family...")` to `page.goto("/ladder...")` (keep query strings). Add one new test near the top-level tests:
 
@@ -175,7 +175,7 @@ test("family URL redirects to ladder and keeps the query string", async ({ page 
 
 (The file's `test.beforeEach` already handles fresh storage and the frozen clock.)
 
-- [ ] **Step 5: Verify build + targeted e2e**
+- [x] **Step 5: Verify build + targeted e2e**
 
 ```bash
 npm run build
@@ -184,7 +184,7 @@ npm run test:e2e -- family-navigator.spec.ts
 
 Expected: build succeeds (redirect config is validated at build time); e2e PASS including the new redirect test.
 
-- [ ] **Step 6: Commit (see next.config caveat in Global Constraints)**
+- [x] **Step 6: Commit (see next.config caveat in Global Constraints)**
 
 ```bash
 git diff --cached next.config.mjs  # after staging, confirm what rides along
@@ -208,7 +208,7 @@ git commit -m "feat: serve Ladder at /ladder with permanent /family redirect"
   - Functions: `createFamilyAppointmentOffer(now: Date): FamilyAppointment`, `activeFamilyAppointment(appointments: FamilyAppointment[]): FamilyAppointment | undefined`, `dueFamilyReminder(appointment: FamilyAppointment, now: Date): FamilyReminderOffset | null`, `overdueFamilyAppointment(appointment: FamilyAppointment, now: Date): boolean`, `formatFamilySlot(slotIso: string, language: Language): string`
   - Constants: `FAMILY_APPOINTMENT_CLINIC`, `REMINDER_OFFSET_DAYS: Record<FamilyReminderOffset, number>`, `BARRIER_DOMAINS: Record<Exclude<FamilyAppointmentBarrier, "none">, DevNeedDomain>`, `FAMILY_APPOINTMENT_COUNTDOWNS` and type `FamilyAppointmentCountdownDays = 13 | 2 | 1 | -1`
 
-- [ ] **Step 1: Add types to `src/domain/types.ts`**
+- [x] **Step 1: Add types to `src/domain/types.ts`**
 
 Insert after the `SavedFamilyResource` type:
 
@@ -255,7 +255,7 @@ export type FamilyNavigatorState = {
   // ...rest unchanged
 ```
 
-- [ ] **Step 2: Create `src/domain/family-appointments.ts`**
+- [x] **Step 2: Create `src/domain/family-appointments.ts`**
 
 ```ts
 import type { Language } from "@/i18n/strings";
@@ -369,7 +369,7 @@ export function formatFamilySlot(slotIso: string, language: Language): string {
 }
 ```
 
-- [ ] **Step 3: Keep the whole tree compiling (safe unconditional backfill)**
+- [x] **Step 3: Keep the whole tree compiling (safe unconditional backfill)**
 
 Three files construct `FamilyNavigatorState` literals and now fail typecheck. Fix them in this task so the commit leaves master green for other sessions — **unconditional** backfill is safe here because nothing has shipped yet, so no persisted save can contain these fields:
 
@@ -396,7 +396,7 @@ appointments: [],
 
 (Task 4 replaces this with guard-based preservation once the guards exist.) Run `npm run build` and fix any remaining literal the compiler names — there should be none besides these.
 
-- [ ] **Step 3b: Write `src/domain/family-appointments.test.ts`**
+- [x] **Step 3b: Write `src/domain/family-appointments.test.ts`**
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -517,7 +517,7 @@ describe("formatFamilySlot", () => {
 });
 ```
 
-- [ ] **Step 4: Run tests + build**
+- [x] **Step 4: Run tests + build**
 
 ```bash
 npm run test -- src/domain/family-appointments.test.ts
@@ -526,7 +526,7 @@ npm run build
 
 Expected: test PASS (all describes green), build succeeds — the Step 3 backfills keep every consumer compiling.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/domain/types.ts src/domain/family-appointments.ts src/domain/family-appointments.test.ts src/domain/family-fixtures.ts src/state/store.tsx src/state/storage.ts
@@ -558,11 +558,11 @@ git commit -m "feat: Ladder appointment domain model (referral, reminders, barri
 | { type: "setFamilyAppointmentCountdown"; appointmentId: string; daysUntil: FamilyAppointmentCountdownDays; now: string }
 ```
 
-- [ ] **Step 1: Extend the action union in `src/state/store.tsx`**
+- [x] **Step 1: Extend the action union in `src/state/store.tsx`**
 
 `emptyFamilyState` already carries `referral`/`appointments` from Task 3. Add the nine action variants above to `HealthAction` (import `FamilyReferral`, `FamilyAppointment`, `FamilyAppointmentBarrier`, `FamilyReminderOffset` from `@/domain/types` and `FamilyAppointmentCountdownDays`, `BARRIER_DOMAINS` from `@/domain/family-appointments`).
 
-- [ ] **Step 2: Add reducer cases**
+- [x] **Step 2: Add reducer cases**
 
 Add after `toggleFamilyEnrollment`. A shared helper keeps the appointment-map cases small — put it next to `emptyFamilyState`:
 
@@ -691,7 +691,7 @@ case "setFamilyAppointmentCountdown":
   );
 ```
 
-- [ ] **Step 3: Extend storage guards + sanitizer in `src/state/storage.ts`**
+- [x] **Step 3: Extend storage guards + sanitizer in `src/state/storage.ts`**
 
 Import the new types. Add near the other family guards:
 
@@ -748,7 +748,7 @@ referral: isFamilyReferral(value.referral) ? value.referral : null,
 appointments: Array.isArray(value.appointments) ? value.appointments.filter(isFamilyAppointment) : [],
 ```
 
-- [ ] **Step 4: Extend tests**
+- [x] **Step 4: Extend tests**
 
 Append to `src/state/store.test.ts` — the file already imports `demoState` from `@/domain/fixtures` and `schoolAgeFamilyState` from `@/domain/family-fixtures`; reuse them:
 
@@ -899,7 +899,7 @@ it("drops malformed appointments but keeps the family slice", () => {
 
 If `loadStoredState` in this file returns non-nullable state in its existing tests, drop the `?.` to match its style.
 
-- [ ] **Step 5: Run state tests**
+- [x] **Step 5: Run state tests**
 
 ```bash
 npm run test -- src/state/store.test.ts src/state/storage.test.ts
@@ -907,7 +907,7 @@ npm run test -- src/state/store.test.ts src/state/storage.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/state/store.tsx src/state/storage.ts src/state/store.test.ts src/state/storage.test.ts
@@ -928,7 +928,7 @@ git commit -m "feat: Ladder referral + appointment state with persistence backfi
 - Consumes: Task 3 helpers, Task 4 actions.
 - Produces: `FamilyAppointmentCard({ family, language, locked, onSeedReferral, onBook, onBarriers, onAckReminder, onReschedule, onComplete, onMiss, onRebook, onCountdown })`.
 
-- [ ] **Step 1: Add string keys (en + es)**
+- [x] **Step 1: Add string keys (en + es)**
 
 Add to the `FamilyStringKey` union and both language objects:
 
@@ -1018,7 +1018,7 @@ apptSafetyHold: "En pausa mientras el mensaje de seguridad de arriba esté abier
 
 **Prep-source link:** primary URL `https://www.cdc.gov/ncbddd/actearly/concerned.html`. CDC restructured some paths in 2024–25 — verify it returns 200 (curl or browser); if it 404s, use `https://www.cdc.gov/act-early/` and record the substitution in the commit body. This matches the catalog's verify-at-seed-time discipline.
 
-- [ ] **Step 2: Create `src/components/family-appointment-card.tsx`**
+- [x] **Step 2: Create `src/components/family-appointment-card.tsx`**
 
 ```tsx
 "use client";
@@ -1323,7 +1323,7 @@ export function FamilyAppointmentCard({
 }
 ```
 
-- [ ] **Step 3: Wire into `family-experience.tsx`**
+- [x] **Step 3: Wire into `family-experience.tsx`**
 
 Imports:
 
@@ -1398,7 +1398,7 @@ Render between the interview `</section>` (after the needs-screen disclosure blo
 
 Type the two callback params explicitly where TS can't infer (`daysUntil: FamilyAppointmentCountdownDays`, `barriers: FamilyAppointmentBarrier[]`, `offset: FamilyReminderOffset`) if inference complains.
 
-- [ ] **Step 4: Component tests `src/components/family-appointment-card.test.tsx`**
+- [x] **Step 4: Component tests `src/components/family-appointment-card.test.tsx`**
 
 ```tsx
 import { render, screen } from "@testing-library/react";
@@ -1529,7 +1529,7 @@ describe("FamilyAppointmentCard", () => {
 });
 ```
 
-- [ ] **Step 5: Run component + full unit suite**
+- [x] **Step 5: Run component + full unit suite**
 
 ```bash
 npm run test -- src/components/family-appointment-card.test.tsx
@@ -1538,7 +1538,7 @@ npm run test
 
 Expected: PASS, no regressions elsewhere.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/i18n/family-strings.ts src/components/family-appointment-card.tsx src/components/family-appointment-card.test.tsx src/components/family-experience.tsx
@@ -1556,7 +1556,7 @@ git commit -m "feat: Ladder evaluation-visit loop (booking, barriers, reminders,
 **Interfaces:**
 - Consumes: everything above; the journey uses the spec's existing `useFreshStorage`, `stubUnconfiguredFamilyInterview`, and basics-form helpers.
 
-- [ ] **Step 1: Add the appointment journey e2e**
+- [x] **Step 1: Add the appointment journey e2e**
 
 Append (reusing the file's existing helpers — follow how the existing journeys build a profile through the basics form with `openBasics`/fill helpers, Scott county, then continue):
 
@@ -1599,7 +1599,7 @@ test("ladder walks a family from waitlist to a confirmed evaluation visit", asyn
 
 The slot-button locator (`hasText: /,/`) matches the formatted date ("Fri, Aug 14, 9:30 AM"); if the existing helpers give a cleaner pattern, prefer theirs. If the reminder turn requires the demo panel to reopen after re-render, adjust with a fresh `getByRole` query rather than a stored locator.
 
-- [ ] **Step 2: Spec addendum**
+- [x] **Step 2: Spec addendum**
 
 At the top of `docs/specs/09-family-navigator.md`, under the title blockquote, add:
 
@@ -1607,7 +1607,7 @@ At the top of `docs/specs/09-family-navigator.md`, under the title blockquote, a
 > **2026-07-24 — UKHCI Ladder:** the navigator's user-facing brand is now **UKHCI Ladder**, served at `/ladder` (`/family` permanently redirects). First waitlist-product slice landed: referral anchor + evaluation-visit loop (slot booking, fixed-choice barriers check routed into need domains, T-14/T-3/T-1 reminder ladder with demo time-travel, missed-visit recovery). Plan: `docs/plans/14-ukhci-ladder.md`. Deferred, in order: wait-status card, monthly check-ins + experience pulse, interim home-activity content, clinic impact dashboard.
 ```
 
-- [ ] **Step 3: Full verification**
+- [x] **Step 3: Full verification**
 
 ```bash
 npm run check
@@ -1618,7 +1618,7 @@ npm run test:e2e -- family-navigator.spec.ts
 
 Expected: all green. `crisis:gate` and `navigator:gate` must pass **unchanged** — this work adds no free-text surface, so any gate movement means something leaked; stop and investigate rather than adjusting the gate.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add e2e/family-navigator.spec.ts docs/specs/09-family-navigator.md
