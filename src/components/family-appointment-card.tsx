@@ -92,7 +92,8 @@ export function FamilyAppointmentCard({
   onCountdown: (appointmentId: string, daysUntil: FamilyAppointmentCountdownDays) => void;
   onJoinSoonerList: (constraints: FamilySoonerConstraint[]) => void;
   onLeaveSoonerList: () => void;
-  onSoonerOffer: () => void;
+  /** Takes the booking the backfill would replace — the visit on screen. */
+  onSoonerOffer: (supersedesId: string) => void;
   onDeclineSoonerOffer: (appointmentId: string) => void;
 }) {
   const [demoControlFor, setDemoControlFor] = useState<string | null>(null);
@@ -114,10 +115,13 @@ export function FamilyAppointmentCard({
   const primaryButton = `min-h-12 min-w-0 break-words rounded-control bg-care px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`;
   const secondaryButton = `min-h-12 min-w-0 break-words rounded-control border border-care/30 bg-care/5 px-4 py-2 text-left font-semibold text-care disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`;
 
-  // A backfill offer sits on top of a still-booked visit — that prior entry is what
-  // declining hands back, so its presence is what makes this offer an *earlier* one.
+  // A backfill offer names the visit it would replace, and declining hands that
+  // visit back. "Keep our current time" therefore only appears while that visit
+  // is still a time the family holds — never once it has been retired.
   const priorBooking =
-    appointment?.status === "offered" ? family.appointments.at(-2) : undefined;
+    appointment?.status === "offered" && appointment.supersedesId !== undefined
+      ? family.appointments.find(({ id }) => id === appointment.supersedesId)
+      : undefined;
   const soonerOffer =
     priorBooking !== undefined &&
     (priorBooking.status === "booked" || priorBooking.status === "confirmed") &&
@@ -360,7 +364,7 @@ export function FamilyAppointmentCard({
                   type="button"
                   data-testid="family-sooner-demo"
                   disabled={locked || family.soonerList === null}
-                  onClick={onSoonerOffer}
+                  onClick={() => onSoonerOffer(active.id)}
                   className={secondaryButton}
                 >
                   {tFamily(language, "soonerDemoCta")}
@@ -385,7 +389,10 @@ export function FamilyAppointmentCard({
       </div>,
       "seed"
     );
-  } else if (!appointment || appointment.status === "missed") {
+    // A retired visit is only ever last if the booking that replaced it was
+    // dropped as unreadable on load. There is no time left to show, so the card
+    // asks for a new one rather than reading the old slot back as current.
+  } else if (!appointment || appointment.status === "missed" || appointment.status === "replaced") {
     body = (
       <>
         {appointment?.status === "missed"
@@ -449,7 +456,7 @@ export function FamilyAppointmentCard({
   let activeTurnAnnouncement: string;
   if (family.referral === null) {
     activeTurnAnnouncement = tFamily(language, "apptJoinDemoBody");
-  } else if (!appointment) {
+  } else if (!appointment || appointment.status === "replaced") {
     activeTurnAnnouncement = tFamily(language, "apptRebookCta");
   } else if (appointment.status === "missed") {
     activeTurnAnnouncement = tFamily(language, "apptMissedLine");

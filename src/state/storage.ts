@@ -880,7 +880,8 @@ const familyAppointmentStatuses: FamilyAppointment["status"][] = [
   "booked",
   "confirmed",
   "completed",
-  "missed"
+  "missed",
+  "replaced"
 ];
 
 function isNonblankString(value: unknown): value is string {
@@ -917,7 +918,10 @@ function isFamilyAppointment(value: unknown): value is FamilyAppointment {
     !familyAppointmentStatuses.some((status) => status === value.status) ||
     typeof value.barriersAsked !== "boolean" ||
     !Array.isArray(value.barriers) ||
-    !Array.isArray(value.reminderAcks)
+    !Array.isArray(value.reminderAcks) ||
+    // A backfill names the booking it would replace, never itself.
+    (value.supersedesId !== undefined &&
+      (!isNonblankString(value.supersedesId) || value.supersedesId === value.id))
   ) {
     return false;
   }

@@ -395,7 +395,15 @@ export type FamilyAppointmentReminderAck = {
   acknowledgedAt: string;
 };
 
-export type FamilyAppointmentStatus = "offered" | "booked" | "confirmed" | "completed" | "missed";
+// `replaced` is the earlier-visit outcome: the family took a cancellation
+// backfill, so the time they were holding went back to the clinic.
+export type FamilyAppointmentStatus =
+  | "offered"
+  | "booked"
+  | "confirmed"
+  | "completed"
+  | "missed"
+  | "replaced";
 
 // One evaluation visit at the developmental-peds clinic. Missed visits are
 // terminal; recovery appends a fresh appointment rather than mutating history.
@@ -409,6 +417,13 @@ export type FamilyAppointment = {
   barriersAsked: boolean;
   reminderAcks: FamilyAppointmentReminderAck[];
   createdAt: string;
+  /**
+   * Set only on a cancellation backfill: the booking this offer would replace.
+   * Booking it retires that appointment in the same step, so there is never a
+   * second live booking to mis-render as a time the family still holds.
+   * Declining leaves the named booking exactly where it was.
+   */
+  supersedesId?: string;
 };
 
 // A safety disclosure inside the family thread. The navigator shows the standard

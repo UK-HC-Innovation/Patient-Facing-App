@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CLOCK_WARNING_WEEKS, firstStepsClock, hasEnrolledFirstSteps } from "./family-clocks";
 import { eighteenMonthFamilyState, schoolAgeFamilyState } from "./family-fixtures";
-import { isFirstStepsResource } from "./family-resources";
+import { getFamilyResourceById, isFirstStepsResource } from "./family-resources";
 import type { FamilyProfile, FamilyResourceStep, FamilyStepStatus } from "./types";
 
 const NOW = new Date("2026-07-17T12:00:00.000Z");
@@ -93,7 +93,7 @@ describe("firstStepsClock", () => {
 });
 
 describe("hasEnrolledFirstSteps", () => {
-  it("is true only for an enrolled First Steps step", () => {
+  it("is true for an enrolled First Steps step", () => {
     expect(hasEnrolledFirstSteps(schoolAgeFamilyState)).toBe(false);
     expect(
       hasEnrolledFirstSteps({
@@ -113,5 +113,48 @@ describe("hasEnrolledFirstSteps", () => {
         steps: [step("michelle_p_waiver", "enrolled"), step("first_steps_statewide", "enrolled")]
       })
     ).toBe(true);
+  });
+
+  // A save written before the step tracker existed records enrollment only in
+  // `alreadyEnrolled`; the sanitizer backfills `steps` to an empty array.
+  it("is true when only the enrollment list knows, as on a pre-tracker save", () => {
+    expect(
+      hasEnrolledFirstSteps({
+        ...schoolAgeFamilyState,
+        alreadyEnrolled: ["first_steps_bluegrass"],
+        steps: []
+      })
+    ).toBe(true);
+    expect(
+      hasEnrolledFirstSteps({
+        ...schoolAgeFamilyState,
+        alreadyEnrolled: ["michelle_p_waiver", "ky-spin"],
+        steps: []
+      })
+    ).toBe(false);
+  });
+
+  // The toggle deliberately invents no step for a resource the catalog dropped,
+  // so the tracker alone would resurrect the deadline for a family already in.
+  it("is true for an enrolled point of entry the catalog no longer lists", () => {
+    expect(getFamilyResourceById("first_steps_retired_poe")).toBeUndefined();
+    expect(
+      hasEnrolledFirstSteps({
+        ...schoolAgeFamilyState,
+        alreadyEnrolled: ["first_steps_retired_poe"],
+        steps: []
+      })
+    ).toBe(true);
+  });
+
+  it("retires the countdown for a pre-tracker family already in First Steps", () => {
+    const legacy = {
+      ...schoolAgeFamilyState,
+      profile: profile({ birthYear: 2023, birthMonth: 12 }),
+      alreadyEnrolled: ["first_steps_bluegrass"],
+      steps: []
+    };
+    expect(firstStepsClock(legacy.profile, NOW, false)).not.toBeNull();
+    expect(firstStepsClock(legacy.profile, NOW, hasEnrolledFirstSteps(legacy))).toBeNull();
   });
 });

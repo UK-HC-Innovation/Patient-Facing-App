@@ -28,9 +28,22 @@ export function firstStepsClock(
   return weeksLeft <= CLOCK_WARNING_WEEKS ? { weeksLeft, yearOnly } : null;
 }
 
-/** Enrollment retires the countdown — the family already made the deadline. */
+/**
+ * Enrollment retires the countdown — the family already made the deadline.
+ *
+ * `alreadyEnrolled` is the complete record and the step tracker is not. A save
+ * written before the tracker existed carries no step at all, and the enrollment
+ * toggle still refuses to invent one for a resource the catalog no longer knows
+ * (see `stepsAfterEnrollmentToggle`) — which is exactly what a retired county
+ * point-of-entry id looks like. Every other reader (matching exclusion, the
+ * resource card) already asks `alreadyEnrolled`; asking only the tracker here is
+ * what kept nagging a family who was already in about a deadline they had met.
+ */
 export function hasEnrolledFirstSteps(family: FamilyNavigatorState): boolean {
-  return family.steps.some(
-    (step) => step.status === "enrolled" && isFirstStepsResource(step.resourceId)
+  return (
+    family.alreadyEnrolled.some(isFirstStepsResource) ||
+    family.steps.some(
+      (step) => step.status === "enrolled" && isFirstStepsResource(step.resourceId)
+    )
   );
 }

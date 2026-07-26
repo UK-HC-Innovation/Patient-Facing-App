@@ -420,7 +420,7 @@ describe("FamilyAppointmentCard", () => {
   it("offers the single earlier slot and lets the family keep the time they have", async () => {
     const callbacks = handlers();
     const booking = quietBooking();
-    const sooner = createSoonerAppointmentOffer(new Date(), ["weekday_mornings"]);
+    const sooner = createSoonerAppointmentOffer(new Date(), ["weekday_mornings"], booking.id);
     render(
       <FamilyAppointmentCard
         family={familyState({ appointments: [booking, sooner], soonerList: ON_LIST })}
@@ -441,7 +441,7 @@ describe("FamilyAppointmentCard", () => {
   });
 
   it("hides the keep-our-time control on a first offer that replaces nothing", () => {
-    render(
+    const { rerender } = render(
       <FamilyAppointmentCard
         family={familyState({ appointments: [createFamilyAppointmentOffer(new Date())] })}
         language="en"
@@ -451,6 +451,79 @@ describe("FamilyAppointmentCard", () => {
     );
 
     expect(screen.queryByRole("button", { name: "Keep our current time" })).not.toBeInTheDocument();
+
+    // Sitting behind a live booking is not what makes an offer an earlier one —
+    // only the offer naming the booking it would replace does.
+    rerender(
+      <FamilyAppointmentCard
+        family={familyState({
+          appointments: [quietBooking(), createFamilyAppointmentOffer(new Date())],
+          soonerList: ON_LIST
+        })}
+        language="en"
+        locked={false}
+        {...handlers()}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Keep our current time" })).not.toBeInTheDocument();
+  });
+
+  it("hands the demo backfill the booking it would replace", async () => {
+    const callbacks = handlers();
+    const booking = quietBooking();
+    render(
+      <FamilyAppointmentCard
+        family={familyState({ appointments: [booking], soonerList: ON_LIST })}
+        language="en"
+        locked={false}
+        {...callbacks}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Demo: move the visit closer" }));
+    await userEvent.click(screen.getByRole("button", { name: "An earlier opening appeared (demo)" }));
+
+    expect(callbacks.onSoonerOffer).toHaveBeenCalledWith(booking.id);
+  });
+
+  // Rescheduling an accepted backfill puts it back in the offer turn. The visit it
+  // replaced is retired by then, so there is no current time to hand back — offering
+  // one would be reading a slot the clinic already took.
+  it("never offers a retired visit back when the earlier one is rescheduled", () => {
+    const replaced = quietBooking({ id: "prior-booking", status: "replaced" });
+    const rescheduled: FamilyAppointment = {
+      ...createFamilyAppointmentOffer(new Date()),
+      supersedesId: replaced.id
+    };
+    render(
+      <FamilyAppointmentCard
+        family={familyState({ appointments: [replaced, rescheduled], soonerList: ON_LIST })}
+        language="en"
+        locked={false}
+        {...handlers()}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Keep our current time" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(formatFamilySlot(replaced.scheduledFor!, "en"), { exact: false })
+    ).not.toBeInTheDocument();
+  });
+
+  it("asks for a new date if a retired visit is all that is left", () => {
+    render(
+      <FamilyAppointmentCard
+        family={familyState({ appointments: [quietBooking({ status: "replaced" })] })}
+        language="en"
+        locked={false}
+        {...handlers()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Find a new time" })).toBeVisible();
+    expect(screen.queryByTestId("family-appt-reminder")).not.toBeInTheDocument();
+    expect(screen.getByTestId("family-appt-live-turn")).toHaveTextContent("Find a new time");
   });
 
   it("renders the earlier-visit turn in Spanish with reachable tap targets", async () => {

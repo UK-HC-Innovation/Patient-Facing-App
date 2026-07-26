@@ -321,18 +321,21 @@ function isCoherentSoonerList(soonerList: FamilySoonerList): boolean {
   );
 }
 
-// A new offer normally only follows a missed visit. The earlier-visit list is the
-// one exception: a cancellation backfill is offered *over* a live booking, and
-// declining it (withdrawFamilyAppointmentOffer) hands the old booking back.
-function acceptsNewOffer(
-  family: FamilyNavigatorState,
-  latest: FamilyAppointment | undefined
-): boolean {
-  if (latest === undefined || latest.status === "missed") {
-    return true;
+// A new offer normally only follows a visit that is over. The earlier-visit list
+// is the one exception: a cancellation backfill is offered *over* a live booking,
+// and declining it (withdrawFamilyAppointmentOffer) hands that booking back.
+//
+// The backfill has to say which booking it replaces, and that booking has to be
+// the live one — array position is not evidence of either.
+function acceptsNewOffer(family: FamilyNavigatorState, offer: FamilyAppointment): boolean {
+  const latest = family.appointments.at(-1);
+  if (offer.supersedesId === undefined) {
+    return latest === undefined || latest.status === "missed" || latest.status === "replaced";
   }
   return (
     family.soonerList !== null &&
+    latest !== undefined &&
+    latest.id === offer.supersedesId &&
     (latest.status === "booked" || latest.status === "confirmed") &&
     latest.scheduledFor !== undefined
   );
@@ -380,6 +383,7 @@ function sameFamilyAppointment(left: FamilyAppointment, right: FamilyAppointment
     left.status === right.status &&
     left.barriersAsked === right.barriersAsked &&
     left.createdAt === right.createdAt &&
+    left.supersedesId === right.supersedesId &&
     left.offeredSlots.length === right.offeredSlots.length &&
     left.offeredSlots.every((slot, index) => slot === right.offeredSlots[index]) &&
     left.barriers.length === right.barriers.length &&
@@ -1302,13 +1306,12 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
     }
     case "offerFamilyAppointment": {
       const family = state.family ?? emptyFamilyState(null);
-      const latestAppointment = family.appointments.at(-1);
       if (
         family.referral === null ||
         action.appointment.clinic !== family.referral.clinic ||
         !isValidNewAppointmentOffer(action.appointment) ||
         family.appointments.some(({ id }) => id === action.appointment.id) ||
-        !acceptsNewOffer(family, latestAppointment)
+        !acceptsNewOffer(family, action.appointment)
       ) {
         return state;
       }
@@ -1347,8 +1350,8 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
         ]
       };
     }
-    case "bookFamilyAppointment":
-      return updateFamilyAppointment(
+    case "bookFamilyAppointment": {
+      const booked = updateFamilyAppointment(
         state,
         action.appointmentId,
         (appointment) => {
@@ -1369,6 +1372,32 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
         },
         "Evaluation visit booked"
       );
+      // Taking the earlier opening hands the old time back to the clinic. It is
+      // retired in the same step as the booking, so the family is never holding
+      // two visits and a later reschedule cannot offer the stale one back.
+      const supersedesId = booked.family?.appointments.find(
+        ({ id }) => id === action.appointmentId
+      )?.supersedesId;
+      if (booked === state || !booked.family || supersedesId === undefined) {
+        return booked;
+      }
+      return {
+        ...booked,
+        family: {
+          ...booked.family,
+          appointments: booked.family.appointments.map((appointment): FamilyAppointment =>
+            appointment.id === supersedesId &&
+            (appointment.status === "booked" || appointment.status === "confirmed")
+              ? { ...appointment, status: "replaced" }
+              : appointment
+          )
+        },
+        auditEvents: [
+          ...booked.auditEvents,
+          recordAuditEvent(state.patient.id, "updated", "Earlier visit replaced the prior booking")
+        ]
+      };
+    }
     case "recordFamilyAppointmentBarriers": {
       const withBarriers = updateFamilyAppointment(
         state,

@@ -996,14 +996,18 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
             })
           }
           onLeaveSoonerList={() => dispatch({ type: "clearFamilySoonerList" })}
-          onSoonerOffer={() => {
+          onSoonerOffer={(supersedesId) => {
             const soonerList = family.soonerList;
             if (soonerList === null) {
               return;
             }
             dispatch({
               type: "offerFamilyAppointment",
-              appointment: createSoonerAppointmentOffer(new Date(), soonerList.constraints)
+              appointment: createSoonerAppointmentOffer(
+                new Date(),
+                soonerList.constraints,
+                supersedesId
+              )
             });
           }}
           onDeclineSoonerOffer={(appointmentId) =>

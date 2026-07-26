@@ -12,6 +12,7 @@ import { healthReducer } from "./store";
 import type { HealthAction } from "./store";
 import type {
   AppState,
+  FamilyAppointment,
   FamilyFact,
   FamilyInterview,
   FamilyPulse,
@@ -1800,10 +1801,25 @@ describe("family appointment actions", () => {
     ).toBeNull();
   });
 
+  function offeredBackfill(): { offered: AppState; offer: FamilyAppointment; sooner: FamilyAppointment } {
+    const { state, offer } = stateWithOffer();
+    const booked = bookFirstOffer(state, offer);
+    const listed = healthReducer(booked, {
+      type: "setFamilySoonerList",
+      soonerList: { optedInAt: NOW, constraints: ["weekday_mornings"] }
+    });
+    const sooner = createSoonerAppointmentOffer(new Date(NOW), ["weekday_mornings"], offer.id);
+    return {
+      offered: healthReducer(listed, { type: "offerFamilyAppointment", appointment: sooner }),
+      offer,
+      sooner
+    };
+  }
+
   it("backfills an earlier offer over a live booking only for a listed family", () => {
     const { state, offer } = stateWithOffer();
     const booked = bookFirstOffer(state, offer);
-    const sooner = createSoonerAppointmentOffer(new Date(NOW), ["weekday_mornings"]);
+    const sooner = createSoonerAppointmentOffer(new Date(NOW), ["weekday_mornings"], offer.id);
 
     expect(healthReducer(booked, { type: "offerFamilyAppointment", appointment: sooner })).toBe(booked);
 
@@ -1829,15 +1845,68 @@ describe("family appointment actions", () => {
     );
   });
 
-  it("withdraws only an unbooked offer, handing the prior booking back untouched", () => {
+  // Taking the earlier opening hands the old time back to the clinic. Leaving it
+  // live would give the family two visits, and a later reschedule would offer the
+  // stale one back as a time they still hold.
+  it("retires the superseded booking when the earlier visit is accepted", () => {
+    const { offered, offer, sooner } = offeredBackfill();
+
+    const accepted = healthReducer(offered, {
+      type: "bookFamilyAppointment",
+      appointmentId: sooner.id,
+      slot: sooner.offeredSlots[0],
+      at: NOW
+    });
+
+    const live = accepted.family?.appointments.filter(
+      ({ status }) => status === "booked" || status === "confirmed"
+    );
+    expect(live?.map(({ id }) => id)).toEqual([sooner.id]);
+    expect(accepted.family?.appointments.find(({ id }) => id === offer.id)?.status).toBe("replaced");
+    expect(accepted.family?.appointments.find(({ id }) => id === offer.id)?.scheduledFor).toBe(
+      offer.offeredSlots[0]
+    );
+    expect(accepted.auditEvents.at(-1)?.label).toBe("Earlier visit replaced the prior booking");
+
+    // Rescheduling the earlier visit must not resurrect the retired time.
+    const rescheduled = healthReducer(accepted, {
+      type: "requestFamilyAppointmentReschedule",
+      appointmentId: sooner.id,
+      at: NOW
+    });
+    expect(
+      rescheduled.family?.appointments.filter(
+        ({ status }) => status === "booked" || status === "confirmed"
+      )
+    ).toEqual([]);
+    expect(rescheduled.family?.appointments.find(({ id }) => id === offer.id)?.status).toBe("replaced");
+  });
+
+  it("only retires the booking the accepted offer actually names", () => {
     const { state, offer } = stateWithOffer();
     const booked = bookFirstOffer(state, offer);
-    const listed = healthReducer(booked, {
-      type: "setFamilySoonerList",
-      soonerList: { optedInAt: NOW, constraints: ["weekday_mornings"] }
+    const missed = healthReducer(booked, {
+      type: "missFamilyAppointment",
+      appointmentId: offer.id,
+      at: new Date(new Date(offer.offeredSlots[0]).valueOf() + DAY_MS).toISOString()
     });
-    const sooner = createSoonerAppointmentOffer(new Date(NOW), ["weekday_mornings"]);
-    const offered = healthReducer(listed, { type: "offerFamilyAppointment", appointment: sooner });
+    expect(missed.family?.appointments.at(-1)?.status).toBe("missed");
+
+    const rebook = createFamilyAppointmentOffer(new Date(NOW));
+    const reoffered = healthReducer(missed, { type: "offerFamilyAppointment", appointment: rebook });
+    const rebooked = healthReducer(reoffered, {
+      type: "bookFamilyAppointment",
+      appointmentId: rebook.id,
+      slot: rebook.offeredSlots[0],
+      at: NOW
+    });
+
+    expect(rebooked.family?.appointments.map(({ status }) => status)).toEqual(["missed", "booked"]);
+    expect(rebooked.auditEvents.at(-1)?.label).toBe("Evaluation visit booked");
+  });
+
+  it("withdraws only an unbooked offer, handing the prior booking back untouched", () => {
+    const { offered, offer, sooner } = offeredBackfill();
 
     const refused: HealthAction[] = [
       { type: "withdrawFamilyAppointmentOffer", appointmentId: offer.id, at: NOW },

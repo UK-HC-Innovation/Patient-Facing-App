@@ -53,9 +53,15 @@ export function createFamilyAppointmentOffer(now: Date): FamilyAppointment {
 // A cancellation backfill (demo): one near slot that matches what the family said
 // they could take. Weekends are stepped over so a "weekday mornings" list is never
 // offered a Sunday — the label has to stay true, even in a demo.
+//
+// `supersedesId` names the booking this would replace. It is required rather than
+// inferred from array position: the reducer needs it to retire that booking when
+// the family accepts, and the card needs it to know whether "keep our time" still
+// hands back a time the family actually holds.
 export function createSoonerAppointmentOffer(
   now: Date,
-  constraints: FamilySoonerConstraint[]
+  constraints: FamilySoonerConstraint[],
+  supersedesId: string
 ): FamilyAppointment {
   const daysOut = constraints.includes("needs_notice") ? 3 : 2;
   const hour =
@@ -65,7 +71,7 @@ export function createSoonerAppointmentOffer(
   while (slot.getDay() === 0 || slot.getDay() === 6) {
     slot.setDate(slot.getDate() + 1);
   }
-  return { ...createFamilyAppointmentOffer(now), offeredSlots: [slot.toISOString()] };
+  return { ...createFamilyAppointmentOffer(now), offeredSlots: [slot.toISOString()], supersedesId };
 }
 
 export function activeFamilyAppointment(

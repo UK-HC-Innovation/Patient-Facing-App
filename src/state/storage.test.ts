@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { firstStepsClock, hasEnrolledFirstSteps } from "@/domain/family-clocks";
 import { brentState, deletedDemoState, demoState } from "@/domain/fixtures";
 import { INSTRUMENTS } from "@/domain/instruments/registry";
 import type { ScreeningInstrument } from "@/domain/instruments/types";
@@ -318,7 +319,20 @@ describe("storage", () => {
       id: "valid-missed",
       status: "missed"
     };
+    // The visit a family gave up when they took an earlier opening.
+    const replaced: FamilyAppointment = {
+      ...confirmed,
+      id: "valid-replaced",
+      status: "replaced"
+    };
+    const backfill: FamilyAppointment = {
+      ...booked,
+      id: "valid-backfill",
+      supersedesId: replaced.id
+    };
     const invalidRows: FamilyAppointment[] = [
+      { ...backfill, id: "blank-supersedes", supersedesId: "   " },
+      { ...backfill, id: "supersedes-itself", supersedesId: "supersedes-itself" },
       { ...offered, id: "bad-created-at", createdAt: "2026-07-24" },
       { ...offered, id: "bad-slot", offeredSlots: ["not-a-date"] },
       {
@@ -350,7 +364,16 @@ describe("storage", () => {
         family: {
           ...validFamily,
           referral: { clinic: "UK Developmental Pediatrics", referredAt: "2026-07-24" },
-          appointments: [offered, booked, confirmed, completed, missed, ...invalidRows]
+          appointments: [
+            offered,
+            booked,
+            confirmed,
+            completed,
+            missed,
+            replaced,
+            backfill,
+            ...invalidRows
+          ]
         }
       })
     );
@@ -363,8 +386,11 @@ describe("storage", () => {
       "valid-booked",
       "valid-confirmed",
       "valid-completed",
-      "valid-missed"
+      "valid-missed",
+      "valid-replaced",
+      "valid-backfill"
     ]);
+    expect(loaded.family?.appointments.at(-1)?.supersedesId).toBe("valid-replaced");
     expect(loaded.family?.profile).toEqual(validFamily.profile);
     expect(loaded.patient.id).toBe(demoState.patient.id);
   });
@@ -409,6 +435,37 @@ describe("storage", () => {
     expect(loaded.family?.packetQuestionIds).toEqual([]);
     expect(loaded.family?.checkinTouchedAt).toBeNull();
     expect(loaded.family?.interviews.every((row) => row.kind === "orientation")).toBe(true);
+  });
+
+  // A family who ticked "we're already in First Steps" before the step tracker
+  // shipped has the enrollment only in `alreadyEnrolled`. The deadline countdown
+  // must stay retired for them — nagging about a deadline they already met is
+  // how an app loses a family's trust.
+  it("keeps the First Steps countdown retired for a pre-spec-13 enrollment", () => {
+    const toddler = {
+      childFirstName: "Avery",
+      birthYear: 2023,
+      birthMonth: 12,
+      schoolStage: "not_school_age" as const,
+      county: "Fayette",
+      diagnoses: []
+    };
+    const legacyFamily: Record<string, unknown> = {
+      ...validFamily,
+      profile: toddler,
+      alreadyEnrolled: ["first_steps_bluegrass"]
+    };
+    delete legacyFamily.steps;
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...demoState, family: legacyFamily }));
+
+    const loaded = loadStoredState();
+
+    expect(loaded.family?.steps).toEqual([]);
+    expect(loaded.family?.alreadyEnrolled).toEqual(["first_steps_bluegrass"]);
+    const now = new Date("2026-07-17T12:00:00.000Z");
+    expect(firstStepsClock(toddler, now, false)).not.toBeNull();
+    expect(hasEnrolledFirstSteps(loaded.family!)).toBe(true);
+    expect(firstStepsClock(toddler, now, hasEnrolledFirstSteps(loaded.family!))).toBeNull();
   });
 
   it("drops incoherent companion rows without resetting the family slice", () => {
