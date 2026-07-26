@@ -973,7 +973,8 @@ describe("orientation follow-up rounds", () => {
 
     const journal = screen.getByTestId("family-journal");
     expect(within(journal).getAllByRole("article")).toHaveLength(3);
-    expect(within(journal).getByRole("heading", { level: 3, name: /— 3 notes$/ })).toBeVisible();
+    // Three fact cards, but the family wrote one note — the heading counts notes.
+    expect(within(journal).getByRole("heading", { level: 3, name: /— 1 note$/ })).toBeVisible();
 
     // A packet that says the same sentence three times reads as careless.
     const packet = screen.getByTestId("family-visit-packet-body").textContent ?? "";

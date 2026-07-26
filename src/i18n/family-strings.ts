@@ -193,6 +193,7 @@ export type FamilyStringKey =
   | "resourcesTitle"
   | "resourcesIntro"
   | "resourcesFoundBelow"
+  | "resourcesFoundBelowOne"
   | "basicsCountyQuestion"
   | "basicsYearQuestion"
   | "basicsStageQuestion"
@@ -300,7 +301,9 @@ export type FamilyStringKey =
   | "rungStep"
   | "rungJournal"
   | "waitChipNotes"
+  | "waitChipNotesOne"
   | "waitChipSteps"
+  | "waitChipStepsOne"
   | "waitChipVisit"
   | "waitChipSooner"
   | "journalTitle"
@@ -311,6 +314,7 @@ export type FamilyStringKey =
   | "journalDeviceLine"
   | "journalExportNudge"
   | "journalMonthNote"
+  | "journalMonthNoteOne"
   | "journalEarlierGroup"
   | "packetHeading"
   | "packetBornLine"
@@ -389,6 +393,9 @@ export type FamilyStringKey =
   | "soonerDemoCta"
   | "soonerDecline";
 
+// Counted strings come in pairs: every "{count} things" key has a "…One" twin
+// for a count of exactly one, and the call site picks. There is no plural
+// machinery here on purpose — each language writes its own singular out loud.
 export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = {
   en: {
     pageTitle: "Ladder — your child's development",
@@ -583,6 +590,7 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     resourcesTitle: "Places that can help",
     resourcesIntro: "These are based on your county, your child's age, and what you told us. Always check the program's own page — their rules are the ones that count.",
     resourcesFoundBelow: "We found {count} places that can help — they're just below.",
+    resourcesFoundBelowOne: "We found {count} place that can help — it's just below.",
     basicsCountyQuestion: "To find programs near you — which Kentucky county do you live in?",
     basicsYearQuestion: "What year was your child born? Just the year.",
     basicsStageQuestion: "Is your child in school yet?",
@@ -691,7 +699,9 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     rungStep: "Quick follow-up on a step you planned",
     rungJournal: "Add a 10-second note about your child",
     waitChipNotes: "{count} notes",
+    waitChipNotesOne: "{count} note",
     waitChipSteps: "{count} steps in motion",
+    waitChipStepsOne: "{count} step in motion",
     waitChipVisit: "Visit: {when}",
     waitChipSooner: "On the earlier-visit list",
     journalTitle: "Your notes so far",
@@ -702,6 +712,7 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     journalDeviceLine: "Notes stay on this device. Print or share a copy sometimes so you don't lose them.",
     journalExportNudge: "You have {count} notes now — a good moment to print or copy your visit packet.",
     journalMonthNote: "{month} — {count} notes",
+    journalMonthNoteOne: "{month} — {count} note",
     journalEarlierGroup: "Earlier",
     packetHeading: "Our visit packet",
     packetBornLine: "born {year}",
@@ -979,6 +990,7 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     resourcesTitle: "Lugares que pueden ayudar",
     resourcesIntro: "Esto se basa en tu condado, la edad de tu hijo o hija y lo que nos contaste. Revisa siempre la página del programa — sus reglas son las que valen.",
     resourcesFoundBelow: "Encontramos {count} lugares que pueden ayudar — están aquí abajo.",
+    resourcesFoundBelowOne: "Encontramos {count} lugar que puede ayudar — está aquí abajo.",
     basicsCountyQuestion: "Para buscar programas cerca de ti — ¿en qué condado de Kentucky vives?",
     basicsYearQuestion: "¿En qué año nació tu hijo o hija? Solo el año.",
     basicsStageQuestion: "¿Tu hijo o hija ya va a la escuela?",
@@ -1087,7 +1099,9 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     rungStep: "Seguimiento rápido de un paso que planeaste",
     rungJournal: "Agrega una nota de 10 segundos sobre tu hijo o hija",
     waitChipNotes: "{count} notas",
+    waitChipNotesOne: "{count} nota",
     waitChipSteps: "{count} pasos en marcha",
+    waitChipStepsOne: "{count} paso en marcha",
     waitChipVisit: "Visita: {when}",
     waitChipSooner: "En la lista de visita anticipada",
     journalTitle: "Tus notas hasta ahora",
@@ -1098,6 +1112,7 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     journalDeviceLine: "Las notas se quedan en este dispositivo. Imprime o comparte una copia de vez en cuando para no perderlas.",
     journalExportNudge: "Ya tienes {count} notas — buen momento para imprimir o copiar tu paquete.",
     journalMonthNote: "{month} — {count} notas",
+    journalMonthNoteOne: "{month} — {count} nota",
     journalEarlierGroup: "Antes",
     packetHeading: "Nuestro paquete para la visita",
     packetBornLine: "nace en {year}",

@@ -24,8 +24,12 @@ function locale(language: Language): string {
   return language === "es" ? "es" : "en-US";
 }
 
+// The key and the label are read off the same local instant. Slicing the ISO
+// string would file a note written late on the last evening of a month under
+// the next month while the heading still said the previous one.
 function monthKey(createdAt: string): string {
-  return createdAt.slice(0, 7);
+  const date = new Date(createdAt);
+  return `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, "0")}`;
 }
 
 function monthLabel(createdAt: string, language: Language): string {
@@ -118,11 +122,17 @@ export function FamilyJournal({ family, language, onConfirm, onToggleInclude }: 
 
       {groups.map((group) => (
         <div key={group.key} className="mt-5" data-testid="family-journal-month">
+          {/* The count is the notes in this group — the ones opened below — not
+              the facts they produced. Screen answers are nobody's note, so that
+              group is named and left uncounted. */}
           <h3 className="break-words text-lg font-semibold">
-            {tFamily(language, "journalMonthNote", {
-              month: group.label,
-              count: group.facts.length
-            })}
+            {group.interviews.length === 0
+              ? group.label
+              : tFamily(
+                  language,
+                  group.interviews.length === 1 ? "journalMonthNoteOne" : "journalMonthNote",
+                  { month: group.label, count: group.interviews.length }
+                )}
           </h3>
           <div className="mt-3 grid gap-3">
             {group.facts.map((fact) => (

@@ -776,7 +776,11 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
         ) : null}
         {matchResult.resources.length > 0 ? (
           <p className="mr-auto max-w-[90%] rounded-control border border-ink/10 bg-white p-3 font-medium">
-            {tFamily(language, "resourcesFoundBelow", { count: matchResult.resources.length })}
+            {tFamily(
+              language,
+              matchResult.resources.length === 1 ? "resourcesFoundBelowOne" : "resourcesFoundBelow",
+              { count: matchResult.resources.length }
+            )}
           </p>
         ) : null}
       </>

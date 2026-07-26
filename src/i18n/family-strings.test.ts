@@ -237,6 +237,41 @@ describe("familyStrings", () => {
     }
   });
 
+  it("writes its own singular for every counted string, in both languages", () => {
+    expect(tFamily("en", "waitChipNotesOne", { count: 1 })).toBe("1 note");
+    expect(tFamily("es", "waitChipNotesOne", { count: 1 })).toBe("1 nota");
+    expect(tFamily("en", "waitChipStepsOne", { count: 1 })).toBe("1 step in motion");
+    expect(tFamily("es", "waitChipStepsOne", { count: 1 })).toBe("1 paso en marcha");
+    expect(tFamily("en", "journalMonthNoteOne", { month: "July 2026", count: 1 })).toBe(
+      "July 2026 — 1 note"
+    );
+    expect(tFamily("es", "journalMonthNoteOne", { month: "julio de 2026", count: 1 })).toBe(
+      "julio de 2026 — 1 nota"
+    );
+    expect(tFamily("en", "resourcesFoundBelowOne", { count: 1 })).toBe(
+      "We found 1 place that can help — it's just below."
+    );
+    expect(tFamily("es", "resourcesFoundBelowOne", { count: 1 })).toBe(
+      "Encontramos 1 lugar que puede ayudar — está aquí abajo."
+    );
+
+    // Each pair really is a pair: the singular says something different, and the
+    // plural is still the one that carries the plural noun.
+    const PAIRS = [
+      ["waitChipNotesOne", "waitChipNotes"],
+      ["waitChipStepsOne", "waitChipSteps"],
+      ["journalMonthNoteOne", "journalMonthNote"],
+      ["resourcesFoundBelowOne", "resourcesFoundBelow"]
+    ] satisfies Array<[FamilyStringKey, FamilyStringKey]>;
+    for (const language of ["en", "es"] as const) {
+      for (const [one, many] of PAIRS) {
+        expect(familyStrings[language][one]).not.toBe(familyStrings[language][many]);
+        expect(familyStrings[language][one]).toContain("{count}");
+        expect(familyStrings[language][many]).toContain("{count}");
+      }
+    }
+  });
+
   it("addresses the caregiver directly instead of describing them in the third person", () => {
     const rationales = Object.entries(familyStrings.en).filter(([key]) => key.startsWith("rationale"));
     expect(rationales).not.toHaveLength(0);

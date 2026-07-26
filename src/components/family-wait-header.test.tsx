@@ -181,6 +181,41 @@ describe("FamilyWaitHeader", () => {
     expect(screen.getByText("On the earlier-visit list")).toBeVisible();
   });
 
+  it("writes one note and one step in the singular", () => {
+    render(
+      <FamilyWaitHeader
+        family={familyState({
+          interviews: [interview("i1", "orientation"), interview("i2", "note")],
+          steps: [
+            {
+              id: "s1",
+              resourceId: "first_steps_statewide",
+              domain: "early_intervention",
+              status: "planned",
+              plannedAt: daysAgo(3),
+              updatedAt: daysAgo(3)
+            },
+            {
+              id: "s2",
+              resourceId: "ky_spin",
+              domain: "parent_support",
+              status: "enrolled",
+              plannedAt: daysAgo(9),
+              updatedAt: daysAgo(8)
+            }
+          ]
+        })}
+        language="en"
+        now={NOW}
+      />
+    );
+
+    expect(screen.getByText("1 note")).toBeVisible();
+    expect(screen.getByText("1 step in motion")).toBeVisible();
+    expect(screen.queryByText("1 notes")).not.toBeInTheDocument();
+    expect(screen.queryByText("1 steps in motion")).not.toBeInTheDocument();
+  });
+
   it("renders in Spanish", () => {
     render(
       <FamilyWaitHeader
@@ -198,6 +233,7 @@ describe("FamilyWaitHeader", () => {
 
     expect(screen.getByRole("heading", { name: "Tu Ladder" })).toBeVisible();
     expect(screen.getByText(/En la lista de UK Developmental Pediatrics desde marzo/)).toBeVisible();
+    expect(screen.getByText("1 nota")).toBeVisible();
     expect(screen.getByTestId("family-next-rung")).toHaveTextContent(
       "Chequeo mensual (unos 30 segundos)"
     );

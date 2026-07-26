@@ -660,7 +660,8 @@ test("ladder companion: notes accrue, check-in watches, packet prints", async ({
   const rawNote = journal.getByTestId("family-journal-raw-note").last();
   await rawNote.locator("summary").click();
   await expect(rawNote.getByText(REGRESSION_NOTE)).toBeVisible();
-  await expect(header).toContainText("notes");
+  // One note so far, so the chip reads the singular — never "1 notes".
+  await expect(header).toContainText(/\b1 note\b/);
 
   // Demo time-travel: a month of quiet brings the check-in back.
   await page.getByTestId("family-checkin-demo").getByRole("button").click();
@@ -704,7 +705,7 @@ test("ladder companion: a planned step and the earlier-visit list", async ({ pag
   await expect(stepStatus).toHaveAttribute("data-step-status", "planned");
   await expect(stepStatus).toContainText("Planned");
   const header = page.getByTestId("family-wait-header");
-  await expect(header).toContainText("steps in motion");
+  await expect(header).toContainText("1 step in motion");
 
   // Seed the waitlist and book the offered visit, then answer the barriers turn
   // so the card is quiet enough to ask about earlier openings.

@@ -403,6 +403,66 @@ describe("FamilyAppointmentCard", () => {
     expect(callbacks.onLeaveSoonerList).toHaveBeenCalledOnce();
   });
 
+  // The earlier-visit turn is the card's last word in its quiet states, so the
+  // announcer has to name it — otherwise it reads the booked line back as the
+  // active turn while a question sits unanswered underneath.
+  it("announces the earlier-visit turn, the list it leads to, and the quiet after a refusal", async () => {
+    const props = { language: "en" as const, locked: false, ...handlers() };
+    const booking = quietBooking();
+    const { rerender } = render(
+      <FamilyAppointmentCard family={familyState({ appointments: [booking] })} {...props} />
+    );
+
+    const liveTurn = screen.getByTestId("family-appt-live-turn");
+    expect(liveTurn).toHaveTextContent("If an earlier time opened up");
+
+    rerender(
+      <FamilyAppointmentCard
+        family={familyState({ appointments: [booking], soonerList: ON_LIST })}
+        {...props}
+      />
+    );
+    expect(screen.getByTestId("family-appt-live-turn")).toHaveTextContent(
+      "On the earlier-visit list — you can leave any time."
+    );
+
+    rerender(<FamilyAppointmentCard family={familyState({ appointments: [booking] })} {...props} />);
+    await userEvent.click(screen.getByRole("button", { name: "No thanks" }));
+    const afterRefusal = screen.getByTestId("family-appt-live-turn");
+    expect(afterRefusal).not.toHaveTextContent("If an earlier time opened up");
+    expect(afterRefusal).toHaveTextContent("Booked for");
+  });
+
+  it("announces the earlier-visit turn in Spanish", () => {
+    render(
+      <FamilyAppointmentCard
+        family={familyState({ appointments: [quietBooking()] })}
+        language="es"
+        locked={false}
+        {...handlers()}
+      />
+    );
+
+    expect(screen.getByTestId("family-appt-live-turn")).toHaveTextContent(
+      "Si se abriera un horario más temprano"
+    );
+  });
+
+  it("leaves the announcer on the open question when a backfill offer is on screen", () => {
+    const booking = quietBooking();
+    const sooner = createSoonerAppointmentOffer(new Date(), ["weekday_mornings"], booking.id);
+    render(
+      <FamilyAppointmentCard
+        family={familyState({ appointments: [booking, sooner], soonerList: ON_LIST })}
+        language="en"
+        locked={false}
+        {...handlers()}
+      />
+    );
+
+    expect(screen.getByTestId("family-appt-live-turn")).toHaveTextContent("evaluation opening");
+  });
+
   it("keeps the demo backfill disabled until the family is on the list", async () => {
     render(
       <FamilyAppointmentCard

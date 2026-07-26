@@ -118,12 +118,14 @@ export function FamilyWaitHeader({
       <div className="mt-3 flex flex-wrap gap-2 text-sm">
         {notes > 0 ? (
           <span className="rounded-full bg-calm px-3 py-1">
-            {tFamily(language, "waitChipNotes", { count: notes })}
+            {tFamily(language, notes === 1 ? "waitChipNotesOne" : "waitChipNotes", { count: notes })}
           </span>
         ) : null}
         {stepsInMotion > 0 ? (
           <span className="rounded-full bg-calm px-3 py-1">
-            {tFamily(language, "waitChipSteps", { count: stepsInMotion })}
+            {tFamily(language, stepsInMotion === 1 ? "waitChipStepsOne" : "waitChipSteps", {
+              count: stepsInMotion
+            })}
           </span>
         ) : null}
         {visitWhen ? (

@@ -139,6 +139,12 @@ export function FamilyAppointmentCard({
         !reminder &&
         !overdue));
 
+  // In the card's quiet states the earlier-visit turn is the last thing said, so
+  // it is also what the live region has to name. One flag each, read by the turn
+  // and by the announcer, so the two cannot drift apart.
+  const soonerListed = soonerQuiet && family.soonerList !== null;
+  const soonerAsk = soonerQuiet && family.soonerList === null && !soonerRefused;
+
   function toggleSoonerPick(value: FamilySoonerConstraint): void {
     setSoonerPicks((picks) =>
       picks.includes(value) ? picks.filter((pick) => pick !== value) : [...picks, value]
@@ -146,10 +152,7 @@ export function FamilyAppointmentCard({
   }
 
   function soonerBlock(): React.ReactNode {
-    if (!soonerQuiet) {
-      return null;
-    }
-    if (family.soonerList !== null) {
+    if (soonerListed) {
       return ladderTurn(
         <div data-testid="family-sooner-status">
           <p className="break-words text-sm leading-6">{tFamily(language, "soonerOnList")}</p>
@@ -165,7 +168,7 @@ export function FamilyAppointmentCard({
         "sooner-status"
       );
     }
-    if (soonerRefused) {
+    if (!soonerAsk) {
       return null;
     }
     return ladderTurn(
@@ -473,6 +476,10 @@ export function FamilyAppointmentCard({
     });
   } else if (overdue) {
     activeTurnAnnouncement = tFamily(language, "apptOverdueQuestion");
+  } else if (soonerAsk) {
+    activeTurnAnnouncement = tFamily(language, "soonerQuestion");
+  } else if (soonerListed) {
+    activeTurnAnnouncement = tFamily(language, "soonerOnList");
   } else {
     activeTurnAnnouncement = tFamily(
       language,
