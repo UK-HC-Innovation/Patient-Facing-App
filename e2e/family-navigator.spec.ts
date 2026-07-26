@@ -672,7 +672,9 @@ test("ladder companion: notes accrue, check-in watches, packet prints", async ({
   await expect(checkin).toHaveAttribute("data-checkin-part", "probe");
   await checkin.getByRole("button", { name: "No", exact: true }).click();
   await expect(checkin).toHaveAttribute("data-checkin-part", "pulse");
-  await expect(checkin.getByText("How supported do you feel this month?")).toBeVisible();
+  // exact: the sr-only live region carries this question too, prefixed with the
+  // card title, so an inexact match would resolve to both.
+  await expect(checkin.getByText("How supported do you feel this month?", { exact: true })).toBeVisible();
   await checkin.getByRole("button", { name: "4", exact: true }).click();
   await expect(checkin.getByText("Thanks — see you next month.")).toBeVisible();
 
