@@ -4,7 +4,8 @@ import React, { useReducer } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { brentState } from "@/domain/fixtures";
 import { SAMPLE_CAREGIVER_TEXT, SAMPLE_CAREGIVER_TEXT_ES, eighteenMonthFamilyState, schoolAgeFamilyState } from "@/domain/family-fixtures";
-import type { AppState, FamilyNavigatorState } from "@/domain/types";
+import { createFamilyAppointmentOffer } from "@/domain/family-appointments";
+import type { AppState, DevNeedDomain, FamilyNavigatorState } from "@/domain/types";
 import { healthReducer } from "@/state/store";
 import { FamilyExperience } from "@/components/family-experience";
 
@@ -1061,5 +1062,116 @@ describe("P4 eighteen-month family", () => {
       "/checkin#for-family"
     );
     expect(screen.getByTestId("family-state")).toHaveTextContent('"county":"Fayette"');
+  });
+});
+
+// The header shows one rung and it is the feature's only navigation control, so
+// a rung whose section is missing is a link that does nothing.
+describe("wait header rungs", () => {
+  const stamp = (days: number): string => new Date(Date.now() - days * DAY_MS).toISOString();
+
+  // The First Steps cutoff falls 45 days before the third birthday, counted to
+  // the first of the birth month. Pick the month start that lands the cutoff
+  // inside the header's eight-week tail, whatever day this suite runs.
+  function thirdBirthdayInsideRungTail(now: Date): Date {
+    for (let ahead = 0; ahead < 8; ahead += 1) {
+      const candidate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + ahead, 1));
+      const daysToCutoff = (candidate.valueOf() - 45 * DAY_MS - now.valueOf()) / DAY_MS;
+      if (daysToCutoff > 1 && daysToCutoff < 56) {
+        return candidate;
+      }
+    }
+    throw new Error("No month start lands the First Steps cutoff inside the rung window.");
+  }
+
+  function familyNearFirstStepsCutoff(activeDomains: DevNeedDomain[]): FamilyNavigatorState {
+    const now = new Date();
+    const base = eighteenMonthFamilyState(now);
+    const thirdBirthday = thirdBirthdayInsideRungTail(now);
+    return {
+      ...base,
+      profile: {
+        ...base.profile!,
+        birthYear: thirdBirthday.getUTCFullYear() - 3,
+        birthMonth: thirdBirthday.getUTCMonth() + 1
+      },
+      activeDomains
+    };
+  }
+
+  const rungCases: Array<{ kind: string; href: string; family: () => FamilyNavigatorState }> = [
+    {
+      kind: "safety",
+      href: "#family-experience",
+      family: () => ({
+        ...schoolAgeFamilyState,
+        safetyEvents: [
+          { id: "safety-1", tier: "crisis", domain: "self_harm", createdAt: stamp(0) }
+        ]
+      })
+    },
+    {
+      kind: "visit",
+      href: "#family-appt-title",
+      family: () => ({
+        ...schoolAgeFamilyState,
+        appointments: [createFamilyAppointmentOffer(new Date())]
+      })
+    },
+    {
+      kind: "clinic_now",
+      href: "#family-clinic-now",
+      family: () => ({
+        ...schoolAgeFamilyState,
+        flags: [{ id: "flag-1", type: "regression", source: "text", raisedAt: stamp(0) }]
+      })
+    },
+    {
+      kind: "clock",
+      href: "#family-resources",
+      family: () => familyNearFirstStepsCutoff(["early_intervention"])
+    },
+    { kind: "checkin", href: "#family-checkin", family: () => familyQuietFor(40) },
+    { kind: "step", href: "#family-followup", family: () => familyWithStaleSteps(10) },
+    {
+      kind: "journal",
+      href: "#family-interview-title",
+      family: () => ({ ...familyQuietFor(45), checkinTouchedAt: stamp(1) })
+    }
+  ];
+
+  it.each(rungCases)("puts the $kind rung on a section that is on the page", ({ href, family }) => {
+    render(<ReducerHarness initialState={withFamily(family())} />);
+
+    expect(screen.getByTestId("family-next-rung")).toHaveAttribute("href", href);
+    expect(document.querySelector(href)).toBeInTheDocument();
+  });
+
+  it("holds the First Steps rung until the resources section carries the countdown", () => {
+    render(<ReducerHarness initialState={withFamily(familyNearFirstStepsCutoff([]))} />);
+
+    // Nothing to scroll to: no active domain means no resources section and no
+    // First Steps card, so the header says nothing rather than pointing at air.
+    expect(document.querySelector("#family-resources")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("family-next-rung")).not.toBeInTheDocument();
+  });
+
+  it("keeps pointing at the check-in after its first answer ends the quiet month", async () => {
+    const user = userEvent.setup();
+    render(<ReducerHarness initialState={withFamily(familyWithStaleSteps(40))} />);
+
+    expect(screen.getByTestId("family-next-rung")).toHaveAttribute("href", "#family-checkin");
+
+    const checkin = screen.getByTestId("family-checkin");
+    await user.click(within(checkin).getByRole("button", { name: "Nothing new" }));
+    await user.click(within(checkin).getByRole("button", { name: "No" }));
+    await user.click(within(checkin).getByRole("button", { name: "4" }));
+
+    // The pulse stamped a touch, so the month of silence is over — but the card
+    // is still up, and it is still holding back the follow-up turn.
+    expect(screen.getByTestId("family-checkin")).toHaveAttribute("data-checkin-part", "done");
+    expect(screen.queryByTestId("family-followup")).not.toBeInTheDocument();
+    expect(screen.getByTestId("family-next-rung")).toHaveAttribute("href", "#family-checkin");
+    expect(document.querySelector("#family-checkin")).toBeInTheDocument();
   });
 });

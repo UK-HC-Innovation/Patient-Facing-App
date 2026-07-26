@@ -41,7 +41,7 @@ import {
 import type { FamilyDiagnosisBackdateMonths } from "@/domain/family-stages";
 import { firstStepsClock, hasEnrolledFirstSteps } from "@/domain/family-clocks";
 import { matchFamilyGuides } from "@/domain/family-guides";
-import { checkInDue, oldestStaleStep } from "@/domain/family-journey";
+import { answerableStaleStep, checkInDue } from "@/domain/family-journey";
 import { detectRegressionCue, familyFactStatus } from "@/domain/family-interview";
 import {
   extractFamilyBasics,
@@ -800,7 +800,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     pendingSafetyEvent === undefined &&
     openFlag === undefined &&
     !checkinVisible
-      ? oldestStaleStep(family.steps, followupNow)
+      ? answerableStaleStep(family.steps, followupNow)
       : undefined;
   const followupResource = followupStep ? getFamilyResourceById(followupStep.resourceId) : undefined;
 
@@ -832,7 +832,16 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
       data-testid="family-experience"
       className="grid min-w-0 gap-5 pb-8"
     >
-      {family?.profile ? <FamilyWaitHeader family={family} language={language} /> : null}
+      {family?.profile ? (
+        // Same instant and same check-in visibility the sections below are
+        // built from, so the rung can never name a section this render omits.
+        <FamilyWaitHeader
+          family={family}
+          language={language}
+          now={followupNow}
+          checkinOpen={checkinVisible}
+        />
+      ) : null}
 
       {family && checkinVisible ? (
         <FamilyCheckin

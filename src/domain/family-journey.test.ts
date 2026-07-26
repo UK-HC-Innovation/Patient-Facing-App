@@ -35,12 +35,13 @@ function interview(createdAt: string, id = `interview-${createdAt}`): FamilyInte
 }
 
 // Steps stay semantically coherent (updatedAt >= plannedAt) so the fixtures
-// match what the storage sanitizer would actually keep.
+// match what the storage sanitizer would actually keep. The default resource id
+// is a real catalog entry, because only a step the page can name gets a rung.
 function step(overrides: Partial<FamilyResourceStep> = {}): FamilyResourceStep {
   const plannedAt = overrides.plannedAt ?? overrides.updatedAt ?? daysAgo(20);
   return {
     id: "step-1",
-    resourceId: "first-steps",
+    resourceId: "first_steps_statewide",
     domain: "early_intervention",
     status: "planned",
     plannedAt,
@@ -245,12 +246,15 @@ describe("nextFamilyRung", () => {
   });
 
   // The card chip shows from 26 weeks out; the header only spends its one rung on
-  // the urgent tail, so an 8-week threshold separates these three cases.
+  // the urgent tail, so an 8-week threshold separates these three cases. Early
+  // intervention is active in all of them: that is what puts the First Steps
+  // card — and the section the rung links to — on the page at all.
   it("puts the First Steps cutoff above a due check-in inside the urgent tail", () => {
     const family: FamilyNavigatorState = {
       ...eighteenMonthFamilyState(NOW),
       // Born 2023-10 ⇒ cutoff 2026-08-17, four weeks out.
       profile: { ...eighteenMonthFamilyState(NOW).profile!, birthYear: 2023, birthMonth: 10 },
+      activeDomains: ["early_intervention"],
       interviews: [interview(daysAgo(45))]
     };
     expect(checkInDue(family, NOW)).toBe(true);
@@ -262,6 +266,7 @@ describe("nextFamilyRung", () => {
       ...eighteenMonthFamilyState(NOW),
       // Born 2023-12 ⇒ cutoff 2026-10-17, thirteen weeks out: chip yes, rung no.
       profile: { ...eighteenMonthFamilyState(NOW).profile!, birthYear: 2023, birthMonth: 12 },
+      activeDomains: ["early_intervention"],
       interviews: [interview(daysAgo(45))]
     };
     expect(nextFamilyRung(family, NOW)).toEqual({ kind: "checkin" });
@@ -271,6 +276,7 @@ describe("nextFamilyRung", () => {
     const family: FamilyNavigatorState = {
       ...eighteenMonthFamilyState(NOW),
       profile: { ...eighteenMonthFamilyState(NOW).profile!, birthYear: 2023, birthMonth: 10 },
+      activeDomains: ["early_intervention"],
       interviews: [interview(daysAgo(45))],
       steps: [
         step({
@@ -285,6 +291,25 @@ describe("nextFamilyRung", () => {
     expect(nextFamilyRung(family, NOW)).toEqual({ kind: "checkin" });
   });
 
+  // The rung links to #family-resources, and that section is only on the page
+  // once a domain is active — so the countdown waits for the section that
+  // carries it rather than becoming a link to nothing.
+  it("holds the clock rung until early intervention is an active domain", () => {
+    const inUrgentTail: FamilyNavigatorState = {
+      ...eighteenMonthFamilyState(NOW),
+      profile: { ...eighteenMonthFamilyState(NOW).profile!, birthYear: 2023, birthMonth: 10 },
+      interviews: [interview(daysAgo(45))]
+    };
+
+    expect(nextFamilyRung(inUrgentTail, NOW)).toEqual({ kind: "checkin" });
+    expect(
+      nextFamilyRung({ ...inUrgentTail, activeDomains: ["waivers_financial"] }, NOW)
+    ).toEqual({ kind: "checkin" });
+    expect(
+      nextFamilyRung({ ...inUrgentTail, activeDomains: ["early_intervention"] }, NOW)
+    ).toEqual({ kind: "clock", weeksLeft: 4 });
+  });
+
   it("raises no clock rung for a family with no profile", () => {
     const family: FamilyNavigatorState = {
       ...base,
@@ -297,19 +322,52 @@ describe("nextFamilyRung", () => {
   it("puts a due check-in above a stale step", () => {
     const family: FamilyNavigatorState = {
       ...base,
-      steps: [step({ resourceId: "first-steps", updatedAt: daysAgo(40) })],
+      steps: [step({ updatedAt: daysAgo(40) })],
       interviews: [interview(daysAgo(40))]
     };
     expect(nextFamilyRung(family, NOW)).toEqual({ kind: "checkin" });
   });
 
+  // The card stays for the rest of the visit once it is started, and it hides
+  // the follow-up turn while it is up — so the rung stays on it even after the
+  // first answer stamps a touch and ends the month of silence.
+  it("keeps the rung on an open check-in card that is no longer due", () => {
+    const family: FamilyNavigatorState = {
+      ...base,
+      steps: [step({ updatedAt: daysAgo(20) })],
+      interviews: [interview(daysAgo(2))],
+      pulses: [{ at: daysAgo(0), score: 4 }]
+    };
+
+    expect(checkInDue(family, NOW)).toBe(false);
+    expect(nextFamilyRung(family, NOW, { checkinOpen: true })).toEqual({ kind: "checkin" });
+    expect(nextFamilyRung(family, NOW, { checkinOpen: false })).toEqual({
+      kind: "step",
+      resourceId: "first_steps_statewide"
+    });
+  });
+
   it("puts a stale step above the journal nudge once the check-in is not due", () => {
     const family: FamilyNavigatorState = {
       ...base,
-      steps: [step({ resourceId: "first-steps", updatedAt: daysAgo(20) })],
+      steps: [step({ updatedAt: daysAgo(20) })],
       interviews: [interview(daysAgo(2))]
     };
-    expect(nextFamilyRung(family, NOW)).toEqual({ kind: "step", resourceId: "first-steps" });
+    expect(nextFamilyRung(family, NOW)).toEqual({
+      kind: "step",
+      resourceId: "first_steps_statewide"
+    });
+  });
+
+  // A step whose resource left the catalog renders no follow-up question, so it
+  // cannot be the rung either.
+  it("skips a stale step whose resource is no longer in the catalog", () => {
+    const family: FamilyNavigatorState = {
+      ...base,
+      steps: [step({ id: "retired", resourceId: "retired_resource", updatedAt: daysAgo(20) })],
+      interviews: [interview(daysAgo(2))]
+    };
+    expect(nextFamilyRung(family, NOW)).toEqual({ kind: "quiet" });
   });
 
   it("falls back to the journal nudge at exactly 30 quiet days", () => {
@@ -319,6 +377,31 @@ describe("nextFamilyRung", () => {
     };
     expect(checkInDue(family, NOW)).toBe(false);
     expect(nextFamilyRung(family, NOW)).toEqual({ kind: "journal" });
+  });
+
+  // Sharing the check-in's clock left this rung reachable only at exactly
+  // 30.000 quiet days. Answering or skipping the check-in is a touch but not a
+  // note, so the journal is what has actually gone quiet.
+  it("reaches the journal nudge after the check-in is answered", () => {
+    const family: FamilyNavigatorState = {
+      ...base,
+      interviews: [interview(daysAgo(45))],
+      pulses: [{ at: daysAgo(1), score: 4 }],
+      checkinTouchedAt: daysAgo(1)
+    };
+
+    expect(checkInDue(family, NOW)).toBe(false);
+    expect(familyLastTouchAt(family)).toBe(daysAgo(1));
+    expect(nextFamilyRung(family, NOW)).toEqual({ kind: "journal" });
+  });
+
+  it("stays quiet for a family that has written recently", () => {
+    const family: FamilyNavigatorState = {
+      ...base,
+      interviews: [interview(daysAgo(29))],
+      checkinTouchedAt: daysAgo(1)
+    };
+    expect(nextFamilyRung(family, NOW)).toEqual({ kind: "quiet" });
   });
 
   it("stays quiet when everything is fresh", () => {

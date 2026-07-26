@@ -1,4 +1,5 @@
 import { firstStepsClock, hasEnrolledFirstSteps } from "./family-clocks";
+import { getFamilyResourceById } from "./family-resources";
 import { pendingFamilySafetyEvent } from "./family-safety";
 import {
   activeFamilyAppointment,
@@ -102,6 +103,33 @@ export function oldestStaleStep(
     );
 }
 
+/**
+ * The oldest stale step the follow-up turn can actually ask about. Steps are
+ * stored by id and survive a catalog revision, so a step whose resource has
+ * left the catalog renders no question — and must not become the header's one
+ * rung either. Both the turn and the rung read this, so they never disagree.
+ */
+export function answerableStaleStep(
+  steps: FamilyResourceStep[],
+  now: Date
+): FamilyResourceStep | undefined {
+  return oldestStaleStep(
+    steps.filter(({ resourceId }) => getFamilyResourceById(resourceId) !== undefined),
+    now
+  );
+}
+
+/** The newest thing the family actually wrote, which is what the journal holds. */
+function lastFamilyWriteAt(family: FamilyNavigatorState): string | null {
+  const stamps = family.interviews.map(({ createdAt }) => createdAt).filter(isRealTimestamp);
+  if (stamps.length === 0) {
+    return null;
+  }
+  return stamps.reduce((latest, candidate) =>
+    new Date(candidate).valueOf() > new Date(latest).valueOf() ? candidate : latest
+  );
+}
+
 export type FamilyRung =
   | { kind: "safety" }
   | { kind: "visit" }
@@ -113,10 +141,30 @@ export type FamilyRung =
   | { kind: "quiet" };
 
 /**
+ * What the page is showing that the stored state cannot say on its own. The
+ * check-in card outlives the month of silence that summoned it — the
+ * caregiver's first answer stamps a touch — and while it is up the follow-up
+ * turn is suppressed, so without this the header would point past it at a
+ * section that is not in the document.
+ */
+export type FamilyRungView = {
+  /** True while the check-in card is mounted and owns the page's one ask. */
+  checkinOpen?: boolean;
+};
+
+/**
  * The single next thing, in the spec's fixed priority order. One rung at a time
  * is the whole point: the header points, it never asks.
+ *
+ * Every rung names a section, and the header links to it, so the invariant here
+ * is that a rung only fires when the section that owns it is on the page. A
+ * rung whose anchor is missing is the header's one control doing nothing.
  */
-export function nextFamilyRung(family: FamilyNavigatorState, now: Date): FamilyRung {
+export function nextFamilyRung(
+  family: FamilyNavigatorState,
+  now: Date,
+  view: FamilyRungView = {}
+): FamilyRung {
   if (pendingFamilySafetyEvent(family.safetyEvents) !== undefined) {
     return { kind: "safety" };
   }
@@ -136,24 +184,37 @@ export function nextFamilyRung(family: FamilyNavigatorState, now: Date): FamilyR
     return { kind: "clinic_now" };
   }
 
-  const clock = family.profile
-    ? firstStepsClock(family.profile, now, hasEnrolledFirstSteps(family))
-    : null;
+  // The countdown itself lives on the First Steps card, inside the resources
+  // section — and both only exist once early intervention is an active domain.
+  // A profile alone is not enough: without the section there is no card to
+  // carry the weeks and no anchor to scroll to.
+  const clock =
+    family.profile && family.activeDomains.includes("early_intervention")
+      ? firstStepsClock(family.profile, now, hasEnrolledFirstSteps(family))
+      : null;
   if (clock !== null && clock.weeksLeft <= RUNG_CLOCK_WEEKS) {
     return { kind: "clock", weeksLeft: clock.weeksLeft };
   }
 
-  if (checkInDue(family, now)) {
+  // Once the card is up it stays up for the visit, so the rung stays on it: the
+  // caregiver's first answer stamps a touch and would otherwise drop the header
+  // to a follow-up turn the check-in is currently hiding.
+  if (view.checkinOpen ?? checkInDue(family, now)) {
     return { kind: "checkin" };
   }
 
-  const staleStep = oldestStaleStep(family.steps, now);
+  const staleStep = answerableStaleStep(family.steps, now);
   if (staleStep !== undefined) {
     return { kind: "step", resourceId: staleStep.resourceId };
   }
 
-  const last = familyLastTouchAt(family);
-  if (last !== null && daysBetween(new Date(last), now) >= CHECKIN_DUE_DAYS) {
+  // Measured against the journal itself, not against any touch. Sharing the
+  // check-in's clock left this rung reachable only at exactly 30.000 quiet
+  // days, because every longer silence is a check-in first; a family who
+  // answered or skipped the check-in has a fresh touch but may still not have
+  // written anything in a month, and that is what this nudge is for.
+  const lastWrite = lastFamilyWriteAt(family);
+  if (lastWrite !== null && daysBetween(new Date(lastWrite), now) >= CHECKIN_DUE_DAYS) {
     return { kind: "journal" };
   }
 

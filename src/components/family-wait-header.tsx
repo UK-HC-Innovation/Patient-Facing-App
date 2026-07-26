@@ -8,9 +8,9 @@ import { tFamily, type FamilyStringKey } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
 
 // The header points; it never asks. Each rung names the section that owns the
-// interaction. `family-clinic-now`, `family-checkin`, and `family-followup`
-// arrive with their sections later in this spec — until then the anchor is a
-// harmless no-op scroll.
+// interaction, and this link is the whole feature's one navigation control — so
+// `nextFamilyRung` only raises a rung whose section is on the page for that same
+// state. Anything added here needs the matching guard there.
 const RUNG_TARGETS: Record<Exclude<FamilyRung["kind"], "quiet">, string> = {
   safety: "family-experience",
   visit: "family-appt-title",
@@ -46,10 +46,21 @@ export type FamilyWaitHeaderProps = {
   family: FamilyNavigatorState;
   language: Language;
   now?: Date;
+  /**
+   * True while the check-in card is on the page. Only the page knows: the card
+   * stays for the rest of the visit once the caregiver starts it, even after
+   * that first answer stamps a touch and the month of silence is over.
+   */
+  checkinOpen?: boolean;
 };
 
-export function FamilyWaitHeader({ family, language, now = new Date() }: FamilyWaitHeaderProps) {
-  const rung = nextFamilyRung(family, now);
+export function FamilyWaitHeader({
+  family,
+  language,
+  now = new Date(),
+  checkinOpen
+}: FamilyWaitHeaderProps) {
+  const rung = nextFamilyRung(family, now, { checkinOpen });
   const label = rungLabel(rung, language);
   const referral = family.referral;
   // Elapsed time only. A predicted seen-by date is the one number we will not invent.
