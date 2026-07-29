@@ -1,10 +1,10 @@
 # Sprint: Ladder persona stress test
 **Started:** 2026-07-29
 **Spec:** `docs/superpowers/specs/2026-07-29-ladder-persona-stress-test-design.md`
-**Plan:**
+**Plan:** `docs/superpowers/plans/2026-07-29-ladder-persona-stress-test.md`
 
 ## Current Phase
-Phase 3 — Documentation
+Complete — ready for execution
 
 ## Phase 1 — Discovery
 **Status:** done
@@ -20,12 +20,12 @@ Phase 3 — Documentation
 **Selected approach:** Journey-first, with a coverage matrix to prevent duplicated scenarios.
 
 ## Phase 3 — Documentation
-**Status:** active
+**Status:** done
 **Spec path:** `docs/superpowers/specs/2026-07-29-ladder-persona-stress-test-design.md`
-**Spec approved:** no
+**Spec approved:** yes
 
 ## Phase 4 — Handoff
-**Status:** pending
+**Status:** done
 
 ## Next Action
-Self-review the written specification, commit it, and ask the user for written-spec approval.
+Execute `docs/superpowers/plans/2026-07-29-ladder-persona-stress-test.md` using the user's selected execution mode.
