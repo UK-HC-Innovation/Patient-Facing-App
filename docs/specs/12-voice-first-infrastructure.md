@@ -151,7 +151,7 @@ The tiering **is** the cost control; T3 additionally sits behind `DEMO_PASSCODE`
 
 ## 8. Decisions for the product owner
 
-1. **Engine strategy** — recommended: three keyless tiers now + realtime-mini for open Q&A, with the cloud cascade (T4) as a planned drop-in upgrade. Alternatives: cascade-first day one (better turn-taking immediately, adds vendors/cost now) or S2S-everywhere (fastest feel, weakest gate posture + HIPAA gap).
+1. **Engine strategy** — the implemented open-Q&A code default is `gpt-realtime-2`. A cheaper verified model is only an explicit `HEALTH_AI_REALTIME_MODEL` opt-in; the cloud cascade (T4) remains a planned drop-in upgrade. Alternatives: cascade-first (better turn-taking, adds vendors/cost) or S2S-everywhere (fastest feel, weakest gate posture + HIPAA gap).
 2. **Clinical-number commits** — tap-only with digit read-back (recommended) vs verbal-confirm. Tap-only sacrifices full hands-free for the highest-stakes writes.
 3. **PHQ-9/SDOH voice posture** — local chip-matching now (recommended) vs excluding assessments from voice entirely until on-device STT is proven.
 4. **/food's S2S future** — keep WebRTC with added output-transcript gating (recommended; accepts ~a-sentence escape) vs migrating /food to the cascade too and retiring S2S.

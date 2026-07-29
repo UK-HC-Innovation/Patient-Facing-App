@@ -66,9 +66,10 @@ use a network service.
 2. Laptop: `ipconfig` → Wi-Fi IPv4 (Android ≈ 192.168.x.x, iPhone ≈ 172.20.10.x).
 3. Phone Chrome: `https://<laptop-hotspot-ip>:3000/food` → **Advanced → Proceed**
    past the self-signed cert warning → grant camera + mic. If Next.js blocks the
-   dev origin, add that exact `https://<laptop-ip>:3000` to `allowedDevOrigins`
-   in `next.config.mjs` for the session (a specific LAN IP — never a tunnel host).
-   Remove that temporary entry immediately after the demo.
+   dev origin, add the laptop hostname/IP only (no scheme or port) to
+   `allowedDevOrigins` in `next.config.mjs` for the session, for example
+   `allowedDevOrigins: ["192.168.x.x"]`. Use the specific LAN IP — never a tunnel
+   host — and remove that temporary entry immediately after the demo.
 
 Temporarily allow inbound TCP 3000 through Windows Firewall so the phone can
 reach the laptop. In elevated PowerShell, first confirm the active hotspot
