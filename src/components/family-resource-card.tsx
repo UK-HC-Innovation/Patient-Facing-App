@@ -53,7 +53,7 @@ const URGENCY_KEYS: Record<"act_now" | "soon" | "when_ready", FamilyStringKey> =
 const URGENCY_CHIPS: Record<"act_now" | "soon" | "when_ready", string> = {
   act_now: "border border-pulse/40 bg-pulse/10 text-pulse",
   soon: "bg-note/40 text-ink",
-  when_ready: "bg-calm text-care"
+  when_ready: "bg-calm text-ink/80"
 };
 
 const STEP_STATUS_KEYS: Record<FamilyStepStatus, FamilyStringKey> = {
@@ -161,7 +161,7 @@ export function FamilyResourceCard({
             </span>
           ) : null}
           {isEnrolled ? (
-            <span className="rounded-full bg-calm px-2 py-1 text-xs font-semibold text-care">
+            <span className="rounded-full bg-calm px-2 py-1 text-xs font-semibold text-ink/80">
               {tFamily(language, "resourceAlreadyEnrolled")}
             </span>
           ) : null}
@@ -209,7 +209,7 @@ export function FamilyResourceCard({
           <p
             data-testid="family-step-status"
             data-step-status={step.status}
-            className="inline-flex min-w-0 break-words rounded-control bg-calm px-3 py-2 text-sm font-semibold text-care"
+            className="inline-flex min-w-0 break-words rounded-control bg-calm px-3 py-2 text-sm font-semibold text-ink/80"
           >
             {stepStatusLine(step, language)}
           </p>

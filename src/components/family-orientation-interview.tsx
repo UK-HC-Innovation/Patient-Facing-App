@@ -339,7 +339,7 @@ export function FamilyOrientationInterview({
       ) : null}
 
       {!holdTurn && thread.status === "complete" ? (
-        <div role="status" tabIndex={-1} className="rounded-control bg-calm/60 p-4 font-semibold text-care">
+        <div role="status" tabIndex={-1} className="rounded-control bg-calm/60 p-4 font-semibold text-ink/80">
           <p className="min-w-0">{tFamily(language, "orientationComplete")}</p>
         </div>
       ) : null}

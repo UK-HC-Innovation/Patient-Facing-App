@@ -181,6 +181,49 @@ describe("FamilyWaitHeader", () => {
     expect(screen.getByText("On the earlier-visit list")).toBeVisible();
   });
 
+  it.each(["booked", "confirmed"] as const)(
+    "shows the current visit date chip for a %s appointment",
+    (status) => {
+      render(
+        <FamilyWaitHeader
+          family={familyState({
+            appointments: [appointment({ status, scheduledFor: daysFromNow(20) })]
+          })}
+          language="en"
+          now={NOW}
+        />
+      );
+
+      expect(screen.getByText(/^Visit: /)).toBeVisible();
+    }
+  );
+
+  it.each(["replaced", "missed"] as const)(
+    "keeps the %s visit rung without presenting its retired date as current",
+    (status) => {
+      render(
+        <FamilyWaitHeader
+          family={familyState({
+            appointments: [
+              appointment({ id: "appointment-original", scheduledFor: daysFromNow(30) }),
+              appointment({
+                id: `appointment-${status}`,
+                status,
+                scheduledFor: daysFromNow(20),
+                createdAt: daysAgo(1)
+              })
+            ]
+          })}
+          language="en"
+          now={NOW}
+        />
+      );
+
+      expect(screen.getByTestId("family-next-rung")).toHaveAttribute("href", "#family-appt-title");
+      expect(screen.queryByText(/^Visit: /)).not.toBeInTheDocument();
+    }
+  );
+
   it("writes one note and one step in the singular", () => {
     render(
       <FamilyWaitHeader

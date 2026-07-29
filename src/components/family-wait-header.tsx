@@ -77,7 +77,9 @@ export function FamilyWaitHeader({
     ({ status }) => status !== "not_for_us" && status !== "enrolled"
   ).length;
   const appointment = activeFamilyAppointment(family.appointments);
-  const visitWhen = appointment?.scheduledFor
+  const visitWhen =
+    appointment?.scheduledFor &&
+    (appointment.status === "booked" || appointment.status === "confirmed")
     ? formatFamilySlot(appointment.scheduledFor, language)
     : null;
 
@@ -118,7 +120,7 @@ export function FamilyWaitHeader({
               })}
         </p>
       ) : null}
-      <p className="mt-1 break-words text-sm leading-6 text-ink/60">
+      <p className="mt-1 break-words text-sm leading-6 text-ink/70">
         {tFamily(language, "waitHeaderNoPrediction")}
       </p>
       {label !== null && rung.kind !== "quiet" ? (

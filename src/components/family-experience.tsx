@@ -882,7 +882,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
       ) : null}
 
       <section className={CARD_SECTION} aria-labelledby="family-interview-title">
-        <p className="inline-flex rounded-full border border-ink/20 px-3 py-1 text-xs font-medium text-ink/60">
+        <p className="inline-flex rounded-full border border-ink/20 px-3 py-1 text-xs font-medium text-ink/70">
           {tFamily(language, "demoBadge")}
         </p>
         <h2 id="family-interview-title" tabIndex={-1} className="mt-3 text-xl font-semibold scroll-mt-4">

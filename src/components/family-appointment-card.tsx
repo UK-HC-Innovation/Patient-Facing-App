@@ -502,7 +502,7 @@ export function FamilyAppointmentCard({
       aria-labelledby="family-appt-title"
       className={CARD_SECTION}
     >
-      <p className="mb-2 inline-flex rounded-full border border-ink/20 px-3 py-1 text-xs font-medium text-ink/60">
+      <p className="mb-2 inline-flex rounded-full border border-ink/20 px-3 py-1 text-xs font-medium text-ink/70">
         {tFamily(language, "demoBadge")}
       </p>
       <h2 id="family-appt-title" className={`${H2_SECTION} scroll-mt-4`}>
