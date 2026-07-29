@@ -719,6 +719,19 @@ test("ladder companion: an earlier visit survives reload and reschedules without
   await expect(card.getByText(/Booked for.*\(demo\)/)).toBeVisible();
   await card.getByRole("button", { name: "We need a ride" }).click();
 
+  await expect
+    .poll(() =>
+      page.evaluate((key) => {
+        const raw = window.localStorage.getItem(key);
+        if (raw === null) return false;
+        const state = JSON.parse(raw) as {
+          family?: { appointments?: Array<{ status: string }> };
+        };
+        return state.family?.appointments?.some(({ status }) => status === "booked") ?? false;
+      }, STORAGE_KEY)
+    )
+    .toBe(true);
+
   const originalBooking = await page.evaluate((key) => {
     const raw = window.localStorage.getItem(key);
     if (raw === null) return null;
@@ -820,9 +833,13 @@ test("ladder companion: an earlier visit survives reload and reschedules without
           };
           const appointments = state.family?.appointments ?? [];
           const auditEvents = state.auditEvents ?? [];
+          const current = appointments.find(({ id }) => id === currentId);
           return {
             originalStatus: appointments.find(({ id }) => id === originalId)?.status ?? null,
-            currentSupersedesId: appointments.find(({ id }) => id === currentId)?.supersedesId ?? null,
+            currentFound: current !== undefined,
+            currentStatus: current?.status ?? null,
+            currentOwnsSupersedesId:
+              current !== undefined && Object.prototype.hasOwnProperty.call(current, "supersedesId"),
             replacementAuditCount: auditEvents.filter(
               ({ label }) => label === "Earlier visit replaced the prior booking"
             ).length,
@@ -834,7 +851,9 @@ test("ladder companion: an earlier visit survives reload and reschedules without
     )
     .toEqual({
       originalStatus: "replaced",
-      currentSupersedesId: null,
+      currentFound: true,
+      currentStatus: "booked",
+      currentOwnsSupersedesId: false,
       replacementAuditCount: 1,
       finalAuditLabel: "Evaluation visit booked"
     });
