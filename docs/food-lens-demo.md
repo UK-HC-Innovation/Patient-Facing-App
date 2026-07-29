@@ -32,22 +32,69 @@ Demo device: **Android Galaxy S25, Chrome.** iOS is out of scope.
 
 ## Run it on the phone
 
-`getUserMedia` needs a secure context (HTTPS), so the phone loads the app
-through a tunnel:
+`getUserMedia` needs a secure context (HTTPS). Two tunnel-free ways to get one —
+no `cloudflared`, `ngrok`, or any other external tunnel (those create an
+externally-routable ingress into the workstation and are not used here):
+
+**Primary — the hosted build (recommended).** Open the Vercel URL on the S25 in
+Chrome:
+
+- Typed / mock mode: `https://patient-centered.vercel.app/food`
+- Live voice: `https://patient-centered.vercel.app/food?k=<DEMO_PASSCODE>`
+
+Production live voice requires `HEALTH_AI_PROVIDER=openai`, a configured
+`HEALTH_AI_API_KEY`, and a configured `DEMO_PASSCODE`. An absent or incorrect
+passcode intentionally falls back to typed / mock mode. The passcode appears in
+the URL: use a temporary demo secret, never share or screenshot the complete
+URL, and rotate the secret after the demo.
+
+Real HTTPS (camera works, no cert warning), served over the phone's own cellular
+so venue Wi-Fi filtering is irrelevant. When a reviewed release is ready, deploy
+only from a clean, reviewed tree with `vercel --prod --archive=tgz`.
+
+**Fallback — phone hotspot + local HTTPS** (local-only; no external hosting):
 
 ```
-npm run dev
-cloudflared tunnel --url http://localhost:3000
+npm run dev:https      # next dev --experimental-https (self-signed mkcert cert)
 ```
 
-Open the printed `https://<name>.trycloudflare.com` URL on the S25 in Chrome.
-`allowedDevOrigins` in `next.config.mjs` already whitelists the tunnel hosts.
-Grant camera + microphone the first time you press **Start**. If venue Wi-Fi
-blocks WebRTC, use the phone's own hotspot.
+Mock / typed mode and the three seeded lookups can work without Internet. Live
+OpenAI / WebRTC requires network access, and browser speech recognition may also
+use a network service.
+
+1. Phone: turn on Personal Hotspot; the laptop joins the phone's hotspot.
+2. Laptop: `ipconfig` → Wi-Fi IPv4 (Android ≈ 192.168.x.x, iPhone ≈ 172.20.10.x).
+3. Phone Chrome: `https://<laptop-hotspot-ip>:3000/food` → **Advanced → Proceed**
+   past the self-signed cert warning → grant camera + mic. If Next.js blocks the
+   dev origin, add that exact `https://<laptop-ip>:3000` to `allowedDevOrigins`
+   in `next.config.mjs` for the session (a specific LAN IP — never a tunnel host).
+   Remove that temporary entry immediately after the demo.
+
+Temporarily allow inbound TCP 3000 through Windows Firewall so the phone can
+reach the laptop. In elevated PowerShell, first confirm the active hotspot
+connection is the intended private profile, then replace `<PHONE_IP_OR_SUBNET>`
+with the phone's actual IP or the smallest hotspot subnet that works:
+
+```
+Get-NetConnectionProfile
+New-NetFirewallRule -DisplayName "Next dev phone demo" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 3000 -Profile Private -RemoteAddress <PHONE_IP_OR_SUBNET>
+Get-NetFirewallRule -DisplayName "Next dev phone demo" | Get-NetFirewallPortFilter
+Get-NetFirewallRule -DisplayName "Next dev phone demo" | Get-NetFirewallAddressFilter
+```
+
+Grant camera + microphone the first time you press **Start**. This sidesteps
+venue Wi-Fi entirely because you never join the venue network.
 
 Before pressing **Start**, verify the AI data-use box is visible. After the
 transport resolves, it must change to either on-device mode or live voice mode.
 Privacy shows the same configured data path without minting a voice secret.
+
+Immediately after the demo, remove the temporary firewall rule in elevated
+PowerShell and remove any temporary `allowedDevOrigins` entry:
+
+```
+Remove-NetFirewallRule -DisplayName "Next dev phone demo"
+```
 
 ## Seed the patient
 
@@ -99,5 +146,5 @@ behavior on real packaging; WebRTC over Wi-Fi and 5G; server-VAD turn-taking
 feel and barge-in latency; echo cancellation on speakerphone (the model must not
 hear itself); autoplay unlock via the Start tap; Spanish speech quality;
 backgrounding the tab releasing camera + mic (OS indicators off); ~10-minute
-thermal/battery behavior; tunnel HTTPS acceptance; answer quality on real
-packaging under kitchen lighting.
+thermal/battery behavior; self-signed cert acceptance on the hotspot path;
+answer quality on real packaging under kitchen lighting.

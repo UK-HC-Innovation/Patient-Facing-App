@@ -1,5 +1,12 @@
 # Handoff: Voice Everywhere — P0–P7
 
+> **Closeout — do not re-execute.** Voice P0–P7 landed in `1b17ef0` on
+> 2026-07-20 and shipped in production `4cbe8c7` on 2026-07-21. The software
+> scope is complete. Real-device mic, WebRTC, echo-cancellation, and TTS checks
+> remain pending owner validation; clinical/legal review and a BAA-backed
+> production voice posture remain external release gates. The repository and
+> branch metadata below describe the historical execution environment.
+
 **Repo:** `C:\Patient centered\.claude\worktrees\sleepy-bhaskara-23f161`
 **Branch:** `claude/sleepy-bhaskara-23f161` (worktree of `C:\Patient centered`, main branch `master`)
 **Stack:** Next.js App Router, TypeScript strict, Tailwind, Zod, Vitest + Testing Library (jsdom), localStorage-persisted `useReducer` store.
@@ -18,7 +25,7 @@ Make voice a first-class modality across the app using three keyless tiers now a
 
 - **T1 Dictate** — Web Speech STT (one unified hardened hook). $0, keyless.
 - **T2 Voice-turn** — T1 + `speechSynthesis` TTS speaking **pre-gated text only**. $0, keyless. Powers interviews, guided capture, read-aloud, talk-to-draft.
-- **T3 Live** — the existing OpenAI Realtime WebRTC session, passcode-gated, for open conversation (/food today, /chat in P6), hardened with output-transcript gating and a cheaper default model.
+- **T3 Live** — the existing OpenAI Realtime WebRTC session, passcode-gated, for open conversation (/food today, /chat in P6), hardened with output-transcript gating. The code default is `gpt-realtime-2`; a cheaper verified model is an environment opt-in through `HEALTH_AI_REALTIME_MODEL`.
 
 A cloud cascade tier (streaming STT + streaming TTS vendors) is deliberately **not** built now; the P0 hook signatures are the seam it will later slot behind.
 
