@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { firstStepsClock, hasEnrolledFirstSteps } from "@/domain/family-clocks";
+import { createFamilyAppointmentOffer, createSoonerAppointmentOffer } from "@/domain/family-appointments";
 import { brentState, deletedDemoState, demoState } from "@/domain/fixtures";
 import { INSTRUMENTS } from "@/domain/instruments/registry";
 import type { ScreeningInstrument } from "@/domain/instruments/types";
 import { clearStoredState, loadStoredState, saveStoredState } from "./storage";
+import { healthReducer } from "./store";
 import type {
   FamilyAppointment,
   FamilyFlag,
@@ -393,6 +395,128 @@ describe("storage", () => {
     expect(loaded.family?.appointments.at(-1)?.supersedesId).toBe("valid-replaced");
     expect(loaded.family?.profile).toEqual(validFamily.profile);
     expect(loaded.patient.id).toBe(demoState.patient.id);
+  });
+
+  it("preserves coherent supersession history while clearing incoherent child links", () => {
+    const booked = (id: string): FamilyAppointment => ({
+      id,
+      clinic: "UK Developmental Pediatrics",
+      offeredSlots: ["2026-08-14T13:30:00.000Z"],
+      scheduledFor: "2026-08-14T13:30:00.000Z",
+      status: "booked",
+      barriers: [],
+      barriersAsked: false,
+      reminderAcks: [],
+      createdAt: "2026-07-24T12:00:00.000Z"
+    });
+    const confirmed = (id: string): FamilyAppointment => ({
+      ...booked(id),
+      status: "confirmed",
+      barriers: ["ride"],
+      barriersAsked: true,
+      reminderAcks: [{ offset: "t14", acknowledgedAt: "2026-07-31T12:00:00.000Z" }]
+    });
+    const offered = (id: string, supersedesId: string): FamilyAppointment => ({
+      ...booked(id),
+      status: "offered",
+      scheduledFor: undefined,
+      supersedesId
+    });
+    const replaced = (id: string): FamilyAppointment => ({ ...confirmed(id), status: "replaced" });
+
+    const validBookedParent = booked("valid-booked-parent");
+    const validConfirmedParent = confirmed("valid-confirmed-parent");
+    const validReplacedBookedParent = replaced("valid-replaced-booked-parent");
+    const validReplacedConfirmedParent = replaced("valid-replaced-confirmed-parent");
+    const validReplacedTerminalParent = replaced("valid-replaced-terminal-parent");
+    const laterParent = booked("later-parent");
+    const incompatibleParent = booked("incompatible-parent");
+    const replacedOfferedParent = replaced("replaced-offered-parent");
+
+    const appointments: FamilyAppointment[] = [
+      validBookedParent,
+      offered("valid-offered-over-booked", validBookedParent.id),
+      validConfirmedParent,
+      offered("valid-offered-over-confirmed", validConfirmedParent.id),
+      validReplacedBookedParent,
+      { ...booked("valid-booked-over-replaced"), supersedesId: validReplacedBookedParent.id },
+      validReplacedConfirmedParent,
+      { ...confirmed("valid-confirmed-over-replaced"), supersedesId: validReplacedConfirmedParent.id },
+      validReplacedTerminalParent,
+      { ...booked("valid-terminal-over-replaced"), status: "completed", supersedesId: validReplacedTerminalParent.id },
+      offered("missing-parent-child", "missing-parent"),
+      offered("later-parent-child", laterParent.id),
+      laterParent,
+      incompatibleParent,
+      { ...booked("incompatible-child"), supersedesId: incompatibleParent.id },
+      replacedOfferedParent,
+      offered("offered-over-replaced", replacedOfferedParent.id)
+    ];
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ ...demoState, family: { ...validFamily, appointments } })
+    );
+
+    const loaded = loadStoredState();
+    const links = new Map(loaded.family?.appointments.map(({ id, supersedesId }) => [id, supersedesId]));
+
+    expect(loaded.family?.appointments.map(({ id }) => id)).toEqual(appointments.map(({ id }) => id));
+    expect(links.get("valid-offered-over-booked")).toBe("valid-booked-parent");
+    expect(links.get("valid-offered-over-confirmed")).toBe("valid-confirmed-parent");
+    expect(links.get("valid-booked-over-replaced")).toBe("valid-replaced-booked-parent");
+    expect(links.get("valid-confirmed-over-replaced")).toBe("valid-replaced-confirmed-parent");
+    expect(links.get("valid-terminal-over-replaced")).toBe("valid-replaced-terminal-parent");
+    expect(links.get("missing-parent-child")).toBeUndefined();
+    expect(links.get("later-parent-child")).toBeUndefined();
+    expect(links.get("incompatible-child")).toBeUndefined();
+    expect(links.get("offered-over-replaced")).toBeUndefined();
+  });
+
+  it("preserves replacement history through reload before a rebooked reschedule", () => {
+    const at = "2026-07-24T12:00:00.000Z";
+    const referred = healthReducer(
+      { ...demoState, family: validFamily },
+      { type: "setFamilyReferral", referral: { clinic: "UK Developmental Pediatrics", referredAt: at } }
+    );
+    const original = createFamilyAppointmentOffer(new Date(at));
+    const booked = healthReducer(
+      healthReducer(referred, { type: "offerFamilyAppointment", appointment: original }),
+      { type: "bookFamilyAppointment", appointmentId: original.id, slot: original.offeredSlots[0], at }
+    );
+    const listed = healthReducer(booked, {
+      type: "setFamilySoonerList",
+      soonerList: { optedInAt: at, constraints: ["weekday_mornings"] }
+    });
+    const earlier = createSoonerAppointmentOffer(new Date(at), ["weekday_mornings"], original.id);
+    const accepted = healthReducer(
+      healthReducer(listed, { type: "offerFamilyAppointment", appointment: earlier }),
+      { type: "bookFamilyAppointment", appointmentId: earlier.id, slot: earlier.offeredSlots[0], at }
+    );
+
+    saveStoredState(accepted);
+    const reloaded = loadStoredState();
+    const reopened = healthReducer(reloaded, {
+      type: "requestFamilyAppointmentReschedule",
+      appointmentId: earlier.id,
+      at
+    });
+    const rebooked = healthReducer(reopened, {
+      type: "bookFamilyAppointment",
+      appointmentId: earlier.id,
+      slot: reopened.family?.appointments.find(({ id }) => id === earlier.id)?.offeredSlots[0] ?? "",
+      at
+    });
+
+    expect(reloaded.family?.appointments.map(({ id, status, supersedesId }) => ({ id, status, supersedesId }))).toEqual([
+      { id: original.id, status: "replaced", supersedesId: undefined },
+      { id: earlier.id, status: "booked", supersedesId: original.id }
+    ]);
+    expect(rebooked.family?.appointments.map(({ id, status, supersedesId }) => ({ id, status, supersedesId }))).toEqual([
+      { id: original.id, status: "replaced", supersedesId: undefined },
+      { id: earlier.id, status: "booked", supersedesId: undefined }
+    ]);
+    expect(rebooked.auditEvents.filter(({ label }) => label === "Earlier visit replaced the prior booking")).toHaveLength(1);
+    expect(rebooked.auditEvents.at(-1)?.label).toBe("Evaluation visit booked");
   });
 
   it.each([

@@ -1060,6 +1060,28 @@ function uniqueFamilyAppointments(appointments: FamilyAppointment[]): FamilyAppo
   });
 }
 
+function hasCoherentFamilyAppointmentSupersession(
+  parent: FamilyAppointment,
+  child: FamilyAppointment
+): boolean {
+  if (child.status === "offered") {
+    return parent.status === "booked" || parent.status === "confirmed";
+  }
+  return parent.status === "replaced";
+}
+
+function sanitizeFamilyAppointmentSupersedes(appointments: FamilyAppointment[]): FamilyAppointment[] {
+  const earlierAppointments = new Map<string, FamilyAppointment>();
+  return appointments.map((appointment) => {
+    const parent = appointment.supersedesId === undefined ? undefined : earlierAppointments.get(appointment.supersedesId);
+    earlierAppointments.set(appointment.id, appointment);
+    return appointment.supersedesId === undefined ||
+      (parent !== undefined && hasCoherentFamilyAppointmentSupersession(parent, appointment))
+      ? appointment
+      : { ...appointment, supersedesId: undefined };
+  });
+}
+
 function uniqueById<T extends { id: string }>(rows: T[]): T[] {
   const seen = new Set<string>();
   return rows.filter(({ id }) => {
@@ -1132,7 +1154,7 @@ function sanitizeFamilyNavigatorState(value: unknown): FamilyNavigatorState | nu
     profile,
     referral: isFamilyReferral(value.referral) ? value.referral : null,
     appointments: Array.isArray(value.appointments)
-      ? uniqueFamilyAppointments(value.appointments.filter(isFamilyAppointment))
+      ? sanitizeFamilyAppointmentSupersedes(uniqueFamilyAppointments(value.appointments.filter(isFamilyAppointment)))
       : [],
     safetyEvents: Array.isArray(value.safetyEvents) ? value.safetyEvents.filter(isFamilySafetyEvent) : [],
     recommendations: sanitizeFamilyRecommendations(value.recommendations),

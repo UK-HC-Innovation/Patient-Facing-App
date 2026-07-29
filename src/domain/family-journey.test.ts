@@ -235,6 +235,22 @@ describe("nextFamilyRung", () => {
     expect(nextFamilyRung(family, NOW)).toEqual({ kind: "visit" });
   });
 
+  it("puts a replaced latest visit above an unacknowledged flag so the card can find a new time", () => {
+    const family: FamilyNavigatorState = {
+      ...base,
+      appointments: [
+        appointment({
+          status: "replaced",
+          offeredSlots: ["2026-08-14T13:30:00.000Z"],
+          scheduledFor: "2026-08-14T13:30:00.000Z"
+        })
+      ],
+      flags: [{ id: "flag-1", type: "regression", source: "text", raisedAt: daysAgo(2) }]
+    };
+
+    expect(nextFamilyRung(family, NOW)).toEqual({ kind: "visit" });
+  });
+
   it("puts an unacknowledged flag above a due check-in", () => {
     const family: FamilyNavigatorState = {
       ...base,

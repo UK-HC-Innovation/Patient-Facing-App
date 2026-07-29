@@ -175,7 +175,8 @@ export function nextFamilyRung(
     (dueFamilyReminder(appointment, now) !== null ||
       overdueFamilyAppointment(appointment, now) ||
       appointment.status === "offered" ||
-      appointment.status === "missed")
+      appointment.status === "missed" ||
+      appointment.status === "replaced")
   ) {
     return { kind: "visit" };
   }

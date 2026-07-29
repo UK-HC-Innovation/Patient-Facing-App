@@ -1882,6 +1882,32 @@ describe("family appointment actions", () => {
     expect(rescheduled.family?.appointments.find(({ id }) => id === offer.id)?.status).toBe("replaced");
   });
 
+  it("does not replace the prior booking twice after rescheduling an accepted earlier visit", () => {
+    const { offered, offer, sooner } = offeredBackfill();
+    const accepted = healthReducer(offered, {
+      type: "bookFamilyAppointment",
+      appointmentId: sooner.id,
+      slot: sooner.offeredSlots[0],
+      at: NOW
+    });
+    const reopened = healthReducer(accepted, {
+      type: "requestFamilyAppointmentReschedule",
+      appointmentId: sooner.id,
+      at: NOW
+    });
+    const rebooked = healthReducer(reopened, {
+      type: "bookFamilyAppointment",
+      appointmentId: sooner.id,
+      slot: reopened.family?.appointments.find(({ id }) => id === sooner.id)?.offeredSlots[0] ?? "",
+      at: NOW
+    });
+
+    expect(rebooked.family?.appointments.find(({ id }) => id === offer.id)?.status).toBe("replaced");
+    expect(rebooked.family?.appointments.find(({ id }) => id === sooner.id)?.supersedesId).toBeUndefined();
+    expect(rebooked.auditEvents.filter(({ label }) => label === "Earlier visit replaced the prior booking")).toHaveLength(1);
+    expect(rebooked.auditEvents.at(-1)?.label).toBe("Evaluation visit booked");
+  });
+
   it("only retires the booking the accepted offer actually names", () => {
     const { state, offer } = stateWithOffer();
     const booked = bookFirstOffer(state, offer);

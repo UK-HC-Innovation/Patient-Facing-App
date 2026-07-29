@@ -1466,7 +1466,8 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
             offeredSlots: buildDemoSlotOffers(new Date(action.at)),
             status: "offered",
             scheduledFor: undefined,
-            reminderAcks: []
+            reminderAcks: [],
+            supersedesId: undefined
           };
         },
         "Evaluation visit reschedule requested"
