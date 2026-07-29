@@ -688,7 +688,7 @@ test("ladder companion: notes accrue, check-in watches, packet prints", async ({
   await expect(packet).toContainText("not a medical record");
 });
 
-test("ladder companion: a planned step and the earlier-visit list", async ({ page }) => {
+test("ladder companion: an earlier visit survives reload and reschedules without reviving its prior booking", async ({ page }) => {
   await stubUnconfiguredFamilyInterview(page);
   await page.goto("/ladder");
   await fillBasics(page, {
@@ -713,9 +713,23 @@ test("ladder companion: a planned step and the earlier-visit list", async ({ pag
   // so the card is quiet enough to ask about earlier openings.
   const card = page.getByTestId("family-appointment-card");
   await card.getByRole("button", { name: "Show me (demo)" }).click();
-  await card.getByRole("button").filter({ hasText: /,/ }).first().click();
+  const originalSlotButton = card.getByRole("button").filter({ hasText: /,/ }).first();
+  const originalSlot = (await originalSlotButton.innerText()).trim();
+  await originalSlotButton.click();
   await expect(card.getByText(/Booked for.*\(demo\)/)).toBeVisible();
   await card.getByRole("button", { name: "We need a ride" }).click();
+
+  const originalBooking = await page.evaluate((key) => {
+    const raw = window.localStorage.getItem(key);
+    if (raw === null) return null;
+    const state = JSON.parse(raw) as {
+      family?: { appointments?: Array<{ id: string; status: string }> };
+    };
+    return state.family?.appointments?.find(({ status }) => status === "booked") ?? null;
+  }, STORAGE_KEY);
+  if (originalBooking === null) {
+    throw new Error("Expected the ordinary booking to persist before accepting an earlier visit.");
+  }
 
   const soonerTurn = card.getByTestId("family-sooner-turn");
   await expect(soonerTurn).toBeVisible();
@@ -736,4 +750,92 @@ test("ladder companion: a planned step and the earlier-visit list", async ({ pag
   const earlierSlot = (await slots.first().innerText()).trim();
   await slots.first().click();
   await expect(card.getByText(/Booked for.*\(demo\)/)).toContainText(earlierSlot);
+
+  await expect
+    .poll(() =>
+      page.evaluate(
+        ({ key, originalId }) => {
+          const raw = window.localStorage.getItem(key);
+          if (raw === null) return false;
+          const state = JSON.parse(raw) as {
+            family?: {
+              appointments?: Array<{ id: string; status: string; supersedesId?: string }>;
+            };
+          };
+          const appointments = state.family?.appointments ?? [];
+          const original = appointments.find(({ id }) => id === originalId);
+          const acceptedEarlier = appointments.find(({ id, status }) => id !== originalId && status === "booked");
+          return original?.status === "replaced" && acceptedEarlier?.supersedesId === originalId;
+        },
+        { key: STORAGE_KEY, originalId: originalBooking.id }
+      )
+    )
+    .toBe(true);
+
+  const acceptedEarlierBooking = await page.evaluate(
+    ({ key, originalId }) => {
+      const raw = window.localStorage.getItem(key);
+      if (raw === null) return null;
+      const state = JSON.parse(raw) as {
+        family?: { appointments?: Array<{ id: string; status: string }> };
+      };
+      return state.family?.appointments?.find(({ id, status }) => id !== originalId && status === "booked") ?? null;
+    },
+    { key: STORAGE_KEY, originalId: originalBooking.id }
+  );
+  if (acceptedEarlierBooking === null) {
+    throw new Error("Expected the accepted earlier visit to persist before reload.");
+  }
+
+  await page.reload();
+  await expect(card.getByText(/Booked for.*\(demo\)/)).toContainText(earlierSlot);
+  await expect(card.getByText(originalSlot, { exact: true })).toHaveCount(0);
+  await expect(card.getByRole("button", { name: "Keep our current time" })).toHaveCount(0);
+
+  // The accepted visit starts its own barrier turn before its reminder can offer
+  // a different time. Rebooking it must preserve the retired original booking.
+  await card.getByRole("button", { name: "We're all set" }).click();
+  await expect(page.getByTestId("family-appt-reminder")).toBeVisible();
+  await page.getByRole("button", { name: "Yes, we'll be there" }).click();
+  await card.getByRole("button", { name: "Demo: move the visit closer" }).click();
+  await card.getByRole("button", { name: "Tomorrow" }).click();
+  await expect(page.getByTestId("family-appt-reminder")).toBeVisible();
+  await page.getByRole("button", { name: "We need a different time" }).click();
+  const rescheduledSlot = card.getByRole("button").filter({ hasText: /,/ }).first();
+  await expect(rescheduledSlot).toBeVisible();
+  await rescheduledSlot.click();
+  await expect(card.getByText(/Booked for.*\(demo\)/)).toBeVisible();
+
+  await expect
+    .poll(() =>
+      page.evaluate(
+        ({ key, originalId, currentId }) => {
+          const raw = window.localStorage.getItem(key);
+          if (raw === null) return null;
+          const state = JSON.parse(raw) as {
+            family?: {
+              appointments?: Array<{ id: string; status: string; supersedesId?: string }>;
+            };
+            auditEvents?: Array<{ label?: string }>;
+          };
+          const appointments = state.family?.appointments ?? [];
+          const auditEvents = state.auditEvents ?? [];
+          return {
+            originalStatus: appointments.find(({ id }) => id === originalId)?.status ?? null,
+            currentSupersedesId: appointments.find(({ id }) => id === currentId)?.supersedesId ?? null,
+            replacementAuditCount: auditEvents.filter(
+              ({ label }) => label === "Earlier visit replaced the prior booking"
+            ).length,
+            finalAuditLabel: auditEvents.at(-1)?.label ?? null
+          };
+        },
+        { key: STORAGE_KEY, originalId: originalBooking.id, currentId: acceptedEarlierBooking.id }
+      )
+    )
+    .toEqual({
+      originalStatus: "replaced",
+      currentSupersedesId: null,
+      replacementAuditCount: 1,
+      finalAuditLabel: "Evaluation visit booked"
+    });
 });
