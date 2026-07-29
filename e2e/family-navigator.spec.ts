@@ -224,6 +224,7 @@ test(`golden path works on ordinary caregiver wording: ${PARENT_DESCRIPTION}`, a
   const cards = matched.locator("[data-family-resource-card]");
   await expect(cards.first()).toHaveAttribute("data-resource-id", "scott_county_exceptional_child_services");
   const scottCard = matched.locator('[data-resource-id="scott_county_exceptional_child_services"]');
+  await scottCard.locator("summary").click();
   const sourceLink = scottCard.getByRole("link", { name: /See their official page.*Scott County Schools/i });
   await expect(sourceLink).toHaveAttribute("href", SCOTT_SOURCE_URL);
   await expect(sourceLink).toHaveAttribute("target", "_blank");
@@ -661,7 +662,7 @@ test("ladder companion: notes accrue, check-in watches, packet prints", async ({
   await rawNote.locator("summary").click();
   await expect(rawNote.getByText(REGRESSION_NOTE)).toBeVisible();
   // One note so far, so the chip reads the singular — never "1 notes".
-  await expect(header).toContainText(/\b1 note\b/);
+  await expect(header.getByText("1 note", { exact: true })).toBeVisible();
 
   // Demo time-travel: a month of quiet brings the check-in back.
   await page.getByTestId("family-checkin-demo").getByRole("button").click();
