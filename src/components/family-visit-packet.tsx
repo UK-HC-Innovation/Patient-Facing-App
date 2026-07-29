@@ -6,11 +6,9 @@ import {
   buildFamilyVisitSummary
 } from "@/domain/family-visit-packet";
 import type { FamilyNavigatorState } from "@/domain/types";
+import { BTN_PRIMARY, BTN_SECONDARY, CARD_SECTION, CONTROL_FOCUS } from "@/components/family-theme";
 import { tFamily, type FamilyStringKey } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
-
-const CONTROL_FOCUS =
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care";
 
 // Same verified CDC page the appointment card's prep block cites (plan 14).
 const PREP_SOURCE_URL = "https://www.cdc.gov/act-early/";
@@ -105,9 +103,9 @@ export function FamilyVisitPacket({
       id="family-visit-packet"
       data-testid="family-visit-packet"
       aria-labelledby="family-visit-packet-title"
-      className="family-visit-packet rounded-control border border-care/20 bg-white p-4"
+      className={`family-visit-packet ${CARD_SECTION}`}
     >
-      <h2 id="family-visit-packet-title" className="break-words text-xl font-semibold">
+      <h2 id="family-visit-packet-title" className="break-words text-lg font-semibold scroll-mt-4">
         {title}
       </h2>
 
@@ -118,7 +116,7 @@ export function FamilyVisitPacket({
             onExport("printed");
             window.print();
           }}
-          className={`min-h-12 min-w-0 break-words rounded-control bg-care px-4 py-2 font-semibold text-white ${CONTROL_FOCUS}`}
+          className={BTN_PRIMARY}
         >
           {tFamily(language, "packetPrint")}
         </button>
@@ -127,7 +125,7 @@ export function FamilyVisitPacket({
           onClick={() => {
             void copyPacket();
           }}
-          className={`min-h-12 min-w-0 break-words rounded-control border border-care px-4 py-2 font-semibold text-care ${CONTROL_FOCUS}`}
+          className={BTN_SECONDARY}
         >
           {tFamily(language, "packetCopy")}
         </button>

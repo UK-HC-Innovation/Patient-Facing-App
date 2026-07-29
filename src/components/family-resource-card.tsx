@@ -4,6 +4,13 @@ import { Bookmark, ExternalLink, Share2 } from "lucide-react";
 import React, { useId, useRef, useState } from "react";
 import type { FamilyResource } from "@/domain/family-resources";
 import type { DevNeedDomain, FamilyResourceStep, FamilyStepStatus } from "@/domain/types";
+import {
+  BTN_SECONDARY,
+  BTN_QUIET,
+  CONTROL_FOCUS,
+  NOTICE_DEADLINE,
+  NOTICE_INFO
+} from "@/components/family-theme";
 import { tFamily, type FamilyStringKey } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
 
@@ -42,6 +49,13 @@ const URGENCY_KEYS: Record<"act_now" | "soon" | "when_ready", FamilyStringKey> =
   when_ready: "rankUrgencyWhenReady"
 };
 
+// Semantic urgency: act-now wears the deadline color, everything milder stays calm.
+const URGENCY_CHIPS: Record<"act_now" | "soon" | "when_ready", string> = {
+  act_now: "border border-pulse/40 bg-pulse/10 text-pulse",
+  soon: "bg-note/40 text-ink",
+  when_ready: "bg-calm text-care"
+};
+
 const STEP_STATUS_KEYS: Record<FamilyStepStatus, FamilyStringKey> = {
   planned: "stepStatusPlanned",
   tried: "stepStatusTried",
@@ -49,9 +63,6 @@ const STEP_STATUS_KEYS: Record<FamilyStepStatus, FamilyStringKey> = {
   enrolled: "stepStatusEnrolled",
   not_for_us: "stepStatusNotForUs"
 };
-
-const CONTROL_FOCUS =
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care";
 
 // Status plus the month it last moved — the family's own history of this step,
 // which is also what the follow-up turn counts from.
@@ -144,9 +155,7 @@ export function FamilyResourceCard({
           {urgency && !isEnrolled ? (
             <span
               data-testid="family-resource-urgency"
-              className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                urgency === "act_now" ? "bg-note text-ink" : "bg-calm text-care"
-              }`}
+              className={`rounded-full px-2 py-1 text-xs font-semibold ${URGENCY_CHIPS[urgency]}`}
             >
               {tFamily(language, URGENCY_KEYS[urgency])}
             </span>
@@ -159,61 +168,23 @@ export function FamilyResourceCard({
         </div>
       </div>
       {why ? (
-        <p data-testid="family-resource-why" className="mt-2 break-words font-medium leading-6">
+        <p data-testid="family-resource-why" className="mt-2 break-words font-medium leading-relaxed">
           {why}
         </p>
       ) : null}
       {becauseYouSaid ? (
         <blockquote
           data-testid="family-resource-quote"
-          className="mt-2 break-words border-l-4 border-care/30 pl-3 text-sm text-ink/70"
+          className="mt-2 break-words border-l-4 border-care/30 pl-3 text-sm leading-6 text-ink/70"
         >
           {tFamily(language, "rankQuotePrefix")}: {becauseYouSaid}
         </blockquote>
       ) : null}
-      <p className="mt-2 break-words text-sm leading-6 text-ink/80">{resource.summary}</p>
-
-      <dl className="mt-3 grid gap-2 text-sm">
-        <div>
-          <dt className="font-semibold">{tFamily(language, "resourceContact")}</dt>
-          <dd className="break-words text-ink/75">{resource.contact}</dd>
-        </div>
-        <div>
-          <dt className="font-semibold">{tFamily(language, "resourceAgeBand")}</dt>
-          <dd className="text-ink/75">{ageBand(resource, language)}</dd>
-        </div>
-        <div>
-          <dt className="font-semibold">{tFamily(language, "resourceReferralMode")}</dt>
-          <dd className="text-ink/75">{tFamily(language, REFERRAL_KEYS[resource.referralMode])}</dd>
-        </div>
-        <div>
-          <dt className="font-semibold">{tFamily(language, "resourceSource")}</dt>
-          <dd className="break-words text-ink/75">
-            {resource.sourceName} · {tFamily(language, "resourceVerified", { date: resource.verifiedAt })}
-          </dd>
-        </div>
-      </dl>
-
-      <a
-        href={resource.sourceUrl}
-        target="_blank"
-        rel="noreferrer"
-        aria-label={`${tFamily(language, "resourceOpenSource")}: ${resource.name}`}
-        className={`mt-3 inline-flex min-h-12 min-w-0 items-center gap-2 break-words rounded-control border border-care px-3 py-2 text-sm font-semibold text-care ${CONTROL_FOCUS}`}
-      >
-        <ExternalLink aria-hidden="true" className="h-4 w-4 shrink-0" />
-        {tFamily(language, "resourceOpenSource")}
-      </a>
-
-      {resource.humanVerify ? (
-        <p className="mt-3 rounded-control bg-note p-3 text-sm font-medium text-ink">
-          {tFamily(language, "resourceHumanVerify")}
-        </p>
-      ) : null}
+      <p className="mt-2 break-words leading-relaxed text-ink/80">{resource.summary}</p>
 
       {!isEnrolled && resource.actNow ? (
-        <div className="mt-3 rounded-control border border-note bg-note/30 p-3">
-          <h4 className="text-sm font-semibold">{tFamily(language, "resourceActNow")}</h4>
+        <div className={`mt-3 ${NOTICE_DEADLINE}`}>
+          <h4 className="text-sm font-semibold text-pulse">{tFamily(language, "resourceActNow")}</h4>
           <p className="mt-1 break-words text-sm leading-6">{resource.actNow}</p>
         </div>
       ) : null}
@@ -221,19 +192,44 @@ export function FamilyResourceCard({
       {clockLine ? (
         <p
           data-testid="family-resource-clock"
-          className="mt-3 break-words rounded-control bg-note/30 p-3 text-sm font-medium leading-6"
+          className={`mt-3 break-words text-sm font-medium ${NOTICE_DEADLINE}`}
         >
           {clockLine}
         </p>
       ) : null}
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      {resource.humanVerify ? (
+        <p className={`mt-3 break-words text-sm font-medium text-ink ${NOTICE_INFO}`}>
+          {tFamily(language, "resourceHumanVerify")}
+        </p>
+      ) : null}
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        {step ? (
+          <p
+            data-testid="family-step-status"
+            data-step-status={step.status}
+            className="inline-flex min-w-0 break-words rounded-control bg-calm px-3 py-2 text-sm font-semibold text-care"
+          >
+            {stepStatusLine(step, language)}
+          </p>
+        ) : onPlanStep ? (
+          <button
+            type="button"
+            data-testid="family-step-plan"
+            aria-label={`${tFamily(language, "stepPlanCta")}: ${resource.name}`}
+            onClick={() => onPlanStep(resource, domain)}
+            className={BTN_SECONDARY}
+          >
+            {tFamily(language, "stepPlanCta")}
+          </button>
+        ) : null}
         <button
           type="button"
           disabled={saved}
           aria-label={`${saveLabel}: ${resource.name}`}
           onClick={save}
-          className={`inline-flex min-h-12 min-w-0 items-center gap-2 break-words rounded-control bg-care px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 ${CONTROL_FOCUS}`}
+          className={BTN_QUIET}
         >
           <Bookmark aria-hidden="true" className="h-4 w-4 shrink-0" />
           {saveLabel}
@@ -243,33 +239,56 @@ export function FamilyResourceCard({
           aria-pressed={isEnrolled}
           aria-label={`${enrollmentLabel}: ${resource.name}`}
           onClick={() => onToggleEnrollment(resource.id)}
-          className={`min-h-12 min-w-0 break-words rounded-control border border-care px-3 py-2 text-left text-sm font-semibold text-care ${CONTROL_FOCUS}`}
+          className={BTN_QUIET}
         >
           {enrollmentLabel}
         </button>
       </div>
 
-      {step ? (
-        <p
-          data-testid="family-step-status"
-          data-step-status={step.status}
-          className="mt-3 inline-flex min-w-0 break-words rounded-control bg-calm px-3 py-2 text-sm font-semibold text-care"
+      {/* Trust furniture, one tap away: who runs this, ages, how to get in, and
+          when we last checked. Everything stays in the document for print and
+          find-in-page; it just is not first-read content. */}
+      <details className="mt-3 rounded-control border border-ink/10">
+        <summary
+          className={`min-h-12 min-w-0 cursor-pointer break-words rounded-control p-3 text-sm font-semibold text-care ${CONTROL_FOCUS}`}
         >
-          {stepStatusLine(step, language)}
-        </p>
-      ) : onPlanStep ? (
-        <button
-          type="button"
-          data-testid="family-step-plan"
-          aria-label={`${tFamily(language, "stepPlanCta")}: ${resource.name}`}
-          onClick={() => onPlanStep(resource, domain)}
-          className={`mt-3 inline-flex min-h-12 min-w-0 items-center break-words rounded-control border border-care px-4 py-2 text-sm font-semibold text-care ${CONTROL_FOCUS}`}
-        >
-          {tFamily(language, "stepPlanCta")}
-        </button>
-      ) : null}
+          {tFamily(language, "resourceDetailsToggle")}
+        </summary>
+        <div className="border-t border-ink/10 p-3">
+          <dl className="grid gap-2 text-sm">
+            <div>
+              <dt className="font-semibold">{tFamily(language, "resourceContact")}</dt>
+              <dd className="break-words text-ink/75">{resource.contact}</dd>
+            </div>
+            <div>
+              <dt className="font-semibold">{tFamily(language, "resourceAgeBand")}</dt>
+              <dd className="text-ink/75">{ageBand(resource, language)}</dd>
+            </div>
+            <div>
+              <dt className="font-semibold">{tFamily(language, "resourceReferralMode")}</dt>
+              <dd className="text-ink/75">{tFamily(language, REFERRAL_KEYS[resource.referralMode])}</dd>
+            </div>
+            <div>
+              <dt className="font-semibold">{tFamily(language, "resourceSource")}</dt>
+              <dd className="break-words text-ink/75">
+                {resource.sourceName} · {tFamily(language, "resourceVerified", { date: resource.verifiedAt })}
+              </dd>
+            </div>
+          </dl>
+          <a
+            href={resource.sourceUrl}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`${tFamily(language, "resourceOpenSource")}: ${resource.name}`}
+            className={`mt-3 inline-flex min-h-12 min-w-0 items-center gap-2 break-words rounded-control border border-care/40 px-3 py-2 text-sm font-semibold text-care ${CONTROL_FOCUS}`}
+          >
+            <ExternalLink aria-hidden="true" className="h-4 w-4 shrink-0" />
+            {tFamily(language, "resourceOpenSource")}
+          </a>
+        </div>
+      </details>
 
-      <div className="mt-4 border-t border-ink/10 pt-4">
+      <div className="mt-4 border-t border-ink/10 pt-3">
         <label htmlFor={consentId} className="flex min-h-12 min-w-0 items-center gap-2 text-sm">
           <input
             id={consentId}
@@ -290,7 +309,7 @@ export function FamilyResourceCard({
           disabled={!consented || shared}
           aria-label={`${tFamily(language, "resourceShare")}: ${resource.name}`}
           onClick={share}
-          className={`mt-2 inline-flex min-h-12 min-w-0 items-center gap-2 break-words rounded-control border border-care px-4 py-2 text-sm font-semibold text-care disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`}
+          className={BTN_QUIET}
         >
           <Share2 aria-hidden="true" className="h-4 w-4 shrink-0" />
           {tFamily(language, "resourceShare")}

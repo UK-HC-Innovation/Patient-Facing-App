@@ -64,11 +64,11 @@ export function FamilyNeedsScreen({ language, initialAnswers, onSubmit }: Family
   }
 
   return (
-    <section className="rounded-control border border-care/20 bg-white p-4" aria-labelledby="family-screen-title">
-      <h2 id="family-screen-title" tabIndex={-1} className="text-xl font-semibold">
+    <section className="rounded-control border border-ink/10 bg-white p-4" aria-labelledby="family-screen-title">
+      <h2 id="family-screen-title" tabIndex={-1} className="text-lg font-semibold">
         {tFamily(language, "screenTitle")}
       </h2>
-      <p className="mt-1 text-sm leading-6 text-ink/75">{tFamily(language, "screenIntro")}</p>
+      <p className="mt-1 leading-relaxed text-ink/80">{tFamily(language, "screenIntro")}</p>
       <form className="mt-4 grid gap-4" onSubmit={submit}>
         {FAMILY_SCREEN_QUESTIONS.map((question) => (
           <fieldset key={question.id} className="grid gap-2 rounded-control border border-ink/10 bg-paper p-4">

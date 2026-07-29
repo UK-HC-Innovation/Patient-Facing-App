@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE_CAREGIVER_TEXT, schoolAgeFamilyState } from "@/domain/family-fixtures";
@@ -127,13 +128,14 @@ describe("FamilyOrientationInterview", () => {
   });
 
   it("accepts a typed answer shorter than the opening interview minimum", async () => {
+    const user = userEvent.setup();
     requestFamilyInterview.mockResolvedValueOnce(result([schoolQuestion])).mockResolvedValueOnce(result([]));
     const onInterviewExtracted = vi.fn();
     renderOrientation({ onInterviewExtracted });
     await submitOpening();
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Or type a short answer" }), { target: { value: "No" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add answer" }));
+    await user.type(screen.getByRole("textbox", { name: "Or type a short answer" }), "No");
+    await user.click(screen.getByRole("button", { name: "Add answer" }));
 
     await waitFor(() => expect(onInterviewExtracted).toHaveBeenCalledTimes(2));
     expect(requestFamilyInterview.mock.calls[1][0].text).toMatch(/\nA: No$/);

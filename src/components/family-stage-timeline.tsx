@@ -6,6 +6,12 @@ import {
   type FamilyStage
 } from "@/domain/family-stages";
 import type { FamilyNavigatorState } from "@/domain/types";
+import {
+  CARD_SUBDUED,
+  CONTROL_FOCUS,
+  DEMO_BLOCK,
+  NOTICE_INFO
+} from "@/components/family-theme";
 import { tFamily, type FamilyStringKey } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
 
@@ -73,37 +79,37 @@ export function FamilyStageTimeline({
   const stages = buildFamilyStages(family, now, language, nudgeFirstName);
 
   return (
-    <section className="rounded-control border border-care/20 bg-white p-4" aria-labelledby="family-timeline-title">
-      <h2 id="family-timeline-title" className="text-xl font-semibold">
+    <section className={CARD_SUBDUED} aria-labelledby="family-timeline-title">
+      <h2 id="family-timeline-title" className="font-semibold text-ink/90">
         {tFamily(language, "timelineTitle")}
       </h2>
-      <p className="mt-1 text-sm leading-6 text-ink/75">{tFamily(language, "timelineIntro")}</p>
+      <p className="mt-1 text-sm leading-6 text-ink/60">{tFamily(language, "timelineIntro")}</p>
       {!family.profile ? (
         <p className="mt-4 text-sm text-ink/70">{tFamily(language, "timelineNoProfile")}</p>
       ) : (
         <>
           {family.profile.birthMonth === undefined ? (
-            <p className="mt-3 rounded-control bg-note p-3 text-sm font-medium">
+            <p className={`mt-3 text-sm font-medium ${NOTICE_INFO}`}>
               {tFamily(language, "timelineYearOnlyNotice")}
             </p>
           ) : null}
           {family.profile.diagnoses.length > 0 && onBackdateDiagnoses ? (
-            <div className="mt-4">
+            <div className={`mt-4 ${DEMO_BLOCK}`}>
               <button
                 type="button"
                 aria-expanded={demoControlOpen}
                 aria-controls="family-timeline-demo-panel"
                 onClick={() => setDemoControlOpen((current) => !current)}
-                className="min-h-11 rounded-control border border-care/30 bg-white px-3 py-2 text-sm font-semibold text-care focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care"
+                className={`flex min-h-12 w-full min-w-0 flex-wrap items-center gap-2 rounded-control text-left text-sm font-semibold text-ink/60 ${CONTROL_FOCUS}`}
               >
                 {tFamily(language, "timelineDemoControlTitle")}
               </button>
               {demoControlOpen ? (
-                <fieldset id="family-timeline-demo-panel" className="mt-3 rounded-control border border-care/20 bg-calm/40 p-3">
-                  <legend className="px-1 font-semibold text-care">
+                <fieldset id="family-timeline-demo-panel" className="mt-2">
+                  <legend className="text-sm font-semibold text-ink/70">
                     {tFamily(language, "timelineDemoControlTitle")}
                   </legend>
-                  <p className="text-sm leading-6 text-ink/75">
+                  <p className="text-sm leading-6 text-ink/60">
                     {tFamily(language, "timelineDemoControlIntro")}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -112,7 +118,7 @@ export function FamilyStageTimeline({
                         key={monthsAgo}
                         type="button"
                         onClick={() => onBackdateDiagnoses(monthsAgo, now)}
-                        className="min-h-11 rounded-control border border-care bg-white px-3 py-2 text-sm font-semibold text-care focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care"
+                        className={`min-h-12 rounded-control border border-ink/25 bg-white px-3 py-2 text-sm font-semibold text-ink/70 ${CONTROL_FOCUS}`}
                       >
                         {tFamily(language, key)}
                       </button>
@@ -148,7 +154,7 @@ export function FamilyStageTimeline({
                             </p>
                             {stage.href && ctaKey ? (
                               <Link
-                                className="mt-3 inline-flex min-h-11 items-center font-semibold text-care underline"
+                                className={`mt-3 inline-flex min-h-12 items-center font-semibold text-care underline underline-offset-4 ${CONTROL_FOCUS}`}
                                 href={stage.href}
                               >
                                 {tFamily(language, ctaKey)}
@@ -163,6 +169,14 @@ export function FamilyStageTimeline({
               );
             })}
           </div>
+          <p className="mt-4 border-t border-ink/10 pt-3">
+            <a
+              href="#family-experience"
+              className={`inline-flex min-h-12 min-w-0 items-center text-sm font-semibold text-ink/60 underline underline-offset-4 ${CONTROL_FOCUS}`}
+            >
+              {tFamily(language, "backToTop")}
+            </a>
+          </p>
         </>
       )}
     </section>

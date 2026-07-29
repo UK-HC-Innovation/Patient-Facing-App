@@ -391,7 +391,17 @@ export type FamilyStringKey =
   | "soonerOnList"
   | "soonerLeave"
   | "soonerDemoCta"
-  | "soonerDecline";
+  | "soonerDecline"
+  | "introDisclosureTitle"
+  | "navOnThisPage"
+  | "navTell"
+  | "navVisit"
+  | "navResources"
+  | "navJournal"
+  | "navPacket"
+  | "backToTop"
+  | "resourceDetailsToggle"
+  | "askEyebrow";
 
 // Counted strings come in pairs: every "{count} things" key has a "…One" twin
 // for a count of exactly one, and the call site picks. There is no plural
@@ -795,7 +805,17 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     soonerOnList: "On the earlier-visit list — you can leave any time.",
     soonerLeave: "Leave the list",
     soonerDemoCta: "An earlier opening appeared (demo)",
-    soonerDecline: "Keep our current time"
+    soonerDecline: "Keep our current time",
+    introDisclosureTitle: "What this tool can and cannot do",
+    navOnThisPage: "On this page",
+    navTell: "Tell us",
+    navVisit: "Your visit",
+    navResources: "Programs",
+    navJournal: "Notes",
+    navPacket: "Visit packet",
+    backToTop: "Back to top",
+    resourceDetailsToggle: "Details and source",
+    askEyebrow: "Your next step"
   },
   es: {
     pageTitle: "Ladder — el desarrollo de tu hijo o hija",
@@ -1196,7 +1216,17 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     soonerOnList: "En la lista de visita anticipada — puedes salirte cuando quieras.",
     soonerLeave: "Salir de la lista",
     soonerDemoCta: "Se abrió un lugar antes (demo)",
-    soonerDecline: "Mantener nuestro horario"
+    soonerDecline: "Mantener nuestro horario",
+    introDisclosureTitle: "Qué puede y qué no puede hacer esta herramienta",
+    navOnThisPage: "En esta página",
+    navTell: "Cuéntanos",
+    navVisit: "Tu visita",
+    navResources: "Programas",
+    navJournal: "Notas",
+    navPacket: "Paquete para la visita",
+    backToTop: "Volver arriba",
+    resourceDetailsToggle: "Detalles y fuente",
+    askEyebrow: "Tu próximo paso"
   }
 };
 

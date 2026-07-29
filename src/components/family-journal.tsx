@@ -3,11 +3,9 @@
 import React, { useMemo, useState } from "react";
 import { FamilyFactCard } from "@/components/family-fact-card";
 import type { FamilyFact, FamilyInterview, FamilyNavigatorState } from "@/domain/types";
+import { CARD_SECTION, CONTROL_FOCUS, H2_SECTION } from "@/components/family-theme";
 import { tFamily } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
-
-const CONTROL_FOCUS =
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care";
 
 /** Screen-answer facts carry no interview and so no date; they sort last. */
 const EARLIER_GROUP = "earlier";
@@ -100,12 +98,12 @@ export function FamilyJournal({ family, language, onConfirm, onToggleInclude }: 
       id="family-journal"
       data-testid="family-journal"
       aria-labelledby="family-journal-title"
-      className="rounded-control border border-care/20 bg-paper p-4"
+      className={`${CARD_SECTION} bg-paper`}
     >
-      <h2 id="family-journal-title" className="text-xl font-semibold">
+      <h2 id="family-journal-title" className={H2_SECTION}>
         {tFamily(language, "journalTitle")}
       </h2>
-      <p className="mt-1 break-words text-sm leading-6 text-ink/75">
+      <p className="mt-1 break-words leading-relaxed text-ink/80">
         {tFamily(language, "journalIntro")}
       </p>
 
@@ -165,8 +163,16 @@ export function FamilyJournal({ family, language, onConfirm, onToggleInclude }: 
         </div>
       ))}
 
-      <p className="mt-5 break-words text-sm leading-6 text-ink/70">
+      <p className="mt-5 break-words text-sm leading-6 text-ink/60">
         {tFamily(language, "journalDeviceLine")}
+      </p>
+      <p className="mt-3 border-t border-ink/10 pt-3">
+        <a
+          href="#family-experience"
+          className={`inline-flex min-h-12 min-w-0 items-center text-sm font-semibold text-ink/60 underline underline-offset-4 ${CONTROL_FOCUS}`}
+        >
+          {tFamily(language, "backToTop")}
+        </a>
       </p>
     </section>
   );

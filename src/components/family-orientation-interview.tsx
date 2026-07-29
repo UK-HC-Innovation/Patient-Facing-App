@@ -8,6 +8,7 @@ import type { FamilyProfile } from "@/domain/types";
 import { tFamily } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
 import type { VoiceEntryContext } from "@/voice/voice-consent";
+import { CONTROL_FOCUS } from "@/components/family-theme";
 import {
   FamilyFollowUpTurn,
   FAMILY_FOLLOW_UP_ANSWER_MAX
@@ -81,8 +82,6 @@ export type FamilyOrientationInterviewProps = {
 };
 
 const FOLLOW_UP_TRANSCRIPT_RESERVE = 200 + FAMILY_FOLLOW_UP_ANSWER_MAX + 8;
-const CONTROL_FOCUS =
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care";
 
 function initialOrientationState(): OrientationState {
   return { openingText: "", openingSource: "typed", rounds: [], pendingFollowUps: [], status: "idle" };
@@ -300,17 +299,17 @@ export function FamilyOrientationInterview({
   return (
     <div className="space-y-4">
       <div className="space-y-3" role="log" aria-live="polite">
-        <div className="ml-auto max-w-[90%] rounded-control bg-care/10 p-3">
-          <p className="break-words whitespace-pre-wrap">{thread.openingText}</p>
+        <div className="ml-auto max-w-[90%] rounded-control bg-calm/60 p-3">
+          <p className="break-words whitespace-pre-wrap leading-relaxed">{thread.openingText}</p>
         </div>
         {thread.rounds.map(({ question, answer }, index) =>
           answer === undefined ? null : (
             <React.Fragment key={`${index}-${question.question}`}>
               <div className="mr-auto max-w-[90%] rounded-control border border-ink/10 bg-white p-3">
-                <p className="break-words font-semibold">{question.question}</p>
+                <p className="break-words font-semibold leading-relaxed">{question.question}</p>
               </div>
-              <div className="ml-auto max-w-[90%] rounded-control bg-care/10 p-3">
-                <p className="break-words whitespace-pre-wrap">{answer}</p>
+              <div className="ml-auto max-w-[90%] rounded-control bg-calm/60 p-3">
+                <p className="break-words whitespace-pre-wrap leading-relaxed">{answer}</p>
               </div>
             </React.Fragment>
           )
@@ -340,7 +339,7 @@ export function FamilyOrientationInterview({
       ) : null}
 
       {!holdTurn && thread.status === "complete" ? (
-        <div role="status" tabIndex={-1} className="rounded-control bg-care/10 p-4 font-semibold text-care">
+        <div role="status" tabIndex={-1} className="rounded-control bg-calm/60 p-4 font-semibold text-care">
           <p className="min-w-0">{tFamily(language, "orientationComplete")}</p>
         </div>
       ) : null}
@@ -349,7 +348,7 @@ export function FamilyOrientationInterview({
         type="button"
         disabled={thread.status === "submitting"}
         onClick={resetThread}
-        className={`min-h-12 min-w-0 break-words rounded-control border border-care/30 bg-white px-4 py-2 font-semibold text-care disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`}
+        className={`min-h-12 min-w-0 break-words rounded-control px-2 py-2 text-sm font-semibold text-ink/60 underline underline-offset-4 disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`}
       >
         {tFamily(language, "orientationStartOver")}
       </button>

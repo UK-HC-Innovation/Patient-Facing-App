@@ -35,12 +35,12 @@ export function FamilyCrisisBanner({ event, language, onAcknowledge }: FamilyCri
       data-testid="family-crisis-banner"
       data-safety-domain={event.domain}
       aria-labelledby={`family-safety-${event.id}`}
-      className="rounded-control border-2 border-rose-400 bg-rose-50 p-4"
+      className="rounded-control border-2 border-l-8 border-rose-400 bg-rose-50 p-4"
     >
       <h2 id={`family-safety-${event.id}`} className="sr-only">
         {tSafety(language, "urgentHelpSummary")}
       </h2>
-      <p className="break-words text-sm leading-6 text-ink">{tSafety(language, safetyCopyKey(event))}</p>
+      <p className="break-words font-medium leading-relaxed text-ink">{tSafety(language, safetyCopyKey(event))}</p>
       <div className="mt-3">
         <UrgentHelp language={language} />
       </div>

@@ -2,6 +2,7 @@
 
 import React from "react";
 import type { FamilyFlag } from "@/domain/types";
+import { BTN_SECONDARY } from "@/components/family-theme";
 import { tFamily } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
 
@@ -12,9 +13,6 @@ export type FamilyClinicNowCardProps = {
   clinic: string;
   onAcknowledge: (flagId: string) => void;
 };
-
-const CONTROL_FOCUS =
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care";
 
 /**
  * The clinic-now tier — deliberately NOT the crisis tier. Losing skills is worth
@@ -32,18 +30,18 @@ export function FamilyClinicNowCard({ flag, language, clinic, onAcknowledge }: F
       data-testid="family-clinic-now-card"
       data-flag-source={flag.source}
       aria-labelledby={titleId}
-      className="rounded-control border border-care/30 bg-note/30 p-4"
+      className="rounded-control border border-l-8 border-pulse/40 border-l-pulse bg-white p-4 scroll-mt-4"
     >
-      <h2 id={titleId} className="break-words text-lg font-semibold">
+      <h2 id={titleId} className="break-words text-lg font-semibold text-pulse">
         {tFamily(language, "clinicNowTitle")}
       </h2>
-      <p className="mt-2 break-words text-sm leading-6 text-ink">
+      <p className="mt-2 break-words leading-relaxed text-ink">
         {tFamily(language, "clinicNowBody", { clinic })}
       </p>
       <button
         type="button"
         onClick={() => onAcknowledge(flag.id)}
-        className={`mt-3 min-h-12 min-w-0 break-words rounded-control border border-care/30 bg-care/5 px-4 py-2 font-semibold text-care ${CONTROL_FOCUS}`}
+        className={`mt-3 ${BTN_SECONDARY}`}
       >
         {tFamily(language, "clinicNowAck")}
       </button>

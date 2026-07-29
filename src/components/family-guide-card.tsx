@@ -3,6 +3,7 @@
 import { ExternalLink } from "lucide-react";
 import React, { useId } from "react";
 import type { FamilyGuide } from "@/domain/family-guides";
+import { CONTROL_FOCUS, NOTICE_INFO } from "@/components/family-theme";
 import { tFamily } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
 
@@ -10,9 +11,6 @@ export type FamilyGuideCardProps = {
   guide: FamilyGuide;
   language: Language;
 };
-
-const CONTROL_FOCUS =
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care";
 
 /**
  * A guide is catalog content, never model prose — so the card always shows the
@@ -33,9 +31,9 @@ export function FamilyGuideCard({ guide, language }: FamilyGuideCardProps) {
       <h4 id={titleId} className="min-w-0 break-words font-semibold">
         {guide.title}
       </h4>
-      <p className="mt-1 break-words text-sm leading-6 text-ink/80">{guide.plainSummary}</p>
+      <p className="mt-1 break-words leading-relaxed text-ink/80">{guide.plainSummary}</p>
 
-      <ul className="mt-3 grid list-disc gap-1 pl-5 text-sm leading-6">
+      <ul className="mt-3 grid list-disc gap-1 pl-5 leading-relaxed">
         {guide.steps.map((step) => (
           <li key={step} className="min-w-0 break-words">
             {step}
@@ -43,7 +41,7 @@ export function FamilyGuideCard({ guide, language }: FamilyGuideCardProps) {
         ))}
       </ul>
 
-      <p data-testid="family-guide-source" className="mt-3 break-words text-sm text-ink/75">
+      <p data-testid="family-guide-source" className="mt-3 break-words text-sm text-ink/60">
         {tFamily(language, "resourceSource")}: {guide.sourceName} ·{" "}
         {tFamily(language, "resourceVerified", { date: guide.verifiedAt })}
       </p>
@@ -53,14 +51,14 @@ export function FamilyGuideCard({ guide, language }: FamilyGuideCardProps) {
         target="_blank"
         rel="noreferrer"
         aria-label={`${tFamily(language, "resourceOpenSource")}: ${guide.title}`}
-        className={`mt-3 inline-flex min-h-12 min-w-0 items-center gap-2 break-words rounded-control border border-care px-3 py-2 text-sm font-semibold text-care ${CONTROL_FOCUS}`}
+        className={`mt-3 inline-flex min-h-12 min-w-0 items-center gap-2 break-words rounded-control border border-care/40 px-3 py-2 text-sm font-semibold text-care ${CONTROL_FOCUS}`}
       >
         <ExternalLink aria-hidden="true" className="h-4 w-4 shrink-0" />
         {tFamily(language, "resourceOpenSource")}
       </a>
 
       {guide.humanVerify ? (
-        <p className="mt-3 rounded-control bg-note p-3 text-sm font-medium text-ink">
+        <p className={`mt-3 text-sm font-medium text-ink ${NOTICE_INFO}`}>
           {tFamily(language, "resourceHumanVerify")}
         </p>
       ) : null}

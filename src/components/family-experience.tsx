@@ -77,6 +77,19 @@ import type {
   FamilySoonerConstraint,
   FamilyStepStatus
 } from "@/domain/types";
+import {
+  ASK_EYEBROW,
+  BTN_CHOICE,
+  BTN_PRIMARY,
+  BTN_SECONDARY,
+  CARD_ASK,
+  CARD_SECTION,
+  CARD_SUBDUED,
+  CONTROL_FOCUS,
+  DEMO_BLOCK,
+  H2_SECTION,
+  NOTICE_INFO
+} from "@/components/family-theme";
 import { tFamily, type FamilyStringKey } from "@/i18n/family-strings";
 import type { HealthAction } from "@/state/store";
 
@@ -103,9 +116,6 @@ const DOMAIN_KEYS: Record<DevNeedDomain, FamilyStringKey> = {
   diagnosis_education: "domainDiagnosisEducation",
   recreation: "domainRecreation"
 };
-
-const CONTROL_FOCUS =
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care";
 
 // Four fixed answers, no free text: the follow-up turn moves a step's status, it
 // never opens a new place to write.
@@ -240,17 +250,13 @@ function FamilyBasicsTurns({
             ))}
           </ul>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={acceptPrefill}
-              className={`min-h-12 min-w-0 break-words rounded-control bg-care px-4 py-2 font-semibold text-white ${CONTROL_FOCUS}`}
-            >
+            <button type="button" onClick={acceptPrefill} className={BTN_PRIMARY}>
               {tFamily(language, "basicsPrefillConfirm")}
             </button>
             <button
               type="button"
               onClick={() => setConfirmingPrefill(false)}
-              className={`min-h-12 min-w-0 break-words rounded-control border border-care/30 px-4 py-2 font-semibold text-care ${CONTROL_FOCUS}`}
+              className={BTN_SECONDARY}
             >
               {tFamily(language, "basicsPrefillChange")}
             </button>
@@ -283,14 +289,14 @@ function FamilyBasicsTurns({
               type="button"
               disabled={county.length === 0}
               onClick={() => finish(county, committedYear, committedStage)}
-              className={`min-h-12 rounded-control bg-care px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`}
+              className={BTN_PRIMARY}
             >
               {tFamily(language, "basicsTurnNext")}
             </button>
           </div>
         </div>
       ) : (
-        <div className="ml-auto max-w-[90%] rounded-control bg-care/10 p-3">
+        <div className="ml-auto max-w-[90%] rounded-control bg-calm/60 p-3">
           <p className="break-words">{committedCounty}</p>
         </div>
       )}
@@ -312,11 +318,7 @@ function FamilyBasicsTurns({
                 }}
                 className={`min-h-12 min-w-0 flex-1 rounded-control border border-ink/20 px-3 py-2 ${CONTROL_FOCUS}`}
               />
-              <button
-                type="button"
-                onClick={commitYear}
-                className={`min-h-12 rounded-control bg-care px-4 py-2 font-semibold text-white ${CONTROL_FOCUS}`}
-              >
+              <button type="button" onClick={commitYear} className={BTN_PRIMARY}>
                 {tFamily(language, "basicsTurnNext")}
               </button>
             </div>
@@ -330,7 +332,7 @@ function FamilyBasicsTurns({
       ) : null}
 
       {committedCounty !== null && committedYear !== null ? (
-        <div className="ml-auto max-w-[90%] rounded-control bg-care/10 p-3">
+        <div className="ml-auto max-w-[90%] rounded-control bg-calm/60 p-3">
           <p className="break-words">{committedYear}</p>
         </div>
       ) : null}
@@ -344,7 +346,7 @@ function FamilyBasicsTurns({
                 key={value}
                 type="button"
                 onClick={() => finish(committedCounty, committedYear, value)}
-                className={`min-h-12 min-w-0 break-words rounded-control border border-care/30 bg-care/5 px-4 py-2 text-left font-semibold text-care ${CONTROL_FOCUS}`}
+                className={BTN_CHOICE}
               >
                 {tFamily(language, key)}
               </button>
@@ -700,12 +702,12 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
         tabIndex={-1}
         aria-live="polite"
         aria-labelledby="family-facts-title"
-        className="grid gap-3 rounded-control border border-care/20 bg-paper p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care"
+        className="grid gap-3 rounded-control border border-ink/10 bg-paper p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care"
       >
-        <h2 id="family-facts-title" className="text-xl font-semibold">
+        <h2 id="family-facts-title" className={H2_SECTION}>
           {tFamily(language, "factsTitle")}
         </h2>
-        <p className="text-sm leading-6 text-ink/75">{tFamily(language, "factsIntro")}</p>
+        <p className="leading-relaxed text-ink/80">{tFamily(language, "factsIntro")}</p>
         {reviewFacts.map((fact) => (
           <FamilyFactCard
             key={fact.id}
@@ -775,12 +777,15 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
           />
         ) : null}
         {matchResult.resources.length > 0 ? (
-          <p className="mr-auto max-w-[90%] rounded-control border border-ink/10 bg-white p-3 font-medium">
+          <p className="mr-auto max-w-[90%] rounded-control border border-ink/10 bg-white p-3 font-medium leading-relaxed">
             {tFamily(
               language,
               matchResult.resources.length === 1 ? "resourcesFoundBelowOne" : "resourcesFoundBelow",
               { count: matchResult.resources.length }
-            )}
+            )}{" "}
+            <a href="#family-resources" className={`font-semibold text-care underline underline-offset-4 ${CONTROL_FOCUS}`}>
+              {tFamily(language, "navResources")}
+            </a>
           </p>
         ) : null}
       </>
@@ -834,7 +839,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
       id="family-experience"
       lang={language}
       data-testid="family-experience"
-      className="grid min-w-0 gap-5 pb-8"
+      className="mx-auto grid w-full min-w-0 max-w-2xl gap-4 pb-8 scroll-mt-4"
     >
       {family?.profile ? (
         // Same instant and same check-in visibility the sections below are
@@ -862,33 +867,37 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
       ) : null}
 
       {family?.profile && !checkinVisible ? (
-        <section
-          data-testid="family-checkin-demo"
-          className="rounded-control border border-care/20 bg-calm/40 p-3"
-        >
+        <section data-testid="family-checkin-demo" className={DEMO_BLOCK}>
           <button
             type="button"
             onClick={() =>
               dispatch({ type: "backdateFamilyTouches", days: 31, now: new Date().toISOString() })
             }
-            className={`min-h-12 min-w-0 break-words rounded-control border border-care/30 bg-white px-4 py-2 text-sm font-semibold text-care ${CONTROL_FOCUS}`}
+            className={`min-h-12 min-w-0 break-words rounded-control border border-ink/25 bg-white px-4 py-2 text-sm font-semibold text-ink/70 ${CONTROL_FOCUS}`}
           >
             {tFamily(language, "checkinDemoControl")}
           </button>
         </section>
       ) : null}
 
-      <section className="rounded-control border border-care/20 bg-white p-4" aria-labelledby="family-interview-title">
-        <p className="inline-flex rounded-full bg-calm px-3 py-1 text-xs font-semibold text-care">
+      <section className={CARD_SECTION} aria-labelledby="family-interview-title">
+        <p className="inline-flex rounded-full border border-ink/20 px-3 py-1 text-xs font-medium text-ink/60">
           {tFamily(language, "demoBadge")}
         </p>
-        <h2 id="family-interview-title" tabIndex={-1} className="mt-3 text-2xl font-semibold">
+        <h2 id="family-interview-title" tabIndex={-1} className="mt-3 text-xl font-semibold scroll-mt-4">
           {tFamily(language, "interviewTitle")}
         </h2>
-        <p className="mt-1 text-sm leading-6 text-ink/75">{tFamily(language, "interviewIntro")}</p>
-        <p className="mt-2 text-sm leading-6 text-ink/60">{tFamily(language, "intro")}</p>
+        <p className="mt-2 leading-relaxed text-ink/90">{tFamily(language, "interviewIntro")}</p>
+        <details className="mt-2">
+          <summary
+            className={`min-h-12 min-w-0 cursor-pointer list-item break-words rounded-control py-2 text-sm font-semibold text-care ${CONTROL_FOCUS}`}
+          >
+            {tFamily(language, "introDisclosureTitle")}
+          </summary>
+          <p className="mt-1 text-sm leading-6 text-ink/70">{tFamily(language, "intro")}</p>
+        </details>
         {language === "es" ? (
-          <p className="mt-3 rounded-control bg-note p-3 text-sm font-medium">
+          <p className={`mt-3 text-sm font-medium ${NOTICE_INFO}`}>
             {tFamily(language, "spanishReviewNotice")}
           </p>
         ) : null}
@@ -1028,9 +1037,9 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
         <section
           id="family-followup"
           data-testid="family-followup"
-          className="rounded-control border border-care/20 bg-white p-4"
+          className={CARD_SECTION}
         >
-          <p role="status" className="break-words text-sm leading-6">
+          <p role="status" className="break-words leading-relaxed">
             {tFamily(language, "followupThanks")}
           </p>
         </section>
@@ -1039,9 +1048,10 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
           id="family-followup"
           data-testid="family-followup"
           aria-labelledby="family-followup-question"
-          className="rounded-control border border-care/20 bg-white p-4"
+          className={CARD_ASK}
         >
-          <p id="family-followup-question" className="break-words font-semibold">
+          <p className={ASK_EYEBROW}>{tFamily(language, "askEyebrow")}</p>
+          <p id="family-followup-question" className="mt-2 break-words text-xl font-semibold">
             {tFamily(language, "followupQuestion", { name: followupResource.name })}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -1050,7 +1060,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
                 key={status}
                 type="button"
                 onClick={() => answerFollowup(followupStep, status)}
-                className={`min-h-12 min-w-0 break-words rounded-control border border-care/30 bg-care/5 px-4 py-2 text-left font-semibold text-care ${CONTROL_FOCUS}`}
+                className={BTN_CHOICE}
               >
                 {tFamily(language, key)}
               </button>
@@ -1062,22 +1072,22 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
       {family && family.profile && family.activeDomains.length > 0 ? (
             <section
               id="family-resources"
-              className="rounded-control border border-care/20 bg-paper p-4"
+              className={`${CARD_SECTION} bg-paper`}
               aria-labelledby="family-resources-title"
             >
-              <h2 id="family-resources-title" className="text-xl font-semibold">
+              <h2 id="family-resources-title" className={H2_SECTION}>
                 {tFamily(language, "resourcesTitle")}
               </h2>
               {rankedSet ? (
                 <div data-testid="family-heard" className="mt-2 rounded-control bg-white p-3">
                   <h3 className="break-words font-semibold">{tFamily(language, "rankHeardTitle")}</h3>
-                  <p className="mt-1 break-words text-sm leading-6 text-ink/80">{rankedSet.heard}</p>
+                  <p className="mt-1 break-words leading-relaxed text-ink/90">{rankedSet.heard}</p>
                 </div>
               ) : (
-                <p className="mt-1 text-sm leading-6 text-ink/75">{tFamily(language, "resourcesIntro")}</p>
+                <p className="mt-1 leading-relaxed text-ink/80">{tFamily(language, "resourcesIntro")}</p>
               )}
               {language === "es" ? (
-                <p className="mt-2 rounded-control bg-note/30 p-3 text-sm leading-6 text-ink/75">
+                <p className={`mt-2 text-sm text-ink/80 ${NOTICE_INFO}`}>
                   {tFamily(language, "resourceSourceLanguageNotice")}
                 </p>
               ) : null}
@@ -1087,8 +1097,8 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
                   className="mt-4 rounded-control border border-note bg-note/20 p-3"
                 >
                   <h3 className="font-semibold">{tFamily(language, "emptyFallbackTitle")}</h3>
-                  <p className="mt-1 text-sm leading-6">{tFamily(language, "emptyFallbackBody")}</p>
-                  <p className="mt-1 text-sm leading-6">{tFamily(language, "emptyNavigatorHonesty")}</p>
+                  <p className="mt-1 leading-relaxed">{tFamily(language, "emptyFallbackBody")}</p>
+                  <p className="mt-1 leading-relaxed">{tFamily(language, "emptyNavigatorHonesty")}</p>
                   <div data-testid="matched-family-resources" className="mt-4 grid gap-3">
                     {matchResult.resources.map(({ resource, domain }) => (
                       <FamilyResourceCard
@@ -1141,10 +1151,10 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
                   data-testid="family-guides"
                   role="region"
                   aria-label={tFamily(language, "guidesTitle")}
-                  className="mt-5 border-t border-care/20 pt-4"
+                  className="mt-5 border-t border-ink/10 pt-4 scroll-mt-4"
                 >
                   <h3 className="text-lg font-semibold">{tFamily(language, "guidesTitle")}</h3>
-                  <p className="mt-1 text-sm leading-6 text-ink/75">{tFamily(language, "guidesIntro")}</p>
+                  <p className="mt-1 leading-relaxed text-ink/80">{tFamily(language, "guidesIntro")}</p>
                   <div className="mt-3 grid gap-3">
                     {guides.map((guide) => (
                       <FamilyGuideCard key={guide.id} guide={guide} language={language} />
@@ -1156,12 +1166,12 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
                 <section
                   role="region"
                   aria-label={tFamily(language, "nearbyTherapeuticRecreationTitle")}
-                  className="mt-5 border-t border-care/20 pt-4"
+                  className="mt-5 border-t border-ink/10 pt-4"
                 >
                   <h3 className="text-lg font-semibold">
                     {tFamily(language, "nearbyTherapeuticRecreationTitle")}
                   </h3>
-                  <p className="mt-1 text-sm leading-6 text-ink/75">
+                  <p className="mt-1 leading-relaxed text-ink/80">
                     {tFamily(language, "nearbyTherapeuticRecreationIntro")}
                   </p>
                   <div className="mt-3 grid gap-3">
@@ -1186,6 +1196,14 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
                   </div>
                 </section>
               ) : null}
+              <p className="mt-5 border-t border-ink/10 pt-3">
+                <a
+                  href="#family-experience"
+                  className={`inline-flex min-h-12 min-w-0 items-center text-sm font-semibold text-ink/60 underline underline-offset-4 ${CONTROL_FOCUS}`}
+                >
+                  {tFamily(language, "backToTop")}
+                </a>
+              </p>
             </section>
           ) : null}
 
@@ -1216,7 +1234,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
         />
       ) : null}
 
-      <section className="rounded-control border border-care/20 bg-white p-4">
+      <section className={CARD_SUBDUED}>
         <button
           type="button"
           aria-expanded={basicsOpen}
@@ -1224,10 +1242,10 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
           onClick={() => setBasicsToggled(!basicsOpen)}
           className={`min-h-12 w-full min-w-0 rounded-control text-left ${CONTROL_FOCUS}`}
         >
-          <span className="block break-words text-lg font-semibold">
+          <span className="block break-words font-semibold text-ink/90">
             {tFamily(language, "setupTitle")}
           </span>
-          <span className="mt-1 block break-words text-sm leading-6 text-ink/75">
+          <span className="mt-1 block break-words text-sm leading-6 text-ink/60">
             {tFamily(language, "setupIntro")}
           </span>
         </button>
@@ -1248,9 +1266,9 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
         <section
           role="region"
           aria-label={tFamily(language, "savedResourcesTitle")}
-          className="rounded-control border border-care/20 bg-paper p-4"
+          className={CARD_SUBDUED}
         >
-          <h2 className="text-xl font-semibold">{tFamily(language, "savedResourcesTitle")}</h2>
+          <h2 className="font-semibold text-ink/90">{tFamily(language, "savedResourcesTitle")}</h2>
           <ul className="mt-4 grid gap-3">
             {savedResources.map(({ resource, domain }) => (
               <li

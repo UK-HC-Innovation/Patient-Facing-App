@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import React from "react";
 import { describe, expect, it } from "vitest";
 import { schoolAgeFamilyState } from "@/domain/family-fixtures";
@@ -214,6 +214,74 @@ describe("FamilyWaitHeader", () => {
     expect(screen.getByText("1 step in motion")).toBeVisible();
     expect(screen.queryByText("1 notes")).not.toBeInTheDocument();
     expect(screen.queryByText("1 steps in motion")).not.toBeInTheDocument();
+  });
+
+  it("maps every English page-navigation label to its rendered section target", () => {
+    render(
+      <FamilyWaitHeader
+        family={familyState({
+          activeDomains: ["school_iep"],
+          facts: [
+            {
+              id: "fact-1",
+              label: "Grade",
+              value: "fourth grade",
+              status: "patient_reported",
+              sourceSnippet: "fourth grade"
+            }
+          ]
+        })}
+        language="en"
+        now={NOW}
+      />
+    );
+
+    // Characterization mutation: deleting or retargeting any chip below leaves
+    // a visible label that either points at the wrong section or nowhere useful.
+    const nav = within(screen.getByRole("navigation", { name: "On this page" }));
+    expect(nav.getByRole("link", { name: "Tell us" })).toHaveAttribute("href", "#family-interview-title");
+    expect(nav.getByRole("link", { name: "Your visit" })).toHaveAttribute("href", "#family-appt-title");
+    expect(nav.getByRole("link", { name: "Programs" })).toHaveAttribute("href", "#family-resources");
+    expect(nav.getByRole("link", { name: "Notes" })).toHaveAttribute("href", "#family-journal");
+    expect(nav.getByRole("link", { name: "Visit packet" })).toHaveAttribute("href", "#family-visit-packet");
+  });
+
+  it("omits Programs and Notes navigation when those sections cannot render", () => {
+    render(<FamilyWaitHeader family={familyState({ activeDomains: [], facts: [] })} language="en" now={NOW} />);
+
+    // Characterization mutation: removing these guards creates dead in-page links.
+    const nav = within(screen.getByRole("navigation", { name: "On this page" }));
+    expect(nav.queryByRole("link", { name: "Programs" })).not.toBeInTheDocument();
+    expect(nav.queryByRole("link", { name: "Notes" })).not.toBeInTheDocument();
+  });
+
+  it("keeps Spanish page-navigation labels on the same section targets", () => {
+    render(
+      <FamilyWaitHeader
+        family={familyState({
+          activeDomains: ["school_iep"],
+          facts: [
+            {
+              id: "fact-1",
+              label: "Grado",
+              value: "cuarto grado",
+              status: "patient_reported",
+              sourceSnippet: "cuarto grado"
+            }
+          ]
+        })}
+        language="es"
+        now={NOW}
+      />
+    );
+
+    // Characterization mutation: translated labels must not lose their target.
+    const nav = within(screen.getByRole("navigation", { name: "En esta página" }));
+    expect(nav.getByRole("link", { name: "Cuéntanos" })).toHaveAttribute("href", "#family-interview-title");
+    expect(nav.getByRole("link", { name: "Tu visita" })).toHaveAttribute("href", "#family-appt-title");
+    expect(nav.getByRole("link", { name: "Programas" })).toHaveAttribute("href", "#family-resources");
+    expect(nav.getByRole("link", { name: "Notas" })).toHaveAttribute("href", "#family-journal");
+    expect(nav.getByRole("link", { name: "Paquete para la visita" })).toHaveAttribute("href", "#family-visit-packet");
   });
 
   it("renders in Spanish", () => {

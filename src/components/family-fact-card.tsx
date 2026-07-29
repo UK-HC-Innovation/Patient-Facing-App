@@ -2,6 +2,7 @@
 
 import React, { useId } from "react";
 import type { FamilyFact } from "@/domain/types";
+import { BTN_SECONDARY, CONTROL_FOCUS } from "@/components/family-theme";
 import { tFamily, type FamilyStringKey } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
 
@@ -22,9 +23,6 @@ const STATUS_KEYS: Record<FamilyFact["status"], FamilyStringKey> = {
   confirmed: "evidenceConfirmed"
 };
 
-const CONTROL_FOCUS =
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care";
-
 export function FamilyFactCard({ fact, language, onConfirm, includeToggle }: FamilyFactCardProps) {
   const titleId = useId();
   const includeId = useId();
@@ -37,7 +35,7 @@ export function FamilyFactCard({ fact, language, onConfirm, includeToggle }: Fam
           <h3 id={titleId} className="break-words font-semibold">
             {fact.label}
           </h3>
-          <p className="mt-1 break-words text-sm leading-6 text-ink/80">{fact.value}</p>
+          <p className="mt-1 break-words leading-relaxed text-ink/80">{fact.value}</p>
         </div>
         <span className="rounded-full bg-calm px-2 py-1 text-xs font-semibold text-care">
           {tFamily(language, STATUS_KEYS[fact.status])}
@@ -55,7 +53,7 @@ export function FamilyFactCard({ fact, language, onConfirm, includeToggle }: Fam
           disabled={confirmed}
           aria-label={`${confirmed ? tFamily(language, "factConfirmed") : tFamily(language, "factConfirm")}: ${fact.label}`}
           onClick={() => onConfirm(fact.id)}
-          className="mt-4 min-h-12 min-w-0 break-words rounded-control bg-care px-4 py-2 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care disabled:cursor-not-allowed disabled:opacity-60"
+          className={`mt-4 ${BTN_SECONDARY}`}
         >
           {confirmed ? tFamily(language, "factConfirmed") : tFamily(language, "factConfirm")}
         </button>

@@ -35,21 +35,44 @@ function renderCard(overrides: Partial<React.ComponentProps<typeof FamilyResourc
 }
 
 describe("FamilyResourceCard", () => {
-  it("renders all catalog provenance, contact, referral, age, and urgency fields", () => {
+  it("renders all catalog provenance, contact, referral, age, and urgency fields", async () => {
+    const user = userEvent.setup();
     renderCard();
 
+    // First-read content is visible without any interaction.
     expect(screen.getByRole("heading", { name: michelle.name })).toBeVisible();
     expect(screen.getByText(michelle.summary)).toBeVisible();
+    expect(screen.getByText(michelle.actNow!)).toBeVisible();
+
+    // Provenance lives one tap away behind the "Details and source" disclosure,
+    // but every field must still be there in full.
+    expect(screen.getByText(michelle.contact)).not.toBeVisible();
+    await user.click(screen.getByText("Details and source"));
     expect(screen.getByText(michelle.contact)).toBeVisible();
     expect(screen.getByText(michelle.sourceName, { exact: false })).toBeVisible();
     expect(screen.getByText(michelle.verifiedAt, { exact: false })).toBeVisible();
-    expect(screen.getByText(michelle.actNow!)).toBeVisible();
     expect(screen.getByText(/all ages/i)).toBeVisible();
     expect(screen.getByText(/start online/i)).toBeVisible();
     const sourceLink = screen.getByRole("link", { name: /See their official page.*Michelle P/i });
     expect(sourceLink).toHaveAttribute("href", michelle.sourceUrl);
     expect(sourceLink).toHaveAttribute("target", "_blank");
     expect(sourceLink).toHaveAttribute("rel", "noreferrer");
+  });
+
+  it("keeps Spanish provenance and its official source reachable from the details disclosure", async () => {
+    const user = userEvent.setup();
+    renderCard({ language: "es" });
+
+    // Characterization mutation: moving source data outside this disclosure, or
+    // dropping the localized control, would make trust information unreachable.
+    await user.click(screen.getByText("Detalles y fuente"));
+    expect(screen.getByText(michelle.contact)).toBeVisible();
+    expect(screen.getByText(michelle.sourceName, { exact: false })).toBeVisible();
+    expect(screen.getByText(michelle.verifiedAt, { exact: false })).toBeVisible();
+    expect(screen.getByRole("link", { name: /Ver su página oficial.*Michelle P/i })).toHaveAttribute(
+      "href",
+      michelle.sourceUrl
+    );
   });
 
   it("suppresses urgency for enrolled resources and exposes an aria-pressed enrollment toggle", async () => {

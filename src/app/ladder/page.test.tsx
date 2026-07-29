@@ -86,6 +86,53 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     document.documentElement.lang = originalLanguage;
   });
 
+  it("keeps the English and Spanish tool-limits disclosure available on demand", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(
+      <FamilyExperience state={withFamily(schoolAgeFamilyState, "en")} dispatch={vi.fn()} passcode="" />
+    );
+
+    // Characterization mutation: removing the disclosure or leaving its content
+    // permanently hidden would make the tool's limits unavailable to families.
+    await user.click(screen.getByText("What this tool can and cannot do"));
+    expect(screen.getByText(/cannot say what your child has/i)).toBeVisible();
+
+    unmount();
+    render(<FamilyExperience state={withFamily(schoolAgeFamilyState, "es")} dispatch={vi.fn()} passcode="" />);
+    await user.click(screen.getByText("Qué puede y qué no puede hacer esta herramienta"));
+    expect(screen.getByText(/No podemos decir qué tiene tu hijo o hija/i)).toBeVisible();
+  });
+
+  it("keeps every rendered back-to-top link pointed at the Ladder experience", () => {
+    render(
+      <FamilyExperience
+        state={withFamily({
+          ...schoolAgeFamilyState,
+          activeDomains: ["school_iep"],
+          facts: [
+            {
+              id: "fact-1",
+              label: "Grade",
+              value: "fourth grade",
+              status: "patient_reported",
+              sourceSnippet: "fourth grade"
+            }
+          ]
+        })}
+        dispatch={vi.fn()}
+        passcode=""
+      />
+    );
+
+    // Characterization mutation: a stale hash strands a family instead of
+    // returning them to the common page origin.
+    const links = screen.getAllByRole("link", { name: "Back to top" });
+    expect(links.length).toBeGreaterThan(0);
+    for (const link of links) {
+      expect(link).toHaveAttribute("href", "#family-experience");
+    }
+  });
+
   it("does not steal focus for a persisted interview from an earlier visit", () => {
     const persistedFamily: FamilyNavigatorState = {
       ...schoolAgeFamilyState,

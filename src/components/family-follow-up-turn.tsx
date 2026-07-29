@@ -12,6 +12,7 @@ import { useDictation } from "@/voice/use-dictation";
 import { useVoiceEntry, type VoiceEntryContext } from "@/voice/voice-consent";
 import { VoiceConsentSheet } from "@/voice/voice-consent-sheet";
 import { VoiceIndicator } from "@/voice/voice-indicator";
+import { BTN_CHOICE, BTN_PRIMARY, CONTROL_FOCUS } from "@/components/family-theme";
 
 export const FAMILY_FOLLOW_UP_ANSWER_MAX = 500;
 
@@ -26,9 +27,6 @@ export type FamilyFollowUpTurnProps = {
   voiceLocked?: boolean;
   onAnswer: (text: string, via: "chip" | "typed" | "voice") => void;
 };
-
-const CONTROL_FOCUS =
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care";
 
 const ORDINALS: Record<Language, string[][]> = {
   en: [
@@ -146,8 +144,8 @@ export function FamilyFollowUpTurn({
   }
 
   return (
-    <section className="rounded-control border border-care/20 bg-white p-4" aria-labelledby="family-follow-up-question">
-      <p className="text-sm font-semibold text-care" aria-live="polite">
+    <section className="rounded-control border border-care/30 bg-white p-4" aria-labelledby="family-follow-up-question">
+      <p className="text-xs font-semibold uppercase tracking-wide text-care" aria-live="polite">
         {tFamily(language, "orientationRoundCount", { round, max: roundCap })}
       </p>
       <h3
@@ -166,7 +164,7 @@ export function FamilyFollowUpTurn({
               type="button"
               disabled={submitting}
               onClick={() => onAnswer(option, "chip")}
-              className={`min-h-12 min-w-0 break-words rounded-control border border-care/30 bg-care/5 px-4 py-2 text-left font-semibold text-care disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`}
+              className={BTN_CHOICE}
             >
               {option}
             </button>
@@ -205,11 +203,7 @@ export function FamilyFollowUpTurn({
               <Mic aria-hidden="true" className="h-5 w-5" />
             </button>
           ) : null}
-          <button
-            type="submit"
-            disabled={submitting}
-            className={`min-h-12 min-w-0 break-words rounded-control bg-care px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`}
-          >
+          <button type="submit" disabled={submitting} className={BTN_PRIMARY}>
             {tFamily(language, "followUpAnswerSubmit")}
           </button>
         </div>

@@ -4,6 +4,7 @@ import React from "react";
 import { activeFamilyAppointment, formatFamilySlot } from "@/domain/family-appointments";
 import { monthsOnList, nextFamilyRung, type FamilyRung } from "@/domain/family-journey";
 import type { FamilyNavigatorState } from "@/domain/types";
+import { CONTROL_FOCUS } from "@/components/family-theme";
 import { tFamily, type FamilyStringKey } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
 
@@ -80,17 +81,31 @@ export function FamilyWaitHeader({
     ? formatFamilySlot(appointment.scheduledFor, language)
     : null;
 
+  // The same conditions family-experience.tsx uses to render each section, so a
+  // chip can never point at a section this render omits.
+  const pageNav: Array<{ href: string; key: FamilyStringKey }> = [
+    { href: "#family-interview-title", key: "navTell" },
+    { href: "#family-appt-title", key: "navVisit" },
+    ...(family.activeDomains.length > 0
+      ? [{ href: "#family-resources", key: "navResources" as FamilyStringKey }]
+      : []),
+    ...(family.facts.length > 0
+      ? [{ href: "#family-journal", key: "navJournal" as FamilyStringKey }]
+      : []),
+    { href: "#family-visit-packet", key: "navPacket" }
+  ];
+
   return (
     <section
       data-testid="family-wait-header"
       aria-labelledby="family-wait-title"
-      className="rounded-control border border-care/20 bg-white p-4"
+      className="rounded-control border border-care/30 bg-white p-4 shadow-sm"
     >
       <h2 id="family-wait-title" className="text-xl font-semibold">
         {tFamily(language, "waitHeaderTitle")}
       </h2>
       {referral ? (
-        <p className="mt-1 break-words text-sm leading-6 text-ink/80">
+        <p className="mt-1 break-words leading-relaxed text-ink/90">
           {months >= 1
             ? tFamily(language, "waitHeaderOnList", {
                 clinic: referral.clinic,
@@ -110,7 +125,7 @@ export function FamilyWaitHeader({
         <a
           href={`#${RUNG_TARGETS[rung.kind]}`}
           data-testid="family-next-rung"
-          className="mt-3 inline-flex min-h-12 min-w-0 items-center break-words rounded-control bg-care px-4 py-2 font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care"
+          className={`mt-3 inline-flex min-h-12 min-w-0 items-center break-words rounded-control bg-care px-4 py-2 font-semibold text-white ${CONTROL_FOCUS}`}
         >
           {label}
         </a>
@@ -139,6 +154,23 @@ export function FamilyWaitHeader({
           </span>
         ) : null}
       </div>
+      <nav
+        aria-label={tFamily(language, "navOnThisPage")}
+        className="mt-4 border-t border-ink/10 pt-3"
+      >
+        <ul className="flex flex-wrap gap-2">
+          {pageNav.map(({ href, key }) => (
+            <li key={href}>
+              <a
+                href={href}
+                className={`inline-flex min-h-12 min-w-0 items-center break-words rounded-full border border-ink/15 bg-white px-3 text-sm font-medium text-ink/80 ${CONTROL_FOCUS}`}
+              >
+                {tFamily(language, key)}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
     </section>
   );
 }

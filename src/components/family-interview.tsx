@@ -381,7 +381,7 @@ export function FamilyInterview({
 
   return (
     <form className="space-y-3" onSubmit={(event) => void submit(event)}>
-      <label className="block text-sm font-semibold" htmlFor="family-interview-text">
+      <label className="block font-semibold" htmlFor="family-interview-text">
         {copy.label}
       </label>
       <textarea

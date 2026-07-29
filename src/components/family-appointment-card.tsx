@@ -16,11 +16,17 @@ import type {
   FamilyReminderOffset,
   FamilySoonerConstraint
 } from "@/domain/types";
+import {
+  BTN_CHOICE,
+  BTN_PRIMARY,
+  CARD_SECTION,
+  CONTROL_FOCUS,
+  DEMO_BLOCK,
+  H2_SECTION,
+  NOTICE_INFO
+} from "@/components/family-theme";
 import { tFamily, type FamilyStringKey } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
-
-const CONTROL_FOCUS =
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care";
 
 // Verified 2026-07-24: the legacy /ncbddd/actearly/concerned.html path 301s here.
 const PREP_SOURCE_URL = "https://www.cdc.gov/act-early/";
@@ -52,9 +58,11 @@ const COUNTDOWN_KEYS: Record<FamilyAppointmentCountdownDays, FamilyStringKey> = 
   [-1]: "apptDemoPassed"
 };
 
+// A flat step tile, not a speech bubble: the conversation metaphor belongs to
+// the composer thread alone; this card is a dashboard section.
 function ladderTurn(children: React.ReactNode, key?: string): React.ReactElement {
   return (
-    <div key={key} className="mr-auto max-w-[90%] rounded-control border border-ink/10 bg-white p-3">
+    <div key={key} className="min-w-0 rounded-control bg-paper p-3">
       {children}
     </div>
   );
@@ -112,8 +120,8 @@ export function FamilyAppointmentCard({
       : `${appointment.id}:${appointment.status}:${appointment.scheduledFor}`;
   const demoControlOpen = demoControlKey !== null && demoControlFor === demoControlKey;
 
-  const primaryButton = `min-h-12 min-w-0 break-words rounded-control bg-care px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`;
-  const secondaryButton = `min-h-12 min-w-0 break-words rounded-control border border-care/30 bg-care/5 px-4 py-2 text-left font-semibold text-care disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`;
+  const primaryButton = BTN_PRIMARY;
+  const secondaryButton = BTN_CHOICE;
 
   // A backfill offer names the visit it would replace, and declining hands that
   // visit back. "Keep our current time" therefore only appears while that visit
@@ -280,7 +288,7 @@ export function FamilyAppointmentCard({
             "barriers-ask"
           )
         ) : (
-          <p className="ml-auto max-w-[90%] rounded-control bg-care/10 p-3 text-sm leading-6">
+          <p className="min-w-0 rounded-control bg-calm/50 p-3 text-sm leading-6">
             {tFamily(
               language,
               active.barriers.every((barrier) => barrier === "none")
@@ -334,14 +342,14 @@ export function FamilyAppointmentCard({
           )
         ) : null}
         {active.scheduledFor !== undefined && active.barriersAsked && !reminder && !overdue ? (
-          <div className="border-t border-care/10 pt-3">
+          <div className={DEMO_BLOCK}>
             <button
               type="button"
               disabled={locked}
               aria-expanded={demoControlOpen}
               aria-controls="family-appt-demo-panel"
               onClick={() => setDemoControlFor(demoControlOpen ? null : demoControlKey)}
-              className={`min-h-12 w-full min-w-0 rounded-control text-left text-sm font-semibold text-ink/70 disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`}
+              className={`flex min-h-12 w-full min-w-0 flex-wrap items-center gap-2 rounded-control text-left text-sm font-semibold text-ink/60 disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`}
             >
               {tFamily(language, "apptDemoControlsTitle")}
             </button>
@@ -350,7 +358,7 @@ export function FamilyAppointmentCard({
                 id="family-appt-demo-panel"
                 disabled={locked}
                 aria-label={tFamily(language, "apptDemoControlsTitle")}
-                className="mt-2 flex flex-wrap gap-2 rounded-control border border-care/20 bg-calm/40 p-3"
+                className="mt-2 flex flex-wrap gap-2"
               >
                 {FAMILY_APPOINTMENT_COUNTDOWNS.map((daysUntil) => (
                   <button
@@ -358,7 +366,7 @@ export function FamilyAppointmentCard({
                     type="button"
                     disabled={locked}
                     onClick={() => onCountdown(active.id, daysUntil)}
-                    className={secondaryButton}
+                    className={`min-h-12 min-w-0 break-words rounded-control border border-ink/25 bg-white px-3 py-2 text-sm font-semibold text-ink/70 disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`}
                   >
                     {tFamily(language, COUNTDOWN_KEYS[daysUntil])}
                   </button>
@@ -368,7 +376,7 @@ export function FamilyAppointmentCard({
                   data-testid="family-sooner-demo"
                   disabled={locked || family.soonerList === null}
                   onClick={() => onSoonerOffer(active.id)}
-                  className={secondaryButton}
+                  className={`min-h-12 min-w-0 break-words rounded-control border border-ink/25 bg-white px-3 py-2 text-sm font-semibold text-ink/70 disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`}
                 >
                   {tFamily(language, "soonerDemoCta")}
                 </button>
@@ -492,15 +500,15 @@ export function FamilyAppointmentCard({
     <section
       data-testid="family-appointment-card"
       aria-labelledby="family-appt-title"
-      className="rounded-control border border-care/20 bg-white p-4"
+      className={CARD_SECTION}
     >
-      <p className="mb-2 inline-flex rounded-full bg-calm px-3 py-1 text-xs font-semibold text-care">
+      <p className="mb-2 inline-flex rounded-full border border-ink/20 px-3 py-1 text-xs font-medium text-ink/60">
         {tFamily(language, "demoBadge")}
       </p>
-      <h2 id="family-appt-title" className="text-xl font-semibold">
+      <h2 id="family-appt-title" className={`${H2_SECTION} scroll-mt-4`}>
         {tFamily(language, "apptSectionTitle")}
       </h2>
-      <p className="mt-1 text-sm leading-6 text-ink/75">{tFamily(language, "apptSectionIntro")}</p>
+      <p className="mt-1 text-sm leading-6 text-ink/60">{tFamily(language, "apptSectionIntro")}</p>
       <p
         data-testid="family-appt-live-turn"
         aria-live="polite"
@@ -510,7 +518,7 @@ export function FamilyAppointmentCard({
         {tFamily(language, "apptSectionTitle")}: {activeTurnAnnouncement}
       </p>
       {locked ? (
-        <p className="mt-2 rounded-control bg-note/30 p-3 text-sm font-medium">
+        <p className={`mt-2 text-sm font-medium ${NOTICE_INFO}`}>
           {tFamily(language, "apptSafetyHold")}
         </p>
       ) : null}

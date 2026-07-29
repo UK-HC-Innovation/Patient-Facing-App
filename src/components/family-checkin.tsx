@@ -2,15 +2,13 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import type { FamilyNavigatorState, FamilyPulse } from "@/domain/types";
+import { ASK_EYEBROW, BTN_CHOICE, CARD_ASK, CONTROL_FOCUS, NOTICE_INFO } from "@/components/family-theme";
 import { tFamily } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
 
 const PROBE_SOURCE_URL = "https://www.cdc.gov/act-early/";
 
-const CONTROL_FOCUS =
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care";
-
-const ANSWER_BUTTON = `min-h-12 min-w-0 break-words rounded-control border border-care/30 bg-care/5 px-4 py-2 text-left font-semibold text-care ${CONTROL_FOCUS}`;
+const ANSWER_BUTTON = BTN_CHOICE;
 
 const PULSE_SCORES: ReadonlyArray<FamilyPulse["score"]> = [1, 2, 3, 4, 5];
 
@@ -118,13 +116,14 @@ export function FamilyCheckin({
       data-testid="family-checkin"
       data-checkin-part={part}
       aria-labelledby="family-checkin-title"
-      className="rounded-control border border-care/20 bg-white p-4"
+      className={CARD_ASK}
     >
+      <p className={ASK_EYEBROW}>{tFamily(language, "askEyebrow")}</p>
       <h2
         id="family-checkin-title"
         ref={headingRef}
         tabIndex={-1}
-        className={`text-xl font-semibold ${CONTROL_FOCUS}`}
+        className={`mt-1 text-xl font-semibold ${CONTROL_FOCUS}`}
       >
         {tFamily(language, "checkinTitle")}
       </h2>
@@ -140,7 +139,7 @@ export function FamilyCheckin({
 
       {part === "note" ? (
         <div className="mt-3">
-          <p className="break-words font-semibold">
+          <p className="break-words font-semibold leading-relaxed">
             {tFamily(language, "checkinNoteInvite", { name })}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -160,9 +159,9 @@ export function FamilyCheckin({
           {showingExamples ? (
             <div
               data-testid="family-checkin-probe-examples"
-              className="mt-3 rounded-control bg-note/30 p-3"
+              className={`mt-3 ${NOTICE_INFO}`}
             >
-              <p className="break-words text-sm leading-6">{tFamily(language, "probeExamples")}</p>
+              <p className="break-words leading-relaxed">{tFamily(language, "probeExamples")}</p>
               <a
                 href={PROBE_SOURCE_URL}
                 target="_blank"
@@ -221,14 +220,14 @@ export function FamilyCheckin({
       ) : null}
 
       {part === "done" ? (
-        <p role="status" className="mt-3 break-words text-sm leading-6">
+        <p role="status" className="mt-3 break-words leading-relaxed text-care">
           {tFamily(language, "checkinDone")}
         </p>
       ) : (
         <button
           type="button"
           onClick={onSkip}
-          className={`mt-3 min-h-12 min-w-0 break-words rounded-control text-sm font-semibold text-ink/70 underline ${CONTROL_FOCUS}`}
+          className={`mt-3 min-h-12 min-w-0 break-words rounded-control text-sm font-semibold text-ink/60 underline underline-offset-4 ${CONTROL_FOCUS}`}
         >
           {tFamily(language, "checkinSkip")}
         </button>
