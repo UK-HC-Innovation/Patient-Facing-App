@@ -4,14 +4,6 @@
 
 2026-07-29
 
-## Revision
-
-`648d99baf0a5538f8fea069385a95adf00d9707e`
-
-This run covers the executable source and test state at that revision: six
-files and 310 tests. Later documentation-only release-evidence commits do not
-change the runtime code this gate exercised.
-
 ## Command
 
 ```
@@ -27,17 +19,17 @@ PASS
 ```
 RUN  v2.1.9 C:/Patient centered
 
- ✓ src/domain/safety.test.ts (16 tests) 6ms
- ✓ src/domain/crisis-red-flags.test.ts (187 tests) 48ms
- ✓ src/ai/voice-gate-corpus.test.ts (2 tests) 39ms
- ✓ src/ai/output-guard.test.ts (12 tests) 38ms
- ✓ src/domain/front-door.test.ts (45 tests) 43ms
- ✓ src/ai/safety-gate.test.ts (48 tests) 50ms
+ ✓ src/domain/safety.test.ts (16 tests) 10ms
+ ✓ src/domain/crisis-red-flags.test.ts (187 tests) 150ms
+ ✓ src/ai/voice-gate-corpus.test.ts (2 tests) 57ms
+ ✓ src/ai/safety-gate.test.ts (48 tests) 155ms
+ ✓ src/domain/front-door.test.ts (45 tests) 196ms
+ ✓ src/ai/output-guard.test.ts (12 tests) 105ms
 
  Test Files  6 passed (6)
       Tests  310 passed (310)
-   Start at  17:10:41
-   Duration  1.88s (transform 857ms, setup 658ms, collect 1.37s, tests 225ms, environment 3.78s, prepare 588ms)
+   Start at  19:15:39
+   Duration  6.52s (transform 5.93s, setup 1.98s, collect 8.75s, tests 673ms, environment 13.81s, prepare 1.89s)
 ```
 
 ## Interpretation
