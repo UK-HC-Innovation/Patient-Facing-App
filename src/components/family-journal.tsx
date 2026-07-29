@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from "react";
 import { FamilyFactCard } from "@/components/family-fact-card";
 import type { FamilyFact, FamilyInterview, FamilyNavigatorState } from "@/domain/types";
-import { CARD_SECTION, CONTROL_FOCUS, H2_SECTION } from "@/components/family-theme";
+import { CARD_SECTION_PAPER, CONTROL_FOCUS, H2_SECTION } from "@/components/family-theme";
 import { tFamily } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
 
@@ -98,7 +98,7 @@ export function FamilyJournal({ family, language, onConfirm, onToggleInclude }: 
       id="family-journal"
       data-testid="family-journal"
       aria-labelledby="family-journal-title"
-      className={`${CARD_SECTION} bg-paper`}
+      className={CARD_SECTION_PAPER}
     >
       <h2 id="family-journal-title" className={H2_SECTION}>
         {tFamily(language, "journalTitle")}
@@ -163,13 +163,13 @@ export function FamilyJournal({ family, language, onConfirm, onToggleInclude }: 
         </div>
       ))}
 
-      <p className="mt-5 break-words text-sm leading-6 text-ink/60">
+      <p className="mt-5 break-words text-sm leading-6 text-ink/70">
         {tFamily(language, "journalDeviceLine")}
       </p>
       <p className="mt-3 border-t border-ink/10 pt-3">
         <a
           href="#family-experience"
-          className={`inline-flex min-h-12 min-w-0 items-center text-sm font-semibold text-ink/60 underline underline-offset-4 ${CONTROL_FOCUS}`}
+          className={`inline-flex min-h-12 min-w-0 items-center text-sm font-semibold text-ink/70 underline underline-offset-4 ${CONTROL_FOCUS}`}
         >
           {tFamily(language, "backToTop")}
         </a>

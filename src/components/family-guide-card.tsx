@@ -41,7 +41,7 @@ export function FamilyGuideCard({ guide, language }: FamilyGuideCardProps) {
         ))}
       </ul>
 
-      <p data-testid="family-guide-source" className="mt-3 break-words text-sm text-ink/60">
+      <p data-testid="family-guide-source" className="mt-3 break-words text-sm text-ink/70">
         {tFamily(language, "resourceSource")}: {guide.sourceName} ·{" "}
         {tFamily(language, "resourceVerified", { date: guide.verifiedAt })}
       </p>

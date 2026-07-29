@@ -133,6 +133,56 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     }
   });
 
+  it("keeps every rendered wait-header page-navigation target in the document", () => {
+    const { unmount } = render(
+      <FamilyExperience state={withFamily(schoolAgeFamilyState)} dispatch={vi.fn()} passcode="" />
+    );
+
+    const baselineNavigation = within(screen.getByTestId("family-wait-header")).getByRole("navigation", {
+      name: "On this page"
+    });
+    expect(within(baselineNavigation).queryByRole("link", { name: "Programs" })).not.toBeInTheDocument();
+    expect(within(baselineNavigation).queryByRole("link", { name: "Notes" })).not.toBeInTheDocument();
+    for (const link of within(baselineNavigation).getAllByRole("link")) {
+      const href = link.getAttribute("href");
+      expect(href).toMatch(/^#/);
+      expect(document.querySelector(href!)).toBeInTheDocument();
+    }
+
+    unmount();
+    render(
+      <FamilyExperience
+        state={withFamily({
+          ...schoolAgeFamilyState,
+          activeDomains: ["school_iep"],
+          facts: [
+            {
+              id: "fact-1",
+              label: "Grade",
+              value: "fourth grade",
+              status: "patient_reported",
+              sourceSnippet: "fourth grade"
+            }
+          ]
+        })}
+        dispatch={vi.fn()}
+        passcode=""
+      />
+    );
+
+    const conditionalNavigation = within(screen.getByTestId("family-wait-header")).getByRole(
+      "navigation",
+      { name: "On this page" }
+    );
+    expect(within(conditionalNavigation).getByRole("link", { name: "Programs" })).toBeVisible();
+    expect(within(conditionalNavigation).getByRole("link", { name: "Notes" })).toBeVisible();
+    for (const link of within(conditionalNavigation).getAllByRole("link")) {
+      const href = link.getAttribute("href");
+      expect(href).toMatch(/^#/);
+      expect(document.querySelector(href!)).toBeInTheDocument();
+    }
+  });
+
   it("does not steal focus for a persisted interview from an earlier visit", () => {
     const persistedFamily: FamilyNavigatorState = {
       ...schoolAgeFamilyState,

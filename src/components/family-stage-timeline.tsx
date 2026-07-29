@@ -83,7 +83,7 @@ export function FamilyStageTimeline({
       <h2 id="family-timeline-title" className="font-semibold text-ink/90">
         {tFamily(language, "timelineTitle")}
       </h2>
-      <p className="mt-1 text-sm leading-6 text-ink/60">{tFamily(language, "timelineIntro")}</p>
+      <p className="mt-1 text-sm leading-6 text-ink/70">{tFamily(language, "timelineIntro")}</p>
       {!family.profile ? (
         <p className="mt-4 text-sm text-ink/70">{tFamily(language, "timelineNoProfile")}</p>
       ) : (
@@ -100,7 +100,7 @@ export function FamilyStageTimeline({
                 aria-expanded={demoControlOpen}
                 aria-controls="family-timeline-demo-panel"
                 onClick={() => setDemoControlOpen((current) => !current)}
-                className={`flex min-h-12 w-full min-w-0 flex-wrap items-center gap-2 rounded-control text-left text-sm font-semibold text-ink/60 ${CONTROL_FOCUS}`}
+                className={`flex min-h-12 w-full min-w-0 flex-wrap items-center gap-2 rounded-control text-left text-sm font-semibold text-ink/70 ${CONTROL_FOCUS}`}
               >
                 {tFamily(language, "timelineDemoControlTitle")}
               </button>
@@ -109,7 +109,7 @@ export function FamilyStageTimeline({
                   <legend className="text-sm font-semibold text-ink/70">
                     {tFamily(language, "timelineDemoControlTitle")}
                   </legend>
-                  <p className="text-sm leading-6 text-ink/60">
+                  <p className="text-sm leading-6 text-ink/70">
                     {tFamily(language, "timelineDemoControlIntro")}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -172,7 +172,7 @@ export function FamilyStageTimeline({
           <p className="mt-4 border-t border-ink/10 pt-3">
             <a
               href="#family-experience"
-              className={`inline-flex min-h-12 min-w-0 items-center text-sm font-semibold text-ink/60 underline underline-offset-4 ${CONTROL_FOCUS}`}
+              className={`inline-flex min-h-12 min-w-0 items-center text-sm font-semibold text-ink/70 underline underline-offset-4 ${CONTROL_FOCUS}`}
             >
               {tFamily(language, "backToTop")}
             </a>

@@ -348,7 +348,7 @@ export function FamilyOrientationInterview({
         type="button"
         disabled={thread.status === "submitting"}
         onClick={resetThread}
-        className={`min-h-12 min-w-0 break-words rounded-control px-2 py-2 text-sm font-semibold text-ink/60 underline underline-offset-4 disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`}
+        className={`min-h-12 min-w-0 break-words rounded-control px-2 py-2 text-sm font-semibold text-ink/70 underline underline-offset-4 disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`}
       >
         {tFamily(language, "orientationStartOver")}
       </button>

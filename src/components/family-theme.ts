@@ -19,10 +19,13 @@ export const BTN_SECONDARY = `min-h-12 min-w-0 break-words rounded-control borde
 export const BTN_CHOICE = `min-h-12 min-w-0 break-words rounded-control border border-care/30 bg-care/5 px-4 py-2 text-left font-semibold text-care disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`;
 
 /** Reversible, low-stakes toggles: no box, just a readable label. */
-export const BTN_QUIET = `inline-flex min-h-12 min-w-0 items-center gap-2 break-words rounded-control px-2 py-2 text-sm font-semibold text-care underline underline-offset-4 disabled:cursor-not-allowed disabled:no-underline disabled:opacity-60 ${CONTROL_FOCUS}`;
+export const BTN_QUIET = `inline-flex min-h-12 min-w-0 items-center gap-2 break-words rounded-control px-2 py-2 text-sm font-semibold text-ink/70 underline underline-offset-4 disabled:cursor-not-allowed disabled:no-underline disabled:opacity-60 ${CONTROL_FOCUS}`;
 
 /** Standard content section: a plain white card. */
 export const CARD_SECTION = "rounded-control border border-ink/10 bg-white p-4 scroll-mt-4";
+
+/** Content sections that intentionally sit on the paper surface. */
+export const CARD_SECTION_PAPER = "rounded-control border border-ink/10 bg-paper p-4 scroll-mt-4";
 
 /** The page's one ask (check-in, follow-up): visibly the next thing to do. */
 export const CARD_ASK = "rounded-control border-2 border-care/50 bg-white p-4 shadow-sm scroll-mt-4";

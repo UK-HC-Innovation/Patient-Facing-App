@@ -349,7 +349,7 @@ export function FamilyAppointmentCard({
               aria-expanded={demoControlOpen}
               aria-controls="family-appt-demo-panel"
               onClick={() => setDemoControlFor(demoControlOpen ? null : demoControlKey)}
-              className={`flex min-h-12 w-full min-w-0 flex-wrap items-center gap-2 rounded-control text-left text-sm font-semibold text-ink/60 disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`}
+              className={`flex min-h-12 w-full min-w-0 flex-wrap items-center gap-2 rounded-control text-left text-sm font-semibold text-ink/70 disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`}
             >
               {tFamily(language, "apptDemoControlsTitle")}
             </button>
@@ -508,7 +508,7 @@ export function FamilyAppointmentCard({
       <h2 id="family-appt-title" className={`${H2_SECTION} scroll-mt-4`}>
         {tFamily(language, "apptSectionTitle")}
       </h2>
-      <p className="mt-1 text-sm leading-6 text-ink/60">{tFamily(language, "apptSectionIntro")}</p>
+      <p className="mt-1 text-sm leading-6 text-ink/70">{tFamily(language, "apptSectionIntro")}</p>
       <p
         data-testid="family-appt-live-turn"
         aria-live="polite"

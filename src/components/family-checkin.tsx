@@ -227,7 +227,7 @@ export function FamilyCheckin({
         <button
           type="button"
           onClick={onSkip}
-          className={`mt-3 min-h-12 min-w-0 break-words rounded-control text-sm font-semibold text-ink/60 underline underline-offset-4 ${CONTROL_FOCUS}`}
+          className={`mt-3 min-h-12 min-w-0 break-words rounded-control text-sm font-semibold text-ink/70 underline underline-offset-4 ${CONTROL_FOCUS}`}
         >
           {tFamily(language, "checkinSkip")}
         </button>

@@ -84,6 +84,7 @@ import {
   BTN_SECONDARY,
   CARD_ASK,
   CARD_SECTION,
+  CARD_SECTION_PAPER,
   CARD_SUBDUED,
   CONTROL_FOCUS,
   DEMO_BLOCK,
@@ -1072,7 +1073,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
       {family && family.profile && family.activeDomains.length > 0 ? (
             <section
               id="family-resources"
-              className={`${CARD_SECTION} bg-paper`}
+              className={CARD_SECTION_PAPER}
               aria-labelledby="family-resources-title"
             >
               <h2 id="family-resources-title" className={H2_SECTION}>
@@ -1199,7 +1200,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
               <p className="mt-5 border-t border-ink/10 pt-3">
                 <a
                   href="#family-experience"
-                  className={`inline-flex min-h-12 min-w-0 items-center text-sm font-semibold text-ink/60 underline underline-offset-4 ${CONTROL_FOCUS}`}
+                  className={`inline-flex min-h-12 min-w-0 items-center text-sm font-semibold text-ink/70 underline underline-offset-4 ${CONTROL_FOCUS}`}
                 >
                   {tFamily(language, "backToTop")}
                 </a>
@@ -1245,7 +1246,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
           <span className="block break-words font-semibold text-ink/90">
             {tFamily(language, "setupTitle")}
           </span>
-          <span className="mt-1 block break-words text-sm leading-6 text-ink/60">
+          <span className="mt-1 block break-words text-sm leading-6 text-ink/70">
             {tFamily(language, "setupIntro")}
           </span>
         </button>
