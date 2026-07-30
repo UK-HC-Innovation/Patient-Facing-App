@@ -1,6 +1,6 @@
 # Ladder Narrative Integrity — Evidence, Service Status, and Check-in Continuity
 
-**Status:** Wave 1 design approved in conversation on 2026-07-30. This written specification is awaiting final product-owner approval before implementation planning. It is the first delivery wave in the approved four-wave Ladder persona-fix program.
+**Status:** Wave 1 design and written specification approved by the product owner on 2026-07-30. Implementation planning is active. This is the first delivery wave in the approved four-wave Ladder persona-fix program.
 
 ## Purpose
 
