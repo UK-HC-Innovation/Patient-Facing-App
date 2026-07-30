@@ -382,8 +382,10 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
 
     const family = JSON.parse(screen.getByTestId("family-state").textContent || "null") as FamilyNavigatorState;
     expect(family.profile).toMatchObject({ county: "Pike", birthYear: 2024, schoolStage: "not_school_age" });
-    expect(family.latestInterviewDomains).toContain("early_intervention");
-    expect(family.activeDomains).toContain("early_intervention");
+    expect(family.latestInterviewDomains).toEqual(["early_intervention", "therapies", "transportation"]);
+    expect(family.activeDomains).toEqual(["early_intervention", "therapies", "transportation"]);
+    expect(family.interviews).toHaveLength(1);
+    expect(family.interviews[0]?.kind).toBe("orientation");
 
     await screen.findByRole("heading", { name: "Has anyone talked with you about therapy visits?" });
     const cards = within(screen.getByTestId("matched-family-resources")).getAllByTestId("family-resource-card");
@@ -391,7 +393,9 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
       "first_steps_big_sandy",
       "first_steps_statewide"
     ]);
-    expect(cards.map((card) => card.getAttribute("data-resource-id"))).toContain("help_me_grow_ky");
+    const resourceIds = cards.map((card) => card.getAttribute("data-resource-id"));
+    expect(resourceIds).toContain("help_me_grow_ky");
+    expect(resourceIds).toContain("kentucky_211");
 
     const bigSandy = screen.getByTestId("matched-family-resources").querySelector(
       '[data-resource-id="first_steps_big_sandy"]'
