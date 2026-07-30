@@ -1,4 +1,4 @@
-# F02 and L03 production smoke — 2026-07-30
+# Production smoke — F02 and L03 — 2026-07-30
 
 ## Scope and authority
 
