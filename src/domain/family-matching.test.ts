@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildRankCandidates, buildResourceMatches } from "./family-matching";
+import { FAMILY_RESOURCE_CATALOG } from "./family-resources";
 import type { FamilyProfile } from "./types";
 
 const jaylen: FamilyProfile = {
@@ -41,5 +42,26 @@ describe("L02 Breathitt transportation retrieval", () => {
     const resourceIds = buildRankCandidates(pike, [...jaylenDomains], []).resources.map(({ resource }) => resource.id);
 
     expect(resourceIds).not.toContain("lklp_transportation_region_13");
+  });
+
+  it("keeps an enrolled LKLP ride after unenrolled statewide navigation", () => {
+    const resourceIds = buildRankCandidates(jaylen, [...jaylenDomains], ["lklp_transportation_region_13"]).resources.map(
+      ({ resource }) => resource.id
+    );
+
+    for (const statewideId of statewideNavigationIds) {
+      expect(resourceIds.indexOf("lklp_transportation_region_13")).toBeGreaterThan(resourceIds.indexOf(statewideId));
+    }
+  });
+
+  it("preserves capped Perry candidates and unrelated cross-domain order", () => {
+    const perry: FamilyProfile = { ...jaylen, county: "Perry" };
+    const max = 6;
+    const matchedIds = buildResourceMatches(perry, [...jaylenDomains], [], FAMILY_RESOURCE_CATALOG.length).resources
+      .slice(0, max)
+      .map(({ resource }) => resource.id);
+    const rankedIds = buildRankCandidates(perry, [...jaylenDomains], [], max).resources.map(({ resource }) => resource.id);
+
+    expect(rankedIds).toEqual(matchedIds);
   });
 });

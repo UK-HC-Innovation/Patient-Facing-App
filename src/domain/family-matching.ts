@@ -20,6 +20,7 @@ export type FamilyMatchResult = {
 
 export const FALLBACK_IDS = ["ky_spin", "hdi_resource_guide", "kynect_resources", "kentucky_211"] as const;
 const FALLBACK_ID_SET = new Set<string>(FALLBACK_IDS);
+const STATEWIDE_NAVIGATION_ID_SET = new Set<string>(["kynect_resources", "kentucky_211"]);
 const MAX_PER_DOMAIN = 4;
 // A ranking layer can only reorder what retrieval hands it, so the set it scores
 // is the whole match list capped as a total — never truncated per domain, which
@@ -141,16 +142,17 @@ export function buildRankCandidates(
   max: number = MAX_RANK_CANDIDATES
 ): FamilyMatchResult {
   const matches = buildResourceMatches(profile, domains, alreadyEnrolled, FAMILY_RESOURCE_CATALOG.length);
-  const county = normalizeCounty(profile.county);
-  const resources = matches.resources
-    .slice()
-    .sort(
-      (left, right) =>
-        Number(!left.resource.counties.includes(county)) - Number(!right.resource.counties.includes(county)) ||
-        left.position - right.position
-    )
-    .slice(0, max)
-    .map((match, position) => ({ ...match, position }));
+  const resources = matches.resources.slice(0, max);
+  const lklp = resources.find(({ resource }) => resource.id === "lklp_transportation_region_13");
 
-  return { ...matches, resources };
+  if (!lklp || alreadyEnrolled.includes(lklp.resource.id)) {
+    return { ...matches, resources };
+  }
+
+  const reordered = [
+    ...resources.filter(({ resource }) => !STATEWIDE_NAVIGATION_ID_SET.has(resource.id)),
+    ...resources.filter(({ resource }) => STATEWIDE_NAVIGATION_ID_SET.has(resource.id))
+  ].map((match, position) => ({ ...match, position }));
+
+  return { ...matches, resources: reordered };
 }
