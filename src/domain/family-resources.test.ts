@@ -190,6 +190,14 @@ describe("findFamilyResources", () => {
   it("keeps direct ID lookup independent of enrollment state", () => {
     expect(getFamilyResourceById("michelle_p_waiver")?.id).toBe("michelle_p_waiver");
   });
+
+  it("resolves the verified LKLP Region 13 transportation resource by stable ID", () => {
+    expect(getFamilyResourceById("lklp_transportation_region_13")).toMatchObject({
+      id: "lklp_transportation_region_13",
+      counties: expect.arrayContaining(["Breathitt"]),
+      domains: expect.arrayContaining(["transportation"])
+    });
+  });
 });
 
 describe("family resource helpers", () => {
