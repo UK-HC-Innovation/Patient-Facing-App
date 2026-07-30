@@ -360,6 +360,47 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     ).toContain("scott_county_exceptional_child_services");
   });
 
+  it("recomputes description-first toddler domains after completing Theo's profile", async () => {
+    const user = userEvent.setup();
+    render(<ReducerHarness />);
+
+    await user.type(
+      screen.getByLabelText("What would you like help with?"),
+      "Theo is two. He says mama and no, but not much else, and he still falls a lot when he walks. His doctor said speech and physical therapy could help. I’m his grandmother and I don’t drive, so we need a ride to appointments. I need somebody to tell me who to call first."
+    );
+    await user.click(screen.getByRole("button", { name: "Find help" }));
+
+    const turns = await screen.findByTestId("family-basics-turns");
+    await user.selectOptions(
+      within(turns).getByLabelText(/which Kentucky county do you live in/i),
+      "Pike"
+    );
+    await user.click(within(turns).getByRole("button", { name: "Next" }));
+    await user.type(within(turns).getByLabelText(/What year was your child born/i), "2024");
+    await user.click(within(turns).getByRole("button", { name: "Next" }));
+    await user.click(within(turns).getByRole("button", { name: "Not school age" }));
+
+    const family = JSON.parse(screen.getByTestId("family-state").textContent || "null") as FamilyNavigatorState;
+    expect(family.profile).toMatchObject({ county: "Pike", birthYear: 2024, schoolStage: "not_school_age" });
+    expect(family.latestInterviewDomains).toContain("early_intervention");
+    expect(family.activeDomains).toContain("early_intervention");
+
+    await screen.findByRole("heading", { name: "Has anyone talked with you about therapy visits?" });
+    const cards = within(screen.getByTestId("matched-family-resources")).getAllByTestId("family-resource-card");
+    expect(cards.slice(0, 2).map((card) => card.getAttribute("data-resource-id"))).toEqual([
+      "first_steps_big_sandy",
+      "first_steps_statewide"
+    ]);
+    expect(cards.map((card) => card.getAttribute("data-resource-id"))).toContain("help_me_grow_ky");
+
+    const bigSandy = screen.getByTestId("matched-family-resources").querySelector(
+      '[data-resource-id="first_steps_big_sandy"]'
+    ) as HTMLElement;
+    await user.click(within(bigSandy).getByTestId("family-step-plan"));
+    const planned = JSON.parse(screen.getByTestId("family-state").textContent || "null") as FamilyNavigatorState;
+    expect(planned.steps).toMatchObject([{ resourceId: "first_steps_big_sandy", domain: "early_intervention" }]);
+  });
+
   it("offers back the county, age, and stage the caregiver already wrote instead of re-asking", async () => {
     const user = userEvent.setup();
     render(<ReducerHarness />);
