@@ -141,5 +141,16 @@ export function buildRankCandidates(
   max: number = MAX_RANK_CANDIDATES
 ): FamilyMatchResult {
   const matches = buildResourceMatches(profile, domains, alreadyEnrolled, FAMILY_RESOURCE_CATALOG.length);
-  return { ...matches, resources: matches.resources.slice(0, max) };
+  const county = normalizeCounty(profile.county);
+  const resources = matches.resources
+    .slice()
+    .sort(
+      (left, right) =>
+        Number(!left.resource.counties.includes(county)) - Number(!right.resource.counties.includes(county)) ||
+        left.position - right.position
+    )
+    .slice(0, max)
+    .map((match, position) => ({ ...match, position }));
+
+  return { ...matches, resources };
 }

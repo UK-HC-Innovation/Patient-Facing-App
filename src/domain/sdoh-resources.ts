@@ -44,7 +44,7 @@ export const sdohNeedOptions: readonly { id: SdohNeedType; label: string }[] = [
 
 const allNeeds = sdohNeedOptions.map((option) => option.id);
 
-const RESOURCE_CATALOG: KentuckySdohResource[] = [
+export const KENTUCKY_SDOH_RESOURCE_CATALOG: readonly KentuckySdohResource[] = [
   {
     id: "lklp_transportation_region_13",
     name: "LKLP Community Action Council transportation",
@@ -135,7 +135,7 @@ const countyRank = (resource: KentuckySdohResource, county: string): number =>
 export function findKentuckyResources({ county, needType, limit = 4 }: KentuckySdohResourceSearch): KentuckySdohResource[] {
   const normalizedCounty = normalizeCounty(county);
 
-  return RESOURCE_CATALOG.filter(
+  return KENTUCKY_SDOH_RESOURCE_CATALOG.filter(
     (resource) => resource.needTypes.includes(needType) && matchesCounty(resource, normalizedCounty)
   )
     .slice()
@@ -144,7 +144,7 @@ export function findKentuckyResources({ county, needType, limit = 4 }: KentuckyS
 }
 
 export function getKentuckyResourceById(id: string): KentuckySdohResource | undefined {
-  return RESOURCE_CATALOG.find((resource) => resource.id === id);
+  return KENTUCKY_SDOH_RESOURCE_CATALOG.find((resource) => resource.id === id);
 }
 
 export function sdohNeedLabel(needType: SdohNeedType): string {

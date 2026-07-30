@@ -1,4 +1,5 @@
 import type { DevNeedDomain, FamilyProfile } from "./types";
+import { KENTUCKY_SDOH_RESOURCE_CATALOG, type SdohReferralMode } from "./sdoh-resources";
 
 export interface FamilyResource {
   id: string;
@@ -178,6 +179,26 @@ const ALL_DOMAINS: DevNeedDomain[] = [
   "diagnosis_education",
   "recreation"
 ];
+
+const toFamilyReferralMode = (referralMode: SdohReferralMode): FamilyResource["referralMode"] => {
+  if (referralMode === "navigator_referral") return referralMode;
+  throw new Error(`Unsupported family referral mode: ${referralMode}`);
+};
+
+const LOCAL_SDOH_TRANSPORTATION_RESOURCES: FamilyResource[] = KENTUCKY_SDOH_RESOURCE_CATALOG.filter(
+  (resource) => resource.needTypes.includes("transportation") && !resource.counties.includes("statewide")
+).map(({ id, name, counties, summary, contact, sourceName, sourceUrl, verifiedAt, referralMode }) => ({
+  id,
+  name,
+  domains: ["transportation"],
+  counties,
+  summary,
+  contact,
+  sourceName,
+  sourceUrl,
+  verifiedAt,
+  referralMode: toFamilyReferralMode(referralMode)
+}));
 
 const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
   {
@@ -661,7 +682,8 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
 export const FAMILY_RESOURCE_CATALOG: FamilyResource[] = [
   ...STATEWIDE_AND_LOCAL_RESOURCES.slice(0, 3),
   ...FIRST_STEPS_POE_RESOURCES,
-  ...STATEWIDE_AND_LOCAL_RESOURCES.slice(3)
+  ...STATEWIDE_AND_LOCAL_RESOURCES.slice(3),
+  ...LOCAL_SDOH_TRANSPORTATION_RESOURCES
 ];
 
 export interface FamilyResourceSearch {
