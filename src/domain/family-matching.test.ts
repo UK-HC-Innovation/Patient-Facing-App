@@ -54,6 +54,17 @@ describe("L02 Breathitt transportation retrieval", () => {
     }
   });
 
+  it("keeps another enrolled resource after deferred statewide navigation", () => {
+    const resourceIds = buildRankCandidates(jaylen, [...jaylenDomains], ["ocshcn"]).resources.map(
+      ({ resource }) => resource.id
+    );
+
+    expectLklpBeforeStatewide(resourceIds);
+    for (const statewideId of statewideNavigationIds) {
+      expect(resourceIds.indexOf("ocshcn")).toBeGreaterThan(resourceIds.indexOf(statewideId));
+    }
+  });
+
   it("preserves capped Perry candidates and unrelated cross-domain order", () => {
     const perry: FamilyProfile = { ...jaylen, county: "Perry" };
     const max = 6;

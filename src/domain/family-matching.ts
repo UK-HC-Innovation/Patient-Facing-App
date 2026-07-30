@@ -149,9 +149,13 @@ export function buildRankCandidates(
     return { ...matches, resources };
   }
 
+  const enrolled = new Set(alreadyEnrolled);
+  const unenrolledResources = resources.filter(({ resource }) => !enrolled.has(resource.id));
+  const enrolledResources = resources.filter(({ resource }) => enrolled.has(resource.id));
   const reordered = [
-    ...resources.filter(({ resource }) => !STATEWIDE_NAVIGATION_ID_SET.has(resource.id)),
-    ...resources.filter(({ resource }) => STATEWIDE_NAVIGATION_ID_SET.has(resource.id))
+    ...unenrolledResources.filter(({ resource }) => !STATEWIDE_NAVIGATION_ID_SET.has(resource.id)),
+    ...unenrolledResources.filter(({ resource }) => STATEWIDE_NAVIGATION_ID_SET.has(resource.id)),
+    ...enrolledResources
   ].map((match, position) => ({ ...match, position }));
 
   return { ...matches, resources: reordered };
