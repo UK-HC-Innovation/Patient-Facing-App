@@ -16,6 +16,7 @@ import type {
   FamilyFact,
   FamilyInterview,
   FamilyPulse,
+  FamilyRecommendationSet,
   FamilyScreenAnswer,
   FamilySoonerList,
   FamilyStepStatus,
@@ -137,6 +138,78 @@ describe("healthReducer", () => {
 
     expect(profiled.family?.profile?.childFirstName).toBe("Avery");
     expect(drafted.family?.interviewDraft).toBe("School is hard.");
+  });
+
+  it("reconciles profile-aware interview domains without losing screen needs or stale state", () => {
+    const latestInterview: FamilyInterview = {
+      id: "interview-1",
+      rawText: "My child needs speech therapy and we need a ride.",
+      source: "typed",
+      createdAt: "2026-07-30T12:00:00.000Z",
+      extraction: "mock",
+      kind: "orientation"
+    };
+    const recommendations: FamilyRecommendationSet = {
+      interviewId: latestInterview.id,
+      createdAt: "2026-07-30T12:01:00.000Z",
+      extraction: "mock",
+      heard: latestInterview.rawText,
+      lead: "therapies",
+      items: []
+    };
+    const seeded: AppState = {
+      ...demoState,
+      family: {
+        ...schoolAgeFamilyState,
+        interviews: [latestInterview],
+        facts: [
+          {
+            id: "interview-fact-1",
+            interviewId: latestInterview.id,
+            label: "Therapy",
+            value: "Speech therapy",
+            status: "patient_reported",
+            sourceSnippet: "needs speech therapy"
+          }
+        ],
+        screenAnswers: [{ questionId: "family_respite", domain: "respite", response: "yes" }],
+        latestInterviewDomains: ["therapies", "transportation", "parent_support"],
+        activeDomains: ["respite", "therapies", "transportation", "parent_support"],
+        recommendations
+      }
+    };
+
+    const reconciled = healthReducer(
+      seeded,
+      {
+        type: "saveFamilyProfile",
+        profile: {
+          childFirstName: "Theo",
+          birthYear: 2024,
+          schoolStage: "not_school_age",
+          county: "Fayette",
+          diagnoses: []
+        },
+        deterministicDomains: ["early_intervention", "therapies", "transportation"]
+      }
+    );
+
+    expect(reconciled.family?.latestInterviewDomains).toEqual([
+      "early_intervention",
+      "therapies",
+      "transportation",
+      "parent_support"
+    ]);
+    expect(reconciled.family?.activeDomains).toEqual([
+      "respite",
+      "early_intervention",
+      "therapies",
+      "transportation",
+      "parent_support"
+    ]);
+    expect(reconciled.family?.recommendations).toBeNull();
+    expect(reconciled.family?.interviews).toEqual(seeded.family?.interviews);
+    expect(reconciled.family?.facts).toEqual(seeded.family?.facts);
   });
 
   it("replaces screen answers and screen facts while retracting yes-to-no domains", () => {

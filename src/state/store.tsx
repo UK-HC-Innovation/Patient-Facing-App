@@ -106,7 +106,7 @@ export type HealthAction =
   | { type: "markClinicConfirmed"; referralId: string }
   | { type: "bookReferralSlot"; referralId: string; slot: string }
   | { type: "markReferralCompleted"; referralId: string }
-  | { type: "saveFamilyProfile"; profile: FamilyProfile }
+  | { type: "saveFamilyProfile"; profile: FamilyProfile; deterministicDomains?: DevNeedDomain[] }
   | {
       type: "backdateFamilyDiagnoses";
       monthsAgo: FamilyDiagnosisBackdateMonths;
@@ -868,11 +868,28 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
         ]
       };
     }
-    case "saveFamilyProfile":
+    case "saveFamilyProfile": {
+      const family = state.family;
+      if (!family || !action.deterministicDomains) {
+        return {
+          ...state,
+          family: family ? { ...family, profile: action.profile } : emptyFamilyState(action.profile)
+        };
+      }
+      const latestInterviewDomains = [
+        ...new Set([...action.deterministicDomains, ...family.latestInterviewDomains])
+      ];
       return {
         ...state,
-        family: state.family ? { ...state.family, profile: action.profile } : emptyFamilyState(action.profile)
+        family: {
+          ...family,
+          profile: action.profile,
+          recommendations: null,
+          latestInterviewDomains,
+          activeDomains: mergeFamilyDomains(family.screenAnswers, latestInterviewDomains)
+        }
       };
+    }
     case "backdateFamilyDiagnoses": {
       const family = state.family;
       const profile = family?.profile;

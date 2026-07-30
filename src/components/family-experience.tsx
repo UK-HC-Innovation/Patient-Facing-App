@@ -42,7 +42,7 @@ import type { FamilyDiagnosisBackdateMonths } from "@/domain/family-stages";
 import { firstStepsClock, hasEnrolledFirstSteps } from "@/domain/family-clocks";
 import { matchFamilyGuides } from "@/domain/family-guides";
 import { answerableStaleStep, checkInDue } from "@/domain/family-journey";
-import { detectRegressionCue, familyFactStatus } from "@/domain/family-interview";
+import { detectRegressionCue, extractFamilyInterviewMock, familyFactStatus } from "@/domain/family-interview";
 import {
   extractFamilyBasics,
   hasFamilyBasicsHints,
@@ -541,7 +541,10 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   );
 
   function saveProfile(profile: FamilyProfile): void {
-    dispatch({ type: "saveFamilyProfile", profile });
+    const deterministicDomains = latestInterview
+      ? extractFamilyInterviewMock(latestInterview.rawText, profile, new Date(), language).domains.map(({ domain }) => domain)
+      : undefined;
+    dispatch({ type: "saveFamilyProfile", profile, deterministicDomains });
   }
 
   function backdateFamilyDiagnoses(monthsAgo: FamilyDiagnosisBackdateMonths, now: Date): void {
