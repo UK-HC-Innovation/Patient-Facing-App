@@ -50,6 +50,31 @@ function reviewTurn(heading = "Here is what we heard"): HTMLElement {
 // The fixture carries no scripted draft, so tests that submit supply ordinary caregiver text.
 const describedFamily: FamilyNavigatorState = { ...schoolAgeFamilyState, interviewDraft: SAMPLE_CAREGIVER_TEXT };
 
+const F07_OPENING =
+  "Noah is sixteen. He was diagnosed with autism and intellectual disability when he was younger. I know the system and I'm planning for adult transition, supported decision-making, ABLE, and waivers before he turns eighteen. Please do not start at the very beginning.";
+
+const f07Family: FamilyNavigatorState = {
+  ...schoolAgeFamilyState,
+  profile: {
+    childFirstName: "Noah",
+    birthYear: 2010,
+    birthMonth: 1,
+    schoolStage: "high",
+    county: "Christian",
+    diagnoses: [
+      { id: "f07-autism", label: "autism" },
+      { id: "f07-id", label: "intellectual_disability" }
+    ]
+  },
+  interviewDraft: F07_OPENING,
+  screenAnswers: [],
+  interviews: [],
+  facts: [],
+  latestInterviewDomains: [],
+  activeDomains: [],
+  recommendations: null
+};
+
 function ReducerHarness({ initialState = withFamily(null) }: { initialState?: AppState }) {
   const [state, dispatch] = useReducer(healthReducer, initialState);
   return (
@@ -211,6 +236,42 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     render(<FamilyExperience state={withFamily(persistedFamily)} dispatch={vi.fn()} passcode="" />);
 
     expect(screen.getByRole("heading", { name: "Here is what we heard" }).closest("section")).not.toHaveFocus();
+  });
+
+  it("exposes F07's waiver follow-up through its accessible heading", async () => {
+    const user = userEvent.setup();
+    render(<ReducerHarness initialState={withFamily(f07Family)} />);
+
+    await user.click(screen.getByRole("button", { name: "Find help" }));
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Have you applied for any state programs yet?"
+      })
+    ).toBeVisible();
+    expect(screen.getByText("Question 1 of 2")).toHaveAttribute(
+      "aria-live",
+      "polite"
+    );
+    expect(
+      screen.queryByRole("heading", {
+        name: /start at the very beginning|what is autism|new diagnosis/i
+      })
+    ).not.toBeInTheDocument();
+
+    const family = JSON.parse(
+      screen.getByTestId("family-state").textContent || "null"
+    ) as FamilyNavigatorState;
+    expect(family.latestInterviewDomains).toEqual([
+      "waivers_financial",
+      "future_planning"
+    ]);
+    expect(family.activeDomains).toEqual([
+      "waivers_financial",
+      "future_planning"
+    ]);
+    expect(family.activeDomains).not.toContain("therapies");
+    expect(family.activeDomains).not.toContain("early_intervention");
   });
 
   it("runs the described-child path with atomic family facts, confirmation, deterministic Scott-first resources, saved return state, and timeline", async () => {
