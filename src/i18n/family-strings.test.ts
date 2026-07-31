@@ -55,6 +55,10 @@ const TASK_7_REQUIRED_KEYS = [
   "evidenceInferred",
   "evidenceConfirmed",
   "factConfirm",
+  "factFunctionalBurdenLabel",
+  "factFunctionalBurdenValue",
+  "factPendingEvaluationLabel",
+  "factPendingEvaluationValue",
   "followUpSchoolIepQuestion",
   "followUpTherapiesQuestion",
   "followUpWaiversQuestion",
@@ -195,6 +199,19 @@ describe("familyStrings", () => {
   it("marks Spanish as a draft pending native review", () => {
     expect(familyStrings.es.spanishReviewNotice).toMatch(/borrador/i);
     expect(familyStrings.es.spanishReviewNotice).toMatch(/revise.*hablante nativ/i);
+  });
+
+  it("keeps functional-burden and pending-evaluation facts exact in both languages", () => {
+    expect(tFamily("en", "factFunctionalBurdenLabel")).toBe("Impact on daily life");
+    expect(tFamily("en", "factFunctionalBurdenValue")).toBe("Schoolwork is taking substantial time");
+    expect(tFamily("en", "factPendingEvaluationLabel")).toBe("Evaluation status");
+    expect(tFamily("en", "factPendingEvaluationValue")).toBe("Waiting for an evaluation");
+    expect(tFamily("es", "factFunctionalBurdenLabel")).toBe("Impacto en la vida diaria");
+    expect(tFamily("es", "factFunctionalBurdenValue")).toBe(
+      "Las tareas escolares están tomando mucho tiempo"
+    );
+    expect(tFamily("es", "factPendingEvaluationLabel")).toBe("Estado de la evaluación");
+    expect(tFamily("es", "factPendingEvaluationValue")).toBe("Esperando una evaluación");
   });
 
   it("keeps the demo honest and interpolates family copy", () => {

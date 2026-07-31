@@ -15,6 +15,14 @@ const validPayload = {
   followUps: [{ question: "What support has the school offered?", options: ["Nothing yet", "A meeting is planned"] }]
 };
 
+const FIXED_NOW = new Date("2026-07-30T12:00:00.000Z");
+
+const F01_TEXT =
+  "Theo is two. He says mama and no, but not much else, and he still falls a lot when he walks. His doctor said speech and physical therapy could help. I’m his grandmother and I don’t drive, so we need a ride to appointments. I need somebody to tell me who to call first.";
+
+const L03_TEXT =
+  "Maya is ten and in fifth grade. Her teacher and I are concerned about dyslexia and ADHD, but she has not been diagnosed. Reading and homework take hours, and we are waiting for an evaluation.";
+
 describe("family interview contract", () => {
   it("accepts only text from 10 through 5000 characters", () => {
     expect(familyInterviewInputSchema.safeParse("123456789").success).toBe(false);
@@ -89,6 +97,182 @@ describe("family interview contract", () => {
 });
 
 describe("deterministic family interview extraction", () => {
+  it("uses Theo's direct words instead of a professional recommendation", () => {
+    const profile = {
+      childFirstName: "Theo",
+      birthYear: 2024,
+      birthMonth: 5,
+      schoolStage: "not_school_age" as const,
+      county: "Pike",
+      diagnoses: []
+    };
+    const result = extractFamilyInterviewMock(F01_TEXT, profile, FIXED_NOW, "en");
+    const talking = result.facts.find(({ label }) => label === "About talking");
+
+    expect(result.domains.map(({ domain }) => domain)).toEqual([
+      "early_intervention",
+      "therapies",
+      "transportation"
+    ]);
+    expect(talking?.sourceSnippet).toContain("mama and no");
+    expect(talking?.sourceSnippet).not.toMatch(/doctor/i);
+    expect(result.facts.some(({ label }) => label === "About moving")).toBe(true);
+    expect(result.facts.some(({ label }) => label === "Reported diagnosis")).toBe(false);
+  });
+
+  it.each([
+    [
+      "The doctor says his speech is delayed. He says only a few words.",
+      "en",
+      "About talking",
+      "He says only a few words.",
+      /doctor/i
+    ],
+    [
+      "La doctora dice que su habla está retrasada. Él dice pocas palabras.",
+      "es",
+      "Sobre el habla",
+      "Él dice pocas palabras.",
+      /doctora/i
+    ]
+  ] as const)(
+    "keeps a clinician's words from outranking direct child speech: %s",
+    (text, language, label, sourceSnippet, clinician) => {
+      const result = extractFamilyInterviewMock(
+        text,
+        schoolAgeFamilyState.profile!,
+        FIXED_NOW,
+        language
+      );
+      const talking = result.facts.find((fact) => fact.label === label);
+
+      expect(talking?.sourceSnippet).toBe(sourceSnippet);
+      expect(talking?.sourceSnippet).not.toMatch(clinician);
+    }
+  );
+
+  it("keeps Maya's burden and pending evaluation without inventing a diagnosis", () => {
+    const profile = {
+      childFirstName: "Maya",
+      birthYear: 2016,
+      schoolStage: "elementary" as const,
+      county: "Fayette",
+      diagnoses: []
+    };
+    const result = extractFamilyInterviewMock(L03_TEXT, profile, FIXED_NOW, "en");
+
+    expect(result.domains.map(({ domain }) => domain)).toEqual(["school_iep"]);
+    expect(result.facts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Grade", sourceSnippet: "fifth grade" }),
+        expect.objectContaining({
+          label: "Impact on daily life",
+          sourceSnippet: "Reading and homework take hours"
+        }),
+        expect.objectContaining({
+          label: "Evaluation status",
+          sourceSnippet: "we are waiting for an evaluation."
+        })
+      ])
+    );
+    expect(
+      result.facts.filter(({ label }) =>
+        ["Impact on daily life", "Evaluation status"].includes(label)
+      )
+    ).toHaveLength(2);
+    expect(result.facts.some(({ label }) => label === "Reported diagnosis")).toBe(false);
+    expect(
+      result.facts.every(({ sourceSnippet }) => L03_TEXT.includes(sourceSnippet))
+    ).toBe(true);
+  });
+
+  it("keeps Spanish functional burden and pending-evaluation evidence", () => {
+    const text =
+      "La lectura y la tarea toman horas, y estamos esperando una evaluación.";
+    const result = extractFamilyInterviewMock(
+      text,
+      {
+        childFirstName: "Maya",
+        birthYear: 2016,
+        schoolStage: "elementary",
+        county: "Fayette",
+        diagnoses: []
+      },
+      FIXED_NOW,
+      "es"
+    );
+
+    expect(result.domains.map(({ domain }) => domain)).toEqual(["school_iep"]);
+    expect(result.facts).toEqual([
+      {
+        label: "Impacto en la vida diaria",
+        value: "Las tareas escolares están tomando mucho tiempo",
+        sourceSnippet: "La lectura y la tarea toman horas"
+      },
+      {
+        label: "Estado de la evaluación",
+        value: "Esperando una evaluación",
+        sourceSnippet: "estamos esperando una evaluación."
+      }
+    ]);
+  });
+
+  it.each([
+    [
+      "The evaluation is not yet completed.",
+      "en",
+      "Evaluation status"
+    ],
+    [
+      "La evaluación todavía no se ha completado.",
+      "es",
+      "Estado de la evaluación"
+    ],
+    [
+      "The evaluation has not yet been completed.",
+      "en",
+      "Evaluation status"
+    ],
+    [
+      "La evaluación aún no se ha completado.",
+      "es",
+      "Estado de la evaluación"
+    ],
+    [
+      "The paperwork is not yet completed.",
+      "en",
+      null
+    ],
+    [
+      "El formulario todavía no se ha completado.",
+      "es",
+      null
+    ]
+  ] as const)(
+    "recognizes an evaluation that is not yet completed: %s",
+    (text, language, expectedLabel) => {
+      const result = extractFamilyInterviewMock(
+        text,
+        schoolAgeFamilyState.profile!,
+        FIXED_NOW,
+        language
+      );
+      const evaluationLabels = new Set([
+        "Evaluation status",
+        "Estado de la evaluación"
+      ]);
+      expect(
+        result.facts.some(({ label }) => evaluationLabels.has(label))
+      ).toBe(expectedLabel !== null);
+      if (expectedLabel !== null) {
+        expect(result.facts.map(({ label }) => label)).toEqual([expectedLabel]);
+      }
+      expect(
+        result.domains.some(({ domain }) => domain === "school_iep")
+      ).toBe(expectedLabel !== null);
+    }
+  );
+
   it("extracts an explicit grade and diagnosis plus a school concern quoted from the caregiver", () => {
     const profile = schoolAgeFamilyState.profile;
     expect(profile).not.toBeNull();

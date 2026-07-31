@@ -134,6 +134,10 @@ export type FamilyStringKey =
   | "domainRationaleTitle"
   | "factGradeLabel"
   | "factReportedDiagnosisLabel"
+  | "factFunctionalBurdenLabel"
+  | "factFunctionalBurdenValue"
+  | "factPendingEvaluationLabel"
+  | "factPendingEvaluationValue"
   | "factConcernSchoolLabel"
   | "factConcernSchoolValue"
   | "factConcernSpeechLabel"
@@ -541,6 +545,10 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     domainRationaleTitle: "Why we are showing this",
     factGradeLabel: "Grade",
     factReportedDiagnosisLabel: "Reported diagnosis",
+    factFunctionalBurdenLabel: "Impact on daily life",
+    factFunctionalBurdenValue: "Schoolwork is taking substantial time",
+    factPendingEvaluationLabel: "Evaluation status",
+    factPendingEvaluationValue: "Waiting for an evaluation",
     factConcernSchoolLabel: "About school and learning",
     factConcernSchoolValue: "School and learning may need support",
     factConcernSpeechLabel: "About talking",
@@ -951,6 +959,10 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     domainRationaleTitle: "Por qué te mostramos esto",
     factGradeLabel: "Grado",
     factReportedDiagnosisLabel: "Diagnóstico informado",
+    factFunctionalBurdenLabel: "Impacto en la vida diaria",
+    factFunctionalBurdenValue: "Las tareas escolares están tomando mucho tiempo",
+    factPendingEvaluationLabel: "Estado de la evaluación",
+    factPendingEvaluationValue: "Esperando una evaluación",
     factConcernSchoolLabel: "Sobre la escuela y el aprendizaje",
     factConcernSchoolValue: "La escuela y el aprendizaje podrían necesitar apoyo",
     factConcernSpeechLabel: "Sobre el habla",

@@ -58,6 +58,84 @@ export type FamilyInterviewDomain = z.infer<typeof familyInterviewDomainSchema>;
 export type FamilyFollowUp = z.infer<typeof familyFollowUpSchema>;
 export type FamilyInterviewResult = z.infer<typeof familyInterviewResultSchema>;
 
+export type FamilyNarrativeSupport = "supported" | "excluded_only" | "absent";
+export type FamilyNarrativeTarget =
+  | "early_intervention"
+  | "therapies"
+  | "school_iep";
+
+export type FamilyNarrativeAnalysis = {
+  facts: FamilyInterviewFact[];
+  targetFacts: Record<"therapies" | "school_iep", FamilyInterviewFact[]>;
+  support: Record<FamilyNarrativeTarget, FamilyNarrativeSupport>;
+};
+
+export type FamilyNarrativeContext = {
+  rawText: string;
+  profile: FamilyProfile;
+  language: Language;
+  now: Date;
+};
+
+type NarrativeActor = "child" | "caregiver" | "clinician" | "unclear";
+type ServiceStatus =
+  | "current"
+  | "historical"
+  | "resolved"
+  | "recommended"
+  | "requested"
+  | "replacement"
+  | "unavailable"
+  | "inaccessible"
+  | "lost"
+  | "insufficient"
+  | "none";
+type EvidenceRole =
+  | "regression"
+  | "functional_burden"
+  | "pending_evaluation"
+  | "observation"
+  | "other_concern"
+  | "professional_recommendation"
+  | "caregiver_accessibility"
+  | "positive_change";
+type NarrativeConcernTarget =
+  | "regression"
+  | "speech"
+  | "motor"
+  | "therapy_service"
+  | "school_learning"
+  | "evaluation"
+  | "behavior";
+type NarrativeSegment = {
+  text: string;
+  start: number;
+  end: number;
+  sentenceText: string;
+  sentenceStart: number;
+  order: number;
+};
+type EvidenceCandidate = {
+  target: NarrativeConcernTarget;
+  actor: NarrativeActor;
+  serviceStatus: ServiceStatus;
+  earlyInterventionEligible: boolean;
+  role: EvidenceRole;
+  disposition: "supported" | "excluded";
+  segment: NarrativeSegment;
+  factKeys: {
+    labelKey: FamilyStringKey;
+    valueKey: FamilyStringKey;
+  } | null;
+};
+type FamilyNarrativeComputation = FamilyNarrativeAnalysis & {
+  supportByConcern: Record<
+    NarrativeConcernTarget,
+    FamilyNarrativeSupport
+  >;
+  factsByConcern: Record<NarrativeConcernTarget, FamilyInterviewFact[]>;
+};
+
 const DOMAIN_ORDER: readonly DevNeedDomain[] = [
   "early_intervention",
   "therapies",
@@ -235,12 +313,92 @@ const CONCERN_CATEGORIES: readonly ConcernCategory[] = [
 const CONCERN_FACT_LIMIT = 2;
 const CONCERN_SNIPPET_MAX = 160;
 
+type NarrativeSentence = {
+  text: string;
+  start: number;
+  end: number;
+};
+
+const SENTENCE_BOUNDARY = /(?<=[.!?])\s+|\n+/gu;
+const CLAUSE_BOUNDARY = /,\s+(?:but|and|pero|y)\s+/giu;
+
+function trimNarrativeSpan(
+  source: string,
+  start: number,
+  end: number
+): NarrativeSentence | null {
+  const raw = source.slice(start, end);
+  const leading = raw.match(/^\s*/u)?.[0].length ?? 0;
+  const trailing = raw.match(/\s*$/u)?.[0].length ?? 0;
+  const trimmedStart = start + leading;
+  const trimmedEnd = end - trailing;
+  return trimmedStart < trimmedEnd
+    ? {
+        text: source.slice(trimmedStart, trimmedEnd),
+        start: trimmedStart,
+        end: trimmedEnd
+      }
+    : null;
+}
+
+function sentenceSpans(text: string): NarrativeSentence[] {
+  const sentences: NarrativeSentence[] = [];
+  let cursor = 0;
+  for (const boundary of text.matchAll(SENTENCE_BOUNDARY)) {
+    const boundaryStart = boundary.index ?? cursor;
+    const span = trimNarrativeSpan(text, cursor, boundaryStart);
+    if (span) sentences.push(span);
+    cursor = boundaryStart + boundary[0].length;
+  }
+  const finalSpan = trimNarrativeSpan(text, cursor, text.length);
+  if (finalSpan) sentences.push(finalSpan);
+  return sentences;
+}
+
+function narrativeSegments(text: string): NarrativeSegment[] {
+  let order = 0;
+  return sentenceSpans(text).flatMap((sentence) => {
+    const segments: NarrativeSegment[] = [];
+    let cursor = 0;
+    for (const boundary of sentence.text.matchAll(CLAUSE_BOUNDARY)) {
+      const boundaryStart = boundary.index ?? cursor;
+      const span = trimNarrativeSpan(
+        text,
+        sentence.start + cursor,
+        sentence.start + boundaryStart
+      );
+      if (span) {
+        segments.push({
+          ...span,
+          sentenceText: sentence.text,
+          sentenceStart: sentence.start,
+          order
+        });
+        order += 1;
+      }
+      cursor = boundaryStart + boundary[0].length;
+    }
+    const finalSpan = trimNarrativeSpan(
+      text,
+      sentence.start + cursor,
+      sentence.end
+    );
+    if (finalSpan) {
+      segments.push({
+        ...finalSpan,
+        sentenceText: sentence.text,
+        sentenceStart: sentence.start,
+        order
+      });
+      order += 1;
+    }
+    return segments;
+  });
+}
+
 /** Splits into sentences whose text stays a literal substring of the original. */
 function splitSentences(text: string): string[] {
-  return text
-    .split(/(?<=[.!?])\s+|\n+/u)
-    .map((sentence) => sentence.trim())
-    .filter((sentence) => sentence.length > 0);
+  return sentenceSpans(text).map(({ text: sentence }) => sentence);
 }
 
 /** Shortens at a word boundary so the snippet remains verbatim caregiver text. */
@@ -253,6 +411,104 @@ function clampSnippet(sentence: string): string {
 
 const GRADE = /\b(?:kindergarten|(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|\d{1,2}(?:st|nd|rd|th))\s+grade|grade\s+(?:[1-9]|1[0-2]))\b/i;
 const SPANISH_GRADE = /\b(?:(?:primer|primero|segundo|tercer|tercero|cuarto|quinto|sexto|s[eé]ptimo|octavo|noveno|d[eé]cimo|und[eé]cimo|duod[eé]cimo|\d{1,2}(?:\.?º|\.?ª)?)\s+grado|grado\s+(?:[1-9]|1[0-2]))\b/iu;
+
+const FUNCTIONAL_BURDEN_CUES: Record<Language, RegExp> = {
+  en: /(?=.*\b(?:read\w*|homework|schoolwork)\b)(?=.*\b(?:takes?\s+hours?|hours?\s+(?:every|each)\s+(?:day|night)|all\s+(?:day|night))\b)/iu,
+  es: /(?=.*\b(?:lectura|leer|tarea|trabajo\s+escolar)\b)(?=.*\b(?:toma(?:n)?\s+horas?|horas?\s+cada\s+(?:d[ií]a|noche)|todo\s+el\s+(?:d[ií]a|tiempo))\b)/iu
+};
+
+const PENDING_EVALUATION_CUES: Record<Language, RegExp> = {
+  en: /\b(?:wait(?:ing)?\s+for|pending|has\s+not(?:\s+yet)?\s+(?:happened|been\s+completed)|not\s+(?:yet\s+)?completed)\b[^.!?]{0,60}\b(?:evaluation|assessment|testing)\b|\b(?:evaluation|assessment|testing)\b[^.!?]{0,60}\b(?:pending|has\s+not(?:\s+yet)?\s+(?:happened|been\s+completed)|(?:is\s+)?not\s+(?:yet\s+)?completed)\b/iu,
+  es: /\b(?:esperando|esperamos|pendiente|no\s+se\s+ha\s+hecho|no\s+se\s+ha\s+completado)\b[^.!?]{0,60}\b(?:evaluaci[oó]n|valoraci[oó]n|pruebas?)\b|\b(?:evaluaci[oó]n|valoraci[oó]n|pruebas?)\b[^.!?]{0,60}\b(?:pendiente|(?:(?:todav[ií]a|a[uú]n)\s+)?no\s+se\s+ha\s+completado)\b/iu
+};
+
+const LIMITED_LANGUAGE_CONTEXT: Record<Language, RegExp> = {
+  en: /\b(?:not\s+much\s+else|only\s+(?:says?\s+)?(?:a\s+)?few\s+words?|few\s+words?|cannot\s+tell\s+us|can'?t\s+tell\s+us)\b/iu,
+  es: /\b(?:nada\s+m[aá]s|solo\s+dice\s+unas?\s+pocas?\s+palabras?|pocas?\s+palabras?|no\s+puede\s+decir(?:nos|\s+lo))\b/iu
+};
+
+const ELLIPTICAL_LIMITED_LANGUAGE_CONTEXT: Record<Language, RegExp> = {
+  en: /^(?:not\s+much\s+else|(?:only\s+)?(?:a\s+)?few\s+words?)[.!?]?$/iu,
+  es: /^(?:nada\s+m[aá]s|(?:solo\s+)?unas?\s+pocas?\s+palabras?)[.!?]?$/iu
+};
+
+type DirectConcernDefinition = {
+  target: Exclude<
+    NarrativeConcernTarget,
+    "regression" | "therapy_service" | "evaluation"
+  >;
+  labelKey: FamilyStringKey;
+  valueKey: FamilyStringKey;
+  earlyInterventionEligible: boolean;
+};
+
+const DIRECT_CONCERN_DEFINITIONS: readonly DirectConcernDefinition[] = [
+  {
+    target: "school_learning",
+    labelKey: "factConcernSchoolLabel",
+    valueKey: "factConcernSchoolValue",
+    earlyInterventionEligible: false
+  },
+  {
+    target: "speech",
+    labelKey: "factConcernSpeechLabel",
+    valueKey: "factConcernSpeechValue",
+    earlyInterventionEligible: true
+  },
+  {
+    target: "behavior",
+    labelKey: "factConcernBehaviorLabel",
+    valueKey: "factConcernBehaviorValue",
+    earlyInterventionEligible: false
+  },
+  {
+    target: "motor",
+    labelKey: "factConcernMotorLabel",
+    valueKey: "factConcernMotorValue",
+    earlyInterventionEligible: true
+  }
+];
+
+const CHILD_SAY_CUES: Record<Language, RegExp> = {
+  en: /\b(?:say|says|saying)\b/iu,
+  es: /\b(?:dice|diciendo)\b/iu
+};
+
+const SPEECH_REGRESSION_TARGET_CUES: Record<Language, RegExp> = {
+  en: /(?:stopped\s+(?:saying|talking|speaking|babbling)\b|lost\s+(?:words?|speech|language|the\s+words?|his\s+words?|her\s+words?)\b|used\s+to\s+(?:say|talk|speak|babble)\b[^.]{0,40}?(?:no\s+longer|doesn'?t|does\s+not|don'?t|won'?t|can'?t|stopped|quit)|no\s+longer\s+(?:says?|talks?|speaks?|babbles?)\b|forgot\s+how\s+to\s+(?:say|talk|speak)\b)/iu,
+  es: /(?:dej(?:[oó]|[eé])\s+de\s+(?:hablar|decir)\b|perd(?:i[oó]|[ií])\s+(?:palabras|habla|lenguaje|las\s+palabras)\b|antes\s+(?:hablaba|dec[ií]a)\b[^.]{0,40}?ya\s+no\b|ya\s+no\s+(?:habla|dice)\b|olvid(?:[oó]|[eé])\s+c[oó]mo\s+(?:hablar|decir)\b)/iu
+};
+
+const MOTOR_REGRESSION_TARGET_CUES: Record<Language, RegExp> = {
+  en: /(?:stopped\s+(?:walking|crawling)\b|used\s+to\s+(?:walk|crawl)\b[^.]{0,40}?(?:no\s+longer|doesn'?t|does\s+not|don'?t|won'?t|can'?t|stopped|quit)|no\s+longer\s+(?:walks?|crawls?)\b|forgot\s+how\s+to\s+(?:walk|crawl|climb\s+(?:the\s+)?stairs?|balance|use\s+(?:his|her|their)\s+grip)\b)/iu,
+  es: /(?:dej(?:[oó]|[eé])\s+de\s+(?:caminar|gatear)\b|antes\s+caminaba\b[^.]{0,40}?ya\s+no\b|ya\s+no\s+camina\b|olvid(?:[oó]|[eé])\s+c[oó]mo\s+(?:caminar|gatear|subir\s+(?:las?\s+)?escaleras?|mantener\s+el\s+equilibrio|agarrar)\b)/iu
+};
+
+const THERAPY_LANGUAGE: Record<Language, RegExp> = {
+  en: /\b(?:(?:speech|occupational|physical|behavioral)\s+)?therap(?:y|ies|ist)\b|\bOT\b/iu,
+  es: /\bterapia(?:s)?(?:\s+(?:del\s+habla|ocupacional|f[ií]sica|conductual))?\b|\bterapeuta\b/iu
+};
+
+const SPEECH_THERAPY_LANGUAGE: Record<Language, RegExp> = {
+  en: /\bspeech\s+therap(?:y|ies|ist)\b/iu,
+  es: /\bterapia(?:s)?\s+del\s+habla\b/iu
+};
+
+const CLINICIAN_STATEMENT_CUES: Record<Language, RegExp> = {
+  en: /\b(?:doctor|pediatrician|therapist|clinician|provider)\b[^.!?]{0,60}\b(?:said|says?|told|thinks?|recommended?|suggested?)\b/iu,
+  es: /\b(?:doctor|doctora|pediatra|terapeuta|profesional|proveedor)\b[^.!?]{0,60}\b(?:dijo|dice|coment[oó]|piensa|recomend[oó]|sugiri[oó])\b/iu
+};
+
+const EVIDENCE_PRIORITY: Record<EvidenceRole, number> = {
+  regression: 0,
+  functional_burden: 1,
+  pending_evaluation: 1,
+  observation: 2,
+  other_concern: 3,
+  professional_recommendation: 4,
+  caregiver_accessibility: 5,
+  positive_change: 5
+};
 
 export function parseFamilyInterviewPayload(payload: unknown): FamilyInterviewResult | null {
   const parsed = familyInterviewResultSchema.safeParse(payload);
@@ -313,11 +569,19 @@ function diagnosisStatement(profile: FamilyProfile, language: Language): RegExp 
   );
 }
 
-function extractExplicitFacts(text: string, profile: FamilyProfile, language: Language): FamilyInterviewFact[] {
+function extractProfileFacts(
+  text: string,
+  profile: FamilyProfile,
+  language: Language
+): FamilyInterviewFact[] {
   const facts: FamilyInterviewFact[] = [];
   const grade = text.match(language === "es" ? SPANISH_GRADE : GRADE)?.[0];
   if (grade) {
-    facts.push({ label: tFamily(language, "factGradeLabel"), value: grade, sourceSnippet: grade });
+    facts.push({
+      label: tFamily(language, "factGradeLabel"),
+      value: grade,
+      sourceSnippet: grade
+    });
   }
 
   const diagnosis = text.match(diagnosisStatement(profile, language));
@@ -329,20 +593,428 @@ function extractExplicitFacts(text: string, profile: FamilyProfile, language: La
     });
   }
 
-  const sentences = splitSentences(text);
-  let concernsAdded = 0;
-  for (const { labelKey, valueKey, patterns } of CONCERN_CATEGORIES) {
-    if (concernsAdded === CONCERN_FACT_LIMIT) break;
-    const sentence = sentences.find((candidate) => patterns[language].test(candidate));
-    if (!sentence) continue;
-    facts.push({
-      label: tFamily(language, labelKey),
-      value: tFamily(language, valueKey),
-      sourceSnippet: clampSnippet(sentence)
-    });
-    concernsAdded += 1;
-  }
   return facts;
+}
+
+function concernPattern(
+  labelKey: FamilyStringKey,
+  language: Language
+): RegExp | null {
+  return (
+    CONCERN_CATEGORIES.find(
+      (category) => category.labelKey === labelKey
+    )?.patterns[language] ?? null
+  );
+}
+
+function regressionConcernTarget(
+  text: string,
+  language: Language
+): Extract<NarrativeConcernTarget, "regression" | "speech" | "motor"> {
+  if (MOTOR_REGRESSION_TARGET_CUES[language].test(text)) return "motor";
+  if (SPEECH_REGRESSION_TARGET_CUES[language].test(text)) return "speech";
+  return "regression";
+}
+
+function sentenceSegment(
+  sentence: NarrativeSentence,
+  order: number
+): NarrativeSegment {
+  return {
+    ...sentence,
+    sentenceText: sentence.text,
+    sentenceStart: sentence.start,
+    order
+  };
+}
+
+function evidenceCandidate(
+  segment: NarrativeSegment,
+  target: NarrativeConcernTarget,
+  actor: NarrativeActor,
+  serviceStatus: ServiceStatus,
+  role: EvidenceRole,
+  disposition: "supported" | "excluded",
+  factKeys: EvidenceCandidate["factKeys"],
+  earlyInterventionEligible = false
+): EvidenceCandidate {
+  return {
+    target,
+    actor,
+    serviceStatus,
+    role,
+    disposition,
+    segment,
+    factKeys,
+    earlyInterventionEligible
+  };
+}
+
+function candidateFact(
+  candidate: EvidenceCandidate,
+  language: Language
+): FamilyInterviewFact | null {
+  if (!candidate.factKeys) return null;
+  return {
+    label: tFamily(language, candidate.factKeys.labelKey),
+    value: tFamily(language, candidate.factKeys.valueKey),
+    sourceSnippet: candidate.segment.text
+  };
+}
+
+type SelectedEvidence = {
+  candidate: EvidenceCandidate;
+  fact: FamilyInterviewFact;
+};
+
+function selectEvidence(
+  candidates: readonly EvidenceCandidate[],
+  language: Language
+): SelectedEvidence[] {
+  const seen = new Set<string>();
+  return [...candidates]
+    .filter(({ disposition }) => disposition === "supported")
+    .sort(
+      (left, right) =>
+        EVIDENCE_PRIORITY[left.role] - EVIDENCE_PRIORITY[right.role] ||
+        left.segment.start - right.segment.start
+    )
+    .flatMap((candidate) => {
+      const fact = candidateFact(candidate, language);
+      if (!fact) return [];
+      const identity = [
+        candidate.role,
+        fact.label,
+        fact.value,
+        fact.sourceSnippet
+      ]
+        .join("\u0000")
+        .toLocaleLowerCase();
+      if (seen.has(identity)) return [];
+      seen.add(identity);
+      return [{ candidate, fact }];
+    })
+    .slice(0, CONCERN_FACT_LIMIT);
+}
+
+function buildNarrativeCandidates(
+  text: string,
+  language: Language
+): EvidenceCandidate[] {
+  const candidates: EvidenceCandidate[] = [];
+  const sentences = sentenceSpans(text);
+  const segments = narrativeSegments(text);
+  const serviceSentences = new Set<number>();
+  const directTargets = new Set<NarrativeConcernTarget>();
+
+  for (const [index, sentence] of sentences.entries()) {
+    const whole = sentenceSegment(sentence, index);
+    if (REGRESSION_CUES[language].test(sentence.text)) {
+      const target = regressionConcernTarget(sentence.text, language);
+      candidates.push(
+        evidenceCandidate(
+          whole,
+          target,
+          "unclear",
+          "none",
+          "regression",
+          "supported",
+          {
+            labelKey: "factRegressionLabel",
+            valueKey: "factRegressionValue"
+          },
+          target !== "regression"
+        )
+      );
+    }
+    if (THERAPY_LANGUAGE[language].test(sentence.text)) {
+      serviceSentences.add(sentence.start);
+      candidates.push(
+        evidenceCandidate(
+          whole,
+          "therapy_service",
+          "unclear",
+          "none",
+          "other_concern",
+          "supported",
+          null,
+          SPEECH_THERAPY_LANGUAGE[language].test(sentence.text) ||
+            (concernPattern("factConcernSpeechLabel", language)?.test(
+              sentence.text
+            ) ??
+              false)
+        )
+      );
+    }
+  }
+
+  for (const [segmentIndex, segment] of segments.entries()) {
+    const burden = FUNCTIONAL_BURDEN_CUES[language].test(segment.text);
+    const pending = PENDING_EVALUATION_CUES[language].test(segment.text);
+    if (burden) {
+      candidates.push(
+        evidenceCandidate(
+          segment,
+          "school_learning",
+          "unclear",
+          "none",
+          "functional_burden",
+          "supported",
+          {
+            labelKey: "factFunctionalBurdenLabel",
+            valueKey: "factFunctionalBurdenValue"
+          }
+        )
+      );
+    }
+    if (pending) {
+      candidates.push(
+        evidenceCandidate(
+          segment,
+          "evaluation",
+          "unclear",
+          "none",
+          "pending_evaluation",
+          "supported",
+          {
+            labelKey: "factPendingEvaluationLabel",
+            valueKey: "factPendingEvaluationValue"
+          }
+        )
+      );
+    }
+
+    const nextSegment = segments[segmentIndex + 1];
+    const adjacentLimitedContext =
+      nextSegment !== undefined &&
+      nextSegment.sentenceStart === segment.sentenceStart &&
+      ELLIPTICAL_LIMITED_LANGUAGE_CONTEXT[language].test(
+        nextSegment.text
+      );
+    const limitedSpeech =
+      CHILD_SAY_CUES[language].test(segment.text) &&
+      (LIMITED_LANGUAGE_CONTEXT[language].test(segment.text) ||
+        adjacentLimitedContext);
+    if (limitedSpeech) {
+      candidates.push(
+        evidenceCandidate(
+          segment,
+          "speech",
+          "child",
+          "none",
+          "observation",
+          "supported",
+          {
+            labelKey: "factConcernSpeechLabel",
+            valueKey: "factConcernSpeechValue"
+          },
+          true
+        )
+      );
+      directTargets.add("speech");
+    }
+
+    for (const definition of DIRECT_CONCERN_DEFINITIONS) {
+      if (directTargets.has(definition.target)) continue;
+      if (
+        definition.target === "school_learning" &&
+        (burden || pending)
+      ) {
+        continue;
+      }
+      if (
+        (definition.target === "speech" ||
+          definition.target === "motor") &&
+        serviceSentences.has(segment.sentenceStart)
+      ) {
+        continue;
+      }
+      if (
+        definition.target === "speech" &&
+        limitedSpeech
+      ) {
+        continue;
+      }
+      const pattern = concernPattern(definition.labelKey, language);
+      if (!pattern?.test(segment.text)) continue;
+      const clinicianStatement =
+        CLINICIAN_STATEMENT_CUES[language].test(segment.text);
+      candidates.push(
+        evidenceCandidate(
+          segment,
+          definition.target,
+          clinicianStatement ? "clinician" : "unclear",
+          "none",
+          clinicianStatement
+            ? "professional_recommendation"
+            : "other_concern",
+          "supported",
+          {
+            labelKey: definition.labelKey,
+            valueKey: definition.valueKey
+          },
+          definition.earlyInterventionEligible
+        )
+      );
+      if (!clinicianStatement) {
+        directTargets.add(definition.target);
+      }
+    }
+  }
+  return candidates;
+}
+
+function candidatesFor(
+  candidates: readonly EvidenceCandidate[],
+  targets: readonly NarrativeConcernTarget[]
+): EvidenceCandidate[] {
+  const targetSet = new Set<NarrativeConcernTarget>(targets);
+  return candidates.filter(({ target }) => targetSet.has(target));
+}
+
+function aggregateNarrativeSupport(
+  candidates: readonly EvidenceCandidate[]
+): FamilyNarrativeSupport {
+  if (
+    candidates.some(({ disposition }) => disposition === "supported")
+  ) {
+    return "supported";
+  }
+  return candidates.length > 0 ? "excluded_only" : "absent";
+}
+
+function earlyInterventionSupport(
+  candidates: readonly EvidenceCandidate[],
+  profile: FamilyProfile,
+  now: Date
+): FamilyNarrativeSupport {
+  const therapySignals = candidatesFor(candidates, [
+    "speech",
+    "motor",
+    "therapy_service"
+  ]);
+  const actionable = therapySignals.some(
+    ({ disposition, earlyInterventionEligible }) =>
+      disposition === "supported" && earlyInterventionEligible
+  );
+  if (actionable && isConservativelyUnderThree(profile, now)) {
+    return "supported";
+  }
+  return therapySignals.length > 0 ? "excluded_only" : "absent";
+}
+
+function computeFamilyNarrative(
+  text: string,
+  profile: FamilyProfile,
+  now: Date,
+  language: Language
+): FamilyNarrativeComputation {
+  const candidates = buildNarrativeCandidates(text, language);
+  const selected = selectEvidence(candidates, language);
+  const supportByConcern: FamilyNarrativeComputation["supportByConcern"] = {
+    regression: aggregateNarrativeSupport(
+      candidates.filter(({ role }) => role === "regression")
+    ),
+    speech: aggregateNarrativeSupport(
+      candidatesFor(candidates, ["speech"])
+    ),
+    motor: aggregateNarrativeSupport(
+      candidatesFor(candidates, ["motor"])
+    ),
+    therapy_service: aggregateNarrativeSupport(
+      candidatesFor(candidates, ["therapy_service"])
+    ),
+    school_learning: aggregateNarrativeSupport(
+      candidatesFor(candidates, ["school_learning"])
+    ),
+    evaluation: aggregateNarrativeSupport(
+      candidatesFor(candidates, ["evaluation"])
+    ),
+    behavior: aggregateNarrativeSupport(
+      candidatesFor(candidates, ["behavior"])
+    )
+  };
+  const factsByConcern: FamilyNarrativeComputation["factsByConcern"] = {
+    regression: [],
+    speech: [],
+    motor: [],
+    therapy_service: [],
+    school_learning: [],
+    evaluation: [],
+    behavior: []
+  };
+  const targetFacts: FamilyNarrativeAnalysis["targetFacts"] = {
+    therapies: [],
+    school_iep: []
+  };
+
+  for (const { candidate, fact } of selected) {
+    factsByConcern[candidate.target].push(fact);
+    if (
+      candidate.role === "regression" &&
+      candidate.target !== "regression"
+    ) {
+      factsByConcern.regression.push(fact);
+    }
+    if (
+      candidate.target === "speech" ||
+      candidate.target === "motor" ||
+      candidate.target === "therapy_service"
+    ) {
+      targetFacts.therapies.push(fact);
+    }
+    if (
+      candidate.target === "school_learning" ||
+      candidate.target === "evaluation"
+    ) {
+      targetFacts.school_iep.push(fact);
+    }
+  }
+
+  return {
+    facts: [
+      ...extractProfileFacts(text, profile, language),
+      ...selected.map(({ fact }) => fact)
+    ],
+    targetFacts,
+    support: {
+      early_intervention: earlyInterventionSupport(
+        candidates,
+        profile,
+        now
+      ),
+      therapies: aggregateNarrativeSupport(
+        candidatesFor(candidates, [
+          "speech",
+          "motor",
+          "therapy_service"
+        ])
+      ),
+      school_iep: aggregateNarrativeSupport(
+        candidatesFor(candidates, [
+          "school_learning",
+          "evaluation"
+        ])
+      )
+    },
+    supportByConcern,
+    factsByConcern
+  };
+}
+
+export function analyzeFamilyNarrative(
+  text: string,
+  profile: FamilyProfile,
+  now: Date,
+  language: Language
+): FamilyNarrativeAnalysis {
+  const { facts, targetFacts, support } = computeFamilyNarrative(
+    text,
+    profile,
+    now,
+    language
+  );
+  return { facts, targetFacts, support };
 }
 
 export function extractFamilyInterviewMock(
@@ -352,21 +1024,16 @@ export function extractFamilyInterviewMock(
   language: Language = "en"
 ): FamilyInterviewResult {
   const matched = new Set<DevNeedDomain>();
-  const categoryMatches = (labelKey: FamilyStringKey): boolean => {
-    const category = CONCERN_CATEGORIES.find((candidate) => candidate.labelKey === labelKey);
-    return category ? category.patterns[language].test(text) : false;
-  };
-  const speechConcern = categoryMatches("factConcernSpeechLabel");
-  const motorConcern = categoryMatches("factConcernMotorLabel");
-  const therapyConcern =
-    language === "es" ? /\bterapias?\b/iu.test(text) : /\btherap(?:y|ies)\b/i.test(text);
-  if (speechConcern || therapyConcern || motorConcern) {
-    matched.add("therapies");
-    if ((speechConcern || motorConcern) && isConservativelyUnderThree(profile, now)) {
-      matched.add("early_intervention");
+  const analysis = analyzeFamilyNarrative(text, profile, now, language);
+  for (const domain of [
+    "early_intervention",
+    "therapies",
+    "school_iep"
+  ] satisfies FamilyNarrativeTarget[]) {
+    if (analysis.support[domain] === "supported") {
+      matched.add(domain);
     }
   }
-  if (categoryMatches("factConcernSchoolLabel")) matched.add("school_iep");
   const waiverConcern =
     language === "es"
       ? /\b(?:exenciones?|dinero|econ[oó]mic[oa]s?|pagar)\b/iu.test(text)
@@ -424,7 +1091,7 @@ export function extractFamilyInterviewMock(
   }));
 
   return {
-    facts: extractExplicitFacts(text, profile, language),
+    facts: analysis.facts,
     domains: sanitizedDomains,
     followUps: buildMockFollowUps(
       sanitizedDomains.map(({ domain }) => domain),
