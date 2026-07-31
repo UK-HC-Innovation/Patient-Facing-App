@@ -195,17 +195,17 @@ describe("healthReducer", () => {
     );
 
     expect(reconciled.family?.latestInterviewDomains).toEqual([
-      "early_intervention",
       "therapies",
       "transportation",
-      "parent_support"
+      "parent_support",
+      "early_intervention"
     ]);
     expect(reconciled.family?.activeDomains).toEqual([
       "respite",
-      "early_intervention",
       "therapies",
       "transportation",
-      "parent_support"
+      "parent_support",
+      "early_intervention"
     ]);
     expect(reconciled.family?.recommendations).toBeNull();
     expect(reconciled.family?.interviews).toEqual(seeded.family?.interviews);
@@ -324,6 +324,285 @@ describe("healthReducer", () => {
     expect(reanswered.family?.facts[0].status).toBe("patient_reported");
   });
 
+  it("keeps screen retractions through profile saves and permits a later interview re-addition", () => {
+    const profile = schoolAgeFamilyState.profile!;
+    const recommendations: FamilyRecommendationSet = {
+      interviewId: "orientation-1",
+      createdAt: "2026-07-01T12:00:00.000Z",
+      extraction: "mock",
+      heard: "School transitions are difficult.",
+      lead: "school_iep",
+      items: []
+    };
+    const seeded: AppState = {
+      ...demoState,
+      family: {
+        ...schoolAgeFamilyState,
+        profile,
+        latestInterviewDomains: ["school_iep", "parent_support"],
+        activeDomains: ["school_iep", "parent_support"],
+        recommendations
+      }
+    };
+
+    const retracted = healthReducer(seeded, {
+      type: "submitFamilyScreen",
+      answers: [
+        {
+          questionId: "family_school_iep",
+          domain: "school_iep",
+          response: "no"
+        }
+      ],
+      facts: [
+        {
+          id: "screen-school-no",
+          label: "Family need — School and IEP support",
+          value: "No need reported",
+          status: "patient_reported",
+          sourceSnippet:
+            "Do you want help with school supports, an ARC meeting, an IEP, or a 504 plan?"
+        }
+      ]
+    });
+    expect(retracted.family?.latestInterviewDomains).toEqual([
+      "parent_support"
+    ]);
+    expect(retracted.family?.activeDomains).toEqual([
+      "parent_support"
+    ]);
+    expect(retracted.family?.recommendations).toBeNull();
+
+    const profileSaved = healthReducer(retracted, {
+      type: "saveFamilyProfile",
+      profile,
+      deterministicDomains: ["school_iep", "parent_support"]
+    });
+    expect(profileSaved.family?.latestInterviewDomains).toEqual([
+      "parent_support"
+    ]);
+    expect(profileSaved.family?.activeDomains).toEqual([
+      "parent_support"
+    ]);
+
+    const readded = healthReducer(profileSaved, {
+      type: "addFamilyInterview",
+      interview: {
+        id: "checkin-readd-school",
+        rawText: "We need school support again.",
+        source: "typed",
+        createdAt: "2026-07-30T12:00:00.000Z",
+        extraction: "mock",
+        kind: "checkin"
+      },
+      facts: [],
+      domains: ["school_iep"]
+    });
+    expect(readded.family?.latestInterviewDomains).toEqual([
+      "parent_support",
+      "school_iep"
+    ]);
+    expect(readded.family?.activeDomains).toEqual([
+      "parent_support",
+      "school_iep"
+    ]);
+
+    const savedAgain = healthReducer(readded, {
+      type: "saveFamilyProfile",
+      profile,
+      deterministicDomains: ["school_iep"]
+    });
+    expect(savedAgain.family?.latestInterviewDomains).toEqual([
+      "parent_support",
+      "school_iep"
+    ]);
+    expect(savedAgain.family?.activeDomains).toEqual([
+      "parent_support",
+      "school_iep"
+    ]);
+  });
+
+  it("preserves recommendations for declined or reordered-equivalent screens", () => {
+    const recommendations: FamilyRecommendationSet = {
+      interviewId: "orientation-1",
+      createdAt: "2026-07-01T12:00:00.000Z",
+      extraction: "mock",
+      heard: "School help and respite would be useful.",
+      lead: "school_iep",
+      items: []
+    };
+    const declinedSeed: AppState = {
+      ...demoState,
+      family: {
+        ...schoolAgeFamilyState,
+        latestInterviewDomains: ["school_iep", "parent_support"],
+        activeDomains: ["school_iep", "parent_support"],
+        recommendations
+      }
+    };
+    const declined = healthReducer(declinedSeed, {
+      type: "submitFamilyScreen",
+      answers: [
+        {
+          questionId: "family_school_iep",
+          domain: "school_iep",
+          response: "declined"
+        }
+      ],
+      facts: []
+    });
+    expect(declined.family?.latestInterviewDomains).toEqual([
+      "school_iep",
+      "parent_support"
+    ]);
+    expect(declined.family?.recommendations).toBe(recommendations);
+
+    const reorderedSeed: AppState = {
+      ...declinedSeed,
+      family: {
+        ...declinedSeed.family!,
+        latestInterviewDomains: ["school_iep"],
+        activeDomains: ["school_iep", "respite"],
+        recommendations
+      }
+    };
+    const reordered = healthReducer(reorderedSeed, {
+      type: "submitFamilyScreen",
+      answers: [
+        {
+          questionId: "family_respite",
+          domain: "respite",
+          response: "yes"
+        }
+      ],
+      facts: []
+    });
+    expect(reordered.family?.activeDomains).toEqual([
+      "respite",
+      "school_iep"
+    ]);
+    expect(reordered.family?.recommendations).toBe(recommendations);
+  });
+
+  it("clears recommendations when a screen changes active domains", () => {
+    const recommendations: FamilyRecommendationSet = {
+      interviewId: "orientation-1",
+      createdAt: "2026-07-01T12:00:00.000Z",
+      extraction: "mock",
+      heard: "School help would be useful.",
+      lead: "school_iep",
+      items: []
+    };
+    const seeded: AppState = {
+      ...demoState,
+      family: {
+        ...schoolAgeFamilyState,
+        latestInterviewDomains: ["school_iep"],
+        activeDomains: ["school_iep"],
+        recommendations
+      }
+    };
+    const changed = healthReducer(seeded, {
+      type: "submitFamilyScreen",
+      answers: [
+        {
+          questionId: "family_school_iep",
+          domain: "school_iep",
+          response: "no"
+        }
+      ],
+      facts: []
+    });
+
+    expect(changed.family?.activeDomains).toEqual([]);
+    expect(changed.family?.recommendations).toBeNull();
+  });
+
+  it("preserves profile recommendations only when needs and profile identity are unchanged", () => {
+    const recommendations: FamilyRecommendationSet = {
+      interviewId: "orientation-1",
+      createdAt: "2026-07-01T12:00:00.000Z",
+      extraction: "mock",
+      heard: "School help would be useful.",
+      lead: "school_iep",
+      items: []
+    };
+    const seeded: AppState = {
+      ...demoState,
+      family: {
+        ...schoolAgeFamilyState,
+        latestInterviewDomains: ["school_iep"],
+        activeDomains: ["school_iep"],
+        screenAnswers: [],
+        recommendations
+      }
+    };
+    const unchanged = healthReducer(seeded, {
+      type: "saveFamilyProfile",
+      profile: seeded.family!.profile!,
+      deterministicDomains: ["school_iep"]
+    });
+    expect(unchanged.family?.activeDomains).toEqual(["school_iep"]);
+    expect(unchanged.family?.recommendations).toBe(recommendations);
+
+    const changed = healthReducer(seeded, {
+      type: "saveFamilyProfile",
+      profile: seeded.family!.profile!,
+      deterministicDomains: ["school_iep", "therapies"]
+    });
+    expect(changed.family?.activeDomains).toEqual([
+      "school_iep",
+      "therapies"
+    ]);
+    expect(changed.family?.recommendations).toBeNull();
+
+    const changedCounty = healthReducer(seeded, {
+      type: "saveFamilyProfile",
+      profile: {
+        ...seeded.family!.profile!,
+        county: "Pike"
+      },
+      deterministicDomains: ["school_iep"]
+    });
+    expect(changedCounty.family?.activeDomains).toEqual([
+      "school_iep"
+    ]);
+    expect(changedCounty.family?.recommendations).toBeNull();
+  });
+
+  it("clears recommendations when diagnosis timing changes", () => {
+    const recommendations: FamilyRecommendationSet = {
+      interviewId: "orientation-1",
+      createdAt: "2026-07-01T12:00:00.000Z",
+      extraction: "mock",
+      heard: "Diagnosis guidance would be useful.",
+      lead: "diagnosis_education",
+      items: []
+    };
+    const seeded: AppState = {
+      ...demoState,
+      family: {
+        ...schoolAgeFamilyState,
+        recommendations
+      }
+    };
+    const before = seeded.family!.profile!.diagnoses.map(
+      ({ diagnosedAt }) => diagnosedAt
+    );
+    const changed = healthReducer(seeded, {
+      type: "backdateFamilyDiagnoses",
+      monthsAgo: 6,
+      now: "2026-07-30T12:00:00.000Z"
+    });
+
+    expect(
+      changed.family?.profile?.diagnoses.map(
+        ({ diagnosedAt }) => diagnosedAt
+      )
+    ).not.toEqual(before);
+    expect(changed.family?.recommendations).toBeNull();
+  });
+
   it("appends interviews, clears the draft, and replaces the latest interview domains", () => {
     const seeded: AppState = { ...demoState, family: schoolAgeFamilyState };
     const firstInterview: FamilyInterview = {
@@ -343,7 +622,12 @@ describe("healthReducer", () => {
     const drafted = healthReducer(first, { type: "setFamilyInterviewDraft", draft: "We need speech therapy." });
     const second = healthReducer(drafted, {
       type: "addFamilyInterview",
-      interview: { ...firstInterview, id: "interview-2", rawText: "We need speech therapy." },
+      interview: {
+        ...firstInterview,
+        id: "interview-2",
+        rawText: "We need speech therapy.",
+        kind: "note"
+      },
       facts: [],
       domains: ["therapies"]
     });
@@ -353,6 +637,104 @@ describe("healthReducer", () => {
     expect(second.family?.latestInterviewDomains).toEqual(["therapies"]);
     expect(second.family?.activeDomains).toContain("therapies");
     expect(second.family?.activeDomains).not.toContain("school_iep");
+  });
+
+  it("stably unions check-in domains with established interview needs", () => {
+    const existingFact: FamilyFact = {
+      id: "fact-school",
+      interviewId: "orientation-1",
+      label: "About school and learning",
+      value: "School and learning may need support",
+      status: "patient_reported",
+      sourceSnippet: "transitions are difficult"
+    };
+    const recommendations: FamilyRecommendationSet = {
+      interviewId: "orientation-1",
+      createdAt: "2026-07-01T12:00:00.000Z",
+      extraction: "mock",
+      heard: "transitions are difficult",
+      lead: "school_iep",
+      items: []
+    };
+    const seeded: AppState = {
+      ...demoState,
+      family: {
+        ...schoolAgeFamilyState,
+        latestInterviewDomains: ["school_iep", "parent_support"],
+        activeDomains: ["school_iep", "parent_support"],
+        facts: [existingFact],
+        recommendations
+      }
+    };
+    const next = healthReducer(seeded, {
+      type: "addFamilyInterview",
+      interview: {
+        id: "checkin-1",
+        rawText: "The transitions are still difficult.",
+        source: "typed",
+        createdAt: "2026-07-30T12:00:00.000Z",
+        extraction: "mock",
+        kind: "checkin"
+      },
+      facts: [
+        { ...existingFact, id: "fact-school-again" },
+        {
+          id: "fact-grade",
+          label: "Grade",
+          value: "fourth grade",
+          status: "patient_reported",
+          sourceSnippet: "fourth grade"
+        }
+      ],
+      domains: ["school_iep"]
+    });
+
+    expect(next.family?.latestInterviewDomains).toEqual([
+      "school_iep",
+      "parent_support"
+    ]);
+    expect(next.family?.activeDomains).toEqual([
+      "school_iep",
+      "parent_support"
+    ]);
+    expect(next.family?.latestInterviewDomains).not.toContain(
+      "therapies"
+    );
+    expect(next.family?.facts.map(({ id }) => id)).toEqual([
+      "fact-school",
+      "fact-grade"
+    ]);
+    expect(next.family?.recommendations).toBeNull();
+  });
+
+  it("appends new check-in domains after established needs", () => {
+    const seeded: AppState = {
+      ...demoState,
+      family: {
+        ...schoolAgeFamilyState,
+        latestInterviewDomains: ["school_iep", "parent_support"],
+        activeDomains: ["school_iep", "parent_support"]
+      }
+    };
+    const additive = healthReducer(seeded, {
+      type: "addFamilyInterview",
+      interview: {
+        id: "checkin-2",
+        rawText: "We still need therapy.",
+        source: "typed",
+        createdAt: "2026-07-30T12:05:00.000Z",
+        extraction: "mock",
+        kind: "checkin"
+      },
+      facts: [],
+      domains: ["therapies", "school_iep"]
+    });
+
+    expect(additive.family?.latestInterviewDomains).toEqual([
+      "school_iep",
+      "parent_support",
+      "therapies"
+    ]);
   });
 
   it("keeps one copy of a fact a later round re-extracted from the same words", () => {
@@ -1043,7 +1425,7 @@ describe("healthReducer", () => {
   });
 
   it("returns the retinopathy-due demo state for a plain resetDemo action", () => {
-    const modifiedState = {
+    const modifiedState: AppState = {
       ...demoState,
       readings: [
         {
@@ -1071,7 +1453,7 @@ describe("healthReducer", () => {
   });
 
   it("deletes demo data without reseeding personal demo content", () => {
-    const modifiedState = {
+    const modifiedState: AppState = {
       ...demoState,
       readings: [
         {

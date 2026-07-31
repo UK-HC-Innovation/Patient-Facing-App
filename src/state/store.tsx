@@ -16,7 +16,10 @@ import {
   type FamilyDiagnosisBackdateMonths
 } from "@/domain/family-stages";
 import { getFamilyResourceById } from "@/domain/family-resources";
-import { mergeFamilyDomains } from "@/domain/family-screen";
+import {
+  applyFamilyScreenRetractions,
+  mergeFamilyDomains
+} from "@/domain/family-screen";
 import { PACKET_QUESTIONS } from "@/domain/family-visit-packet";
 import {
   BARRIER_DOMAINS,
@@ -205,6 +208,41 @@ function isNonblank(value: string): boolean {
 function isExactIsoTimestamp(value: string): boolean {
   const timestamp = new Date(value);
   return Number.isFinite(timestamp.valueOf()) && timestamp.toISOString() === value;
+}
+
+function sameDomainSet(
+  left: readonly DevNeedDomain[],
+  right: readonly DevNeedDomain[]
+): boolean {
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+  return (
+    leftSet.size === rightSet.size &&
+    [...leftSet].every((domain) => rightSet.has(domain))
+  );
+}
+
+function recommendationProfileIdentity(
+  profile: FamilyProfile | null
+): string {
+  if (!profile) return "none";
+  const diagnoses = profile.diagnoses
+    .map(({ label, otherLabel, diagnosedAt }) =>
+      [
+        label,
+        otherLabel?.trim().toLocaleLowerCase() ?? "",
+        diagnosedAt ?? ""
+      ].join("\u0000")
+    )
+    .sort();
+  return JSON.stringify({
+    childFirstName: profile.childFirstName?.trim() ?? "",
+    birthYear: profile.birthYear,
+    birthMonth: profile.birthMonth ?? null,
+    schoolStage: profile.schoolStage,
+    county: profile.county.trim().toLocaleLowerCase(),
+    diagnoses
+  });
 }
 
 function withStepStatus(
@@ -876,17 +914,36 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
           family: family ? { ...family, profile: action.profile } : emptyFamilyState(action.profile)
         };
       }
+      const deterministicDomains = applyFamilyScreenRetractions(
+        family.screenAnswers,
+        action.deterministicDomains
+      );
       const latestInterviewDomains = [
-        ...new Set([...action.deterministicDomains, ...family.latestInterviewDomains])
+        ...new Set([
+          ...family.latestInterviewDomains,
+          ...deterministicDomains
+        ])
       ];
+      const activeDomains = mergeFamilyDomains(
+        family.screenAnswers,
+        latestInterviewDomains
+      );
+      const profileUnchanged =
+        recommendationProfileIdentity(family.profile) ===
+        recommendationProfileIdentity(action.profile);
+      const recommendations =
+        sameDomainSet(family.activeDomains, activeDomains) &&
+        profileUnchanged
+          ? family.recommendations
+          : null;
       return {
         ...state,
         family: {
           ...family,
           profile: action.profile,
-          recommendations: null,
+          recommendations,
           latestInterviewDomains,
-          activeDomains: mergeFamilyDomains(family.screenAnswers, latestInterviewDomains)
+          activeDomains
         }
       };
     }
@@ -899,6 +956,18 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
       }
 
       const diagnosedAt = backdatedDiagnosisMonth(now, action.monthsAgo);
+      const nextProfile: FamilyProfile = {
+        ...profile,
+        diagnoses: profile.diagnoses.map((diagnosis) => ({
+          ...diagnosis,
+          diagnosedAt
+        }))
+      };
+      const recommendations =
+        recommendationProfileIdentity(profile) ===
+        recommendationProfileIdentity(nextProfile)
+          ? family.recommendations
+          : null;
       const timingLabel =
         action.monthsAgo === 0
           ? "this month"
@@ -907,10 +976,8 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
         ...state,
         family: {
           ...family,
-          profile: {
-            ...profile,
-            diagnoses: profile.diagnoses.map((diagnosis) => ({ ...diagnosis, diagnosedAt }))
-          }
+          profile: nextProfile,
+          recommendations
         },
         auditEvents: [
           ...state.auditEvents,
@@ -938,11 +1005,26 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
           .filter((fact) => fact.interviewId === undefined)
           .map((fact) => [familyScreenFactIdentity(fact), fact])
       );
+      const latestInterviewDomains = applyFamilyScreenRetractions(
+        action.answers,
+        family.latestInterviewDomains
+      );
+      const activeDomains = mergeFamilyDomains(
+        action.answers,
+        latestInterviewDomains
+      );
+      const recommendations = sameDomainSet(
+        family.activeDomains,
+        activeDomains
+      )
+        ? family.recommendations
+        : null;
       return {
         ...state,
         family: {
           ...family,
           screenAnswers: action.answers,
+          latestInterviewDomains,
           facts: [
             ...interviewFacts,
             ...action.facts.map(({ id, label, value, status, sourceSnippet }) => {
@@ -959,13 +1041,22 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
               };
             })
           ],
-          activeDomains: mergeFamilyDomains(action.answers, family.latestInterviewDomains)
+          activeDomains,
+          recommendations
         }
       };
     }
     case "addFamilyInterview": {
       const family = state.family ?? emptyFamilyState(null);
-      const latestInterviewDomains = [...new Set(action.domains)];
+      const latestInterviewDomains =
+        action.interview.kind === "checkin"
+          ? [
+              ...new Set([
+                ...family.latestInterviewDomains,
+                ...action.domains
+              ])
+            ]
+          : [...new Set(action.domains)];
       // Every follow-up round re-extracts from the whole conversation, so the
       // observations from earlier rounds arrive again word for word. The first
       // copy is kept and the rest dropped, so the journal and the visit packet

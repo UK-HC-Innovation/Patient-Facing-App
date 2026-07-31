@@ -73,6 +73,24 @@ export const FAMILY_SCREEN_QUESTIONS: FamilyScreenQuestion[] = [
   }
 ];
 
+const FAMILY_SCREEN_DOMAIN_SET = new Set<DevNeedDomain>(
+  FAMILY_SCREEN_QUESTIONS.map(({ domain }) => domain)
+);
+
+export function applyFamilyScreenRetractions(
+  answers: FamilyScreenAnswer[],
+  interviewDomains: DevNeedDomain[]
+): DevNeedDomain[] {
+  const retracted = new Set(
+    answers.flatMap(({ domain, response }) =>
+      response === "no" && FAMILY_SCREEN_DOMAIN_SET.has(domain)
+        ? [domain]
+        : []
+    )
+  );
+  return interviewDomains.filter((domain) => !retracted.has(domain));
+}
+
 export function computeFamilyFlags(answers: FamilyScreenAnswer[]): DevNeedDomain[] {
   const flagged = new Set(
     answers.filter(({ response }) => response === "yes").map(({ domain }) => domain)

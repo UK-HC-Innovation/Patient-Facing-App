@@ -122,6 +122,29 @@ const DOMAIN_KEYS: Record<DevNeedDomain, FamilyStringKey> = {
   recreation: "domainRecreation"
 };
 
+// State keeps event chronology, while resource retrieval needs a stable clinical
+// priority so an order-only reconciliation cannot silently reshuffle programs.
+const RESOURCE_DOMAIN_ORDER = [
+  "early_intervention",
+  "therapies",
+  "school_iep",
+  "waivers_financial",
+  "respite",
+  "parent_support",
+  "sibling_support",
+  "transportation",
+  "future_planning",
+  "diagnosis_education",
+  "recreation"
+] as const satisfies readonly DevNeedDomain[];
+
+function orderResourceDomains(
+  domains: readonly DevNeedDomain[]
+): DevNeedDomain[] {
+  const active = new Set(domains);
+  return RESOURCE_DOMAIN_ORDER.filter((domain) => active.has(domain));
+}
+
 // Four fixed answers, no free text: the follow-up turn moves a step's status, it
 // never opens a new place to write.
 const FOLLOWUP_OPTIONS: ReadonlyArray<{ status: FamilyStepStatus; key: FamilyStringKey }> = [
@@ -410,19 +433,32 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     }
   }, [latestInterviewId]);
 
+  const resourceDomains = useMemo(
+    () => orderResourceDomains(family?.activeDomains ?? []),
+    [family?.activeDomains]
+  );
+
   const matchResult = useMemo(() => {
     if (!family?.profile) {
       return { resources: [], isFallback: false };
     }
-    return buildResourceMatches(family.profile, family.activeDomains, family.alreadyEnrolled);
-  }, [family?.activeDomains, family?.alreadyEnrolled, family?.profile]);
+    return buildResourceMatches(
+      family.profile,
+      resourceDomains,
+      family.alreadyEnrolled
+    );
+  }, [family?.alreadyEnrolled, family?.profile, resourceDomains]);
 
   // The candidate set the ranker scores — the same deterministic retrieval, minus
   // the display truncation. Ranking may reorder and explain it; never add to it.
   const rankCandidates = useMemo<MatchedResource[]>(() => {
-    if (!family?.profile || family.activeDomains.length === 0) return [];
-    return buildRankCandidates(family.profile, family.activeDomains, family.alreadyEnrolled).resources;
-  }, [family?.activeDomains, family?.alreadyEnrolled, family?.profile]);
+    if (!family?.profile || resourceDomains.length === 0) return [];
+    return buildRankCandidates(
+      family.profile,
+      resourceDomains,
+      family.alreadyEnrolled
+    ).resources;
+  }, [family?.alreadyEnrolled, family?.profile, resourceDomains]);
 
   const storedRecommendations = family?.recommendations ?? null;
   const rankedSet =
@@ -441,7 +477,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     const profile = family.profile;
     const rawText = latestInterview.rawText;
     const candidateIds = rankCandidates.map(({ resource }) => resource.id);
-    const domains = family.activeDomains;
+    const domains = resourceDomains;
     const interviewId = latestInterview.id;
 
     void (async () => {
@@ -487,14 +523,14 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     };
   }, [
     dispatch,
-    family?.activeDomains,
     family?.profile,
     language,
     latestInterview,
     passcode,
     pendingSafetyEvent,
     rankCandidates,
-    rankedSet
+    rankedSet,
+    resourceDomains
   ]);
 
   // What actually renders. A valid ranking reorders and annotates the matched set;
@@ -844,8 +880,12 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   // Catalog content, matched on the same lead domain the resources use — the
   // ranker's lead when it produced one, the deterministic first domain otherwise.
   const guides =
-    family?.profile && family.activeDomains.length > 0
-      ? matchFamilyGuides(family.profile, rankedSet?.lead ?? family.activeDomains[0], followupNow)
+    family?.profile && resourceDomains.length > 0
+      ? matchFamilyGuides(
+          family.profile,
+          rankedSet?.lead ?? resourceDomains[0],
+          followupNow
+        )
       : [];
 
   return (

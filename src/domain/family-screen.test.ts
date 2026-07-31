@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { FamilyScreenAnswer } from "./types";
+import type { DevNeedDomain, FamilyScreenAnswer } from "./types";
 import {
   FAMILY_DOMAIN_LABELS,
   FAMILY_SCREEN_QUESTIONS,
+  applyFamilyScreenRetractions,
   computeFamilyFlags,
   familyAnswersToFacts,
   mergeFamilyDomains
@@ -136,5 +137,65 @@ describe("mergeFamilyDomains", () => {
     const reanswered = answers.map((answer) => ({ ...answer, response: "no" as const }));
 
     expect(mergeFamilyDomains(reanswered, ["waivers_financial"])).toEqual(["waivers_financial"]);
+  });
+});
+
+describe("applyFamilyScreenRetractions", () => {
+  it("applies only explicit screen-domain retractions in stable order", () => {
+    const carried = [
+      "school_iep",
+      "parent_support",
+      "future_planning",
+      "diagnosis_education",
+      "recreation"
+    ] satisfies DevNeedDomain[];
+    const screenAnswers: FamilyScreenAnswer[] = [
+      {
+        questionId: "family_school_iep",
+        domain: "school_iep",
+        response: "no"
+      },
+      {
+        questionId: "family_parent_support",
+        domain: "parent_support",
+        response: "declined"
+      },
+      {
+        questionId: "fabricated-future",
+        domain: "future_planning",
+        response: "no"
+      },
+      {
+        questionId: "fabricated-diagnosis",
+        domain: "diagnosis_education",
+        response: "no"
+      },
+      {
+        questionId: "fabricated-recreation",
+        domain: "recreation",
+        response: "no"
+      }
+    ];
+
+    expect(
+      applyFamilyScreenRetractions(screenAnswers, carried)
+    ).toEqual([
+      "parent_support",
+      "future_planning",
+      "diagnosis_education",
+      "recreation"
+    ]);
+    expect(
+      applyFamilyScreenRetractions(
+        [
+          {
+            questionId: "family_school_iep",
+            domain: "school_iep",
+            response: "yes"
+          }
+        ],
+        carried
+      )
+    ).toEqual(carried);
   });
 });
