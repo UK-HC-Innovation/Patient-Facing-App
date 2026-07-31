@@ -443,16 +443,8 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
 
     const family = JSON.parse(screen.getByTestId("family-state").textContent || "null") as FamilyNavigatorState;
     expect(family.profile).toMatchObject({ county: "Pike", birthYear: 2024, schoolStage: "not_school_age" });
-    expect(family.latestInterviewDomains).toEqual([
-      "therapies",
-      "transportation",
-      "early_intervention"
-    ]);
-    expect(family.activeDomains).toEqual([
-      "therapies",
-      "transportation",
-      "early_intervention"
-    ]);
+    expect(family.latestInterviewDomains).toEqual(["early_intervention", "therapies", "transportation"]);
+    expect(family.activeDomains).toEqual(["early_intervention", "therapies", "transportation"]);
     expect(family.interviews).toHaveLength(1);
     expect(family.interviews[0]?.kind).toBe("orientation");
 

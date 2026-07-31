@@ -122,29 +122,6 @@ const DOMAIN_KEYS: Record<DevNeedDomain, FamilyStringKey> = {
   recreation: "domainRecreation"
 };
 
-// State keeps event chronology, while resource retrieval needs a stable clinical
-// priority so an order-only reconciliation cannot silently reshuffle programs.
-const RESOURCE_DOMAIN_ORDER = [
-  "early_intervention",
-  "therapies",
-  "school_iep",
-  "waivers_financial",
-  "respite",
-  "parent_support",
-  "sibling_support",
-  "transportation",
-  "future_planning",
-  "diagnosis_education",
-  "recreation"
-] as const satisfies readonly DevNeedDomain[];
-
-function orderResourceDomains(
-  domains: readonly DevNeedDomain[]
-): DevNeedDomain[] {
-  const active = new Set(domains);
-  return RESOURCE_DOMAIN_ORDER.filter((domain) => active.has(domain));
-}
-
 // Four fixed answers, no free text: the follow-up turn moves a step's status, it
 // never opens a new place to write.
 const FOLLOWUP_OPTIONS: ReadonlyArray<{ status: FamilyStepStatus; key: FamilyStringKey }> = [
@@ -433,32 +410,19 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     }
   }, [latestInterviewId]);
 
-  const resourceDomains = useMemo(
-    () => orderResourceDomains(family?.activeDomains ?? []),
-    [family?.activeDomains]
-  );
-
   const matchResult = useMemo(() => {
     if (!family?.profile) {
       return { resources: [], isFallback: false };
     }
-    return buildResourceMatches(
-      family.profile,
-      resourceDomains,
-      family.alreadyEnrolled
-    );
-  }, [family?.alreadyEnrolled, family?.profile, resourceDomains]);
+    return buildResourceMatches(family.profile, family.activeDomains, family.alreadyEnrolled);
+  }, [family?.activeDomains, family?.alreadyEnrolled, family?.profile]);
 
   // The candidate set the ranker scores — the same deterministic retrieval, minus
   // the display truncation. Ranking may reorder and explain it; never add to it.
   const rankCandidates = useMemo<MatchedResource[]>(() => {
-    if (!family?.profile || resourceDomains.length === 0) return [];
-    return buildRankCandidates(
-      family.profile,
-      resourceDomains,
-      family.alreadyEnrolled
-    ).resources;
-  }, [family?.alreadyEnrolled, family?.profile, resourceDomains]);
+    if (!family?.profile || family.activeDomains.length === 0) return [];
+    return buildRankCandidates(family.profile, family.activeDomains, family.alreadyEnrolled).resources;
+  }, [family?.activeDomains, family?.alreadyEnrolled, family?.profile]);
 
   const storedRecommendations = family?.recommendations ?? null;
   const rankedSet =
@@ -477,8 +441,15 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     const profile = family.profile;
     const rawText = latestInterview.rawText;
     const candidateIds = rankCandidates.map(({ resource }) => resource.id);
-    const domains = resourceDomains;
+    const domains = family.activeDomains;
     const interviewId = latestInterview.id;
+    const context = {
+      interviewId,
+      activeDomains: [...domains],
+      profile,
+      candidateIds: [...candidateIds],
+      language
+    };
 
     void (async () => {
       const live = await requestFamilyRecommendations({
@@ -492,7 +463,11 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
 
       const fallback = rankFamilyResourcesMock(rankCandidates, domains, rawText, language, interviewId);
       if (!live) {
-        dispatch({ type: "setFamilyRecommendations", recommendations: fallback });
+        dispatch({
+          type: "setFamilyRecommendations",
+          recommendations: fallback,
+          context
+        });
         return;
       }
 
@@ -514,7 +489,8 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
                 heard: validateHeard(live.heard, language, profile.childFirstName),
                 lead: coerceLead(live.lead, domains),
                 items
-              }
+              },
+        context
       });
     })();
 
@@ -523,14 +499,14 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     };
   }, [
     dispatch,
+    family?.activeDomains,
     family?.profile,
     language,
     latestInterview,
     passcode,
     pendingSafetyEvent,
     rankCandidates,
-    rankedSet,
-    resourceDomains
+    rankedSet
   ]);
 
   // What actually renders. A valid ranking reorders and annotates the matched set;
@@ -880,12 +856,8 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   // Catalog content, matched on the same lead domain the resources use — the
   // ranker's lead when it produced one, the deterministic first domain otherwise.
   const guides =
-    family?.profile && resourceDomains.length > 0
-      ? matchFamilyGuides(
-          family.profile,
-          rankedSet?.lead ?? resourceDomains[0],
-          followupNow
-        )
+    family?.profile && family.activeDomains.length > 0
+      ? matchFamilyGuides(family.profile, rankedSet?.lead ?? family.activeDomains[0], followupNow)
       : [];
 
   return (

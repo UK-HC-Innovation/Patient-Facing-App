@@ -128,12 +128,14 @@ describe("FamilyInterview", () => {
     );
 
     const neutralText = "We would like some general guidance today.";
+    const interviewInput = screen.getByRole("textbox", {
+      name: /what would you like help with/i
+    });
     fireEvent.change(
-      screen.getByRole("textbox", {
-        name: /what would you like help with/i
-      }),
+      interviewInput,
       { target: { value: neutralText } }
     );
+    await waitFor(() => expect(interviewInput).toHaveValue(neutralText));
     requestFamilyInterview.mockResolvedValueOnce({
       facts: [],
       domains: [{ domain: "school_iep", rationale: "Riley has dyslexia." }],

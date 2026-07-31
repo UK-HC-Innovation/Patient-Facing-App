@@ -20,6 +20,7 @@ import {
   applyFamilyScreenRetractions,
   mergeFamilyDomains
 } from "@/domain/family-screen";
+import { buildRankCandidates } from "@/domain/family-matching";
 import { PACKET_QUESTIONS } from "@/domain/family-visit-packet";
 import {
   BARRIER_DOMAINS,
@@ -77,6 +78,14 @@ import type {
 } from "@/domain/types";
 import { isLanguage, loadStoredState, saveStoredState } from "./storage";
 
+export type FamilyRecommendationRequestContext = {
+  interviewId: string;
+  activeDomains: DevNeedDomain[];
+  profile: FamilyProfile;
+  candidateIds: string[];
+  language: Language;
+};
+
 export type HealthAction =
   | { type: "hydrateStoredState"; state: AppState }
   | { type: "addReading"; reading: HomeReading }
@@ -125,7 +134,11 @@ export type HealthAction =
   | { type: "acknowledgeFamilySafetyEvent"; eventId: string; at: string }
   | { type: "raiseFamilyRegressionFlag"; source: "probe" | "text"; at: string }
   | { type: "acknowledgeFamilyRegressionFlag"; flagId: string; at: string }
-  | { type: "setFamilyRecommendations"; recommendations: FamilyRecommendationSet | null }
+  | {
+      type: "setFamilyRecommendations";
+      recommendations: FamilyRecommendationSet | null;
+      context: FamilyRecommendationRequestContext;
+    }
   | { type: "saveFamilyResource"; resource: SavedFamilyResource }
   | { type: "toggleFamilyEnrollment"; resourceId: string }
   | { type: "planFamilyStep"; resourceId: string; domain: DevNeedDomain; at: string }
@@ -210,15 +223,13 @@ function isExactIsoTimestamp(value: string): boolean {
   return Number.isFinite(timestamp.valueOf()) && timestamp.toISOString() === value;
 }
 
-function sameDomainSet(
-  left: readonly DevNeedDomain[],
-  right: readonly DevNeedDomain[]
+function sameOrderedValues<T>(
+  left: readonly T[],
+  right: readonly T[]
 ): boolean {
-  const leftSet = new Set(left);
-  const rightSet = new Set(right);
   return (
-    leftSet.size === rightSet.size &&
-    [...leftSet].every((domain) => rightSet.has(domain))
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
   );
 }
 
@@ -243,6 +254,31 @@ function recommendationProfileIdentity(
     county: profile.county.trim().toLocaleLowerCase(),
     diagnoses
   });
+}
+
+function recommendationRequestMatches(
+  state: AppState,
+  context: FamilyRecommendationRequestContext
+): boolean {
+  const family = state.family;
+  if (
+    !family ||
+    !family.profile ||
+    state.patient.language !== context.language ||
+    family.interviews.at(-1)?.id !== context.interviewId ||
+    !sameOrderedValues(family.activeDomains, context.activeDomains) ||
+    recommendationProfileIdentity(family.profile) !==
+      recommendationProfileIdentity(context.profile)
+  ) {
+    return false;
+  }
+
+  const currentCandidateIds = buildRankCandidates(
+    family.profile,
+    family.activeDomains,
+    family.alreadyEnrolled
+  ).resources.map(({ resource }) => resource.id);
+  return sameOrderedValues(currentCandidateIds, context.candidateIds);
 }
 
 function withStepStatus(
@@ -920,8 +956,8 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
       );
       const latestInterviewDomains = [
         ...new Set([
-          ...family.latestInterviewDomains,
-          ...deterministicDomains
+          ...deterministicDomains,
+          ...family.latestInterviewDomains
         ])
       ];
       const activeDomains = mergeFamilyDomains(
@@ -932,7 +968,7 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
         recommendationProfileIdentity(family.profile) ===
         recommendationProfileIdentity(action.profile);
       const recommendations =
-        sameDomainSet(family.activeDomains, activeDomains) &&
+        sameOrderedValues(family.activeDomains, activeDomains) &&
         profileUnchanged
           ? family.recommendations
           : null;
@@ -1013,7 +1049,7 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
         action.answers,
         latestInterviewDomains
       );
-      const recommendations = sameDomainSet(
+      const recommendations = sameOrderedValues(
         family.activeDomains,
         activeDomains
       )
@@ -1130,7 +1166,12 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
       };
     }
     case "setFamilyRecommendations": {
-      if (!state.family) {
+      if (
+        !state.family ||
+        !recommendationRequestMatches(state, action.context) ||
+        (action.recommendations !== null &&
+          action.recommendations.interviewId !== action.context.interviewId)
+      ) {
         return state;
       }
       return { ...state, family: { ...state.family, recommendations: action.recommendations } };

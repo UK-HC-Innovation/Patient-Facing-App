@@ -7,6 +7,7 @@ import {
   createSoonerAppointmentOffer
 } from "@/domain/family-appointments";
 import { checkInDue } from "@/domain/family-journey";
+import { buildRankCandidates } from "@/domain/family-matching";
 import { recordAuditEvent } from "@/domain/audit";
 import { healthReducer } from "./store";
 import type { HealthAction } from "./store";
@@ -195,17 +196,17 @@ describe("healthReducer", () => {
     );
 
     expect(reconciled.family?.latestInterviewDomains).toEqual([
+      "early_intervention",
       "therapies",
       "transportation",
-      "parent_support",
-      "early_intervention"
+      "parent_support"
     ]);
     expect(reconciled.family?.activeDomains).toEqual([
       "respite",
+      "early_intervention",
       "therapies",
       "transportation",
-      "parent_support",
-      "early_intervention"
+      "parent_support"
     ]);
     expect(reconciled.family?.recommendations).toBeNull();
     expect(reconciled.family?.interviews).toEqual(seeded.family?.interviews);
@@ -422,7 +423,7 @@ describe("healthReducer", () => {
     ]);
   });
 
-  it("preserves recommendations for declined or reordered-equivalent screens", () => {
+  it("preserves recommendations for declined screens but invalidates ordered-domain changes", () => {
     const recommendations: FamilyRecommendationSet = {
       interviewId: "orientation-1",
       createdAt: "2026-07-01T12:00:00.000Z",
@@ -481,7 +482,94 @@ describe("healthReducer", () => {
       "respite",
       "school_iep"
     ]);
-    expect(reordered.family?.recommendations).toBe(recommendations);
+    expect(reordered.family?.recommendations).toBeNull();
+  });
+
+  it("rejects a recommendation response after its screen or profile context becomes stale", () => {
+    const profile = schoolAgeFamilyState.profile!;
+    const interview: FamilyInterview = {
+      id: "orientation-ranking",
+      rawText: "We need help with school.",
+      source: "typed",
+      createdAt: "2026-07-01T12:00:00.000Z",
+      extraction: "mock",
+      kind: "orientation"
+    };
+    const recommendations: FamilyRecommendationSet = {
+      interviewId: interview.id,
+      createdAt: "2026-07-01T12:00:01.000Z",
+      extraction: "mock",
+      heard: "School help would be useful.",
+      lead: "school_iep",
+      items: []
+    };
+    const seeded: AppState = {
+      ...demoState,
+      family: {
+        ...schoolAgeFamilyState,
+        profile,
+        interviews: [interview],
+        latestInterviewDomains: ["school_iep"],
+        activeDomains: ["school_iep"],
+        recommendations: null
+      }
+    };
+    const context = {
+      interviewId: interview.id,
+      activeDomains: ["school_iep"] as const,
+      profile,
+      language: seeded.patient.language,
+      candidateIds: buildRankCandidates(
+        profile,
+        ["school_iep"],
+        []
+      ).resources.map(({ resource }) => resource.id)
+    };
+    const accepted = healthReducer(seeded, {
+      type: "setFamilyRecommendations",
+      recommendations,
+      context: {
+        ...context,
+        activeDomains: [...context.activeDomains]
+      }
+    });
+    expect(accepted.family?.recommendations).toBe(recommendations);
+
+    const retracted = healthReducer(seeded, {
+      type: "submitFamilyScreen",
+      answers: [
+        {
+          questionId: "family_school_iep",
+          domain: "school_iep",
+          response: "no"
+        }
+      ],
+      facts: []
+    });
+    const lateAfterRetraction = healthReducer(retracted, {
+      type: "setFamilyRecommendations",
+      recommendations,
+      context: {
+        ...context,
+        activeDomains: [...context.activeDomains]
+      }
+    });
+    expect(lateAfterRetraction.family?.recommendations).toBeNull();
+
+    const changedProfile = healthReducer(seeded, {
+      type: "saveFamilyProfile",
+      profile: { ...profile, county: "Perry" },
+      deterministicDomains: ["school_iep"]
+    });
+    const lateAfterProfileChange = healthReducer(changedProfile, {
+      type: "setFamilyRecommendations",
+      recommendations,
+      context: {
+        ...context,
+        activeDomains: [...context.activeDomains]
+      }
+    });
+    expect(lateAfterProfileChange.family?.recommendations).toBeNull();
   });
 
   it("clears recommendations when a screen changes active domains", () => {
