@@ -1203,6 +1203,23 @@ describe("orientation follow-up rounds", () => {
     expect(interviews.map(({ kind }) => kind)).toEqual(["orientation", "checkin", "checkin"]);
   });
 
+  it("raises child-owned regression before the family profile is saved", async () => {
+    const user = userEvent.setup();
+    render(<ReducerHarness />);
+
+    await user.type(
+      screen.getByLabelText("What would you like help with?"),
+      "He stopped talking."
+    );
+    await user.click(screen.getByRole("button", { name: "Find help" }));
+
+    expect(await screen.findByTestId("family-clinic-now-card")).toBeVisible();
+    expect(familyStateOutput().profile).toBeNull();
+    expect(familyStateOutput().flags).toMatchObject([
+      { type: "regression", source: "text" }
+    ]);
+  });
+
   it("asks about one regression sentence once, even after the card is acknowledged", async () => {
     const user = userEvent.setup();
     render(
@@ -1213,6 +1230,9 @@ describe("orientation follow-up rounds", () => {
 
     await user.click(screen.getByRole("button", { name: "Find help" }));
     const card = await screen.findByTestId("family-clinic-now-card");
+    expect(familyStateOutput().flags).toMatchObject([
+      { type: "regression", source: "text" }
+    ]);
     await user.click(within(card).getByRole("button", { name: "I've noted this" }));
     expect(screen.queryByTestId("family-clinic-now-card")).not.toBeInTheDocument();
 
@@ -1223,6 +1243,94 @@ describe("orientation follow-up rounds", () => {
     expect(familyStateOutput().flags).toHaveLength(1);
     expect(screen.queryByTestId("family-clinic-now-card")).not.toBeInTheDocument();
   });
+
+  it.each([
+    ["I stopped talking after my stroke.", "en", /Find help/i],
+    [
+      "I currently receive speech therapy and stopped talking.",
+      "en",
+      /Find help/i
+    ],
+    ["He used to talk with me, but I no longer do.", "en", /Find help/i],
+    [
+      "He used to talk with me, but now I no longer do.",
+      "en",
+      /Find help/i
+    ],
+    ["Dejé de hablar después de mi derrame cerebral.", "es", /Buscar ayuda/i],
+    ["Él antes hablaba conmigo, pero yo ya no.", "es", /Buscar ayuda/i],
+    [
+      "Él antes hablaba conmigo, pero ahora yo ya no.",
+      "es",
+      /Buscar ayuda/i
+    ]
+  ] as const)(
+    "does not show the clinic-now card for caregiver-owned loss: %s",
+    async (interviewDraft, language, submitName) => {
+      const user = userEvent.setup();
+      render(
+        <ReducerHarness
+          initialState={withFamily(
+            { ...schoolAgeFamilyState, interviewDraft },
+            language
+          )}
+        />
+      );
+
+      await user.click(screen.getByRole("button", { name: submitName }));
+      await waitFor(() => {
+        expect(familyStateOutput().interviews).toHaveLength(1);
+      });
+
+      expect(familyStateOutput().flags).toEqual([]);
+      expect(
+        screen.queryByTestId("family-clinic-now-card")
+      ).not.toBeInTheDocument();
+    }
+  );
+
+  it.each([
+    ["I stopped talking, but he stopped walking.", "en", /Find help/i],
+    ["He stopped walking, but I stopped talking.", "en", /Find help/i],
+    ["Dejé de hablar, pero él dejó de caminar.", "es", /Buscar ayuda/i],
+    ["Él dejó de caminar, pero yo dejé de hablar.", "es", /Buscar ayuda/i],
+    [
+      "I used to talk with him, but he no longer does.",
+      "en",
+      /Find help/i
+    ],
+    [
+      "I used to talk with him, but now he no longer does.",
+      "en",
+      /Find help/i
+    ],
+    ["Yo antes hablaba con él, pero él ya no.", "es", /Buscar ayuda/i],
+    [
+      "Yo antes hablaba con él, pero ahora él ya no.",
+      "es",
+      /Buscar ayuda/i
+    ]
+  ] as const)(
+    "still shows one clinic-now card when the same sentence also has caregiver loss: %s",
+    async (interviewDraft, language, submitName) => {
+      const user = userEvent.setup();
+      render(
+        <ReducerHarness
+          initialState={withFamily(
+            { ...schoolAgeFamilyState, interviewDraft },
+            language
+          )}
+        />
+      );
+
+      await user.click(screen.getByRole("button", { name: submitName }));
+      expect(await screen.findByTestId("family-clinic-now-card")).toBeVisible();
+      expect(familyStateOutput().flags).toHaveLength(1);
+      expect(familyStateOutput().flags).toMatchObject([
+        { type: "regression", source: "text" }
+      ]);
+    }
+  );
 });
 
 describe("while-you-wait guide strip", () => {

@@ -42,7 +42,11 @@ import type { FamilyDiagnosisBackdateMonths } from "@/domain/family-stages";
 import { firstStepsClock, hasEnrolledFirstSteps } from "@/domain/family-clocks";
 import { matchFamilyGuides } from "@/domain/family-guides";
 import { answerableStaleStep, checkInDue } from "@/domain/family-journey";
-import { detectRegressionCue, extractFamilyInterviewMock, familyFactStatus } from "@/domain/family-interview";
+import {
+  extractFamilyInterviewMock,
+  familyFactStatus,
+  shouldRaiseFamilyRegressionFlag
+} from "@/domain/family-interview";
 import {
   extractFamilyBasics,
   hasFamilyBasicsHints,
@@ -610,7 +614,13 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     // Only the words just written are read: `meta.rawText` carries the whole
     // conversation, so scanning it every round would re-raise the same sentence
     // each time the caregiver acknowledged the card and answered on.
-    if (detectRegressionCue(newText, language)) {
+    if (
+      shouldRaiseFamilyRegressionFlag(
+        newText,
+        family?.profile ?? EMPTY_FAMILY_INTERVIEW_PROFILE,
+        language
+      )
+    ) {
       dispatch({ type: "raiseFamilyRegressionFlag", source: "text", at: createdAt });
     }
   }
