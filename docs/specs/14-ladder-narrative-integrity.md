@@ -1,6 +1,6 @@
 # Ladder Narrative Integrity — Evidence, Service Status, and Check-in Continuity
 
-**Status:** Wave 1 design and written specification approved by the product owner on 2026-07-30. Implementation planning is active. This is the first delivery wave in the approved four-wave Ladder persona-fix program.
+**Status:** Wave 1 implemented and verified as of 2026-07-31. This is the first delivery wave in the approved four-wave Ladder persona-fix program. Waves 2–4 remain open.
 
 ## Purpose
 
@@ -355,3 +355,20 @@ Wave 1 is complete only when:
 - `npm run check`, `npm run crisis:gate`, and the deterministic navigator gate pass;
 - a fresh review finds no unresolved Wave 1 defect; and
 - no claim is made that downstream matching/ranking findings are closed before Wave 2.
+
+## Verification Evidence — 2026-07-31
+
+- Focused Wave 1 regression suite: **875/875 tests passed across 7 files**.
+- Deterministic navigator contract: **81/81 tests passed** in `src/domain/family-vignettes.test.ts`.
+- Full `npm run check`: lint passed with no warnings or errors; Vitest reported **2,705 passed and 1 skipped tests across 191 passed and 1 skipped test files**; the production build generated **25/25 static pages**.
+- `npm run crisis:gate`: **PASS**, with **310/310 tests passed across 6 files**, deterministic recall **1.00**, and **0 false positives**. The generated evidence is [the 2026-07-31 crisis-gate report](../ops/red-team-results/2026-07-31-crisis-gate.md).
+- Live `npm run navigator:gate`: not run because `HEALTH_AI_API_KEY` was unavailable. The deterministic tier passed; this specification does not claim a live-provider pass.
+
+No persisted schema migration, dependency addition, new crisis tier, resource-catalog expansion, or deployment is part of this wave. Resource eligibility, ranking, result caps, action attribution, county/statewide transparency, diagnosis education, and the fresh 12-persona rescore remain explicitly open for Waves 2–4.
+
+## Independent Review Verdicts — 2026-07-31
+
+- Specification compliance: **PASS** after removing a global resource-domain ordering normalization that exceeded Wave 1 scope. Matching, ranking, request domains, and guide selection again consume `family.activeDomains` directly.
+- Code quality: **PASS** after binding asynchronous recommendation results to their interview, ordered domains, profile identity, language, and ordered candidate set, and after making ordered domain changes invalidate stale recommendations.
+
+Both remediations passed a fresh review and the complete verification pipeline recorded above. A provisional suggestion to bind each opaque screen `questionId` to its domain was reviewed but not adopted: the domain is the modeled authority, existing persisted and test data permit non-catalog question IDs, and retraction-only validation would create an asymmetric compatibility change outside this wave. The final reviewer did not classify it as a remaining finding.
