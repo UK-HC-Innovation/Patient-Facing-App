@@ -129,6 +129,7 @@ type EvidenceCandidate = {
   } | null;
 };
 type FamilyNarrativeComputation = FamilyNarrativeAnalysis & {
+  candidates: EvidenceCandidate[];
   supportByConcern: Record<
     NarrativeConcernTarget,
     FamilyNarrativeSupport
@@ -2046,6 +2047,7 @@ function computeFamilyNarrative(
   }
 
   return {
+    candidates,
     facts: [
       ...extractProfileFacts(text, profile, language),
       ...selected.map(({ fact }) => fact)
@@ -2073,6 +2075,235 @@ function computeFamilyNarrative(
     },
     supportByConcern,
     factsByConcern
+  };
+}
+
+function normalizeNarrativeText(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .toLocaleLowerCase();
+}
+
+function isLocalizedGradeValue(
+  value: string,
+  language: Language
+): boolean {
+  const trimmed = value.trim();
+  const matched = trimmed.match(
+    language === "es" ? SPANISH_GRADE : GRADE
+  )?.[0];
+  return (
+    matched !== undefined &&
+    normalizeNarrativeText(matched) ===
+      normalizeNarrativeText(trimmed)
+  );
+}
+
+function liveFactTargets(
+  fact: FamilyInterviewFact,
+  language: Language
+): NarrativeConcernTarget[] {
+  const grade = tFamily(language, "factGradeLabel");
+  const diagnosis = tFamily(language, "factReportedDiagnosisLabel");
+  if (fact.label === diagnosis) return [];
+  if (
+    fact.label === grade &&
+    isLocalizedGradeValue(fact.value, language)
+  ) {
+    return [];
+  }
+
+  const exactLabels: Array<[
+    FamilyStringKey,
+    NarrativeConcernTarget
+  ]> = [
+    ["factRegressionLabel", "regression"],
+    ["factPendingEvaluationLabel", "evaluation"],
+    ["factFunctionalBurdenLabel", "school_learning"],
+    ["factConcernSchoolLabel", "school_learning"],
+    ["factConcernSpeechLabel", "speech"],
+    ["factConcernMotorLabel", "motor"],
+    ["factConcernBehaviorLabel", "behavior"]
+  ];
+  const exact = exactLabels.find(
+    ([key]) => fact.label === tFamily(language, key)
+  );
+  if (exact?.[1] === "regression") return ["regression"];
+  const exactTargets = exact ? [exact[1]] : [];
+
+  const text = normalizeNarrativeText(
+    [fact.label, fact.value, fact.sourceSnippet].join(" ")
+  );
+  const targets: NarrativeConcernTarget[] = [...exactTargets];
+  const hasMotor =
+    /\b(?:occupational|physical|motor|movement|coordination|ot|movimiento|coordinacion|ocupacional|fisica)\b/u.test(
+      text
+    );
+  const hasSpeech =
+    /\b(?:talking|speech|language|words?|habla|lenguaje|palabras?)\b/u.test(
+      text
+    );
+  if (hasMotor) targets.push("motor");
+  if (hasSpeech) targets.push("speech");
+  if (
+    !hasMotor &&
+    !hasSpeech &&
+    /\b(?:therapy|therapist|terapia|terapeuta)\b/u.test(text)
+  ) {
+    targets.push("therapy_service");
+  }
+
+  const hasEvaluation =
+    /\b(?:evaluation|assessment|testing|evaluacion|valoracion|pruebas?)\b/u.test(
+      text
+    );
+  if (hasEvaluation) {
+    targets.push("evaluation");
+  } else if (
+    /\b(?:reading|homework|school|learning|iep|504|lectura|tarea|escuela|aprendizaje)\b/u.test(
+      text
+    )
+  ) {
+    targets.push("school_learning");
+  }
+  if (
+    /\b(?:behavior|routines?|meltdowns?|sleep|anxiety|comportamiento|rutinas?|berrinches?|dormir|ansiedad)\b/u.test(
+      text
+    )
+  ) {
+    targets.push("behavior");
+  }
+  return [...new Set(targets)];
+}
+
+function familyInterviewFactIdentity(
+  fact: FamilyInterviewFact,
+  language: Language
+): string {
+  const label = normalizeNarrativeText(fact.label.trim());
+  const value = normalizeNarrativeText(fact.value.trim());
+  if (
+    label ===
+      normalizeNarrativeText(tFamily(language, "factGradeLabel")) &&
+    isLocalizedGradeValue(fact.value, language)
+  ) {
+    return ["grade", value].join("\u0000");
+  }
+  return [
+    label,
+    value,
+    normalizeNarrativeText(fact.sourceSnippet.trim())
+  ].join("\u0000");
+}
+
+function uniqueInterviewFacts(
+  facts: readonly FamilyInterviewFact[],
+  language: Language
+): FamilyInterviewFact[] {
+  const seen = new Set<string>();
+  return facts.filter((fact) => {
+    const identity = familyInterviewFactIdentity(fact, language);
+    if (seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  });
+}
+
+function domainSupport(
+  domain: DevNeedDomain,
+  analysis: FamilyNarrativeAnalysis
+): FamilyNarrativeSupport | null {
+  if (domain === "early_intervention") {
+    return analysis.support.early_intervention;
+  }
+  if (domain === "therapies") return analysis.support.therapies;
+  if (domain === "school_iep") return analysis.support.school_iep;
+  return null;
+}
+
+export function reconcileFamilyInterviewResult(
+  result: FamilyInterviewResult,
+  context: FamilyNarrativeContext
+): FamilyInterviewResult {
+  const computation = computeFamilyNarrative(
+    context.rawText,
+    context.profile,
+    context.now,
+    context.language
+  );
+  const local = extractFamilyInterviewMock(
+    context.rawText,
+    context.profile,
+    context.now,
+    context.language
+  );
+  let removedContradictedOutput = false;
+
+  const retainedLiveFacts = result.facts.filter((fact) => {
+    const targets = liveFactTargets(fact, context.language);
+    if (targets.length === 0) return true;
+    const supports = targets.map(
+      (target) => computation.supportByConcern[target]
+    );
+    if (supports.every((support) => support === "absent")) {
+      return true;
+    }
+    if (supports.some((support) => support === "excluded_only")) {
+      removedContradictedOutput = true;
+      return false;
+    }
+    const replacedByLocalFact = targets.some(
+      (target) =>
+        computation.supportByConcern[target] === "supported" &&
+        computation.factsByConcern[target].length > 0
+    );
+    if (replacedByLocalFact) return false;
+    return targets.every(
+      (target) =>
+        computation.supportByConcern[target] === "supported" &&
+        computation.candidates.some(
+          (candidate) =>
+            candidate.target === target &&
+            candidate.disposition === "supported" &&
+            candidate.serviceStatus === "requested"
+        )
+    );
+  });
+  const facts = uniqueInterviewFacts(
+    [...local.facts, ...retainedLiveFacts],
+    context.language
+  );
+
+  const retainedLiveDomains = result.domains.filter(({ domain }) => {
+    const support = domainSupport(domain, computation);
+    if (support === null || support === "absent") return true;
+    if (support === "excluded_only") {
+      removedContradictedOutput = true;
+    }
+    return false;
+  });
+  const domainRows = new Map<DevNeedDomain, FamilyInterviewDomain>();
+  for (const row of retainedLiveDomains) {
+    if (!domainRows.has(row.domain)) domainRows.set(row.domain, row);
+  }
+  for (const row of local.domains) {
+    domainRows.set(row.domain, row);
+  }
+  const domains = DOMAIN_ORDER.flatMap((domain) => {
+    const row = domainRows.get(domain);
+    return row ? [row] : [];
+  });
+
+  return {
+    facts,
+    domains,
+    followUps: removedContradictedOutput
+      ? buildMockFollowUps(
+          domains.map(({ domain }) => domain),
+          context.language
+        )
+      : result.followUps
   };
 }
 

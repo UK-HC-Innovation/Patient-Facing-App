@@ -3,7 +3,12 @@
 import { Mic } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { requestFamilyInterview } from "@/ai/family-interview-provider";
-import { extractFamilyInterviewMock, familyInterviewInputSchema, type FamilyInterviewResult } from "@/domain/family-interview";
+import {
+  extractFamilyInterviewMock,
+  familyInterviewInputSchema,
+  reconcileFamilyInterviewResult,
+  type FamilyInterviewResult
+} from "@/domain/family-interview";
 import { filterUnsupportedDiagnosisFacts, stripUnsafeFamilyRationales } from "@/domain/family-diagnosis-lint";
 import { sanitizeFamilyFollowUps } from "@/domain/family-follow-up-lint";
 import { screenFamilySafety, type FamilySafetyScreen } from "@/domain/family-safety";
@@ -67,13 +72,32 @@ function speechRecognitionConstructor(): (new () => SpeechRecognitionLike) | nul
 export function sanitizeResult(
   result: FamilyInterviewResult,
   profile: FamilyProfile,
-  rawText: string
+  rawText: string,
+  language: Language,
+  now = new Date()
 ): SanitizedFamilyInterviewResult {
+  const reconciled = reconcileFamilyInterviewResult(result, {
+    profile,
+    rawText,
+    language,
+    now
+  });
+
   return {
-    ...result,
-    facts: filterUnsupportedDiagnosisFacts(result.facts, rawText, profile),
-    domains: stripUnsafeFamilyRationales(result.domains, profile.childFirstName),
-    followUps: sanitizeFamilyFollowUps(result.followUps, profile.childFirstName)
+    ...reconciled,
+    facts: filterUnsupportedDiagnosisFacts(
+      reconciled.facts,
+      rawText,
+      profile
+    ),
+    domains: stripUnsafeFamilyRationales(
+      reconciled.domains,
+      profile.childFirstName
+    ),
+    followUps: sanitizeFamilyFollowUps(
+      reconciled.followUps,
+      profile.childFirstName
+    )
   };
 }
 
@@ -364,14 +388,30 @@ export function FamilyInterview({
       }
       if (!mountedRef.current || latestContextKeyRef.current !== snapshot.contextKey) return;
       const extraction = live ? "live" : "mock";
+      const now = new Date();
       const result =
-        live ?? extractFamilyInterviewMock(snapshot.rawText, snapshot.profile, new Date(), snapshot.language);
+        live ??
+        extractFamilyInterviewMock(
+          snapshot.rawText,
+          snapshot.profile,
+          now,
+          snapshot.language
+        );
       if (mountedRef.current) {
-        onExtracted(sanitizeResult(result, snapshot.profile, snapshot.rawText), {
-          extraction,
-          source: snapshot.source,
-          rawText: snapshot.rawText
-        });
+        onExtracted(
+          sanitizeResult(
+            result,
+            snapshot.profile,
+            snapshot.rawText,
+            snapshot.language,
+            now
+          ),
+          {
+            extraction,
+            source: snapshot.source,
+            rawText: snapshot.rawText
+          }
+        );
       }
     } finally {
       submittingRef.current = false;

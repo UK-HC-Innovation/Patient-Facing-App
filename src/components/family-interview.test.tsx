@@ -2,7 +2,31 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE_CAREGIVER_TEXT, schoolAgeFamilyState } from "@/domain/family-fixtures";
-import { FamilyInterview } from "./family-interview";
+import {
+  extractFamilyInterviewMock,
+  type FamilyFollowUp,
+  type FamilyInterviewFact,
+  type FamilyInterviewResult
+} from "@/domain/family-interview";
+import type { DevNeedDomain, FamilyProfile } from "@/domain/types";
+import { FamilyInterview, sanitizeResult } from "./family-interview";
+
+const FIXED_NOW = new Date("2026-07-30T12:00:00.000Z");
+
+function liveInterviewResult(
+  facts: FamilyInterviewFact[],
+  domains: DevNeedDomain[],
+  followUps: FamilyFollowUp[] = []
+): FamilyInterviewResult {
+  return {
+    facts,
+    domains: domains.map((domain) => ({
+      domain,
+      rationale: "Provider rationale."
+    })),
+    followUps
+  };
+}
 
 const { push, requestFamilyInterview } = vi.hoisted(() => ({ push: vi.fn(), requestFamilyInterview: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
@@ -103,6 +127,13 @@ describe("FamilyInterview", () => {
       })
     );
 
+    const neutralText = "We would like some general guidance today.";
+    fireEvent.change(
+      screen.getByRole("textbox", {
+        name: /what would you like help with/i
+      }),
+      { target: { value: neutralText } }
+    );
     requestFamilyInterview.mockResolvedValueOnce({
       facts: [],
       domains: [{ domain: "school_iep", rationale: "Riley has dyslexia." }],
@@ -112,7 +143,7 @@ describe("FamilyInterview", () => {
     await waitFor(() => expect(onExtracted).toHaveBeenCalledTimes(2));
     expect(onExtracted.mock.calls[1]).toEqual([
       { facts: [], domains: [{ domain: "school_iep" }], followUps: [] },
-      { extraction: "live", source: "typed", rawText: SAMPLE_CAREGIVER_TEXT }
+      { extraction: "live", source: "typed", rawText: neutralText }
     ]);
   });
 
@@ -179,7 +210,8 @@ describe("FamilyInterview", () => {
       {
         label: "About school and learning",
         value: "School and learning may need support",
-        sourceSnippet: "reading is really hard for him"
+        sourceSnippet:
+          "My son is in second grade and reading is really hard for him."
       }
     ]);
   });
@@ -439,7 +471,13 @@ describe("FamilyInterview", () => {
   it("freezes one atomic mixed-source submission and ignores edits or late speech while pending", async () => {
     installSpeech();
     const liveResult = {
-      facts: [{ label: "Grade", value: "fourth grade", sourceSnippet: "fourth grade" }],
+      facts: [
+        {
+          label: "Grade",
+          value: "fourth grade",
+          sourceSnippet: "Existing fourth grade spoken concern"
+        }
+      ],
       domains: [{ domain: "school_iep" as const, rationale: "Riley has dyslexia." }],
       followUps: []
     };
@@ -465,7 +503,28 @@ describe("FamilyInterview", () => {
     await act(async () => pending.resolve(liveResult));
     await waitFor(() =>
       expect(onExtracted).toHaveBeenCalledWith(
-        { facts: liveResult.facts, domains: [{ domain: "school_iep" }], followUps: [] },
+        {
+          facts: [
+            {
+              label: "Grade",
+              value: "fourth grade",
+              sourceSnippet: "fourth grade"
+            },
+            {
+              label: "About school and learning",
+              value: "School and learning may need support",
+              sourceSnippet: rawText
+            }
+          ],
+          domains: [
+            {
+              domain: "school_iep",
+              rationale:
+                "You mentioned school, an IEP, or help with reading."
+            }
+          ],
+          followUps: []
+        },
         { extraction: "live", source: "mixed", rawText }
       )
     );
@@ -572,4 +631,1666 @@ describe("FamilyInterview", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: /find help/i })).toBeEnabled());
     expect(onExtracted).not.toHaveBeenCalled();
   });
+});
+
+describe("live result reconciliation", () => {
+  it("replaces F01's professional speech snippet with Theo's direct words", () => {
+    const text =
+      "Theo is two. He says mama and no, but not much else, and he still falls a lot when he walks. His doctor said speech and physical therapy could help. I’m his grandmother and I don’t drive, so we need a ride to appointments. I need somebody to tell me who to call first.";
+    const profile: FamilyProfile = {
+      childFirstName: "Theo",
+      birthYear: 2024,
+      birthMonth: 5,
+      schoolStage: "not_school_age",
+      county: "Pike",
+      diagnoses: []
+    };
+    const sanitized = sanitizeResult(
+      liveInterviewResult(
+        [
+          {
+            label: "About talking",
+            value: "Talking may need support",
+            sourceSnippet:
+              "His doctor said speech and physical therapy could help."
+          }
+        ],
+        ["therapies"]
+      ),
+      profile,
+      text,
+      "en",
+      FIXED_NOW
+    );
+    const talking = sanitized.facts.find(
+      ({ label }) => label === "About talking"
+    );
+
+    expect(talking?.sourceSnippet).toContain("mama and no");
+    expect(talking?.sourceSnippet).not.toMatch(/doctor/i);
+    expect(sanitized.domains.map(({ domain }) => domain)).toEqual([
+      "early_intervention",
+      "therapies",
+      "transportation"
+    ]);
+  });
+
+  it("removes F06's fabricated child facts and rebuilds its follow-up", () => {
+    const text =
+      "Sam is seven. He already goes to speech and occupational therapy. I need a break sometimes, his sister needs support too, and I’d like a sports or recreation program where they both feel welcome. Reading long pages is hard for me, so please keep it short.";
+    const profile: FamilyProfile = {
+      childFirstName: "Sam",
+      birthYear: 2019,
+      schoolStage: "elementary",
+      county: "Fayette",
+      diagnoses: []
+    };
+    const sanitized = sanitizeResult(
+      liveInterviewResult(
+        [
+          {
+            label: "About talking",
+            value: "Sam needs speech therapy",
+            sourceSnippet: "Invented speech difficulty"
+          },
+          {
+            label: "About moving",
+            value: "Sam needs occupational therapy",
+            sourceSnippet: "Invented motor difficulty"
+          },
+          {
+            label: "About school and learning",
+            value: "Sam needs reading help",
+            sourceSnippet: "Invented school difficulty"
+          },
+          {
+            label: "Access status",
+            value: "Waiting for speech therapy",
+            sourceSnippet: "Provider-created wait"
+          },
+          {
+            label: "Grade",
+            value: "Sam needs speech therapy",
+            sourceSnippet:
+              "Invented speech difficulty disguised as Grade"
+          }
+        ],
+        ["therapies", "school_iep"],
+        [
+          {
+            question: "What kind of therapy does Sam still need?",
+            options: ["Speech", "Occupational"]
+          }
+        ]
+      ),
+      profile,
+      text,
+      "en",
+      FIXED_NOW
+    );
+
+    expect(sanitized.facts).toEqual([]);
+    expect(sanitized.domains).toEqual([
+      {
+        domain: "respite",
+        rationale: "You said you need a break from caregiving."
+      },
+      {
+        domain: "parent_support",
+        rationale:
+          "You said you feel overwhelmed or unsure where to start."
+      },
+      {
+        domain: "sibling_support",
+        rationale: "You asked about help for a brother or sister."
+      },
+      {
+        domain: "recreation",
+        rationale:
+          "You asked about clubs, sports, horses, or things to do."
+      }
+    ]);
+    expect(sanitized.followUps).toEqual([
+      {
+        question: "Who can take over for a few hours?",
+        options: [
+          "No one right now",
+          "Family sometimes",
+          "A paid helper"
+        ]
+      }
+    ]);
+  });
+
+  it("removes Spanish current-service and caregiver-self live facts", () => {
+    const text =
+      "Sam tiene siete años. Actualmente recibe terapia del habla y terapia ocupacional. Necesito un descanso a veces, su hermana también necesita apoyo, y me gustaría un programa de deportes o recreación donde ambos se sientan bienvenidos. Me cuesta leer páginas largas, así que por favor sea breve.";
+    const profile: FamilyProfile = {
+      childFirstName: "Sam",
+      birthYear: 2019,
+      schoolStage: "elementary",
+      county: "Fayette",
+      diagnoses: []
+    };
+    const sanitized = sanitizeResult(
+      liveInterviewResult(
+        [
+          {
+            label: "Sobre el habla",
+            value: "Sam necesita terapia del habla",
+            sourceSnippet: "Dificultad inventada del habla"
+          },
+          {
+            label: "Sobre el movimiento",
+            value: "Sam necesita terapia ocupacional",
+            sourceSnippet: "Dificultad motora inventada"
+          },
+          {
+            label: "Sobre la escuela y el aprendizaje",
+            value: "Sam necesita apoyo de lectura",
+            sourceSnippet: "Dificultad escolar inventada"
+          },
+          {
+            label: "Estado de acceso",
+            value: "Esperando terapia del habla",
+            sourceSnippet: "Espera creada por el proveedor"
+          },
+          {
+            label: "Grado",
+            value: "Sam necesita terapia del habla",
+            sourceSnippet:
+              "Dificultad inventada disfrazada de grado"
+          }
+        ],
+        ["therapies", "school_iep"]
+      ),
+      profile,
+      text,
+      "es",
+      FIXED_NOW
+    );
+
+    expect(sanitized.facts).toEqual([]);
+    expect(sanitized.domains).toEqual([
+      {
+        domain: "respite",
+        rationale: "Dijiste que necesitas un descanso del cuidado."
+      },
+      {
+        domain: "parent_support",
+        rationale:
+          "Dijiste que te sientes abrumada o que no sabes por dónde empezar."
+      },
+      {
+        domain: "sibling_support",
+        rationale: "Preguntaste por ayuda para un hermano o hermana."
+      },
+      {
+        domain: "recreation",
+        rationale:
+          "Preguntaste por clubes, deportes, caballos o actividades."
+      }
+    ]);
+    expect(sanitized.followUps).toEqual([
+      {
+        question: "¿Quién puede encargarse por unas horas?",
+        options: [
+          "Nadie por ahora",
+          "A veces la familia",
+          "Una persona de apoyo pagada"
+        ]
+      }
+    ]);
+  });
+
+  it.each([
+    ["I go to speech therapy.", "en", "About talking"],
+    ["I see a speech therapist.", "en", "About talking"],
+    ["I am in speech therapy.", "en", "About talking"],
+    ["I completed speech therapy.", "en", "About talking"],
+    ["Voy a terapia del habla.", "es", "Sobre el habla"],
+    ["Veo a una terapeuta del habla.", "es", "Sobre el habla"],
+    ["Estoy en terapia del habla.", "es", "Sobre el habla"],
+    ["Terminé terapia del habla.", "es", "Sobre el habla"]
+  ] as const)(
+    "removes adversarial child therapy recall for caregiver current/history grammar: %s",
+    (text, language, speechLabel) => {
+      const providerSource = "Provider-created child speech need";
+      const sanitized = sanitizeResult(
+        liveInterviewResult(
+          [
+            {
+              label: speechLabel,
+              value: "Speech therapy is needed",
+              sourceSnippet: providerSource
+            }
+          ],
+          ["therapies"]
+        ),
+        schoolAgeFamilyState.profile!,
+        text,
+        language,
+        FIXED_NOW
+      );
+
+      expect(
+        sanitized.facts.some(
+          ({ sourceSnippet }) => sourceSnippet === providerSource
+        )
+      ).toBe(false);
+      expect(
+        sanitized.domains.some(({ domain }) => domain === "therapies")
+      ).toBe(false);
+    }
+  );
+
+  it.each([
+    [
+      "My child needs speech therapy.",
+      "en",
+      "Provider therapy summary",
+      "Speech and occupational therapy are needed."
+    ],
+    [
+      "Mi hijo necesita terapia del habla.",
+      "es",
+      "Resumen de terapia del proveedor",
+      "Se necesitan terapia del habla y terapia ocupacional."
+    ]
+  ] as const)(
+    "drops a requested live fact when any claimed target is locally absent: %s",
+    (text, language, liveLabel, providerSource) => {
+      const sanitized = sanitizeResult(
+        liveInterviewResult(
+          [
+            {
+              label: liveLabel,
+              value: providerSource,
+              sourceSnippet: providerSource
+            }
+          ],
+          []
+        ),
+        schoolAgeFamilyState.profile!,
+        text,
+        language,
+        FIXED_NOW
+      );
+
+      expect(
+        sanitized.facts.some(
+          ({ sourceSnippet }) => sourceSnippet === providerSource
+        )
+      ).toBe(false);
+    }
+  );
+
+  it.each([
+    ["Mary Jane currently needs OT.", "Mary Jane", "en"],
+    ["Mary Jane needs OT.", "Mary Jane", "en"],
+    [
+      "María José actualmente necesita terapia del habla.",
+      "María José",
+      "es"
+    ],
+    ["María José necesita terapia del habla.", "María José", "es"],
+    [
+      "Mary Jane currently needs speech and occupational therapy.",
+      "Mary Jane",
+      "en"
+    ],
+    [
+      "María José actualmente necesita terapia del habla y terapia ocupacional.",
+      "María José",
+      "es"
+    ],
+    ["Mary Jane is looking for OT.", "Mary Jane", "en"],
+    ["María José busca terapia del habla.", "María José", "es"],
+    ["He is looking for OT.", "Alex", "en"],
+    ["Ella está buscando terapia ocupacional.", "Alex", "es"],
+    ["Mary Jane needs OT for Alex.", "Alex", "en"],
+    [
+      "María José necesita terapia del habla para Alex.",
+      "Alex",
+      "es"
+    ],
+    ["My child currently needs occupational therapy.", "Alex", "en"],
+    ["Mi hijo actualmente necesita terapia del habla.", "Alex", "es"],
+    ["My child needs speech and occupational therapy.", "Alex", "en"],
+    [
+      "Mi hijo necesita terapia del habla y terapia ocupacional.",
+      "Alex",
+      "es"
+    ]
+  ] as const)(
+    "keeps explicit child-subject service requests and beneficiaries supported through live reconciliation: %s",
+    (text, childFirstName, language) => {
+      const profile: FamilyProfile = {
+        ...schoolAgeFamilyState.profile!,
+        childFirstName
+      };
+      const sanitized = sanitizeResult(
+        liveInterviewResult([], []),
+        profile,
+        text,
+        language,
+        FIXED_NOW
+      );
+
+      expect(sanitized.domains.map(({ domain }) => domain)).toEqual([
+        "therapies"
+      ]);
+    }
+  );
+
+  it.each([
+    ["Mary Jane currently needs OT.", "en"],
+    [
+      "Mary Jane currently needs speech and occupational therapy.",
+      "en"
+    ],
+    ["María José actualmente necesita terapia del habla.", "es"],
+    [
+      "María José actualmente necesita terapia del habla y terapia ocupacional.",
+      "es"
+    ],
+    ["Mary Jane is looking for OT.", "en"],
+    ["María José busca terapia del habla.", "es"]
+  ] as const)(
+    "does not assign an unmatched named service request to the profile child: %s",
+    (text, language) => {
+      const sanitized = sanitizeResult(
+        liveInterviewResult([], ["therapies"]),
+        {
+          ...schoolAgeFamilyState.profile!,
+          childFirstName: "Alex"
+        },
+        text,
+        language,
+        FIXED_NOW
+      );
+
+      expect(sanitized.facts).toEqual([]);
+      expect(sanitized.domains).toEqual([]);
+    }
+  );
+
+  it.each([
+    ["I say hello, but not much else.", "en", "About talking", null],
+    ["Yo digo hola, pero nada más.", "es", "Sobre el habla", null],
+    [
+      "He says hello, but not much else.",
+      "en",
+      "About talking",
+      "He says hello"
+    ],
+    [
+      "Él dice hola, pero nada más.",
+      "es",
+      "Sobre el habla",
+      "Él dice hola"
+    ]
+  ] as const)(
+    "binds an elliptical limited-language tail through live reconciliation: %s",
+    (text, language, speechLabel, childSnippet) => {
+      const providerSource = "Provider-created child speech need";
+      const sanitized = sanitizeResult(
+        liveInterviewResult(
+          [
+            {
+              label: speechLabel,
+              value: "Speech support is needed",
+              sourceSnippet: providerSource
+            }
+          ],
+          ["therapies"]
+        ),
+        schoolAgeFamilyState.profile!,
+        text,
+        language,
+        FIXED_NOW
+      );
+      const localSpeech = sanitized.facts.find(
+        ({ label, sourceSnippet }) =>
+          label === speechLabel && sourceSnippet !== providerSource
+      );
+
+      expect(
+        sanitized.facts.some(
+          ({ sourceSnippet }) => sourceSnippet === providerSource
+        )
+      ).toBe(false);
+      expect(localSpeech?.sourceSnippet ?? null).toBe(childSnippet);
+      expect(
+        sanitized.domains.some(({ domain }) => domain === "therapies")
+      ).toBe(childSnippet !== null);
+    }
+  );
+
+  it("removes L01's positive-only Spanish therapy output", () => {
+    const text =
+      "Este mes la maestra dice que las transiciones siguen siendo difíciles, pero Sofía está usando más palabras con una amiga.";
+    const profile: FamilyProfile = {
+      childFirstName: "Sofía",
+      birthYear: 2018,
+      schoolStage: "elementary",
+      county: "Jefferson",
+      diagnoses: []
+    };
+    const sanitized = sanitizeResult(
+      liveInterviewResult(
+        [
+          {
+            label: "Sobre el habla",
+            value: "El habla puede necesitar apoyo",
+            sourceSnippet: "Sofía necesita terapia"
+          }
+        ],
+        ["therapies"],
+        [
+          {
+            question: "¿Qué terapia necesita Sofía?",
+            options: ["Habla"]
+          }
+        ]
+      ),
+      profile,
+      text,
+      "es",
+      FIXED_NOW
+    );
+
+    expect(sanitized.facts).toEqual([
+      {
+        label: "Sobre la escuela y el aprendizaje",
+        value: "La escuela y el aprendizaje podrían necesitar apoyo",
+        sourceSnippet:
+          "Este mes la maestra dice que las transiciones siguen siendo difíciles"
+      }
+    ]);
+    expect(sanitized.domains).toEqual([
+      {
+        domain: "school_iep",
+        rationale:
+          "Mencionaste la escuela, un IEP o ayuda con la lectura."
+      }
+    ]);
+    expect(sanitized.followUps).toEqual([
+      {
+        question: "¿Qué ha ofrecido la escuela hasta ahora?",
+        options: [
+          "Nada todavía",
+          "Hay una reunión planeada",
+          "Ya hicieron una evaluación"
+        ]
+      }
+    ]);
+  });
+
+  it("adds L03's literal burden and evaluation details to shallow live output", () => {
+    const text =
+      "Maya is ten and in fifth grade. Her teacher and I are concerned about dyslexia and ADHD, but she has not been diagnosed. Reading and homework take hours, and we are waiting for an evaluation.";
+    const profile: FamilyProfile = {
+      childFirstName: "Maya",
+      birthYear: 2016,
+      schoolStage: "elementary",
+      county: "Fayette",
+      diagnoses: []
+    };
+    const sanitized = sanitizeResult(
+      liveInterviewResult(
+        [
+          {
+            label: "Grade",
+            value: "fifth grade",
+            sourceSnippet: "fifth grade"
+          }
+        ],
+        ["school_iep"]
+      ),
+      profile,
+      text,
+      "en",
+      FIXED_NOW
+    );
+
+    expect(sanitized.facts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: "Impact on daily life",
+          sourceSnippet: "Reading and homework take hours"
+        }),
+        expect.objectContaining({
+          label: "Evaluation status",
+          sourceSnippet: "we are waiting for an evaluation."
+        })
+      ])
+    );
+    expect(
+      sanitized.facts.some(
+        ({ label }) => label === "Reported diagnosis"
+      )
+    ).toBe(false);
+  });
+
+  it.each([
+    [
+      "He completed occupational therapy last year and does not need it now.",
+      {
+        facts: [],
+        domains: [],
+        followUps: [
+          {
+            question: "What part of a typical day is hardest?",
+            options: ["Mornings", "Afternoons", "Bedtime"]
+          },
+          {
+            question: "Who helps your family right now?",
+            options: ["No one", "Family or friends", "A professional"]
+          }
+        ]
+      }
+    ],
+    [
+      "His therapist stopped coming and we still need OT.",
+      {
+        facts: [],
+        domains: [
+          {
+            domain: "therapies",
+            rationale: "You mentioned speech, talking, or therapy."
+          }
+        ],
+        followUps: []
+      }
+    ]
+  ] as const)(
+    "reconciles historical and lost therapy differently: %s",
+    (text, expected) => {
+      const sanitized = sanitizeResult(
+        liveInterviewResult(
+          [
+            {
+              label: "About moving",
+              value: "Moving may need support",
+              sourceSnippet: "Provider-created motor need"
+            }
+          ],
+          ["therapies"]
+        ),
+        schoolAgeFamilyState.profile!,
+        text,
+        "en",
+        FIXED_NOW
+      );
+      expect(sanitized).toEqual(expected);
+    }
+  );
+
+  it("preserves unrelated safe live recall when local support is absent", () => {
+    const fact = {
+      label: "Family logistics",
+      value: "Appointment planning may help",
+      sourceSnippet: "Provider summary"
+    };
+    const followUp = {
+      question: "Who helps coordinate appointments?",
+      options: ["Family", "Clinic"]
+    };
+    const sanitized = sanitizeResult(
+      liveInterviewResult([fact], ["transportation"], [followUp]),
+      schoolAgeFamilyState.profile!,
+      "We need help keeping track of appointments.",
+      "en",
+      FIXED_NOW
+    );
+
+    expect(sanitized.facts).toEqual([fact]);
+    expect(sanitized.domains.map(({ domain }) => domain)).toEqual([
+      "transportation"
+    ]);
+    expect(sanitized.followUps).toEqual([followUp]);
+  });
+
+  it("uses the injected clock for early-intervention reconciliation", () => {
+    const profile: FamilyProfile = {
+      childFirstName: "Avery",
+      birthYear: 2024,
+      birthMonth: 8,
+      schoolStage: "not_school_age",
+      county: "Fayette",
+      diagnoses: []
+    };
+    const live = liveInterviewResult(
+      [],
+      ["early_intervention", "therapies"]
+    );
+    const text = "My child has trouble talking.";
+
+    expect(
+      sanitizeResult(
+        live,
+        profile,
+        text,
+        "en",
+        new Date("2026-07-30T12:00:00.000Z")
+      ).domains.map(({ domain }) => domain)
+    ).toEqual(["early_intervention", "therapies"]);
+    expect(
+      sanitizeResult(
+        live,
+        profile,
+        text,
+        "en",
+        new Date("2030-07-30T12:00:00.000Z")
+      ).domains.map(({ domain }) => domain)
+    ).toEqual(["therapies"]);
+  });
+
+  it("removes live early intervention for physical-therapy-only text", () => {
+    const profile: FamilyProfile = {
+      childFirstName: "Avery",
+      birthYear: 2024,
+      birthMonth: 8,
+      schoolStage: "not_school_age",
+      county: "Fayette",
+      diagnoses: []
+    };
+    const sanitized = sanitizeResult(
+      liveInterviewResult(
+        [],
+        ["early_intervention", "therapies"]
+      ),
+      profile,
+      "We need physical therapy.",
+      "en",
+      FIXED_NOW
+    );
+    expect(sanitized.domains.map(({ domain }) => domain)).toEqual([
+      "therapies"
+    ]);
+  });
+
+  it("reconciles deterministic fallback idempotently", () => {
+    const text = "My child has trouble talking and needs a ride.";
+    const profile: FamilyProfile = {
+      childFirstName: "Avery",
+      birthYear: 2024,
+      birthMonth: 8,
+      schoolStage: "not_school_age",
+      county: "Fayette",
+      diagnoses: []
+    };
+    const local = extractFamilyInterviewMock(
+      text,
+      profile,
+      FIXED_NOW,
+      "en"
+    );
+
+    expect(
+      sanitizeResult(local, profile, text, "en", FIXED_NOW)
+    ).toEqual(local);
+  });
+
+  it.each([
+    [
+      "He stopped talking, and he currently receives physical therapy.",
+      "en",
+      "About moving",
+      {
+        question: "Has anyone talked with you about therapy visits?",
+        options: ["Not yet", "We are on a list", "We go now"]
+      }
+    ],
+    [
+      "Él dejó de hablar, y actualmente recibe terapia física.",
+      "es",
+      "Sobre el movimiento",
+      {
+        question: "¿Alguien te ha hablado sobre visitas de terapia?",
+        options: ["Todavía no", "Estamos en una lista", "Vamos ahora"]
+      }
+    ]
+  ] as const)(
+    "targets regression from its own clause rather than another modality: %s",
+    (text, language, motorLabel, expectedFollowUp) => {
+      const sanitized = sanitizeResult(
+        liveInterviewResult(
+          [
+            {
+              label: motorLabel,
+              value: "Provider-created motor regression",
+              sourceSnippet: "Provider-created motor regression"
+            }
+          ],
+          ["therapies"],
+          [
+            {
+              question: "Provider follow-up that must be replaced",
+              options: ["Provider option"]
+            }
+          ]
+        ),
+        schoolAgeFamilyState.profile!,
+        text,
+        language,
+        FIXED_NOW
+      );
+
+      expect(
+        sanitized.facts.some(
+          ({ sourceSnippet }) =>
+            sourceSnippet === "Provider-created motor regression"
+        )
+      ).toBe(false);
+      expect(sanitized.followUps).toEqual([expectedFollowUp]);
+    }
+  );
+
+  it.each([
+    [
+      "He used to talk while walking but now he no longer talks.",
+      "en",
+      "About talking",
+      "About moving"
+    ],
+    [
+      "Antes hablaba mientras caminaba pero ya no habla.",
+      "es",
+      "Sobre el habla",
+      "Sobre el movimiento"
+    ],
+    [
+      "He used to walk while talking but now he no longer walks.",
+      "en",
+      "About moving",
+      "About talking"
+    ],
+    [
+      "Antes caminaba mientras hablaba pero ya no camina.",
+      "es",
+      "Sobre el movimiento",
+      "Sobre el habla"
+    ],
+    [
+      "He forgot how to climb the stairs.",
+      "en",
+      "About moving",
+      "About talking"
+    ],
+    [
+      "Olvidó cómo subir las escaleras.",
+      "es",
+      "Sobre el movimiento",
+      "Sobre el habla"
+    ]
+  ] as const)(
+    "reconciles regression by its acquired-skill verb: %s",
+    (text, language, regressionTargetLabel, contextualLabel) => {
+      const regressionTargetSource = "Provider regression target";
+      const contextualSource = "Provider contextual modality";
+      const sanitized = sanitizeResult(
+        liveInterviewResult(
+          [
+            {
+              label: regressionTargetLabel,
+              value: regressionTargetSource,
+              sourceSnippet: regressionTargetSource
+            },
+            {
+              label: contextualLabel,
+              value: contextualSource,
+              sourceSnippet: contextualSource
+            }
+          ],
+          []
+        ),
+        schoolAgeFamilyState.profile!,
+        text,
+        language,
+        FIXED_NOW
+      );
+
+      expect(
+        sanitized.facts.some(
+          ({ sourceSnippet }) =>
+            sourceSnippet === regressionTargetSource
+        )
+      ).toBe(false);
+      expect(
+        sanitized.facts.some(
+          ({ sourceSnippet }) => sourceSnippet === contextualSource
+        )
+      ).toBe(true);
+    }
+  );
+
+  it.each([
+    [
+      "I stopped talking, but he stopped walking.",
+      "en",
+      "he stopped walking.",
+      "Change you noticed",
+      "Possible loss of skills — from your words"
+    ],
+    [
+      "He stopped walking, but I stopped talking.",
+      "en",
+      "He stopped walking",
+      "Change you noticed",
+      "Possible loss of skills — from your words"
+    ],
+    [
+      "Dejé de hablar, pero él dejó de caminar.",
+      "es",
+      "él dejó de caminar.",
+      "Cambio que notaste",
+      "Posible pérdida de habilidades — según tus palabras"
+    ],
+    [
+      "Él dejó de caminar, pero yo dejé de hablar.",
+      "es",
+      "Él dejó de caminar",
+      "Cambio que notaste",
+      "Posible pérdida de habilidades — según tus palabras"
+    ],
+    [
+      "I used to talk with him, but he no longer does.",
+      "en",
+      "I used to talk with him, but he no longer does.",
+      "Change you noticed",
+      "Possible loss of skills — from your words"
+    ],
+    [
+      "I used to talk with him, but now he no longer does.",
+      "en",
+      "I used to talk with him, but now he no longer does.",
+      "Change you noticed",
+      "Possible loss of skills — from your words"
+    ],
+    [
+      "Yo antes hablaba con él, pero él ya no.",
+      "es",
+      "Yo antes hablaba con él, pero él ya no.",
+      "Cambio que notaste",
+      "Posible pérdida de habilidades — según tus palabras"
+    ],
+    [
+      "Yo antes hablaba con él, pero ahora él ya no.",
+      "es",
+      "Yo antes hablaba con él, pero ahora él ya no.",
+      "Cambio que notaste",
+      "Posible pérdida de habilidades — según tus palabras"
+    ]
+  ] as const)(
+    "keeps child regression authoritative beside caregiver regression: %s",
+    (
+      text,
+      language,
+      childSnippet,
+      regressionLabel,
+      regressionValue
+    ) => {
+      const providerSource =
+        "Provider-created mixed-actor regression";
+      const sanitized = sanitizeResult(
+        liveInterviewResult(
+          [
+            {
+              label: regressionLabel,
+              value: regressionValue,
+              sourceSnippet: providerSource
+            }
+          ],
+          ["therapies"]
+        ),
+        schoolAgeFamilyState.profile!,
+        text,
+        language,
+        FIXED_NOW
+      );
+
+      expect(
+        sanitized.facts.some(
+          ({ sourceSnippet }) => sourceSnippet === providerSource
+        )
+      ).toBe(false);
+      expect(
+        sanitized.facts.some(
+          ({ label, sourceSnippet }) =>
+            label === regressionLabel &&
+            sourceSnippet === childSnippet
+        )
+      ).toBe(true);
+      expect(sanitized.domains.map(({ domain }) => domain)).toEqual([
+        "therapies"
+      ]);
+    }
+  );
+
+  it.each([
+    [
+      "He lost skills.",
+      "en",
+      "Change you noticed",
+      "Possible loss of skills — from your words",
+      "Provider says words were lost."
+    ],
+    [
+      "Perdió habilidades.",
+      "es",
+      "Cambio que notaste",
+      "Posible pérdida de habilidades — según tus palabras",
+      "El proveedor dice que perdió palabras."
+    ],
+    [
+      "He stopped talking.",
+      "en",
+      "Change you noticed",
+      "Possible loss of skills — from your words",
+      "Provider says words were lost."
+    ],
+    [
+      "Él dejó de hablar.",
+      "es",
+      "Cambio que notaste",
+      "Posible pérdida de habilidades — según tus palabras",
+      "El proveedor dice que perdió palabras."
+    ],
+    [
+      "He forgot how to climb the stairs.",
+      "en",
+      "Change you noticed",
+      "Possible loss of skills — from your words",
+      "Provider says words were lost."
+    ],
+    [
+      "Olvidó cómo subir las escaleras.",
+      "es",
+      "Cambio que notaste",
+      "Posible pérdida de habilidades — según tus palabras",
+      "El proveedor dice que perdió palabras."
+    ]
+  ] as const)(
+    "replaces exact live regression evidence with the local literal fact: %s",
+    (
+      text,
+      language,
+      regressionLabel,
+      regressionValue,
+      providerSource
+    ) => {
+      const sanitized = sanitizeResult(
+        liveInterviewResult(
+          [
+            {
+              label: regressionLabel,
+              value: regressionValue,
+              sourceSnippet: providerSource
+            }
+          ],
+          []
+        ),
+        schoolAgeFamilyState.profile!,
+        text,
+        language,
+        FIXED_NOW
+      );
+
+      expect(
+        sanitized.facts.some(
+          ({ sourceSnippet }) => sourceSnippet === providerSource
+        )
+      ).toBe(false);
+      expect(
+        sanitized.facts.some(
+          ({ label, sourceSnippet }) =>
+            label === regressionLabel && sourceSnippet === text
+        )
+      ).toBe(true);
+    }
+  );
+
+  it.each([
+    [
+      "I stopped talking after my stroke.",
+      "en",
+      "Change you noticed",
+      "Possible loss of skills — from your words"
+    ],
+    [
+      "I had a stroke and stopped talking.",
+      "en",
+      "Change you noticed",
+      "Possible loss of skills — from your words"
+    ],
+    [
+      "I had a stroke, and then stopped talking.",
+      "en",
+      "Change you noticed",
+      "Possible loss of skills — from your words"
+    ],
+    [
+      "I stopped saying words.",
+      "en",
+      "Change you noticed",
+      "Possible loss of skills — from your words"
+    ],
+    [
+      "I no longer talk.",
+      "en",
+      "Change you noticed",
+      "Possible loss of skills — from your words"
+    ],
+    [
+      "I used to talk but no longer do.",
+      "en",
+      "Change you noticed",
+      "Possible loss of skills — from your words"
+    ],
+    [
+      "He used to talk with me, but I no longer do.",
+      "en",
+      "Change you noticed",
+      "Possible loss of skills — from your words"
+    ],
+    [
+      "He used to talk with me, but now I no longer do.",
+      "en",
+      "Change you noticed",
+      "Possible loss of skills — from your words"
+    ],
+    [
+      "I currently receive speech therapy and stopped talking.",
+      "en",
+      "Change you noticed",
+      "Possible loss of skills — from your words"
+    ],
+    [
+      "I lost words.",
+      "en",
+      "Change you noticed",
+      "Possible loss of skills — from your words"
+    ],
+    [
+      "I lost skills.",
+      "en",
+      "Change you noticed",
+      "Possible loss of skills — from your words"
+    ],
+    [
+      "I forgot how to walk.",
+      "en",
+      "Change you noticed",
+      "Possible loss of skills — from your words"
+    ],
+    [
+      "Dejé de hablar después de mi derrame cerebral.",
+      "es",
+      "Cambio que notaste",
+      "Posible pérdida de habilidades — según tus palabras"
+    ],
+    [
+      "Tuve un derrame cerebral y dejé de hablar.",
+      "es",
+      "Cambio que notaste",
+      "Posible pérdida de habilidades — según tus palabras"
+    ],
+    [
+      "Tuve un derrame cerebral, y luego dejé de hablar.",
+      "es",
+      "Cambio que notaste",
+      "Posible pérdida de habilidades — según tus palabras"
+    ],
+    [
+      "Dejé de decir palabras.",
+      "es",
+      "Cambio que notaste",
+      "Posible pérdida de habilidades — según tus palabras"
+    ],
+    [
+      "Ya no hablo.",
+      "es",
+      "Cambio que notaste",
+      "Posible pérdida de habilidades — según tus palabras"
+    ],
+    [
+      "Yo antes hablaba pero ya no.",
+      "es",
+      "Cambio que notaste",
+      "Posible pérdida de habilidades — según tus palabras"
+    ],
+    [
+      "Él antes hablaba conmigo, pero yo ya no.",
+      "es",
+      "Cambio que notaste",
+      "Posible pérdida de habilidades — según tus palabras"
+    ],
+    [
+      "Él antes hablaba conmigo, pero ahora yo ya no.",
+      "es",
+      "Cambio que notaste",
+      "Posible pérdida de habilidades — según tus palabras"
+    ],
+    [
+      "Actualmente recibo terapia del habla y dejé de hablar.",
+      "es",
+      "Cambio que notaste",
+      "Posible pérdida de habilidades — según tus palabras"
+    ],
+    [
+      "Perdí palabras.",
+      "es",
+      "Cambio que notaste",
+      "Posible pérdida de habilidades — según tus palabras"
+    ],
+    [
+      "Perdí habilidades.",
+      "es",
+      "Cambio que notaste",
+      "Posible pérdida de habilidades — según tus palabras"
+    ],
+    [
+      "Olvidé cómo caminar.",
+      "es",
+      "Cambio que notaste",
+      "Posible pérdida de habilidades — según tus palabras"
+    ]
+  ] as const)(
+    "drops exact live regression recall when the loss belongs to the caregiver: %s",
+    (text, language, regressionLabel, regressionValue) => {
+      const providerSource = "Provider-created child regression";
+      const sanitized = sanitizeResult(
+        liveInterviewResult(
+          [
+            {
+              label: regressionLabel,
+              value: regressionValue,
+              sourceSnippet: providerSource
+            }
+          ],
+          []
+        ),
+        schoolAgeFamilyState.profile!,
+        text,
+        language,
+        FIXED_NOW
+      );
+
+      expect(
+        sanitized.facts.some(
+          ({ sourceSnippet }) => sourceSnippet === providerSource
+        )
+      ).toBe(false);
+      expect(
+        sanitized.facts.some(({ label }) => label === regressionLabel)
+      ).toBe(false);
+    }
+  );
+
+  it.each([
+    [
+      "I stopped talking after my stroke.",
+      "en",
+      "About talking",
+      "Provider-created child speech regression"
+    ],
+    [
+      "I had a stroke and stopped talking.",
+      "en",
+      "About talking",
+      "Provider-created child speech regression"
+    ],
+    [
+      "I had a stroke, and then stopped talking.",
+      "en",
+      "About talking",
+      "Provider-created child speech regression"
+    ],
+    [
+      "I stopped saying words.",
+      "en",
+      "About talking",
+      "Provider-created child speech regression"
+    ],
+    [
+      "I no longer talk.",
+      "en",
+      "About talking",
+      "Provider-created child speech regression"
+    ],
+    [
+      "I currently receive speech therapy and stopped talking.",
+      "en",
+      "About talking",
+      "Provider-created child speech regression"
+    ],
+    [
+      "I forgot how to walk.",
+      "en",
+      "About moving",
+      "Provider-created child motor regression"
+    ],
+    [
+      "Dejé de hablar después de mi derrame cerebral.",
+      "es",
+      "Sobre el habla",
+      "Regresión del habla creada por el proveedor"
+    ],
+    [
+      "Tuve un derrame cerebral y dejé de hablar.",
+      "es",
+      "Sobre el habla",
+      "Regresión del habla creada por el proveedor"
+    ],
+    [
+      "Tuve un derrame cerebral, y luego dejé de hablar.",
+      "es",
+      "Sobre el habla",
+      "Regresión del habla creada por el proveedor"
+    ],
+    [
+      "Dejé de decir palabras.",
+      "es",
+      "Sobre el habla",
+      "Regresión del habla creada por el proveedor"
+    ],
+    [
+      "Ya no hablo.",
+      "es",
+      "Sobre el habla",
+      "Regresión del habla creada por el proveedor"
+    ],
+    [
+      "Actualmente recibo terapia del habla y dejé de hablar.",
+      "es",
+      "Sobre el habla",
+      "Regresión del habla creada por el proveedor"
+    ],
+    [
+      "Olvidé cómo caminar.",
+      "es",
+      "Sobre el movimiento",
+      "Regresión motora creada por el proveedor"
+    ]
+  ] as const)(
+    "drops target-specific live recall and its domain for caregiver regression: %s",
+    (text, language, liveLabel, providerSource) => {
+      const sanitized = sanitizeResult(
+        liveInterviewResult(
+          [
+            {
+              label: liveLabel,
+              value: providerSource,
+              sourceSnippet: providerSource
+            }
+          ],
+          ["therapies"]
+        ),
+        schoolAgeFamilyState.profile!,
+        text,
+        language,
+        FIXED_NOW
+      );
+
+      expect(
+        sanitized.facts.some(
+          ({ sourceSnippet }) => sourceSnippet === providerSource
+        )
+      ).toBe(false);
+      expect(sanitized.domains.map(({ domain }) => domain)).toEqual([]);
+    }
+  );
+
+  it.each([
+    [
+      "He currently receives speech therapy.",
+      "en",
+      "Provider therapy summary",
+      "Speech and occupational therapy are needed."
+    ],
+    [
+      "Actualmente recibe terapia del habla.",
+      "es",
+      "Resumen de terapia del proveedor",
+      "Se necesitan terapia del habla y terapia ocupacional."
+    ],
+    [
+      "He currently receives occupational therapy.",
+      "en",
+      "About talking",
+      "Speech and occupational therapy are needed."
+    ],
+    [
+      "Actualmente recibe terapia ocupacional.",
+      "es",
+      "Sobre el habla",
+      "Se necesitan terapia del habla y terapia ocupacional."
+    ]
+  ] as const)(
+    "drops a mixed live fact when any claimed target is locally contradicted: %s",
+    (text, language, liveLabel, providerSource) => {
+      const sanitized = sanitizeResult(
+        liveInterviewResult(
+          [
+            {
+              label: liveLabel,
+              value: providerSource,
+              sourceSnippet: providerSource
+            }
+          ],
+          []
+        ),
+        schoolAgeFamilyState.profile!,
+        text,
+        language,
+        FIXED_NOW
+      );
+
+      expect(
+        sanitized.facts.some(
+          ({ sourceSnippet }) => sourceSnippet === providerSource
+        )
+      ).toBe(false);
+    }
+  );
+
+  it.each([
+    [
+      "We need help keeping track of appointments.",
+      "en",
+      "Provider therapy summary",
+      "Speech and occupational therapy are needed."
+    ],
+    [
+      "Necesitamos ayuda para organizar las citas.",
+      "es",
+      "Resumen de terapia del proveedor",
+      "Se necesitan terapia del habla y terapia ocupacional."
+    ],
+    [
+      "We need help keeping track of appointments.",
+      "en",
+      "About talking",
+      "Speech and occupational therapy are needed."
+    ],
+    [
+      "Necesitamos ayuda para organizar las citas.",
+      "es",
+      "Sobre el habla",
+      "Se necesitan terapia del habla y terapia ocupacional."
+    ]
+  ] as const)(
+    "retains a mixed live fact only when every claimed target is locally absent: %s",
+    (text, language, liveLabel, providerSource) => {
+      const sanitized = sanitizeResult(
+        liveInterviewResult(
+          [
+            {
+              label: liveLabel,
+              value: providerSource,
+              sourceSnippet: providerSource
+            }
+          ],
+          []
+        ),
+        schoolAgeFamilyState.profile!,
+        text,
+        language,
+        FIXED_NOW
+      );
+
+      expect(
+        sanitized.facts.some(
+          ({ sourceSnippet }) => sourceSnippet === providerSource
+        )
+      ).toBe(true);
+    }
+  );
+
+  it.each([
+    [
+      "I need my own speech therapy and OT for my son.",
+      "en",
+      "About talking",
+      "Provider caregiver speech claim",
+      "About moving",
+      "Provider child motor claim",
+      ["therapies"]
+    ],
+    [
+      "I need OT for my son and my own speech therapy.",
+      "en",
+      "About talking",
+      "Provider caregiver speech claim",
+      "About moving",
+      "Provider child motor claim",
+      ["therapies"]
+    ],
+    [
+      "Necesito mi propia terapia del habla y terapia ocupacional para mi hijo.",
+      "es",
+      "Sobre el habla",
+      "Afirmación del habla del cuidador",
+      "Sobre el movimiento",
+      "Afirmación motora del niño",
+      ["therapies"]
+    ],
+    [
+      "Necesito terapia ocupacional para mi hijo y mi propia terapia del habla.",
+      "es",
+      "Sobre el habla",
+      "Afirmación del habla del cuidador",
+      "Sobre el movimiento",
+      "Afirmación motora del niño",
+      ["therapies"]
+    ],
+    [
+      "I need my own OT and speech therapy for my son.",
+      "en",
+      "About moving",
+      "Provider caregiver motor claim",
+      "About talking",
+      "Provider child speech claim",
+      ["early_intervention", "therapies"]
+    ],
+    [
+      "I need speech therapy for my son and my own OT.",
+      "en",
+      "About moving",
+      "Provider caregiver motor claim",
+      "About talking",
+      "Provider child speech claim",
+      ["early_intervention", "therapies"]
+    ],
+    [
+      "Necesito mi propia terapia ocupacional y terapia del habla para mi hijo.",
+      "es",
+      "Sobre el movimiento",
+      "Afirmación motora del cuidador",
+      "Sobre el habla",
+      "Afirmación del habla del niño",
+      ["early_intervention", "therapies"]
+    ],
+    [
+      "Necesito terapia del habla para mi hijo y mi propia terapia ocupacional.",
+      "es",
+      "Sobre el movimiento",
+      "Afirmación motora del cuidador",
+      "Sobre el habla",
+      "Afirmación del habla del niño",
+      ["early_intervention", "therapies"]
+    ]
+  ] as const)(
+    "keeps only the child-owned modality in a coordinated mixed-owner request: %s",
+    (
+      text,
+      language,
+      excludedLabel,
+      excludedSource,
+      supportedLabel,
+      supportedSource,
+      expectedDomains
+    ) => {
+      const profile: FamilyProfile = {
+        ...schoolAgeFamilyState.profile!,
+        birthYear: 2024,
+        birthMonth: 8,
+        schoolStage: "not_school_age"
+      };
+      const sanitized = sanitizeResult(
+        liveInterviewResult(
+          [
+            {
+              label: excludedLabel,
+              value: excludedSource,
+              sourceSnippet: excludedSource
+            },
+            {
+              label: supportedLabel,
+              value: supportedSource,
+              sourceSnippet: supportedSource
+            }
+          ],
+          ["early_intervention", "therapies"]
+        ),
+        profile,
+        text,
+        language,
+        FIXED_NOW
+      );
+
+      expect(
+        sanitized.facts.some(
+          ({ sourceSnippet }) => sourceSnippet === excludedSource
+        )
+      ).toBe(false);
+      expect(
+        sanitized.facts.some(
+          ({ sourceSnippet }) => sourceSnippet === supportedSource
+        )
+      ).toBe(true);
+      expect(sanitized.domains.map(({ domain }) => domain)).toEqual(
+        expectedDomains
+      );
+    }
+  );
+
+  it.each([
+    [
+      "I need my own speech therapy and OT forms for my son.",
+      "en",
+      "About moving",
+      "Safe provider motor observation"
+    ],
+    [
+      "I need my own speech therapy and OT appointments for my son.",
+      "en",
+      "About moving",
+      "Safe provider motor observation"
+    ],
+    [
+      "I need my own speech therapy and OT paperwork for my son.",
+      "en",
+      "About moving",
+      "Safe provider motor observation"
+    ],
+    [
+      "Necesito mi propia terapia del habla y formularios de terapia ocupacional para mi hijo.",
+      "es",
+      "Sobre el movimiento",
+      "Observación motora segura del proveedor"
+    ],
+    [
+      "Necesito mi propia terapia del habla y citas de terapia ocupacional para mi hijo.",
+      "es",
+      "Sobre el movimiento",
+      "Observación motora segura del proveedor"
+    ],
+    [
+      "Necesito mi propia terapia del habla y papeleo de terapia ocupacional para mi hijo.",
+      "es",
+      "Sobre el movimiento",
+      "Observación motora segura del proveedor"
+    ]
+  ] as const)(
+    "keeps administrative service words from excluding safe live modality recall: %s",
+    (text, language, liveLabel, providerSource) => {
+      const sanitized = sanitizeResult(
+        liveInterviewResult(
+          [
+            {
+              label: liveLabel,
+              value: providerSource,
+              sourceSnippet: providerSource
+            }
+          ],
+          []
+        ),
+        schoolAgeFamilyState.profile!,
+        text,
+        language,
+        FIXED_NOW
+      );
+
+      expect(
+        sanitized.facts.some(
+          ({ sourceSnippet }) => sourceSnippet === providerSource
+        )
+      ).toBe(true);
+    }
+  );
+
+  it.each([
+    ["He lost skills.", "en", "About talking", "Change you noticed"],
+    [
+      "Perdió habilidades.",
+      "es",
+      "Sobre el habla",
+      "Cambio que notaste"
+    ],
+    [
+      "He stopped pointing.",
+      "en",
+      "About talking",
+      "Change you noticed"
+    ],
+    [
+      "Dejó de señalar.",
+      "es",
+      "Sobre el habla",
+      "Cambio que notaste"
+    ]
+  ] as const)(
+    "preserves a targeted live fact when local regression names no such modality: %s",
+    (text, language, liveLabel, regressionLabel) => {
+      const providerSource = "Provider speech observation";
+      const sanitized = sanitizeResult(
+        liveInterviewResult(
+          [
+            {
+              label: liveLabel,
+              value: providerSource,
+              sourceSnippet: providerSource
+            }
+          ],
+          []
+        ),
+        schoolAgeFamilyState.profile!,
+        text,
+        language,
+        FIXED_NOW
+      );
+
+      expect(
+        sanitized.facts.some(
+          ({ sourceSnippet }) => sourceSnippet === providerSource
+        )
+      ).toBe(true);
+      expect(
+        sanitized.facts.some(({ label }) => label === regressionLabel)
+      ).toBe(true);
+    }
+  );
 });

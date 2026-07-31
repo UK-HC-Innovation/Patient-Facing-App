@@ -239,9 +239,22 @@ export function FamilyOrientationInterview({
       if (!mountedRef.current || latestContextKeyRef.current !== snapshot.contextKey) return;
 
       const extraction = live ? "live" : "mock";
+      const now = new Date();
       const extracted =
-        live ?? extractFamilyInterviewMock(caregiverTranscript, snapshot.profile, new Date(), snapshot.language);
-      const sanitized = sanitizeResult(extracted, snapshot.profile, caregiverTranscript);
+        live ??
+        extractFamilyInterviewMock(
+          caregiverTranscript,
+          snapshot.profile,
+          now,
+          snapshot.language
+        );
+      const sanitized = sanitizeResult(
+        extracted,
+        snapshot.profile,
+        caregiverTranscript,
+        snapshot.language,
+        now
+      );
       const round = answeredRounds.length;
       onInterviewExtracted(
         sanitized,
