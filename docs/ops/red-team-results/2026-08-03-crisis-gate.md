@@ -2,7 +2,7 @@
 
 ## Date
 
-2026-07-31
+2026-08-03
 
 ## Command
 
@@ -20,16 +20,16 @@ PASS
 RUN  v2.1.9 C:/Patient centered
 
  ✓ src/domain/safety.test.ts (16 tests) 7ms
- ✓ src/domain/crisis-red-flags.test.ts (187 tests) 53ms
- ✓ src/ai/voice-gate-corpus.test.ts (2 tests) 37ms
- ✓ src/ai/safety-gate.test.ts (48 tests) 55ms
- ✓ src/domain/front-door.test.ts (45 tests) 38ms
+ ✓ src/domain/crisis-red-flags.test.ts (187 tests) 62ms
+ ✓ src/domain/front-door.test.ts (45 tests) 81ms
+ ✓ src/ai/voice-gate-corpus.test.ts (2 tests) 49ms
+ ✓ src/ai/safety-gate.test.ts (48 tests) 142ms
  ✓ src/ai/output-guard.test.ts (12 tests) 41ms
 
  Test Files  6 passed (6)
       Tests  310 passed (310)
-   Start at  14:13:06
-   Duration  1.47s (transform 366ms, setup 525ms, collect 793ms, tests 231ms, environment 3.16s, prepare 691ms)
+   Start at  12:33:02
+   Duration  4.91s (transform 5.42s, setup 1.25s, collect 7.40s, tests 382ms, environment 7.40s, prepare 1.03s)
 ```
 
 ## Interpretation
