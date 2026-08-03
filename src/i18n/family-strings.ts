@@ -214,6 +214,9 @@ export type FamilyStringKey =
   | "rankUrgencySoon"
   | "rankUrgencyWhenReady"
   | "resourceSourceLanguageNotice"
+  | "resourceCountyServiceArea"
+  | "resourceStatewideServiceArea"
+  | "resourceMatchReason"
   | "nearbyTherapeuticRecreationTitle"
   | "nearbyTherapeuticRecreationIntro"
   | "resourceSource"
@@ -626,6 +629,9 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     rankUrgencySoon: "Soon",
     rankUrgencyWhenReady: "When you are ready",
     resourceSourceLanguageNotice: "Some details come straight from the organizations and may still be in English while we work on a checked translation.",
+    resourceCountyServiceArea: "Serves {county} County",
+    resourceStatewideServiceArea: "Available statewide",
+    resourceMatchReason: "Shown for {need}.",
     nearbyTherapeuticRecreationTitle: "Something else nearby",
     nearbyTherapeuticRecreationIntro: "This one is in your county and fits your child's age. It offers both fun activities and therapy. We are showing it as an extra — it did not change what we found above.",
     resourceSource: "Source",
@@ -1236,6 +1242,9 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     navResources: "Programas",
     navJournal: "Notas",
     navPacket: "Paquete para la visita",
+    resourceCountyServiceArea: "Atiende al condado de {county}",
+    resourceStatewideServiceArea: "Disponible en todo el estado",
+    resourceMatchReason: "Se muestra por: {need}.",
     backToTop: "Volver arriba",
     resourceDetailsToggle: "Detalles y fuente",
     askEyebrow: "Tu próximo paso"

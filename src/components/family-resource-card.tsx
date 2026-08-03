@@ -3,6 +3,7 @@
 import { Bookmark, ExternalLink, Share2 } from "lucide-react";
 import React, { useId, useRef, useState } from "react";
 import type { FamilyResource } from "@/domain/family-resources";
+import { familyResourceServiceArea } from "@/domain/family-resource-intent";
 import type { DevNeedDomain, FamilyResourceStep, FamilyStepStatus } from "@/domain/types";
 import {
   BTN_SECONDARY,
@@ -18,6 +19,8 @@ export type FamilyResourceCardProps = {
   resource: FamilyResource;
   domain: DevNeedDomain;
   language: Language;
+  county?: string;
+  matchNeed?: string;
   /** The tracked next step for this resource, once the family has committed to one. */
   step?: FamilyResourceStep;
   onPlanStep?: (resource: FamilyResource, domain: DevNeedDomain) => void;
@@ -99,6 +102,8 @@ export function FamilyResourceCard({
   resource,
   domain,
   language,
+  county,
+  matchNeed,
   step,
   onPlanStep,
   clockLine,
@@ -124,6 +129,7 @@ export function FamilyResourceCard({
   const enrollmentLabel = isEnrolled
     ? tFamily(language, "resourceUnmarkEnrolled")
     : tFamily(language, "resourceMarkEnrolled");
+  const serviceArea = county ? familyResourceServiceArea(resource, county) : undefined;
 
   function save(): void {
     if (saved || saveRequestedRef.current) return;
@@ -181,6 +187,15 @@ export function FamilyResourceCard({
         </blockquote>
       ) : null}
       <p className="mt-2 break-words leading-relaxed text-ink/80">{resource.summary}</p>
+
+      {serviceArea ? (
+        <p data-testid="family-resource-locality" className="mt-2 break-words text-sm font-medium text-care">
+          {serviceArea.kind === "county"
+            ? tFamily(language, "resourceCountyServiceArea", { county: serviceArea.county })
+            : tFamily(language, "resourceStatewideServiceArea")}
+          {matchNeed ? ` · ${tFamily(language, "resourceMatchReason", { need: matchNeed })}` : ""}
+        </p>
+      ) : null}
 
       {!isEnrolled && resource.actNow ? (
         <div className={`mt-3 ${NOTICE_DEADLINE}`}>

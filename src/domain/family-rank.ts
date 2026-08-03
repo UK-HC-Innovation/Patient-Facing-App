@@ -10,7 +10,7 @@ import type { DevNeedDomain, FamilyRecommendationItem, FamilyRecommendationSet }
 export const HEARD_MAX = 600;
 export const WHY_MAX = 300;
 export const QUOTE_MAX = 200;
-export const MAX_RECOMMENDATIONS = 12;
+export const MAX_RECOMMENDATIONS = 8;
 
 const urgencySchema = z.enum(["act_now", "soon", "when_ready"]);
 

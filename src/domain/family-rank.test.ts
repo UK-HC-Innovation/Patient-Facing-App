@@ -115,7 +115,7 @@ describe("rankFamilyResourcesMock", () => {
     expect(ranked.extraction).toBe("mock");
     expect(ranked.lead).toBe("school_iep");
     expect(ranked.heard).toBe(familyStrings.en.rankHeardFallback);
-    expect(ranked.items.length).toBeGreaterThan(0);
+    expect(ranked.items).toHaveLength(8);
     expect(ranked.items.every(({ why }) => why === undefined)).toBe(true);
     // An actNow catalog entry keeps its urgency through the deterministic path.
     expect(ranked.items.some(({ urgency }) => urgency === "act_now")).toBe(true);

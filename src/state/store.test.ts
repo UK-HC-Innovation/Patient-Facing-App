@@ -7,7 +7,7 @@ import {
   createSoonerAppointmentOffer
 } from "@/domain/family-appointments";
 import { checkInDue } from "@/domain/family-journey";
-import { buildRankCandidates } from "@/domain/family-matching";
+import { buildStructuredResourceMatches } from "@/domain/family-matching";
 import { recordAuditEvent } from "@/domain/audit";
 import { healthReducer } from "./store";
 import type { HealthAction } from "./store";
@@ -519,10 +519,11 @@ describe("healthReducer", () => {
       activeDomains: ["school_iep"] as const,
       profile,
       language: seeded.patient.language,
-      candidateIds: buildRankCandidates(
+      candidateIds: buildStructuredResourceMatches(
         profile,
         ["school_iep"],
-        []
+        [],
+        interview.rawText
       ).resources.map(({ resource }) => resource.id)
     };
     const accepted = healthReducer(seeded, {

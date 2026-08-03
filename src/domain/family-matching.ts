@@ -6,6 +6,12 @@ import {
   type FamilyResource
 } from "./family-resources";
 import type { DevNeedDomain, FamilyProfile } from "./types";
+import {
+  actionDomainForIntent,
+  deriveStructuredFamilyIntent,
+  intentScore,
+  resourceEligibleForIntent
+} from "./family-resource-intent";
 
 export type MatchedResource = {
   resource: FamilyResource;
@@ -26,6 +32,7 @@ const MAX_PER_DOMAIN = 4;
 // is the whole match list capped as a total — never truncated per domain, which
 // would silently drop a low-in-catalog entry before ranking ever saw it.
 export const MAX_RANK_CANDIDATES = 24;
+export const MAX_DISPLAY_RESOURCES = 8;
 
 export const normalizeCounty = (county: string): string => county.trim().replace(/\s+County$/i, "");
 
@@ -159,4 +166,51 @@ export function buildRankCandidates(
   ].map((match, position) => ({ ...match, position }));
 
   return { ...matches, resources: reordered };
+}
+
+/**
+ * Wave 2 retrieval contract. Domains still define the catalog pool; structured
+ * intent only removes unsupported candidates, orders direct asks, and chooses
+ * the domain under which a multi-domain action is persisted.
+ */
+export function buildStructuredResourceMatches(
+  profile: FamilyProfile,
+  domains: DevNeedDomain[],
+  alreadyEnrolled: string[],
+  rawText: string,
+  max: number = MAX_RANK_CANDIDATES
+): FamilyMatchResult {
+  const structured = deriveStructuredFamilyIntent(rawText, profile, domains);
+  const enrolled = new Set(alreadyEnrolled);
+  const broad = buildResourceMatches(profile, domains, alreadyEnrolled, FAMILY_RESOURCE_CATALOG.length);
+  const resources = broad.resources
+    .filter(({ resource }) => resourceEligibleForIntent(resource, structured, rawText))
+    .map((match) => ({
+      ...match,
+      domain: actionDomainForIntent(match.resource, match.domain, structured)
+    }))
+    .sort(
+      (left, right) =>
+        Number(enrolled.has(left.resource.id)) - Number(enrolled.has(right.resource.id)) ||
+        intentScore(left.resource, structured, profile.county) -
+          intentScore(right.resource, structured, profile.county) ||
+        left.position - right.position
+    )
+    .slice(0, Math.max(0, Math.floor(max)))
+    .map((match, position) => ({ ...match, position }));
+
+  const hasDomainSpecificMatch = resources.some(({ resource }) => !FALLBACK_ID_SET.has(resource.id));
+  if (resources.length === 0 || !hasDomainSpecificMatch) {
+    const domain = domains[0];
+    return {
+      isFallback: true,
+      resources: domain
+        ? FALLBACK_IDS.flatMap((id, position) => {
+            const resource = getFamilyResourceById(id);
+            return resource ? [{ resource, domain, position }] : [];
+          })
+        : []
+    };
+  }
+  return { resources, isFallback: false };
 }

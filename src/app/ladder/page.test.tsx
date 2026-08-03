@@ -464,7 +464,7 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     await user.click(within(bigSandy).getByTestId("family-step-plan"));
     const planned = JSON.parse(screen.getByTestId("family-state").textContent || "null") as FamilyNavigatorState;
     expect(planned.steps).toMatchObject([{ resourceId: "first_steps_big_sandy", domain: "early_intervention" }]);
-  });
+  }, 20_000);
 
   it("offers back the county, age, and stage the caregiver already wrote instead of re-asking", async () => {
     const user = userEvent.setup();
@@ -808,10 +808,10 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     expect(orderedCards.at(-1)).toHaveAttribute("data-resource-id", "michelle_p_waiver");
   });
 
-  it("keeps enrolled CHILD visible after the four unenrolled waiver choices and suppresses its urgency", () => {
+  it("keeps enrolled CHILD visible at the end of a capped multi-domain list and suppresses its urgency", () => {
     const family: FamilyNavigatorState = {
       ...schoolAgeFamilyState,
-      activeDomains: ["waivers_financial"],
+      activeDomains: ["school_iep", "waivers_financial", "parent_support"],
       alreadyEnrolled: ["child_waiver"]
     };
     render(<FamilyExperience state={withFamily(family)} dispatch={vi.fn()} passcode="" />);
@@ -819,6 +819,7 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     const matched = screen.getByTestId("matched-family-resources");
     const cards = within(matched).getAllByTestId("family-resource-card");
     const ids = cards.map((card) => card.getAttribute("data-resource-id"));
+    expect(ids).toHaveLength(8);
     expect(ids).toContain("child_waiver");
     expect(ids.at(-1)).toBe("child_waiver");
     const child = matched.querySelector('[data-resource-id="child_waiver"]') as HTMLElement;

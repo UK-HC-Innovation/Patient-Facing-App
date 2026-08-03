@@ -62,6 +62,8 @@ import {
   buildNearbyTherapeuticRecreation,
   buildRankCandidates,
   buildResourceMatches,
+  buildStructuredResourceMatches,
+  MAX_DISPLAY_RESOURCES,
   type MatchedResource
 } from "@/domain/family-matching";
 import { coerceLead, rankFamilyResourcesMock, validateHeard, validateRankedItems } from "@/domain/family-rank";
@@ -414,15 +416,24 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     if (!family?.profile) {
       return { resources: [], isFallback: false };
     }
+    if (latestInterview) {
+      return buildStructuredResourceMatches(
+        family.profile,
+        family.activeDomains,
+        family.alreadyEnrolled,
+        latestInterview.rawText
+      );
+    }
     return buildResourceMatches(family.profile, family.activeDomains, family.alreadyEnrolled);
-  }, [family?.activeDomains, family?.alreadyEnrolled, family?.profile]);
+  }, [family?.activeDomains, family?.alreadyEnrolled, family?.profile, latestInterview]);
 
   // The candidate set the ranker scores — the same deterministic retrieval, minus
   // the display truncation. Ranking may reorder and explain it; never add to it.
   const rankCandidates = useMemo<MatchedResource[]>(() => {
     if (!family?.profile || family.activeDomains.length === 0) return [];
+    if (latestInterview) return matchResult.resources;
     return buildRankCandidates(family.profile, family.activeDomains, family.alreadyEnrolled).resources;
-  }, [family?.activeDomains, family?.alreadyEnrolled, family?.profile]);
+  }, [family?.activeDomains, family?.alreadyEnrolled, family?.profile, latestInterview, matchResult.resources]);
 
   const storedRecommendations = family?.recommendations ?? null;
   const rankedSet =
@@ -514,27 +525,48 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   // deterministic order stands unchanged.
   const displayResources = useMemo(() => {
     const matched = matchResult.resources;
+    let ordered: Array<{
+      match: MatchedResource;
+      why: string | undefined;
+      quote: string | undefined;
+      urgency: "act_now" | "soon" | "when_ready" | undefined;
+    }>;
     if (!rankedSet || matchResult.isFallback) {
-      return matched.map((match) => ({ match, why: undefined, quote: undefined, urgency: undefined }));
+      ordered = matched.map((match) => ({
+        match,
+        why: undefined,
+        quote: undefined,
+        urgency: undefined
+      }));
+    } else {
+      const byId = new Map(rankCandidates.map((candidate) => [candidate.resource.id, candidate]));
+      const ranked = rankedSet.items.flatMap((item) => {
+        const match = byId.get(item.resourceId);
+        return match
+          ? [{ match, why: item.why, quote: item.becauseYouSaid, urgency: item.urgency }]
+          : [];
+      });
+      const rankedIds = new Set(ranked.map(({ match }) => match.resource.id));
+      ordered = [
+        ...ranked,
+        ...matched
+          .filter(({ resource }) => !rankedIds.has(resource.id))
+          .map((match) => ({ match, why: undefined, quote: undefined, urgency: undefined }))
+      ];
     }
-    const byId = new Map(rankCandidates.map((candidate) => [candidate.resource.id, candidate]));
-    const ranked = rankedSet.items.flatMap((item) => {
-      const match = byId.get(item.resourceId);
-      return match
-        ? [{ match, why: item.why, quote: item.becauseYouSaid, urgency: item.urgency }]
-        : [];
-    });
-    if (ranked.length === 0) {
-      return matched.map((match) => ({ match, why: undefined, quote: undefined, urgency: undefined }));
-    }
-    const rankedIds = new Set(ranked.map(({ match }) => match.resource.id));
+
+    // Enrollment sinks a card without making the family's just-recorded action
+    // disappear beyond the eight-card surface.
+    const enrolled = new Set(family?.alreadyEnrolled ?? []);
+    const enrolledItems = ordered
+      .filter(({ match }) => enrolled.has(match.resource.id))
+      .slice(0, MAX_DISPLAY_RESOURCES);
+    const unenrolledSlots = MAX_DISPLAY_RESOURCES - enrolledItems.length;
     return [
-      ...ranked,
-      ...matched
-        .filter(({ resource }) => !rankedIds.has(resource.id))
-        .map((match) => ({ match, why: undefined, quote: undefined, urgency: undefined }))
+      ...ordered.filter(({ match }) => !enrolled.has(match.resource.id)).slice(0, unenrolledSlots),
+      ...enrolledItems
     ];
-  }, [matchResult.isFallback, matchResult.resources, rankCandidates, rankedSet]);
+  }, [family?.alreadyEnrolled, matchResult.isFallback, matchResult.resources, rankCandidates, rankedSet]);
 
   const nearbyTherapeuticRecreation = useMemo(() => {
     if (!family?.profile || family.activeDomains.length === 0) {
@@ -1132,6 +1164,8 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
                         resource={resource}
                         domain={domain}
                         language={language}
+                        county={family.profile?.county}
+                        matchNeed={tFamily(language, DOMAIN_KEYS[domain])}
                         step={family.steps.find(({ resourceId }) => resourceId === resource.id)}
                         onPlanStep={planStep}
                         clockLine={clockLineFor(resource)}
@@ -1154,6 +1188,8 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
                       resource={resource}
                       domain={domain}
                       language={language}
+                      county={family.profile?.county}
+                      matchNeed={tFamily(language, DOMAIN_KEYS[domain])}
                       step={family.steps.find(({ resourceId }) => resourceId === resource.id)}
                       onPlanStep={planStep}
                       clockLine={clockLineFor(resource)}
@@ -1207,6 +1243,8 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
                         resource={resource}
                         domain={domain}
                         language={language}
+                        county={family.profile?.county}
+                        matchNeed={tFamily(language, DOMAIN_KEYS[domain])}
                         step={family.steps.find(({ resourceId }) => resourceId === resource.id)}
                         onPlanStep={planStep}
                         clockLine={clockLineFor(resource)}

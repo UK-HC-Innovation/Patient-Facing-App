@@ -20,7 +20,7 @@ import {
   applyFamilyScreenRetractions,
   mergeFamilyDomains
 } from "@/domain/family-screen";
-import { buildRankCandidates } from "@/domain/family-matching";
+import { buildRankCandidates, buildStructuredResourceMatches } from "@/domain/family-matching";
 import { PACKET_QUESTIONS } from "@/domain/family-visit-packet";
 import {
   BARRIER_DOMAINS,
@@ -273,10 +273,16 @@ function recommendationRequestMatches(
     return false;
   }
 
-  const currentCandidateIds = buildRankCandidates(
-    family.profile,
-    family.activeDomains,
-    family.alreadyEnrolled
+  const rawText = family.interviews.at(-1)?.rawText;
+  const currentCandidateIds = (
+    rawText
+      ? buildStructuredResourceMatches(
+          family.profile,
+          family.activeDomains,
+          family.alreadyEnrolled,
+          rawText
+        )
+      : buildRankCandidates(family.profile, family.activeDomains, family.alreadyEnrolled)
   ).resources.map(({ resource }) => resource.id);
   return sameOrderedValues(currentCandidateIds, context.candidateIds);
 }

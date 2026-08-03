@@ -213,4 +213,23 @@ describe("FamilyResourceCard", () => {
     renderCard({ resource: stable, domain: "future_planning" });
     expect(screen.getByText(/Call and check before you count on this/i)).toBeVisible();
   });
+
+  it("makes county-serving and statewide scope visible with the match reason", () => {
+    const lklp = getFamilyResourceById("lklp_transportation_region_13")!;
+    const { unmount } = renderCard({
+      resource: lklp,
+      domain: "transportation",
+      county: "Breathitt",
+      matchNeed: "Transportation"
+    });
+    expect(screen.getByTestId("family-resource-locality")).toHaveTextContent(
+      "Serves Breathitt County · Shown for Transportation."
+    );
+    unmount();
+
+    renderCard({ county: "Breathitt", matchNeed: "Waivers and financial support" });
+    expect(screen.getByTestId("family-resource-locality")).toHaveTextContent(
+      "Available statewide · Shown for Waivers and financial support."
+    );
+  });
 });
