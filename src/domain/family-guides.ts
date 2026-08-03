@@ -189,19 +189,35 @@ function matchesGuideAge(guide: FamilyGuide, ageMonths: number): boolean {
 }
 
 /**
- * Deterministic match: the lead domain plus the age band, in catalog order,
- * capped at {@link GUIDE_STRIP_LIMIT}. No ranking, no model, no personalization
- * beyond what the profile already says.
+ * Deterministic match: domains are considered in their supplied priority order,
+ * then guides retain catalog order within each domain. Duplicate multi-domain
+ * guides appear once and the strip stays capped at {@link GUIDE_STRIP_LIMIT}.
+ * No model or personalization beyond what the profile already says.
  */
 export function matchFamilyGuides(
   profile: FamilyProfile,
-  leadDomain: DevNeedDomain,
+  domains: DevNeedDomain | readonly DevNeedDomain[],
   now: Date = new Date()
 ): FamilyGuide[] {
   const ageMonths = guideAgeMonths(profile, now);
   if (ageMonths === null) return [];
+  const orderedDomains = typeof domains === "string" ? [domains] : domains;
+  const matched: FamilyGuide[] = [];
+  const seen = new Set<string>();
 
-  return FAMILY_GUIDE_CATALOG.filter(
-    (guide) => guide.domains.includes(leadDomain) && matchesGuideAge(guide, ageMonths)
-  ).slice(0, GUIDE_STRIP_LIMIT);
+  for (const domain of orderedDomains) {
+    for (const guide of FAMILY_GUIDE_CATALOG) {
+      if (
+        seen.has(guide.id) ||
+        !guide.domains.includes(domain) ||
+        !matchesGuideAge(guide, ageMonths)
+      ) {
+        continue;
+      }
+      seen.add(guide.id);
+      matched.push(guide);
+      if (matched.length === GUIDE_STRIP_LIMIT) return matched;
+    }
+  }
+  return matched;
 }

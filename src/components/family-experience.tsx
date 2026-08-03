@@ -885,11 +885,32 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   const clockLineFor = (resource: FamilyResource): string | undefined =>
     isFirstStepsResource(resource.id) ? firstStepsClockLine : undefined;
 
-  // Catalog content, matched on the same lead domain the resources use — the
-  // ranker's lead when it produced one, the deterministic first domain otherwise.
+  // Catalog content follows the resource lead, then fills the small strip from
+  // additive needs. This lets a direct therapy route stay first while a neutral
+  // evaluation-education ask still receives checked, non-diagnostic material.
+  const rankedGuideDomains = rankedSet?.lead
+    ? [
+        rankedSet.lead,
+        ...(family?.activeDomains ?? []).filter(
+          (domain) => domain !== rankedSet.lead
+        )
+      ]
+    : family?.activeDomains ?? [];
+  const guideDomains = rankedGuideDomains.includes("diagnosis_education")
+    ? [
+        ...rankedGuideDomains.filter(
+          (domain) => domain !== "diagnosis_education"
+        ),
+        "diagnosis_education" as const
+      ]
+    : rankedGuideDomains;
   const guides =
     family?.profile && family.activeDomains.length > 0
-      ? matchFamilyGuides(family.profile, rankedSet?.lead ?? family.activeDomains[0], followupNow)
+      ? matchFamilyGuides(
+          family.profile,
+          guideDomains,
+          followupNow
+        )
       : [];
 
   return (

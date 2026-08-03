@@ -164,6 +164,8 @@ describe("family interview route", () => {
     expect(prompt).toMatch(/only from the caregiver's words/i);
     expect(prompt).toMatch(/never repeat a question already asked/i);
     expect(prompt).toContain("never state that the child has a condition");
+    expect(prompt).toMatch(/diagnosis_education only when.*neutral information/i);
+    expect(prompt).toMatch(/saying there is no diagnosis are not enough/i);
     expect(prompt).toMatch(/rationales, followUps questions, or options/i);
     expect(payload.messages.map(({ content }) => content).join("\n")).toContain("Riley");
     expect(payload.messages.map(({ content }) => content).join("\n")).not.toMatch(/KY-SPIN|Michelle P\.|First Steps|catalog|resource name/i);

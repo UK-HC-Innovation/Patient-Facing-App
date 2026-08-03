@@ -7,6 +7,7 @@ import {
   familyFactStatus,
   familyInterviewInputSchema,
   parseFamilyInterviewPayload,
+  reconcileFamilyInterviewResult,
   shouldRaiseFamilyRegressionFlag
 } from "./family-interview";
 import type { DevNeedDomain } from "./types";
@@ -2408,6 +2409,90 @@ describe("deterministic family interview extraction", () => {
   ])("maps %s to the required domains", (text, expected) => {
     const profile = { ...schoolAgeFamilyState.profile!, birthYear: 2024, birthMonth: 1 };
     expect(extractFamilyInterviewMock(text, profile, new Date("2026-07-17T12:00:00Z")).domains.map(({ domain }) => domain)).toEqual(expected);
+  });
+
+  it("adds neutral evaluation education to F03 without inventing a diagnosis", () => {
+    const text =
+      "Zoe is four. She covers her ears in busy places, avoids group play, and has trouble with back-and-forth language. She has no diagnosis. I want evidence about whether speech or occupational therapy and a developmental evaluation make sense; I do not want the app to put a label on her.";
+    const result = extractFamilyInterviewMock(
+      text,
+      { ...schoolAgeFamilyState.profile!, childFirstName: "Zoe", birthYear: 2022 },
+      new Date("2026-08-03T12:00:00Z")
+    );
+
+    expect(result.domains).toEqual(
+      expect.arrayContaining([
+        { domain: "therapies", rationale: expect.any(String) },
+        {
+          domain: "diagnosis_education",
+          rationale:
+            "You asked for checked information about evaluation options without applying a label."
+        }
+      ])
+    );
+    expect(result.facts.map(({ label }) => label)).not.toContain(
+      "Reported diagnosis"
+    );
+    expect(JSON.stringify(result)).not.toMatch(/autism|adhd|dyslexia/i);
+  });
+
+  it.each([
+    "She has no diagnosis.",
+    "I wonder whether this could be autism.",
+    "The school is concerned about dyslexia and ADHD, and we are waiting for an evaluation."
+  ])("does not infer neutral evaluation education from %s", (text) => {
+    const result = extractFamilyInterviewMock(
+      text,
+      schoolAgeFamilyState.profile!
+    );
+    expect(result.domains.map(({ domain }) => domain)).not.toContain(
+      "diagnosis_education"
+    );
+  });
+
+  it.each([
+    ["What does a developmental evaluation look at?", "en"],
+    [
+      "She has no diagnosis; I want to understand the options without labeling her.",
+      "en"
+    ],
+    [
+      "Quiero información sobre lo que incluye una evaluación del desarrollo sin ponerle una etiqueta.",
+      "es"
+    ]
+  ] as const)("preserves an explicit neutral education ask in %s", (text, language) => {
+    const result = extractFamilyInterviewMock(
+      text,
+      schoolAgeFamilyState.profile!,
+      new Date("2026-08-03T12:00:00Z"),
+      language
+    );
+    expect(result.domains.map(({ domain }) => domain)).toContain(
+      "diagnosis_education"
+    );
+  });
+
+  it("drops an ungrounded live diagnosis-education domain", () => {
+    const result = reconcileFamilyInterviewResult(
+      {
+        facts: [],
+        domains: [
+          {
+            domain: "diagnosis_education",
+            rationale: "The model guessed that education might help."
+          }
+        ],
+        followUps: []
+      },
+      {
+        rawText: "She has no diagnosis.",
+        profile: schoolAgeFamilyState.profile!,
+        language: "en",
+        now: new Date("2026-08-03T12:00:00Z")
+      }
+    );
+
+    expect(result.domains).toEqual([]);
   });
 
   it("adds early intervention for a toddler speech concern but not for an older child", () => {

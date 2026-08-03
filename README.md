@@ -81,6 +81,10 @@ The emergency number is hardcoded to **911** behind the `call_emergency` action 
 a single i18n key, so a swap to a locale-aware emergency number is a one-string
 change. Locale-aware emergency routing is deferred to clinical/legal review.
 
+The application remains a synthetic-data demo. The required ownership and
+evidence before any real-patient pilot are listed in the
+[demo-to-pilot release gates](docs/ops/demo-to-pilot-release-gates.md).
+
 ## Local setup
 
 ```bash

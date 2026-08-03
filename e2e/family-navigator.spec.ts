@@ -421,6 +421,7 @@ test("Ladder is reachable from both Menu and the home composer", async ({ page }
   await expect(page.getByRole("heading", { name: "Ladder — your child's development", level: 1 })).toBeVisible();
 
   await page.goto("/today");
+  await page.waitForLoadState("networkidle");
   await page.getByLabel("Tell me what you need").fill("help for my daughter");
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByRole("heading", { name: "Ladder — your child's development", level: 1 })).toBeVisible();

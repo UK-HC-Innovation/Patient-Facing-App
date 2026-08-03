@@ -39,10 +39,21 @@ describe("Ladder Wave 2 structured resource routing", () => {
   it("keeps F03's direct developmental-evaluation options and removes unsupported waivers", () => {
     const rawText =
       "Zoe is four. She covers her ears in busy places, avoids group play, and has trouble with back-and-forth language. She has no diagnosis. I want evidence about whether speech or occupational therapy and a developmental evaluation make sense; I do not want the app to put a label on her.";
-    const result = ids(rawText, profile("Fayette", 2022, "preschool"), ["therapies"]);
+    const result = matches(rawText, profile("Fayette", 2022, "preschool"), [
+      "therapies",
+      "diagnosis_education"
+    ]);
 
-    expect(result.slice(0, 2)).toEqual(["ocshcn", "uk_developmental_pediatrics"]);
-    expect(result).not.toEqual(expect.arrayContaining(["michelle_p_waiver", "child_waiver"]));
+    expect(result.slice(0, 2).map(({ resource }) => resource.id)).toEqual([
+      "ocshcn",
+      "uk_developmental_pediatrics"
+    ]);
+    expect(
+      result.find(({ resource }) => resource.id === "uk_developmental_pediatrics")
+    ).toMatchObject({ domain: "therapies" });
+    expect(result.map(({ resource }) => resource.id)).not.toEqual(
+      expect.arrayContaining(["michelle_p_waiver", "child_waiver"])
+    );
   });
 
   it("ranks F04's removal and behavior-plan protections before dispute escalation", () => {

@@ -75,6 +75,7 @@ function systemPrompt(): string {
     'In the caregiver interview, lines beginning with "Q:" are questions the navigator already asked and lines beginning with "A:" are the caregiver\'s replies. Extract facts and domains only from the caregiver\'s words; never repeat a question already asked.',
     "Every sourceSnippet must quote the caregiver text exactly. Never invent a fact or diagnosis.",
     "never state that the child has a condition; say the concerns you described unless the caregiver explicitly reports a diagnosis.",
+    "Use diagnosis_education only when the caregiver explicitly asks for neutral information about evaluation, screening, consultation, or no-label options. Concern words, a possible condition, or saying there is no diagnosis are not enough.",
     "Use cautious, plain-language rationales. Do not name or recommend organizations, programs, services, or providers in rationales, followUps questions, or options."
   ].join("\n");
 }

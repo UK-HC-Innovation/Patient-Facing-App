@@ -62,7 +62,8 @@ export type FamilyNarrativeSupport = "supported" | "excluded_only" | "absent";
 export type FamilyNarrativeTarget =
   | "early_intervention"
   | "therapies"
-  | "school_iep";
+  | "school_iep"
+  | "diagnosis_education";
 
 export type FamilyNarrativeAnalysis = {
   facts: FamilyInterviewFact[];
@@ -1978,6 +1979,49 @@ function earlyInterventionSupport(
   return therapySignals.length > 0 ? "excluded_only" : "absent";
 }
 
+function hasNeutralEvaluationEducationAsk(
+  text: string,
+  language: Language
+): boolean {
+  const normalized = text.normalize("NFKC");
+
+  if (language === "es") {
+    const asksForInformation =
+      /(?:quiero|quisiera|necesito|busco)\s+(?:evidencia|informaci[oó]n|educaci[oó]n|entender|comprender|aprender|ayuda\s+para\s+(?:entender|decidir))[^.!?]{0,160}(?:evaluaci[oó]n|tamizaje|consulta\s+del\s+desarrollo)/iu.test(
+        normalized
+      );
+    const asksWhatEvaluationDoes =
+      /(?:qu[eé]\s+(?:hace|incluye|eval[uú]a|mira)|c[oó]mo\s+es)[^.!?]{0,80}(?:una\s+)?evaluaci[oó]n(?:\s+del\s+desarrollo)?/iu.test(
+        normalized
+      );
+    const asksForUnlabeledOptions =
+      /(?:sin\s+diagn[oó]stico|no\s+tiene\s+diagn[oó]stico|sin\s+(?:poner(?:le)?\s+)?(?:una\s+)?etiqueta|sin\s+etiquetar)/iu.test(
+        normalized
+      ) &&
+      /(?:quiero|quisiera|necesito)\s+(?:entender|comprender|conocer)\s+(?:las\s+)?opciones/iu.test(
+        normalized
+      );
+    return asksForInformation || asksWhatEvaluationDoes || asksForUnlabeledOptions;
+  }
+
+  const asksForInformation =
+    /(?:want|would like|need|looking for)\s+(?:evidence|information|education|to understand|to learn(?: more)?|help understanding|help deciding whether)[^.!?]{0,160}(?:evaluation|screening|developmental consultation)/i.test(
+      normalized
+    );
+  const asksWhatEvaluationDoes =
+    /(?:what does|what would|what will|how does)[^.!?]{0,80}(?:developmental\s+|school\s+|therapy\s+)?evaluation[^.!?]{0,80}(?:look at|do|include|work|involve|mean)/i.test(
+      normalized
+    );
+  const asksForUnlabeledOptions =
+    /(?:no diagnosis|without (?:a )?label|without labeling|do not want[^.!?]{0,50}(?:a )?label)/i.test(
+      normalized
+    ) &&
+    /(?:want|would like|need)\s+to\s+understand\s+(?:the\s+)?options/i.test(
+      normalized
+    );
+  return asksForInformation || asksWhatEvaluationDoes || asksForUnlabeledOptions;
+}
+
 function computeFamilyNarrative(
   text: string,
   profile: FamilyProfile,
@@ -2071,7 +2115,10 @@ function computeFamilyNarrative(
           "school_learning",
           "evaluation"
         ])
-      )
+      ),
+      diagnosis_education: hasNeutralEvaluationEducationAsk(text, language)
+        ? "supported"
+        : "absent"
     },
     supportByConcern,
     factsByConcern
@@ -2219,6 +2266,9 @@ function domainSupport(
   }
   if (domain === "therapies") return analysis.support.therapies;
   if (domain === "school_iep") return analysis.support.school_iep;
+  if (domain === "diagnosis_education") {
+    return analysis.support.diagnosis_education;
+  }
   return null;
 }
 
@@ -2277,6 +2327,13 @@ export function reconcileFamilyInterviewResult(
 
   const retainedLiveDomains = result.domains.filter(({ domain }) => {
     const support = domainSupport(domain, computation);
+    if (
+      domain === "diagnosis_education" &&
+      support === "absent"
+    ) {
+      removedContradictedOutput = true;
+      return false;
+    }
     if (support === null || support === "absent") return true;
     if (support === "excluded_only") {
       removedContradictedOutput = true;
@@ -2333,7 +2390,8 @@ export function extractFamilyInterviewMock(
   for (const domain of [
     "early_intervention",
     "therapies",
-    "school_iep"
+    "school_iep",
+    "diagnosis_education"
   ] satisfies FamilyNarrativeTarget[]) {
     if (analysis.support[domain] === "supported") {
       matched.add(domain);

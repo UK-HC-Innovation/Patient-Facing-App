@@ -1,6 +1,6 @@
 # Ladder Wave 3 — neutral evaluation education
 
-**Status:** specified; implementation pending
+**Status:** complete; validated 2026-08-03
 **Date:** 2026-08-03
 **Source:** the remaining catalog/capability gap in the 2026-07-29 Ladder persona ledger and the fresh 2026-08-03 Wave 2 validation
 
@@ -69,3 +69,14 @@ The eight-card primary cap, county-before-statewide ordering, enrolled-card visi
 - No screening-instrument recommendation engine.
 - No persistence, account, notification, API, or deployment work.
 - No change to historical 2026-07-29 scores; a dated validation report owns new evidence.
+
+## Implementation evidence
+
+The implementation adds a narrow bilingual deterministic education-intent rule,
+applies the same rule when reconciling live provider output, preserves direct
+service domains and action attribution, and fills the checked-guide strip from
+additive domains. It does not add a fact, diagnosis, persisted type, resource,
+or free-text surface.
+
+Validation is recorded in
+[the 2026-08-03 Wave 3 report](../qa/ladder-personas/2026-08-03-wave3-validation.md).

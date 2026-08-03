@@ -266,6 +266,24 @@ for (const persona of PERSONAS) {
     for (const id of persona.excludes) expect(ids).not.toContain(id);
     await expect(cards.getByTestId("family-resource-locality")).toHaveCount(ids.length);
 
+    if (persona.id === "F03") {
+      await expect(
+        page.locator('[data-guide-id="cdc_milestones_help"]')
+      ).toBeVisible();
+      await expect
+        .poll(() =>
+          page.evaluate((key) => {
+            const raw = window.localStorage.getItem(key);
+            if (!raw) return [];
+            const state = JSON.parse(raw) as {
+              family?: { activeDomains?: string[] };
+            };
+            return state.family?.activeDomains ?? [];
+          }, STORAGE_KEY)
+        )
+        .toContain("diagnosis_education");
+    }
+
     await completeAction(page, persona);
   });
 }

@@ -826,6 +826,39 @@ describe("healthReducer", () => {
     ]);
   });
 
+  it("preserves neutral evaluation education across a monthly check-in", () => {
+    const seeded: AppState = {
+      ...demoState,
+      family: {
+        ...schoolAgeFamilyState,
+        latestInterviewDomains: ["therapies", "diagnosis_education"],
+        activeDomains: ["therapies", "diagnosis_education"]
+      }
+    };
+    const next = healthReducer(seeded, {
+      type: "addFamilyInterview",
+      interview: {
+        id: "checkin-neutral-education",
+        rawText: "Therapy is still the main thing we need.",
+        source: "typed",
+        createdAt: "2026-08-03T12:00:00.000Z",
+        extraction: "mock",
+        kind: "checkin"
+      },
+      facts: [],
+      domains: ["therapies"]
+    });
+
+    expect(next.family?.latestInterviewDomains).toEqual([
+      "therapies",
+      "diagnosis_education"
+    ]);
+    expect(next.family?.activeDomains).toEqual([
+      "therapies",
+      "diagnosis_education"
+    ]);
+  });
+
   it("keeps one copy of a fact a later round re-extracted from the same words", () => {
     const seeded: AppState = { ...demoState, family: schoolAgeFamilyState };
     const openingFact: FamilyFact = {

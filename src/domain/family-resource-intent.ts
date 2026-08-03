@@ -245,8 +245,8 @@ export function actionDomainForIntent(
     ["respite", "respite"],
     ["school_evaluation", "school_iep"],
     ["school_removal", "school_iep"],
-    ["developmental_evaluation", "diagnosis_education"],
     ["therapy_access", "therapies"],
+    ["developmental_evaluation", "diagnosis_education"],
     ["early_intervention_access", "early_intervention"]
   ];
   for (const [intent, domain] of direct) {

@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      - name: Lint, test, and build
+        run: npm run check
+
+      - name: Run crisis safety gate
+        run: npm run crisis:gate
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Ladder acceptance cohort
+        env:
+          PLAYWRIGHT_PORT: "3221"
+        run: npx playwright test e2e/ladder-persona-routing.spec.ts e2e/family-navigator.spec.ts --workers=1
+
+      - name: Upload browser failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: test-results
+          if-no-files-found: ignore

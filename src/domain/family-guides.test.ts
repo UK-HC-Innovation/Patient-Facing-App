@@ -85,6 +85,19 @@ describe("matchFamilyGuides", () => {
     expect(matched.map((guide) => guide.id)).toEqual(["cdc_milestones_help", "cdc_milestone_tracker"]);
   });
 
+  it("keeps the direct service guide first and adds neutral education", () => {
+    const matched = matchFamilyGuides(
+      profileAged(48),
+      ["therapies", "diagnosis_education"],
+      NOW
+    );
+
+    expect(matched.map(({ id }) => id)).toEqual([
+      "medline_speech_home",
+      "cdc_milestones_help"
+    ]);
+  });
+
   it("is deterministic — the same profile and instant give the same list", () => {
     const first = matchFamilyGuides(profileAged(48), "parent_support", NOW);
     const second = matchFamilyGuides(profileAged(48), "parent_support", NOW);
