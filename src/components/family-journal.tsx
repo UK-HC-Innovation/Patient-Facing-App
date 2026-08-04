@@ -2,8 +2,9 @@
 
 import React, { useMemo, useState } from "react";
 import { FamilyFactCard } from "@/components/family-fact-card";
+import { FamilyFoldSection } from "@/components/family-fold-section";
 import type { FamilyFact, FamilyInterview, FamilyNavigatorState } from "@/domain/types";
-import { CARD_SECTION_PAPER, CONTROL_FOCUS, H2_SECTION } from "@/components/family-theme";
+import { CARD_SECTION_PAPER, CONTROL_FOCUS } from "@/components/family-theme";
 import { tFamily } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
 
@@ -92,17 +93,28 @@ export function FamilyJournal({ family, language, onConfirm, onToggleInclude }: 
   const noteCount = family.interviews.filter(({ kind }) => kind === "note").length;
   const nudgeDue =
     noteCount > 0 && noteCount % NUDGE_EVERY_NOTES === 0 && nudgeShownFor !== noteCount;
+  // The closed row counts what the month headings inside count — every entry the
+  // family wrote, orientation included — and dates the newest, so it says
+  // something true without being opened. Groups are newest-first already.
+  const entryCount = family.interviews.length;
+  const latestMonth = groups[0]?.label ?? "";
+  const summaryLine =
+    entryCount === 0
+      ? tFamily(language, "journalIntro")
+      : tFamily(language, entryCount === 1 ? "foldJournalSummaryOne" : "foldJournalSummary", {
+          count: entryCount,
+          month: latestMonth
+        });
 
   return (
-    <section
+    <FamilyFoldSection
       id="family-journal"
-      data-testid="family-journal"
-      aria-labelledby="family-journal-title"
+      testId="family-journal"
+      title={tFamily(language, "journalTitle")}
+      titleId="family-journal-title"
+      summaryLine={summaryLine}
       className={CARD_SECTION_PAPER}
     >
-      <h2 id="family-journal-title" className={H2_SECTION}>
-        {tFamily(language, "journalTitle")}
-      </h2>
       <p className="mt-1 break-words leading-relaxed text-ink/80">
         {tFamily(language, "journalIntro")}
       </p>
@@ -174,6 +186,6 @@ export function FamilyJournal({ family, language, onConfirm, onToggleInclude }: 
           {tFamily(language, "backToTop")}
         </a>
       </p>
-    </section>
+    </FamilyFoldSection>
   );
 }

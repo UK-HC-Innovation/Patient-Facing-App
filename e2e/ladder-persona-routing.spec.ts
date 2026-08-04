@@ -218,9 +218,24 @@ async function fillProfile(page: Page, persona: Persona): Promise<void> {
   await setup.getByRole("button", { name: spanish ? "Guardar estos datos" : "Save these details" }).click();
 }
 
-// The top three resources also render in the thread now, so the action is taken
-// against the section's copy — the durable library the routing assertions read.
+/**
+ * The library folds once the thread carries the answer. Routing assertions read
+ * the library — the durable, uncapped list — so they open it the way a caregiver
+ * would, by tapping its summary row.
+ */
+async function openResourceLibrary(page: Page): Promise<void> {
+  const details = page.locator("#family-resources > details");
+  const alreadyOpen = await details.evaluate((node) => (node as HTMLDetailsElement).open);
+  if (!alreadyOpen) {
+    await page.getByTestId("family-resources-summary").click();
+    await expect(details).toHaveJSProperty("open", true);
+  }
+}
+
+// The thread answers with a compact card, so the action is taken against the
+// section's full copy — the durable library the routing assertions read.
 async function completeAction(page: Page, persona: Persona): Promise<void> {
+  await openResourceLibrary(page);
   const card = page
     .getByTestId("matched-family-resources")
     .locator(`[data-resource-id="${persona.action.resourceId}"]`);
@@ -234,6 +249,8 @@ async function completeAction(page: Page, persona: Persona): Promise<void> {
   await card.getByRole("button", { name: /Save|Guardar/ }).click();
   await expect(card.getByRole("button", { name: /Saved|Guardado/ })).toBeDisabled();
   if (persona.action.kind === "share") {
+    // Two taps, one consent: asking to share is what puts the question on screen.
+    await card.getByTestId("family-resource-share-open").click();
     await card.getByRole("checkbox").check();
     await card.getByRole("button", { name: /Share|Compartir/ }).click();
     await expect(card.getByRole("status")).not.toBeEmpty();
@@ -263,6 +280,7 @@ for (const persona of PERSONAS) {
     await input.fill(persona.opening);
     await page.getByRole("button", { name: persona.language === "es" ? "Buscar ayuda" : "Find help" }).click();
 
+    await openResourceLibrary(page);
     const cards = page.getByTestId("matched-family-resources").locator("[data-family-resource-card]");
     await expect(cards.first()).toBeVisible();
     const ids = await cards.evaluateAll((elements) =>

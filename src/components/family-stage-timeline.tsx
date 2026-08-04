@@ -1,5 +1,6 @@
 import Link from "next/link";
 import React, { useState } from "react";
+import { FamilyFoldSection } from "@/components/family-fold-section";
 import {
   buildFamilyStages,
   type FamilyDiagnosisBackdateMonths,
@@ -77,12 +78,25 @@ export function FamilyStageTimeline({
 }: FamilyStageTimelineProps) {
   const [demoControlOpen, setDemoControlOpen] = useState(false);
   const stages = buildFamilyStages(family, now, language, nudgeFirstName);
+  // What is due now is the only count worth putting on the closed row — "later"
+  // is exactly what a caregiver does not need to open this for.
+  const nowCount = stages.filter((stage) => stage.timing === "now").length;
+  const summaryLine =
+    nowCount === 0
+      ? tFamily(language, "foldTimelineSummaryNone")
+      : tFamily(language, nowCount === 1 ? "foldTimelineSummaryOne" : "foldTimelineSummary", {
+          count: nowCount
+        });
 
   return (
-    <section className={CARD_SUBDUED} aria-labelledby="family-timeline-title">
-      <h2 id="family-timeline-title" className="font-semibold text-ink/90">
-        {tFamily(language, "timelineTitle")}
-      </h2>
+    <FamilyFoldSection
+      id="family-timeline"
+      testId="family-timeline"
+      title={tFamily(language, "timelineTitle")}
+      titleId="family-timeline-title"
+      summaryLine={summaryLine}
+      className={CARD_SUBDUED}
+    >
       <p className="mt-1 text-sm leading-6 text-ink/70">{tFamily(language, "timelineIntro")}</p>
       {!family.profile ? (
         <p className="mt-4 text-sm text-ink/70">{tFamily(language, "timelineNoProfile")}</p>
@@ -179,6 +193,6 @@ export function FamilyStageTimeline({
           </p>
         </>
       )}
-    </section>
+    </FamilyFoldSection>
   );
 }

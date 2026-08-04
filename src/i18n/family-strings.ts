@@ -236,6 +236,9 @@ export type FamilyStringKey =
   | "resourceAlreadyEnrolled"
   | "resourceMarkEnrolled"
   | "resourceUnmarkEnrolled"
+  | "resourceMore"
+  | "resourceLess"
+  | "resourceAbout"
   | "savedResourcesTitle"
   | "savedResourcesEmpty"
   | "emptyFallbackTitle"
@@ -415,6 +418,14 @@ export type FamilyStringKey =
   | "fallbackInThread"
   | "followUpOptional"
   | "packetBasicsExtracted"
+  | "foldResourcesSummary"
+  | "foldResourcesSummaryOne"
+  | "foldJournalSummary"
+  | "foldJournalSummaryOne"
+  | "foldPacketSummary"
+  | "foldTimelineSummary"
+  | "foldTimelineSummaryOne"
+  | "foldTimelineSummaryNone"
   | "askEyebrow";
 
 // Counted strings come in pairs: every "{count} things" key has a "…One" twin
@@ -656,6 +667,9 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     resourceShareConsentRequired: "Check the consent box before sharing.",
     resourceShareComplete: "Share recorded with your consent.",
     resourceOpenSource: "See their official page",
+    resourceMore: "More about this",
+    resourceLess: "Show less",
+    resourceAbout: "About this program",
     resourceAlreadyEnrolled: "You already have this",
     resourceMarkEnrolled: "We already have this",
     resourceUnmarkEnrolled: "We do not have this",
@@ -844,6 +858,14 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     fallbackInThread: "We did not find county programs for this yet — statewide starting points are below.",
     followUpOptional: "Optional — answering sharpens the list.",
     packetBasicsExtracted: "(read from your description — please check)",
+    foldResourcesSummary: "All {count} places",
+    foldResourcesSummaryOne: "{count} place",
+    foldJournalSummary: "{count} notes · latest {month}",
+    foldJournalSummaryOne: "{count} note · {month}",
+    foldPacketSummary: "Print it or copy it",
+    foldTimelineSummary: "{count} things to do now",
+    foldTimelineSummaryOne: "{count} thing to do now",
+    foldTimelineSummaryNone: "Nothing to do right now",
     askEyebrow: "Your next step"
   },
   es: {
@@ -1078,6 +1100,9 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     resourceShareConsentRequired: "Marca la casilla de consentimiento antes de compartir.",
     resourceShareComplete: "Se registró el intercambio con tu consentimiento.",
     resourceOpenSource: "Ver su página oficial",
+    resourceMore: "Más sobre esto",
+    resourceLess: "Mostrar menos",
+    resourceAbout: "Sobre este programa",
     resourceAlreadyEnrolled: "Ya tienes esto",
     resourceMarkEnrolled: "Ya tenemos esto",
     resourceUnmarkEnrolled: "No tenemos esto",
@@ -1270,6 +1295,14 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     fallbackInThread: "Todavía no encontramos programas de tu condado para esto — abajo hay opciones de todo el estado.",
     followUpOptional: "Opcional — responder afina la lista.",
     packetBasicsExtracted: "(leído de tu descripción — por favor revísalo)",
+    foldResourcesSummary: "Los {count} lugares",
+    foldResourcesSummaryOne: "{count} lugar",
+    foldJournalSummary: "{count} notas · la última de {month}",
+    foldJournalSummaryOne: "{count} nota · {month}",
+    foldPacketSummary: "Imprímelo o cópialo",
+    foldTimelineSummary: "{count} cosas para hacer ahora",
+    foldTimelineSummaryOne: "{count} cosa para hacer ahora",
+    foldTimelineSummaryNone: "Nada que hacer por ahora",
     askEyebrow: "Tu próximo paso"
   }
 };

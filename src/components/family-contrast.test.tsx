@@ -152,7 +152,6 @@ describe("Ladder semantic contrast", () => {
         {...callbacks}
       />
     );
-    expectAaContrast(screen.getByText(/UKHCI Ladder.*concept demo/i));
     appointment.unmount();
 
     const experience = render(
@@ -162,8 +161,9 @@ describe("Ladder semantic contrast", () => {
         passcode=""
       />
     );
-    const badges = screen.getAllByText(/UKHCI Ladder.*concept demo/i);
-    expectAaContrast(badges[0]);
+    // The demo badge is the page's, once — the appointment card no longer prints
+    // its own copy.
+    expectAaContrast(screen.getByText(/UKHCI Ladder.*concept demo/i));
     experience.unmount();
 
     const fact = {

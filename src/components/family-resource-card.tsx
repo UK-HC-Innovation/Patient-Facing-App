@@ -1,7 +1,7 @@
 "use client";
 
-import { Bookmark, ExternalLink, Share2 } from "lucide-react";
-import React, { useId, useRef, useState } from "react";
+import { Bookmark, ChevronDown, ChevronUp, ExternalLink, Share2 } from "lucide-react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import type { FamilyResource } from "@/domain/family-resources";
 import { familyResourceServiceArea } from "@/domain/family-resource-intent";
 import type { DevNeedDomain, FamilyResourceStep, FamilyStepStatus } from "@/domain/types";
@@ -31,6 +31,12 @@ export type FamilyResourceCardProps = {
   /** Verbatim caregiver words, already checked against the transcript. */
   becauseYouSaid?: string;
   urgency?: "act_now" | "soon" | "when_ready";
+  /**
+   * "compact" is the thread's answer card: name, one sentence, the dated clock
+   * line, and the commit CTA — everything else is one tap away in place. The
+   * library and the fallback path pass nothing and render exactly as before.
+   */
+  variant?: "full" | "compact";
   isSaved: boolean;
   isEnrolled: boolean;
   onSave: (resource: FamilyResource, domain: DevNeedDomain) => void;
@@ -110,6 +116,7 @@ export function FamilyResourceCard({
   why,
   becauseYouSaid,
   urgency,
+  variant = "full",
   isSaved,
   isEnrolled,
   onSave,
@@ -122,9 +129,26 @@ export function FamilyResourceCard({
   const [consented, setConsented] = useState(false);
   const [shared, setShared] = useState(false);
   const [saveRequested, setSaveRequested] = useState(false);
+  // Two-tap share: the consent row does not exist until someone asks to share.
+  const [sharing, setSharing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const consentRef = useRef<HTMLInputElement>(null);
   const saveRequestedRef = useRef(false);
   const sharedRef = useRef(false);
   const saved = isSaved || saveRequested;
+  // A compact card that has been opened is the full card — same component, same
+  // handlers, same per-card state — so nothing is lost on the way back.
+  const compact = variant === "compact" && !expanded;
+  // One paragraph: a grounded "why this, for you" line supersedes the catalog
+  // summary in the body, and the summary keeps its full text inside Details.
+  const summaryInDetails = why !== undefined;
+  // One dated block: the clock line is the specific one (it counts down to a
+  // real date), so when it shows, the general act-now paragraph moves to Details.
+  const actNowInDetails = clockLine !== undefined;
+
+  useEffect(() => {
+    if (sharing) consentRef.current?.focus();
+  }, [sharing]);
   const saveLabel = saved ? tFamily(language, "resourceSaved") : tFamily(language, "resourceSave");
   const enrollmentLabel = isEnrolled
     ? tFamily(language, "resourceUnmarkEnrolled")
@@ -178,7 +202,7 @@ export function FamilyResourceCard({
           {why}
         </p>
       ) : null}
-      {becauseYouSaid ? (
+      {becauseYouSaid && !compact ? (
         <blockquote
           data-testid="family-resource-quote"
           className="mt-2 break-words border-l-4 border-care/30 pl-3 text-sm leading-6 text-ink/70"
@@ -186,9 +210,11 @@ export function FamilyResourceCard({
           {tFamily(language, "rankQuotePrefix")}: {becauseYouSaid}
         </blockquote>
       ) : null}
-      <p className="mt-2 break-words leading-relaxed text-ink/80">{resource.summary}</p>
+      {summaryInDetails ? null : (
+        <p className="mt-2 break-words leading-relaxed text-ink/80">{resource.summary}</p>
+      )}
 
-      {serviceArea ? (
+      {serviceArea && !compact ? (
         <p data-testid="family-resource-locality" className="mt-2 break-words text-sm font-medium text-care">
           {serviceArea.kind === "county"
             ? tFamily(language, "resourceCountyServiceArea", { county: serviceArea.county })
@@ -197,7 +223,7 @@ export function FamilyResourceCard({
         </p>
       ) : null}
 
-      {!isEnrolled && resource.actNow ? (
+      {!isEnrolled && resource.actNow && !actNowInDetails && !compact ? (
         <div className={`mt-3 ${NOTICE_DEADLINE}`}>
           <h4 className="text-sm font-semibold text-pulse">{tFamily(language, "resourceActNow")}</h4>
           <p className="mt-1 break-words text-sm leading-6">{resource.actNow}</p>
@@ -213,7 +239,7 @@ export function FamilyResourceCard({
         </p>
       ) : null}
 
-      {resource.humanVerify ? (
+      {resource.humanVerify && !compact ? (
         <p className={`mt-3 break-words text-sm font-medium text-ink ${NOTICE_INFO}`}>
           {tFamily(language, "resourceHumanVerify")}
         </p>
@@ -239,30 +265,55 @@ export function FamilyResourceCard({
             {tFamily(language, "stepPlanCta")}
           </button>
         ) : null}
-        <button
-          type="button"
-          disabled={saved}
-          aria-label={`${saveLabel}: ${resource.name}`}
-          onClick={save}
-          className={BTN_QUIET}
-        >
-          <Bookmark aria-hidden="true" className="h-4 w-4 shrink-0" />
-          {saveLabel}
-        </button>
-        <button
-          type="button"
-          aria-pressed={isEnrolled}
-          aria-label={`${enrollmentLabel}: ${resource.name}`}
-          onClick={() => onToggleEnrollment(resource.id)}
-          className={BTN_QUIET}
-        >
-          {enrollmentLabel}
-        </button>
+        {compact ? null : (
+          <>
+            <button
+              type="button"
+              disabled={saved}
+              aria-label={`${saveLabel}: ${resource.name}`}
+              onClick={save}
+              className={BTN_QUIET}
+            >
+              <Bookmark aria-hidden="true" className="h-4 w-4 shrink-0" />
+              {saveLabel}
+            </button>
+            <button
+              type="button"
+              aria-pressed={isEnrolled}
+              aria-label={`${enrollmentLabel}: ${resource.name}`}
+              onClick={() => onToggleEnrollment(resource.id)}
+              className={BTN_QUIET}
+            >
+              {enrollmentLabel}
+            </button>
+          </>
+        )}
+        {variant === "compact" ? (
+          <button
+            type="button"
+            data-testid="family-resource-expand"
+            aria-expanded={expanded}
+            aria-label={`${tFamily(language, expanded ? "resourceLess" : "resourceMore")}: ${resource.name}`}
+            onClick={() => setExpanded((current) => !current)}
+            className={BTN_QUIET}
+          >
+            {expanded ? (
+              <ChevronUp aria-hidden="true" className="h-4 w-4 shrink-0" />
+            ) : (
+              <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0" />
+            )}
+            {tFamily(language, expanded ? "resourceLess" : "resourceMore")}
+          </button>
+        ) : null}
       </div>
 
+      {compact ? null : (
+      <>
       {/* Trust furniture, one tap away: who runs this, ages, how to get in, and
           when we last checked. Everything stays in the document for print and
-          find-in-page; it just is not first-read content. */}
+          find-in-page; it just is not first-read content. The catalog summary
+          and the general act-now paragraph join it whenever a more specific line
+          — a grounded "why this", a dated clock — already says it above. */}
       <details className="mt-3 rounded-control border border-ink/10">
         <summary
           className={`min-h-12 min-w-0 cursor-pointer break-words rounded-control p-3 text-sm font-semibold text-care ${CONTROL_FOCUS}`}
@@ -271,6 +322,18 @@ export function FamilyResourceCard({
         </summary>
         <div className="border-t border-ink/10 p-3">
           <dl className="grid gap-2 text-sm">
+            {summaryInDetails ? (
+              <div>
+                <dt className="font-semibold">{tFamily(language, "resourceAbout")}</dt>
+                <dd className="break-words text-ink/75">{resource.summary}</dd>
+              </div>
+            ) : null}
+            {!isEnrolled && resource.actNow && actNowInDetails ? (
+              <div>
+                <dt className="font-semibold">{tFamily(language, "resourceActNow")}</dt>
+                <dd className="break-words text-ink/75">{resource.actNow}</dd>
+              </div>
+            ) : null}
             <div>
               <dt className="font-semibold">{tFamily(language, "resourceContact")}</dt>
               <dd className="break-words text-ink/75">{resource.contact}</dd>
@@ -303,32 +366,51 @@ export function FamilyResourceCard({
         </div>
       </details>
 
+      {/* Two taps, one consent: asking to share is what puts the consent question
+          on screen, and the share itself still cannot fire without the tick.
+          `share()` re-checks consent, so no sequence of taps can get around it. */}
       <div className="mt-4 border-t border-ink/10 pt-3">
-        <label htmlFor={consentId} className="flex min-h-12 min-w-0 items-center gap-2 text-sm">
-          <input
-            id={consentId}
-            type="checkbox"
-            checked={consented}
-            disabled={shared}
-            aria-label={`${tFamily(language, "resourceShareConsent")} ${resource.name}`}
-            onChange={(event) => setConsented(event.target.checked)}
-            className={CONTROL_FOCUS}
-          />
-          <span className="min-w-0 break-words">{tFamily(language, "resourceShareConsent")}</span>
-        </label>
-        {!consented && !shared ? (
-          <p className="text-xs text-ink/65">{tFamily(language, "resourceShareConsentRequired")}</p>
-        ) : null}
-        <button
-          type="button"
-          disabled={!consented || shared}
-          aria-label={`${tFamily(language, "resourceShare")}: ${resource.name}`}
-          onClick={share}
-          className={BTN_QUIET}
-        >
-          <Share2 aria-hidden="true" className="h-4 w-4 shrink-0" />
-          {tFamily(language, "resourceShare")}
-        </button>
+        {shared ? null : sharing ? (
+          <div data-testid="family-resource-share-consent">
+            <label htmlFor={consentId} className="flex min-h-12 min-w-0 items-center gap-2 text-sm">
+              <input
+                ref={consentRef}
+                id={consentId}
+                type="checkbox"
+                checked={consented}
+                aria-label={`${tFamily(language, "resourceShareConsent")} ${resource.name}`}
+                onChange={(event) => setConsented(event.target.checked)}
+                className={CONTROL_FOCUS}
+              />
+              <span className="min-w-0 break-words">{tFamily(language, "resourceShareConsent")}</span>
+            </label>
+            {!consented ? (
+              <p className="text-xs text-ink/65">{tFamily(language, "resourceShareConsentRequired")}</p>
+            ) : null}
+            <button
+              type="button"
+              disabled={!consented}
+              aria-label={`${tFamily(language, "resourceShare")}: ${resource.name}`}
+              onClick={share}
+              className={BTN_QUIET}
+            >
+              <Share2 aria-hidden="true" className="h-4 w-4 shrink-0" />
+              {tFamily(language, "resourceShare")}
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            data-testid="family-resource-share-open"
+            aria-expanded={false}
+            aria-label={`${tFamily(language, "resourceShare")}: ${resource.name}`}
+            onClick={() => setSharing(true)}
+            className={BTN_QUIET}
+          >
+            <Share2 aria-hidden="true" className="h-4 w-4 shrink-0" />
+            {tFamily(language, "resourceShare")}
+          </button>
+        )}
         <p role="status" aria-live="polite" className="mt-2 text-sm font-medium text-care">
           {shared
             ? tFamily(language, "resourceShareComplete")
@@ -337,6 +419,8 @@ export function FamilyResourceCard({
               : ""}
         </p>
       </div>
+      </>
+      )}
     </article>
   );
 }

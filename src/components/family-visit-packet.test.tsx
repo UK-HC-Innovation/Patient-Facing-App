@@ -1,7 +1,8 @@
-import { render, screen, within } from "@testing-library/react";
+import { render as rtlRender, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
+import { openAllFamilyFolds } from "@/test/family-folds";
 import { schoolAgeFamilyState } from "@/domain/family-fixtures";
 import { buildFamilyVisitSummary } from "@/domain/family-visit-packet";
 import type {
@@ -12,6 +13,14 @@ import type {
   FamilyResourceStep
 } from "@/domain/types";
 import { FamilyVisitPacket } from "./family-visit-packet";
+
+// The packet is a folded reference section; these tests are about what is inside
+// it, so every render opens it first.
+function render(ui: React.ReactElement): ReturnType<typeof rtlRender> {
+  const result = rtlRender(ui);
+  openAllFamilyFolds();
+  return result;
+}
 
 const NOW = new Date("2026-07-17T12:00:00.000Z");
 

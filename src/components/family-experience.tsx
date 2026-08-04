@@ -12,6 +12,7 @@ import { FamilyCheckin, type CheckinPart } from "@/components/family-checkin";
 import { FamilyClinicNowCard } from "@/components/family-clinic-now-card";
 import { FamilyCrisisBanner } from "@/components/family-crisis-banner";
 import { FamilyFactCard } from "@/components/family-fact-card";
+import { FamilyFoldSection, useFamilyFoldAnchors } from "@/components/family-fold-section";
 import { FamilyGuideCard } from "@/components/family-guide-card";
 import type { FamilyInterviewSubmissionMeta, SanitizedFamilyInterviewResult } from "@/components/family-interview";
 import { FamilyJournal } from "@/components/family-journal";
@@ -334,6 +335,10 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   const reviewFacts = family?.facts.filter(({ interviewId }) => interviewId === latestInterviewId) ?? [];
   const profileDiagnosisVersion =
     family?.profile?.diagnoses.map(({ id, diagnosedAt }) => `${id}:${diagnosedAt ?? ""}`).join("|") ?? "none";
+
+  // Nav chips, the wait-header rung link, and "See all" all point at sections
+  // that may be folded; this opens whichever one they land on.
+  useFamilyFoldAnchors();
 
   useEffect(() => {
     const previousLanguage = document.documentElement.lang;
@@ -748,7 +753,8 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   // ranking or an enrollment sink moves both.
   function resourceCard(
     item: (typeof displayResources)[number],
-    keyPrefix: string
+    keyPrefix: string,
+    variant?: "full" | "compact"
   ): React.ReactNode {
     if (!family) return null;
     const {
@@ -762,6 +768,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
         key={`${keyPrefix}-${resource.id}`}
         resource={resource}
         domain={domain}
+        variant={variant}
         language={language}
         county={family.profile?.county}
         matchNeed={tFamily(language, DOMAIN_KEYS[domain])}
@@ -974,7 +981,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
             data-testid="thread-family-resources"
             className="grid gap-3"
           >
-            {threadResources.map((item) => resourceCard(item, "thread"))}
+            {threadResources.map((item) => resourceCard(item, "thread", "compact"))}
             <p>
               <a
                 href="#family-resources"
@@ -1051,6 +1058,16 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
         )
       : [];
 
+  // The library folds only once the thread is carrying the answer. On the
+  // screen-only and fallback paths this section *is* the answer, so it stays open.
+  const librarySize = matchResult.isFallback ? matchResult.resources.length : displayResources.length;
+  const librarySummaryLine = [
+    tFamily(language, librarySize === 1 ? "foldResourcesSummaryOne" : "foldResourcesSummary", {
+      count: librarySize
+    }),
+    ...(guides.length > 0 ? [tFamily(language, "guidesTitle")] : [])
+  ].join(" · ");
+
   return (
     <div
       id="family-experience"
@@ -1058,6 +1075,11 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
       data-testid="family-experience"
       className="mx-auto grid w-full min-w-0 max-w-2xl gap-4 pb-8 scroll-mt-4"
     >
+      {/* One badge for the page. Every section under it is the same demo. */}
+      <p className="inline-flex rounded-full border border-ink/20 px-3 py-1 text-xs font-medium text-ink/70">
+        {tFamily(language, "demoBadge")}
+      </p>
+
       {family?.profile ? (
         // Same instant and same check-in visibility the sections below are
         // built from, so the rung can never name a section this render omits.
@@ -1098,10 +1120,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
       ) : null}
 
       <section className={CARD_SECTION} aria-labelledby="family-interview-title">
-        <p className="inline-flex rounded-full border border-ink/20 px-3 py-1 text-xs font-medium text-ink/70">
-          {tFamily(language, "demoBadge")}
-        </p>
-        <h2 id="family-interview-title" tabIndex={-1} className="mt-3 text-xl font-semibold scroll-mt-4">
+        <h2 id="family-interview-title" tabIndex={-1} className="text-xl font-semibold scroll-mt-4">
           {tFamily(language, "interviewTitle")}
         </h2>
         <p className="mt-2 leading-relaxed text-ink/90">{tFamily(language, "interviewIntro")}</p>
@@ -1289,14 +1308,15 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
       ) : null}
 
       {family && family.profile && family.activeDomains.length > 0 ? (
-            <section
+            <FamilyFoldSection
               id="family-resources"
+              testId="family-resources"
+              title={tFamily(language, "resourcesTitle")}
+              titleId="family-resources-title"
+              summaryLine={librarySummaryLine}
+              defaultOpen={threadResources.length === 0}
               className={CARD_SECTION_PAPER}
-              aria-labelledby="family-resources-title"
             >
-              <h2 id="family-resources-title" className={H2_SECTION}>
-                {tFamily(language, "resourcesTitle")}
-              </h2>
               {/* The "here is what we heard" line lives in the thread's strip now,
                   but this paragraph also carries the eligibility caveat — every
                   program's own rules are the ones that count. It stands down only
@@ -1407,7 +1427,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
                   {tFamily(language, "backToTop")}
                 </a>
               </p>
-            </section>
+            </FamilyFoldSection>
           ) : null}
 
       {family && family.facts.length > 0 ? (

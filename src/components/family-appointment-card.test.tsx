@@ -267,7 +267,7 @@ describe("FamilyAppointmentCard", () => {
     );
   });
 
-  it("keeps the concept-demo badge visible and politely announces the active turn", () => {
+  it("politely announces the active turn without a second demo badge of its own", () => {
     const offer = createFamilyAppointmentOffer(new Date());
     const props = {
       language: "en" as const,
@@ -278,7 +278,11 @@ describe("FamilyAppointmentCard", () => {
       <FamilyAppointmentCard family={familyState({ appointments: [offer] })} {...props} />
     );
 
-    expect(screen.getByText("UKHCI Ladder · concept demo — not an official service")).toBeVisible();
+    // One badge per page, carried by the page itself — this card used to print a
+    // second copy of it a few lines above the first.
+    expect(
+      screen.queryByText("UKHCI Ladder · concept demo — not an official service")
+    ).not.toBeInTheDocument();
     const liveTurn = screen.getByTestId("family-appt-live-turn");
     expect(liveTurn).toHaveAttribute("aria-live", "polite");
     expect(liveTurn).not.toHaveAttribute("role", "status");
@@ -293,7 +297,6 @@ describe("FamilyAppointmentCard", () => {
     expect(screen.getByTestId("family-appt-live-turn")).toHaveTextContent(
       "anything that could make it hard"
     );
-    expect(screen.getByText("UKHCI Ladder · concept demo — not an official service")).toBeVisible();
   });
 
   it("opts into the earlier-visit list with exactly the constraints picked", async () => {

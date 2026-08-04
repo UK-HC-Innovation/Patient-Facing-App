@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useId, useMemo, useState } from "react";
+import { FamilyFoldSection } from "@/components/family-fold-section";
 import {
   PACKET_QUESTIONS,
   buildFamilyVisitSummary
@@ -99,16 +100,14 @@ export function FamilyVisitPacket({
   }
 
   return (
-    <section
+    <FamilyFoldSection
       id="family-visit-packet"
-      data-testid="family-visit-packet"
-      aria-labelledby="family-visit-packet-title"
+      testId="family-visit-packet"
+      title={title}
+      titleId="family-visit-packet-title"
+      summaryLine={tFamily(language, "foldPacketSummary")}
       className={`family-visit-packet ${CARD_SECTION}`}
     >
-      <h2 id="family-visit-packet-title" className="break-words text-lg font-semibold scroll-mt-4">
-        {title}
-      </h2>
-
       <div className="family-visit-packet__actions mt-3 flex flex-wrap gap-2">
         <button
           type="button"
@@ -209,6 +208,6 @@ export function FamilyVisitPacket({
           );
         })}
       </div>
-    </section>
+    </FamilyFoldSection>
   );
 }

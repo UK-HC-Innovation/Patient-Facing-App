@@ -7,6 +7,7 @@ import { SAMPLE_CAREGIVER_TEXT, SAMPLE_CAREGIVER_TEXT_ES, eighteenMonthFamilySta
 import { createFamilyAppointmentOffer } from "@/domain/family-appointments";
 import type { AppState, DevNeedDomain, FamilyNavigatorState } from "@/domain/types";
 import { healthReducer } from "@/state/store";
+import { openAllFamilyFolds } from "@/test/family-folds";
 import { FamilyExperience } from "@/components/family-experience";
 
 const { push, requestFamilyInterview, requestFamilyRecommendations } = vi.hoisted(() => ({
@@ -109,6 +110,9 @@ beforeEach(() => {
   requestFamilyInterview.mockResolvedValue(null);
   requestFamilyRecommendations.mockReset();
   requestFamilyRecommendations.mockResolvedValue(null);
+  // A test that follows an in-page link leaves that hash on the jsdom location,
+  // and the next mount would treat it as a deep link and open that section.
+  window.history.replaceState(null, "", window.location.pathname);
 });
 
 // The one-line verification that replaced the stack of confirmation cards.
@@ -210,6 +214,7 @@ describe("the heard strip", { timeout: 10_000 }, () => {
     await user.click(screen.getByRole("button", { name: "Find help" }));
     await screen.findByTestId("family-heard-strip");
 
+    openAllFamilyFolds();
     const section = screen.getByTestId("matched-family-resources").closest("section") as HTMLElement;
     expect(within(section).getByText(/rules are the ones that count/i)).toBeVisible();
   });
@@ -421,9 +426,11 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     const user = userEvent.setup();
     render(<ReducerHarness initialState={withFamily(describedFamily)} />);
 
+    // One badge for the whole page, not one per section.
+    expect(screen.getByText(/Demo.*not an official service/i)).toBeVisible();
     expect(
-      within(screen.getByTestId("family-appointment-card")).getByText(/Demo.*not an official service/i)
-    ).toBeVisible();
+      within(screen.getByTestId("family-appointment-card")).queryByText(/not an official service/i)
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /rather answer yes or no/i })).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("heading", { name: "What would help?" })).not.toBeInTheDocument();
     expect(screen.getByLabelText(/What would you like help with/i)).toHaveValue(SAMPLE_CAREGIVER_TEXT);
@@ -434,6 +441,9 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     expect(screen.getByRole("heading", { name: "Here is what we heard" }).closest("section")).toHaveFocus();
     expect(screen.getByRole("heading", { name: "What has the school offered so far?" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Nothing yet" })).toBeVisible();
+    // The library folds once the thread carries the answer; this journey is about
+    // what the library holds, so open it and leave it open.
+    openAllFamilyFolds();
     expect(screen.getByTestId("matched-family-resources")).toBeVisible();
     expect(requestFamilyInterview).toHaveBeenCalledWith(expect.objectContaining({ passcode: "demo-passcode" }));
     expect(screen.getByTestId("adult-facts").textContent).toBe(adultFactsBefore);
@@ -762,6 +772,7 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     const family = JSON.parse(screen.getByTestId("family-state").textContent || "null") as FamilyNavigatorState;
     expect(family.recommendations?.lead).toBe("school_iep");
 
+    openAllFamilyFolds();
     const cards = within(screen.getByTestId("matched-family-resources")).getAllByTestId("family-resource-card");
     expect(cards[0]).toHaveAttribute("data-resource-id", "idea_school_discipline");
     expect(within(cards[0]).getByTestId("family-resource-why")).toHaveTextContent(/ten days/);
@@ -820,6 +831,7 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
           .getAllByTestId("family-resource-card")[0]
       ).toHaveAttribute("data-resource-id", "idea_school_discipline")
     );
+    openAllFamilyFolds();
     const cards = within(screen.getByTestId("matched-family-resources")).getAllByTestId(
       "family-resource-card"
     );
@@ -959,6 +971,7 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     };
     render(<FamilyExperience state={withFamily(family)} dispatch={vi.fn()} passcode="" />);
 
+    openAllFamilyFolds();
     expect(screen.getByText("Nothing to plan for right now based on what you have told us.")).toBeVisible();
   });
 
@@ -970,10 +983,14 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     };
     render(<ReducerHarness initialState={withFamily(family)} />);
 
+    openAllFamilyFolds();
     const michelle = screen.getByTestId("matched-family-resources").querySelector(
       '[data-resource-id="michelle_p_waiver"]'
     ) as HTMLElement;
     expect(within(michelle).getByText(/date ordered/i)).toBeVisible();
+    // Two taps, one consent: asking to share reveals the question, ticking it
+    // answers, and only then does the audit line get written.
+    await user.click(within(michelle).getByTestId("family-resource-share-open"));
     const share = within(michelle).getByRole("button", { name: /Share.*Michelle P/i });
     expect(share).toBeDisabled();
     await user.click(within(michelle).getByRole("checkbox"));
@@ -1069,6 +1086,7 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     expect(within(review).getByText("dislexia")).toBeVisible();
     expect(within(review).getByText("Sobre la escuela y el aprendizaje")).toBeVisible();
     expect(within(review).getByText(/Mencionaste la escuela/)).toBeVisible();
+    openAllFamilyFolds();
     expect(screen.getByText(/vienen directo de las organizaciones.*en inglés/i)).toBeVisible();
     expect(
       within(screen.getByTestId("matched-family-resources")).getByRole("heading", {
@@ -1092,6 +1110,7 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     expect(within(banner).getByRole("link", { name: /Call 911/i })).toHaveAttribute("href", "tel:911");
     // The navigator keeps helping — this is the whole point of the change.
     expect(push).not.toHaveBeenCalled();
+    openAllFamilyFolds();
     expect(screen.getByTestId("matched-family-resources")).toBeVisible();
 
     const family = JSON.parse(screen.getByTestId("family-state").textContent || "null") as FamilyNavigatorState;
@@ -1115,6 +1134,7 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
 
     await user.click(screen.getByRole("button", { name: "Find help" }));
     await screen.findByRole("heading", { name: "What has the school offered so far?" });
+    openAllFamilyFolds();
     expect(screen.getByTestId("matched-family-resources")).toBeVisible();
 
     const crisisText = "I am going to kill myself tonight";
@@ -1424,6 +1444,7 @@ describe("orientation follow-up rounds", () => {
     ]);
     expect(family.facts.every(({ interviewId }) => interviewId === family.interviews[0].id)).toBe(true);
 
+    openAllFamilyFolds();
     const journal = screen.getByTestId("family-journal");
     expect(within(journal).getAllByRole("article")).toHaveLength(3);
     // Three fact cards, but the family wrote one note — the heading counts notes.
@@ -1618,6 +1639,7 @@ describe("P4 eighteen-month family", () => {
   it("renders the development stage and its hub link for an 18-month-old", () => {
     render(<ReducerHarness initialState={withFamily(eighteenMonthFamilyState(new Date()))} />);
 
+    openAllFamilyFolds();
     expect(screen.getByRole("heading", { name: "18-month development check" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Open family check-ins" })).toHaveAttribute(
       "href",
@@ -1735,5 +1757,84 @@ describe("wait header rungs", () => {
     expect(screen.queryByTestId("family-followup")).not.toBeInTheDocument();
     expect(screen.getByTestId("family-next-rung")).toHaveAttribute("href", "#family-checkin");
     expect(document.querySelector("#family-checkin")).toBeInTheDocument();
+  });
+});
+
+// Spec 19: what the page shows before anyone taps. The thread carries a short
+// answer, the reference sections carry one-line rows, and everything they hold
+// is one tap — or one anchor — away.
+describe("phone fit", () => {
+  it("answers with compact cards and folds the library the moment the thread holds the answer", async () => {
+    const user = userEvent.setup();
+    render(<ReducerHarness initialState={withFamily(describedFamily)} />);
+
+    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await screen.findByTestId("family-heard-strip");
+
+    // The library was the answer until the thread had one; now it is a row.
+    const library = screen.getByTestId("family-resources");
+    expect(within(library).getByText(/^All \d+ places/)).toBeVisible();
+    expect(screen.getByTestId("matched-family-resources")).not.toBeVisible();
+
+    const threadCards = within(screen.getByTestId("thread-family-resources")).getAllByTestId(
+      "family-resource-card"
+    );
+    expect(threadCards.length).toBeLessThanOrEqual(3);
+    for (const card of threadCards) {
+      expect(within(card).queryByTestId("family-resource-quote")).not.toBeInTheDocument();
+      expect(within(card).queryByTestId("family-resource-share-open")).not.toBeInTheDocument();
+      expect(within(card).getByTestId("family-resource-expand")).toBeVisible();
+    }
+
+    // One tap grows the first answer into the full card, in place.
+    await user.click(within(threadCards[0]).getByTestId("family-resource-expand"));
+    expect(within(threadCards[0]).getByTestId("family-resource-share-open")).toBeVisible();
+  });
+
+  it("keeps the library open when it is the only answer on the page", () => {
+    render(
+      <ReducerHarness
+        initialState={withFamily({ ...schoolAgeFamilyState, activeDomains: ["school_iep"] })}
+      />
+    );
+
+    // No thread, no strip, no compact cards — the section is what the caregiver
+    // came for, so it does not hide behind a summary row.
+    expect(screen.queryByTestId("thread-family-resources")).not.toBeInTheDocument();
+    expect(screen.getByTestId("matched-family-resources")).toBeVisible();
+  });
+
+  it("opens the section a nav chip points at", async () => {
+    const user = userEvent.setup();
+    render(<ReducerHarness initialState={withFamily(describedFamily)} />);
+
+    const packetBody = screen.getByTestId("family-visit-packet-body");
+    expect(packetBody).not.toBeVisible();
+
+    await user.click(screen.getByRole("link", { name: "Visit packet" }));
+
+    await waitFor(() => expect(packetBody).toBeVisible());
+    expect(screen.getByRole("button", { name: "Print" })).toBeVisible();
+  });
+
+  it("wears exactly one concept-demo badge", () => {
+    render(<ReducerHarness initialState={withFamily(describedFamily)} />);
+
+    expect(screen.getAllByText(/UKHCI Ladder · concept demo/)).toHaveLength(1);
+  });
+
+  it("folds the notes, the packet, and the timeline until they are asked for", async () => {
+    const user = userEvent.setup();
+    render(<ReducerHarness initialState={withFamily(describedFamily)} />);
+
+    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await screen.findByTestId("family-heard-strip");
+
+    // Each row still says something true about what it is holding.
+    const journal = screen.getByTestId("family-journal");
+    expect(within(journal).getByText(/1 note ·/)).toBeVisible();
+    expect(within(journal).getByText(/Notes stay on this device/i)).not.toBeVisible();
+    expect(screen.getByTestId("family-visit-packet-body")).not.toBeVisible();
+    expect(within(screen.getByTestId("family-timeline")).getByText(/to do now|Nothing to do/)).toBeVisible();
   });
 });

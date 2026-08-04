@@ -1,9 +1,18 @@
-import { render, screen, within } from "@testing-library/react";
+import { render as rtlRender, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { schoolAgeFamilyState } from "@/domain/family-fixtures";
+import { openAllFamilyFolds } from "@/test/family-folds";
 import { FamilyStageTimeline } from "./family-stage-timeline";
+
+// The timeline is a folded reference section; these tests are about what is
+// inside it, so every render opens it first.
+function render(ui: React.ReactElement): ReturnType<typeof rtlRender> {
+  const result = rtlRender(ui);
+  openAllFamilyFolds();
+  return result;
+}
 
 describe("FamilyStageTimeline", () => {
   it("surfaces diagnosis stages by due month and backdates diagnosis data through an explicit demo control", async () => {

@@ -100,13 +100,42 @@ describe("FamilyResourceCard", () => {
     expect(onSave).toHaveBeenCalledWith(michelle, "waivers_financial");
     expect(screen.getByRole("status")).toHaveTextContent("Saved");
 
+    // Two taps, one consent: the consent question does not occupy the card until
+    // someone asks to share, and asking is not itself consenting.
+    expect(
+      screen.queryByRole("checkbox", { name: /I agree to share this resource now/i })
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("family-resource-share-open"));
+    expect(onShare).not.toHaveBeenCalled();
+
+    const consent = screen.getByRole("checkbox", {
+      name: /I agree to share this resource now.*Michelle P/i
+    });
+    expect(consent).toHaveFocus();
     const share = screen.getByRole("button", { name: /Share.*Michelle P/i });
     expect(share).toBeDisabled();
-    await user.click(screen.getByRole("checkbox", { name: /I agree to share this resource now.*Michelle P/i }));
+    await user.click(consent);
     expect(share).toBeEnabled();
     await user.dblClick(share);
     expect(onShare).toHaveBeenCalledTimes(1);
     expect(onShare).toHaveBeenCalledWith(michelle);
+    expect(screen.getByRole("status")).toHaveTextContent("Share recorded with your consent.");
+  });
+
+  it("cannot be made to share without consent by any order of taps", async () => {
+    const user = userEvent.setup();
+    const onShare = vi.fn();
+    renderCard({ onShare });
+
+    // Open, close by ticking and un-ticking, re-open — the guard is in share()
+    // itself, so no sequence that leaves the box unchecked can get a share out.
+    await user.click(screen.getByTestId("family-resource-share-open"));
+    const consent = screen.getByRole("checkbox", { name: /I agree to share/i });
+    await user.click(consent);
+    await user.click(consent);
+    expect(consent).not.toBeChecked();
+    await user.click(screen.getByRole("button", { name: /Share.*Michelle P/i }));
+    expect(onShare).not.toHaveBeenCalled();
   });
 
   it("does not announce a persisted saved state as though it were a current action", () => {
@@ -116,7 +145,8 @@ describe("FamilyResourceCard", () => {
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 
-  it("uses unique consent controls when the same resource appears in matched and saved sections", () => {
+  it("uses unique consent controls when the same resource appears in matched and saved sections", async () => {
+    const user = userEvent.setup();
     render(
       <>
         <FamilyResourceCard
@@ -142,6 +172,9 @@ describe("FamilyResourceCard", () => {
       </>
     );
 
+    for (const open of screen.getAllByTestId("family-resource-share-open")) {
+      await user.click(open);
+    }
     const checkboxes = screen.getAllByRole("checkbox", { name: /I agree to share this resource now.*Michelle P/i });
     expect(checkboxes).toHaveLength(2);
     expect(checkboxes[0].id).not.toBe(checkboxes[1].id);
@@ -212,6 +245,82 @@ describe("FamilyResourceCard", () => {
     const stable = getFamilyResourceById("stable_kentucky")!;
     renderCard({ resource: stable, domain: "future_planning" });
     expect(screen.getByText(/Call and check before you count on this/i)).toBeVisible();
+  });
+
+  it("keeps a compact card to one sentence and its dated line, and expands in place", async () => {
+    const user = userEvent.setup();
+    const firstSteps = getFamilyResourceById("first_steps_statewide")!;
+    renderCard({
+      resource: firstSteps,
+      domain: "early_intervention",
+      variant: "compact",
+      why: "This is the statewide door into early intervention.",
+      becauseYouSaid: "he only strings a couple of words together",
+      clockLine: "About 4 weeks left to start First Steps.",
+      county: "Scott",
+      matchNeed: "Early intervention",
+      onPlanStep: vi.fn()
+    });
+
+    // What a compact card shows: name, one sentence, the dated line, the commit
+    // CTA. The catalog summary never doubles the "why" line.
+    expect(screen.getByRole("heading", { name: firstSteps.name })).toBeVisible();
+    expect(screen.getByTestId("family-resource-why")).toBeVisible();
+    expect(screen.queryByText(firstSteps.summary)).not.toBeInTheDocument();
+    expect(screen.getByTestId("family-resource-clock")).toBeVisible();
+    expect(screen.getByRole("button", { name: /I'll do this/i })).toBeVisible();
+
+    // What it defers: the quote, the locality line, save, enroll, details, share.
+    expect(screen.queryByTestId("family-resource-quote")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("family-resource-locality")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Save/i })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("family-resource-share-open")).not.toBeInTheDocument();
+    expect(screen.queryByText("Details and source")).not.toBeInTheDocument();
+
+    const expand = screen.getByTestId("family-resource-expand");
+    expect(expand).toHaveAttribute("aria-expanded", "false");
+    await user.click(expand);
+
+    expect(expand).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("family-resource-quote")).toBeVisible();
+    expect(screen.getByTestId("family-resource-locality")).toBeVisible();
+    expect(screen.getByTestId("family-resource-share-open")).toBeVisible();
+    expect(screen.getByText("Details and source")).toBeVisible();
+
+    await user.click(screen.getByTestId("family-resource-expand"));
+    expect(screen.queryByTestId("family-resource-quote")).not.toBeInTheDocument();
+  });
+
+  it("shows one description: a grounded why line sends the catalog summary to details", async () => {
+    const user = userEvent.setup();
+    const { unmount } = renderCard({ why: "Waiver money can pay for respite hours." });
+
+    expect(screen.getByTestId("family-resource-why")).toBeVisible();
+    expect(screen.getByText(michelle.summary)).not.toBeVisible();
+    await user.click(screen.getByText("Details and source"));
+    expect(screen.getByText("About this program")).toBeVisible();
+    expect(screen.getByText(michelle.summary)).toBeVisible();
+    unmount();
+
+    // With no why line, the summary is the only description and stays in the body.
+    renderCard();
+    expect(screen.getByText(michelle.summary)).toBeVisible();
+    expect(screen.queryByText("About this program")).not.toBeInTheDocument();
+  });
+
+  it("shows one dated block: a clock line sends the act-now paragraph to details", async () => {
+    const user = userEvent.setup();
+    const firstSteps = getFamilyResourceById("first_steps_statewide")!;
+    renderCard({
+      resource: firstSteps,
+      domain: "early_intervention",
+      clockLine: "About 4 weeks left to start First Steps."
+    });
+
+    expect(screen.getByTestId("family-resource-clock")).toBeVisible();
+    expect(screen.getByText(firstSteps.actNow!)).not.toBeVisible();
+    await user.click(screen.getByText("Details and source"));
+    expect(screen.getByText(firstSteps.actNow!)).toBeVisible();
   });
 
   it("makes county-serving and statewide scope visible with the match reason", () => {

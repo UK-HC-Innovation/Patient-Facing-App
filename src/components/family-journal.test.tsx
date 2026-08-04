@@ -1,10 +1,19 @@
-import { render, screen, within } from "@testing-library/react";
+import { render as rtlRender, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { schoolAgeFamilyState } from "@/domain/family-fixtures";
 import type { FamilyFact, FamilyInterview, FamilyNavigatorState } from "@/domain/types";
+import { openAllFamilyFolds } from "@/test/family-folds";
 import { FamilyJournal } from "./family-journal";
+
+// The journal is a folded reference section; these tests are about what is
+// inside it, so every render opens it first.
+function render(ui: React.ReactElement): ReturnType<typeof rtlRender> {
+  const result = rtlRender(ui);
+  openAllFamilyFolds();
+  return result;
+}
 
 function interview(id: string, createdAt: string, rawText: string): FamilyInterview {
   return { id, rawText, source: "typed", createdAt, extraction: "mock", kind: "note" };

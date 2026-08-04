@@ -274,7 +274,10 @@ describe("familyStrings", () => {
       ["waitChipNotesOne", "waitChipNotes"],
       ["waitChipStepsOne", "waitChipSteps"],
       ["journalMonthNoteOne", "journalMonthNote"],
-      ["seeAllResourcesOne", "seeAllResources"]
+      ["seeAllResourcesOne", "seeAllResources"],
+      ["foldResourcesSummaryOne", "foldResourcesSummary"],
+      ["foldJournalSummaryOne", "foldJournalSummary"],
+      ["foldTimelineSummaryOne", "foldTimelineSummary"]
     ] satisfies Array<[FamilyStringKey, FamilyStringKey]>;
     for (const language of ["en", "es"] as const) {
       for (const [one, many] of PAIRS) {
