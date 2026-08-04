@@ -1,5 +1,7 @@
 # Care-Coordination Quarterback — Transitions & Referral Loop-Closure
 
+**Status:** implemented — `src/domain/care-team-message.ts` + `/visits`. Verified 2026-08-04.
+
 > A care-team–facing coordination layer that ingests external events (ADT feeds, ER/hospital visits, specialist consults, outside labs), tracks every open referral to closure, and turns raw between-visit noise into pre-triaged, pre-drafted, evidence-labeled work items — extending the app's coach + safety-gate and adherence-loop primitives from "help this patient" to "close this loop." It coordinates; it never diagnoses, prescribes, changes a dose, or triages the acuity of an active symptom.
 
 ## Problem & Upstream Rationale

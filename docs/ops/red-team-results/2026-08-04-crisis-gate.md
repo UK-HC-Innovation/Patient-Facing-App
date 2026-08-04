@@ -7,7 +7,7 @@
 ## Command
 
 ```
-npx vitest run src/domain/crisis-red-flags.test.ts src/ai/safety-gate.test.ts src/domain/front-door.test.ts src/domain/safety.test.ts src/ai/voice-gate-corpus.test.ts src/ai/output-guard.test.ts
+npx vitest run src/domain/crisis-red-flags.test.ts src/ai/safety-gate.test.ts src/domain/front-door.test.ts src/domain/safety.test.ts src/ai/voice-gate-corpus.test.ts src/ai/output-guard.test.ts src/domain/family-safety.test.ts
 ```
 
 ## Result
@@ -20,10 +20,10 @@ PASS
 RUN  v4.1.10 C:/Patient centered
 
 
- Test Files  6 passed (6)
-      Tests  310 passed (310)
-   Start at  04:41:53
-   Duration  1.83s (transform 1.23s, setup 1.09s, import 1.29s, tests 335ms, environment 5.59s)
+ Test Files  7 passed (7)
+      Tests  334 passed (334)
+   Start at  09:52:02
+   Duration  3.46s (transform 1.29s, setup 1.75s, import 1.76s, tests 862ms, environment 12.35s)
 ```
 
 ## Interpretation

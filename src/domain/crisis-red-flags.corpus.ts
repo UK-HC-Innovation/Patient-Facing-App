@@ -1268,5 +1268,251 @@ export const crisisGateCorpus: CrisisCorpusCase[] = [
     text: "mi hijo no golpea a otros niños en la escuela",
     expectedMatched: false,
     domain: "logistics"
+  },
+
+  // ---------------------------------------------------------------------------
+  // Adjudicated 2026-08-04 from the spec 17 workstream A adversarial report
+  // (docs/qa/2026-08-04-crisis-adversarial-candidates.md). Every case below broke
+  // the detector when it was generated. Two candidates from that report were
+  // deliberately NOT added — "I don't want to be here at the clinic all
+  // afternoon" and "this paperwork is endless, I want to end it all" — because
+  // the ideation reading is not clearly dominated in a health app. They still
+  // fire, and that is the accepted behavior rather than an asserted trap.
+  // ---------------------------------------------------------------------------
+
+  // Traps: this app's own low-vision and self-care vocabulary must not escalate.
+  {
+    id: "trap_cannot_see_meter_numbers",
+    text: "I can't see the numbers on my glucose meter",
+    expectedMatched: false,
+    domain: "logistics"
+  },
+  {
+    id: "trap_cannot_see_pill_label",
+    text: "I can't see the label on the pill bottle without my glasses",
+    expectedMatched: false,
+    domain: "logistics"
+  },
+  {
+    id: "trap_cannot_see_where_to_tap",
+    text: "I can't see where to tap to log my reading",
+    expectedMatched: false,
+    domain: "logistics"
+  },
+  {
+    id: "trap_cannot_see_appointment_time",
+    text: "I cannot see my appointment time anywhere in the app",
+    expectedMatched: false,
+    domain: "logistics"
+  },
+  {
+    id: "trap_no_eye_pain_today",
+    text: "No eye pain today, the drops are working",
+    expectedMatched: false,
+    domain: "logistics"
+  },
+  {
+    id: "trap_mild_eye_pain_allergies",
+    text: "Mild eye pain from my allergies this week",
+    expectedMatched: false,
+    domain: "logistics"
+  },
+  {
+    id: "trap_eye_pain_resolved",
+    text: "The eye pain I had last month is completely gone",
+    expectedMatched: false,
+    domain: "logistics"
+  },
+  {
+    id: "trap_meter_flashing_light",
+    text: "There is a flashing light on my glucose meter, what does it mean?",
+    expectedMatched: false,
+    domain: "logistics"
+  },
+  {
+    id: "trap_power_outage_went_dark",
+    text: "Everything went dark when the power went out during the storm",
+    expectedMatched: false,
+    domain: "logistics"
+  },
+  {
+    id: "trap_fear_of_going_blind",
+    text: "I am scared of going blind someday, is that likely with diabetes?",
+    expectedMatched: false,
+    domain: "logistics"
+  },
+  {
+    id: "trap_die_of_embarrassment",
+    text: "I want to die of embarrassment, I called the nurse by the wrong name",
+    expectedMatched: false,
+    domain: "logistics"
+  },
+  {
+    id: "trap_hurt_myself_exercising",
+    text: "I don't want to hurt myself doing the new exercises, how do I start slow?",
+    expectedMatched: false,
+    domain: "logistics"
+  },
+  {
+    id: "trap_hurt_myself_lifting",
+    text: "I might hurt myself lifting the wheelchair into the trunk",
+    expectedMatched: false,
+    domain: "logistics"
+  },
+
+  // English self-harm phrasings the Spanish rules already caught.
+  {
+    id: "self_harm_no_point_living",
+    text: "I don't see the point in living anymore",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+  {
+    id: "self_harm_better_off_without_me",
+    text: "Everyone would be better off without me",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+  {
+    id: "self_harm_wish_i_was_dead",
+    text: "I wish I was dead",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+  {
+    id: "self_harm_dont_want_to_live",
+    text: "I don't want to live anymore",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+  {
+    id: "self_harm_thinking_about_ending_things",
+    text: "I have been thinking about ending things",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+  {
+    id: "caregiver_son_wishes_he_was_dead",
+    text: "My son told me he wishes he was dead",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+  {
+    id: "caregiver_daughter_doesnt_want_to_live",
+    text: "My daughter says she doesn't want to live anymore",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+  {
+    id: "caregiver_child_talking_about_being_dead",
+    text: "My son keeps talking about wanting to be dead",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+
+  // English caregiver collapse — the old rule needed one literal phrase.
+  {
+    id: "caregiver_collapse_nothing_left",
+    text: "I have nothing left, I want to give up",
+    expectedMatched: true,
+    domain: "caregiver_collapse"
+  },
+  {
+    id: "caregiver_collapse_cant_keep_going",
+    text: "I can't keep going like this, I want to give up on everything",
+    expectedMatched: true,
+    domain: "caregiver_collapse"
+  },
+  {
+    id: "caregiver_collapse_cant_take_it",
+    text: "I can't take it anymore and I want to give up",
+    expectedMatched: true,
+    domain: "caregiver_collapse"
+  },
+
+  // English abuse by a named caregiver — Spanish already had coach/teacher rules.
+  {
+    id: "abuse_coach_hit_daughter",
+    text: "My daughter's coach hit her at practice",
+    expectedMatched: true,
+    domain: "abuse"
+  },
+  {
+    id: "abuse_teacher_touched_son",
+    text: "My son told me his teacher touched him inappropriately",
+    expectedMatched: true,
+    domain: "abuse"
+  },
+  {
+    id: "abuse_stepdad_hits_child",
+    text: "My kid's stepdad hits him when I'm at work",
+    expectedMatched: true,
+    domain: "abuse"
+  },
+
+  // English currently-missing child with no elopement verb.
+  {
+    id: "acute_daughter_missing_since_last_night",
+    text: "My daughter has been missing since last night",
+    expectedMatched: true,
+    domain: "acute_danger"
+  },
+  {
+    id: "acute_dont_know_where_son_is",
+    text: "I don't know where my son is and he has been gone since this morning",
+    expectedMatched: true,
+    domain: "acute_danger"
+  },
+
+  // Acute medical presentations that previously reached no rule at any tier.
+  {
+    id: "acute_unresponsive_severe_hypoglycemia",
+    text: "My husband is unresponsive and his sugar is 32",
+    expectedMatched: true,
+    domain: "acute_danger"
+  },
+  {
+    id: "acute_cannot_wake_mother_low_sugar",
+    text: "I can't wake my mother up and her blood sugar was 28",
+    expectedMatched: true,
+    domain: "acute_danger"
+  },
+  {
+    id: "acute_seizure_now",
+    text: "She is having a seizure right now",
+    expectedMatched: true,
+    domain: "acute_danger"
+  },
+  {
+    id: "acute_throat_closing_anaphylaxis",
+    text: "Her throat is closing up after the new insulin",
+    expectedMatched: true,
+    domain: "acute_danger"
+  },
+  {
+    id: "acute_chest_pain_radiating_arm",
+    text: "I have crushing chest pain radiating down my left arm",
+    expectedMatched: true,
+    domain: "acute_danger"
+  },
+  {
+    id: "acute_passed_out_unresponsive",
+    text: "He passed out and I can't get him to respond",
+    expectedMatched: true,
+    domain: "acute_danger"
+  },
+
+  // Harm to others without the word "threaten", and infant-directed hitting.
+  {
+    id: "harm_to_others_said_hed_stab_brother",
+    text: "He said he'd stab his brother",
+    expectedMatched: true,
+    domain: "harm_to_others"
+  },
+  {
+    id: "harm_to_others_hit_the_baby",
+    text: "He hit the baby in the face",
+    expectedMatched: true,
+    domain: "harm_to_others"
   }
 ];

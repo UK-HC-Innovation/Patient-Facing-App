@@ -1,5 +1,7 @@
 # Silent-Killer Early Detection & Risk Stratification
 
+**Status:** superseded 2026-08-04. The risk-stratification architecture described here was never built under these names; the capability shipped instead as the Screening Hub instrument registry (`src/domain/instruments/`, spec 10). Kept for the clinical rationale. Verified in [the 2026-08-04 coherence audit](../qa/2026-08-04-spec-coherence.md).
+
 > A guideline-driven screening engine that turns a patient's passive data — labs, vitals, family history, wearables — into a personalized, ranked "what to catch next" list, surfacing the asymptomatic conditions (hypertension, prediabetes, CKD, hyperlipidemia, depression, sleep apnea, osteoporosis) and validated risk scores that family medicine catches too late today. It **flags who is due and who is at elevated risk, and hands that to a clinician** — it never diagnoses, orders, or treats.
 
 ## Problem & Upstream Rationale

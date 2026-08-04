@@ -1,5 +1,7 @@
 # Reaching the Unreached — Voice-First, Multilingual, Low-Literacy Access
 
+**Status:** implemented — `src/voice/*`, `src/i18n/*`, `src/domain/accessibility.ts`. Verified 2026-08-04.
+
 > A cross-cutting access layer that lets patients use the whole Patient Centered app by voice, in their language, at a low-literacy reading level, with an SMS/phone fallback for people who can't or won't type — generalizing the Food Lens voice+camera pattern into universal access for rural, uninsured, low-literacy, LEP, elderly, and vision-impaired patients. **The load-bearing safety property is that every new channel is a new *renderer* of the one deterministic escalation decision — never a new path around it.**
 
 *Date: 2026-07-05 · Status: product design record (draft PRD for review) · Suggested path: `C:\Patient centered\docs\reaching-the-unreached-access-design-spec.md`*

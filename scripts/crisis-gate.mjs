@@ -5,8 +5,12 @@
 import { execSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 
+// family-safety.test.ts joined the gate on 2026-08-04 (spec 17 workstream B,
+// Finding 2): it is the single safety read for the Ladder/family thread, and its
+// crisis-to-tier mapping was previously ungated even though the classifiers it
+// composes were not.
 const COMMAND =
-  "npx vitest run src/domain/crisis-red-flags.test.ts src/ai/safety-gate.test.ts src/domain/front-door.test.ts src/domain/safety.test.ts src/ai/voice-gate-corpus.test.ts src/ai/output-guard.test.ts";
+  "npx vitest run src/domain/crisis-red-flags.test.ts src/ai/safety-gate.test.ts src/domain/front-door.test.ts src/domain/safety.test.ts src/ai/voice-gate-corpus.test.ts src/ai/output-guard.test.ts src/domain/family-safety.test.ts";
 
 let output = "";
 let result = "PASS";

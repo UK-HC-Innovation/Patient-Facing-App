@@ -1,5 +1,7 @@
 # Triaged Between-Visit Remote Monitoring — Heart Failure & Post-Discharge
 
+**Status:** implemented — `src/domain/blood-pressure.ts` + `/numbers`. Verified 2026-08-04.
+
 > A signal-not-firehose remote-monitoring layer that turns the ~8,760 non-office hours a year into two high-leverage safety loops — daily-weight heart-failure surveillance and the 48–72 hour post-discharge window — surfacing the care team only the handful of patients who need action this week, each with the trend and a suggested next step already assembled. **Escalation is always rule-based; the model only explains; a licensed clinician makes every clinical decision.**
 
 ---

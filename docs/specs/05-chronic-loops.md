@@ -1,5 +1,7 @@
 # Chronic-Disease Self-Management Loops + Deprescribing & Cost Transparency
 
+**Status:** partially implemented, corrected 2026-08-04. The chronic self-management loops shipped (`src/domain/adherence.ts`, `adherence-support.ts`, `/medicines`). **Deprescribing and cost transparency did not** — no module exists under those names; cost surfaces narrowly through `coverage-logistics.ts` and `medication-fills.ts`. Treat the deprescribing half of this spec as unbuilt. Verified in [the 2026-08-04 coherence audit](../qa/2026-08-04-spec-coherence.md).
+
 > A reusable condition-loop engine that generalizes the existing medication-adherence loop into protocol-referenced self-management for hypertension and diabetes (with COPD/asthma deferred), paired with a questions-only deprescribing/polypharmacy review and estimate-labeled cost transparency — so patients get continuous, plain-language guidance between visits and physicians see home data and true out-of-pocket cost they've never had. Every clinical decision stays with a licensed clinician; the app prepares decisions, it never makes them.
 
 ## Problem & Upstream Rationale

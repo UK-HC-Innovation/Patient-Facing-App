@@ -316,7 +316,12 @@ const HARM_TO_OTHERS_SIGNALS: readonly RegExp[] = [
   new RegExp(`\\b${HARM_VERB}\\s+(?:(?:the|our|my|his|her|their|a|an)\\s+)?${ANIMAL}\\b`, "i"),
   new RegExp(`\\b${HARM_VERB}\\s+${OTHER_PERSON}\\b`, "i"),
   /\bthreaten(?:s|ed|ing)?\s+to\s+(?:kill|hurt|harm|stab|shoot|attack)\s+(?!himself|herself|themselves|themself|myself)/i,
-  /\b(?:brought|took|taking|bringing|carried|carrying|snuck|sneaked)\s+(?:a|his|her|their|the)\s+(?:knife|gun|weapon|blade|box\s?cutter)\s+(?:to|into)\s+(?:school|class|daycare|the\s+bus)\b/i
+  /\b(?:brought|took|taking|bringing|carried|carrying|snuck|sneaked)\s+(?:a|his|her|their|the)\s+(?:knife|gun|weapon|blade|box\s?cutter)\s+(?:to|into)\s+(?:school|class|daycare|the\s+bus)\b/i,
+  // Reported threat without the word "threaten" ("he said he'd stab his brother").
+  /\b(?:said|says)\s+(?:he|she|they)'?(?:d|ll)?\s+(?:would\s+)?(?:kill|hurt|harm|stab|shoot|attack)\s+(?!himself|herself|themselves|themself|myself)/i,
+  // "hit" is deliberately NOT in HARM_VERB — it fires on "hit the ball", "hit his
+  // head". It only counts against an infant, where it is never ordinary roughness.
+  /\bhit(?:s|ting)?\s+(?:the|his|her|their|my|our)\s+(?:baby|infant|newborn|toddler)\b/i
 ];
 
 const HARM_TO_OTHERS_DENIALS: readonly RegExp[] = [
@@ -347,6 +352,280 @@ function signalSurvivesDenial(clause: string, signals: readonly RegExp[], denial
 function isHarmToOthers(input: string): boolean {
   return englishClauses(input).some((clause) =>
     signalSurvivesDenial(clause, HARM_TO_OTHERS_SIGNALS, HARM_TO_OTHERS_DENIALS)
+  );
+}
+
+// ---------------------------------------------------------------------------
+// English parity block (adjudicated 2026-08-04 from the spec 17 workstream A
+// candidate report). The Spanish rules were built adversarially and the English
+// ones corpus-first, so English was missing ideation, collapse, named-abuser and
+// currently-missing-child phrasings that Spanish already caught. Each set below
+// mirrors an existing Spanish rule.
+// ---------------------------------------------------------------------------
+
+// Phrases whose negation IS the disclosure ("I don't want to live"). Denial
+// stripping must not touch these — the "don't" is the signal, not a retraction.
+const ENGLISH_INHERENTLY_NEGATIVE_IDEATION: readonly RegExp[] = [
+  /\b(?:don'?t|do\s+not|no\s+longer)\s+want\s+to\s+live\b/i,
+  /\b(?:don'?t|do\s+not)\s+see\s+(?:the\s+|any\s+)?point\s+(?:in\s+|to\s+)?living\b/i,
+  /\bno\s+(?:point|reason)\s+(?:in\s+|to\s+)?(?:living|go\s+on|going\s+on)\b/i
+];
+
+// Phrases a preceding negation genuinely cancels ("I would never wish I was dead").
+const ENGLISH_DENIABLE_IDEATION: readonly RegExp[] = [
+  /\bwish(?:ed)?\s+i\s+(?:was|were)\s+dead\b/i,
+  /\bbetter\s+off\s+without\s+me\b/i,
+  /\bwant\s+to\s+be\s+dead\b/i,
+  /\bthinking\s+about\s+ending\s+(?:things|it)\b/i
+];
+
+const ENGLISH_IDEATION_DENIALS: readonly RegExp[] = [
+  /\b(?:never|not|don'?t|doesn'?t|didn'?t|wouldn'?t|no\s+longer)\b/i
+];
+
+// Cheap pre-filters. Each is a strict superset of the signal set below it — every
+// signal contains one of these tokens — so they change cost, never behavior. They
+// exist because `screenCrisisRedFlags` runs on every keystroke of every composer
+// in the app, and clause-splitting seven times per call is the wrong default.
+const ENGLISH_IDEATION_PREFILTER = /\b(?:live|living|dead|better\s+off|ending|go(?:ing)?\s+on)\b/i;
+
+function isEnglishDirectIdeation(input: string): boolean {
+  if (!ENGLISH_IDEATION_PREFILTER.test(input)) return false;
+  return englishClauses(input).some(
+    (clause) =>
+      matchesAny(clause, ENGLISH_INHERENTLY_NEGATIVE_IDEATION) ||
+      signalSurvivesDenial(clause, ENGLISH_DENIABLE_IDEATION, ENGLISH_IDEATION_DENIALS)
+  );
+}
+
+const ENGLISH_REPORTED_IDEATION_SIGNALS: readonly RegExp[] = [
+  /\b(?:he|she|they)\s+wish(?:es|ed)?\s+(?:he|she|they)\s+(?:was|were)\s+dead\b/i,
+  /\b(?:he|she|they)\s+(?:doesn'?t|does\s+not|don'?t|do\s+not|no\s+longer)\s+want(?:s)?\s+to\s+live\b/i,
+  /\b(?:wanting|wants?)\s+to\s+be\s+dead\b/i,
+  /\b(?:says?|said|tells?|told\s+me|keeps?\s+saying|keeps?\s+talking\s+about|talking\s+about)\b[^.?!]{0,48}\b(?:want(?:s|ing)?\s+to\s+be\s+dead|wish(?:es|ed)?\s+(?:he|she|they)\s+(?:was|were)\s+dead)\b/i
+];
+
+function isEnglishReportedIdeation(input: string): boolean {
+  if (!/\b(?:dead|live)\b/i.test(input)) return false;
+  return englishClauses(input).some((clause) =>
+    signalSurvivesDenial(clause, ENGLISH_REPORTED_IDEATION_SIGNALS, ENGLISH_IDEATION_DENIALS)
+  );
+}
+
+// Caregiver collapse: the old rule required the literal phrase "can't do this
+// anymore" plus a giving-up phrase within 64 chars, which is far narrower than
+// its Spanish twin. Both halves are still required — collapse alone is ordinary
+// exhaustion — but each half now accepts the usual phrasings.
+const ENGLISH_COLLAPSE_SIGNALS: readonly RegExp[] = [
+  /\bcan'?t\s+do\s+this\s+(?:any\s?more|anymore)\b/i,
+  /\bcan'?t\s+keep\s+(?:going|doing\s+this)\b/i,
+  /\bcan'?t\s+take\s+(?:it|this)\s+(?:any\s?more|anymore)\b/i,
+  /\bcan'?t\s+go\s+on\b/i,
+  /\b(?:have|got)\s+nothing\s+left\b/i,
+  /\bnothing\s+left\s+to\s+give\b/i,
+  /\bat\s+my\s+breaking\s+point\b/i
+];
+
+const ENGLISH_GIVING_UP_SIGNALS: readonly RegExp[] = [
+  /\bwant\s+to\s+give\s+up\b/i,
+  /\bgiving\s+up\s+on\s+everything\b/i,
+  /\b(?:ending|end)\s+it\b/i,
+  /\bwant\s+to\s+quit\s+everything\b/i,
+  /\bready\s+to\s+give\s+up\b/i
+];
+
+const ENGLISH_GIVING_UP_DENIALS: readonly RegExp[] = [
+  /\b(?:never|not|don'?t|won'?t|wouldn'?t|no\s+longer)\b/i
+];
+
+// Ordinary-task framing, mirroring SPANISH_ORDINARY_TASK_CONTEXT.
+const ENGLISH_ORDINARY_TASK_CONTEXT =
+  /\b(?:crossword|video\s?game|puzzle|diet|homework|board\s+game|practice\s+exercise|level|sudoku|the\s+treadmill)\b/i;
+
+function isEnglishCaregiverCollapse(input: string): boolean {
+  // Collapse is the rarer half, so test it first and skip the clause split when
+  // it misses. Both halves are still required.
+  if (!matchesAny(input, ENGLISH_COLLAPSE_SIGNALS)) return false;
+  if (ENGLISH_ORDINARY_TASK_CONTEXT.test(input)) return false;
+  return englishClauses(input).some((clause) =>
+    signalSurvivesDenial(clause, ENGLISH_GIVING_UP_SIGNALS, ENGLISH_GIVING_UP_DENIALS)
+  );
+}
+
+// Abuse by a named caregiver. Spanish already covered coach/caregiver/teacher as
+// the actor; English required the word "someone" or "somebody".
+const ENGLISH_ABUSER =
+  "(?:coach|teacher|caregiver|care\\s?giver|sitter|babysitter|stepdad|step-?father|stepmom|step-?mother|uncle|aunt|cousin|neighbor|instructor|aide|bus\\s+driver|boyfriend|girlfriend|partner)";
+const ENGLISH_ABUSE_HARM =
+  "(?:hit|hits|hitting|beat|beats|beating|hurt|hurts|hurting|slapped|slaps|punched|punches|grabbed|grabs|choked|chokes|touched|touches|molested)";
+const ENGLISH_CHILD = "(?:child|kid|son|daughter|boy|girl|teen(?:ager)?|baby|toddler)";
+
+const ENGLISH_NAMED_ABUSE_SIGNALS: readonly RegExp[] = [
+  new RegExp(
+    `\\b(?:my|our)\\s+${ENGLISH_CHILD}'?s?\\s+${ENGLISH_ABUSER}\\s+${ENGLISH_ABUSE_HARM}\\b`,
+    "i"
+  ),
+  new RegExp(
+    `\\b(?:his|her|their|the)\\s+${ENGLISH_ABUSER}\\s+${ENGLISH_ABUSE_HARM}\\s+(?:him|her|them|my\\s+${ENGLISH_CHILD})\\b`,
+    "i"
+  ),
+  new RegExp(
+    `\\b(?:my|our)\\s+${ENGLISH_CHILD}\\b[^.?!]{0,48}\\b(?:his|her|their)\\s+${ENGLISH_ABUSER}\\s+${ENGLISH_ABUSE_HARM}\\s+(?:him|her|them)\\b`,
+    "i"
+  ),
+  /\btouch(?:ed|es|ing)\s+(?:him|her|them|my\s+\w+)\s+inappropriately\b/i,
+  new RegExp(`\\b(?:my|our)\\s+${ENGLISH_CHILD}\\s+(?:was|got)\\s+(?:hit|beaten|molested|abused)\\b`, "i")
+];
+
+const ENGLISH_ABUSE_DENIALS: readonly RegExp[] = [
+  /\b(?:never|not|didn'?t|doesn'?t|hasn'?t|no\s+one|nobody)\b/i
+];
+
+const ENGLISH_ABUSE_HYPOTHETICAL =
+  /\b(?:what\s+(?:should|do)\s+i\s+do\s+if|how\s+(?:do|would)\s+i\s+know\s+if|the\s+(?:form|survey|guide|questionnaire)\s+asks)\b/i;
+
+const ENGLISH_ABUSE_PREFILTER = new RegExp(
+  `${ENGLISH_ABUSER}|inappropriately|\\b(?:was|got)\\s+(?:hit|beaten|molested|abused)\\b`,
+  "i"
+);
+
+function isEnglishNamedAbuse(input: string): boolean {
+  if (!ENGLISH_ABUSE_PREFILTER.test(input)) return false;
+  if (ENGLISH_ABUSE_HYPOTHETICAL.test(input)) return false;
+  return englishClauses(input).some((clause) =>
+    signalSurvivesDenial(clause, ENGLISH_NAMED_ABUSE_SIGNALS, ENGLISH_ABUSE_DENIALS)
+  );
+}
+
+// Currently-missing child with no elopement verb. Spanish already had
+// SPANISH_CURRENTLY_MISSING; English required "ran away"/"wandered off" first.
+const ENGLISH_CURRENTLY_MISSING: readonly RegExp[] = [
+  new RegExp(
+    `\\b(?:my|our)\\s+${ENGLISH_CHILD}\\s+(?:has\\s+been|has'?s\\s+been|is|has\\s+gone)\\s+missing\\b`,
+    "i"
+  ),
+  new RegExp(
+    `\\b(?:don'?t|do\\s+not)\\s+know\\s+where\\s+(?:my|our)\\s+${ENGLISH_CHILD}\\s+is\\b[^.?!]{0,64}\\b(?:gone|missing|since)\\b`,
+    "i"
+  ),
+  new RegExp(
+    `\\b(?:my|our)\\s+${ENGLISH_CHILD}\\s+(?:has\\s+been|is)\\s+gone\\s+(?:since|for)\\b`,
+    "i"
+  )
+];
+
+const ENGLISH_MISSING_RETURNED =
+  /\b(?:came\s+back|is\s+back|found\s+(?:him|her|them)|(?:he|she|they)\s+(?:is|are)\s+home\s+now|turned\s+up|safe\s+now)\b/i;
+const ENGLISH_MISSING_MEDIA_CONTEXT =
+  /\b(?:in|on)\s+(?:the|a|this)\s+(?:movie|book|story|show|series|news|episode)\b/i;
+
+function isEnglishCurrentlyMissingChild(input: string): boolean {
+  if (
+    ENGLISH_MISSING_RETURNED.test(input) ||
+    ENGLISH_MISSING_MEDIA_CONTEXT.test(input) ||
+    ENGLISH_ABUSE_HYPOTHETICAL.test(input)
+  ) {
+    return false;
+  }
+  return matchesAny(input, ENGLISH_CURRENTLY_MISSING);
+}
+
+// Acute medical presentations with no rule at any tier before 2026-08-04. Severe
+// hypoglycemia is the one that matters most here — this is a diabetes-first app
+// and "unresponsive, sugar is 32" was reaching no gate at all.
+const ACUTE_MEDICAL_SIGNALS: readonly RegExp[] = [
+  /\b(?:is|are|him|her|them|he'?s|she'?s|they'?re)\s+unresponsive\b|\bunresponsive\s+(?:and|right\s+now)\b/i,
+  /\b(?:not|isn'?t|aren'?t)\s+responding\b/i,
+  /\bcan'?t\s+get\s+(?:him|her|them)\s+to\s+respond\b/i,
+  /\bcan'?t\s+wake\s+(?:him|her|them|my\s+\w+|the\s+\w+)\s+up\b/i,
+  /\b(?:won'?t|will\s+not|isn'?t|is\s+not)\s+wak(?:e|ing)\s+up\b/i,
+  /\b(?:is|are|was|were)\s+having\s+(?:a\s+)?seizure|\bhaving\s+a\s+seizure\s+(?:right\s+)?now\b/i,
+  /\bthroat\s+(?:is\s+)?clos(?:ing|ed)\b|\banaphyla/i,
+  /\bchest\s+pain\b[^.?!]{0,48}\b(?:radiat\w+|down\s+(?:my|his|her)\s+(?:left\s+|right\s+)?arm|into\s+(?:my|his|her)\s+jaw)\b/i,
+  /\bpassed\s+out\b[^.?!]{0,48}\b(?:can'?t\s+get\s+\w+\s+to\s+respond|unresponsive|won'?t\s+wake|still\s+out)\b/i
+];
+
+function isAcuteMedical(input: string): boolean {
+  return matchesAny(input, ACUTE_MEDICAL_SIGNALS);
+}
+
+// ---------------------------------------------------------------------------
+// False-positive narrowing (same adjudication). These rules were firing on this
+// app's own everyday vocabulary — "I can't see the numbers on my meter" is what
+// a low-vision diabetes patient types, not an acute vision loss.
+// ---------------------------------------------------------------------------
+
+// Bare "cannot see" now needs a vision-shaped object or a clause end. A named
+// object ("the numbers", "the label", "where to tap") is a legibility complaint.
+const VISION_CANNOT_SEE =
+  /\b(?:loss\s+of\s+vision|vision\s+loss)\b|\b(?:cannot|can'?t|cant)\s+see\s+(?:anything|at\s+all|out\s+of|clearly|properly)\b|\b(?:cannot|can'?t|cant)\s+see\s*(?:$|[.!?,;])/i;
+
+const EYE_PAIN = /\beye\s+pain\b/i;
+const EYE_PAIN_DOWNGRADE: readonly RegExp[] = [
+  /\b(?:no|not|without|denies|mild|slight|minor|little)\s*$/i
+];
+const EYE_PAIN_RESOLVED =
+  /\b(?:gone|resolved|cleared\s+up|stopped|went\s+away|better\s+now|no\s+longer)\b/i;
+
+function isEyePain(input: string): boolean {
+  if (!EYE_PAIN.test(input)) return false;
+  return englishClauses(input).some((clause) => {
+    if (EYE_PAIN_RESOLVED.test(clause)) return false;
+    return signalSurvivesDenial(clause, [EYE_PAIN], EYE_PAIN_DOWNGRADE);
+  });
+}
+
+// A blinking LED on a meter or pump is not a photopsia report.
+const FLASHES_OF_LIGHT = /\bflash(?:es|ing)?\s+(?:of\s+)?light/i;
+const DEVICE_CONTEXT =
+  /\b(?:on|from)\s+(?:my|the)\s+(?:meter|monitor|glucose\s+meter|pump|device|phone|screen|machine|sensor|reader)\b/i;
+
+function isFlashesOfLight(input: string): boolean {
+  return FLASHES_OF_LIGHT.test(input) && !DEVICE_CONTEXT.test(input);
+}
+
+const WENT_DARK = /\b(?:everything|my\s+vision|my\s+sight)\s+(?:went|going|turned)\s+(?:dark|black)\b/i;
+const EXTERNAL_DARKNESS =
+  /\b(?:power\s+(?:went\s+)?out|power\s+outage|lights?\s+went\s+out|blackout|storm|breaker|bulb|candle)\b/i;
+
+function isVisionWentDark(input: string): boolean {
+  return WENT_DARK.test(input) && !EXTERNAL_DARKNESS.test(input);
+}
+
+// "Am I going blind someday?" is the education question the corpus already traps
+// in its "will I go blind" form; the present-participle form needs the same guard.
+const GOING_BLIND = /\bgoing\s+blind\b/i;
+const BLINDNESS_HYPOTHETICAL =
+  /\b(?:scared\s+of|afraid\s+of|worried\s+about|worry\s+about|risk\s+of|chance(?:s)?\s+of|someday|eventually|will\s+i|am\s+i\s+going\s+to|is\s+that\s+likely|odds\s+of)\b/i;
+
+function isGoingBlind(input: string): boolean {
+  return GOING_BLIND.test(input) && !BLINDNESS_HYPOTHETICAL.test(input);
+}
+
+// "I want to die of embarrassment" — the Spanish corpus already trapped this
+// idiom (trap_es_embarrassment_idiom); English never did.
+const WANT_TO_DIE = /\bwant\s+to\s+die\b|\bend(?:ing)?\s+it\s+all\b/i;
+const DYING_IDIOM =
+  /\b(?:die|dying)\s+of\s+(?:embarrassment|shame|laughter|boredom|hunger|thirst|heat|cold)\b/i;
+
+function isWantToDie(input: string): boolean {
+  if (!WANT_TO_DIE.test(input)) return false;
+  return englishClauses(input).some(
+    (clause) => WANT_TO_DIE.test(clause) && !DYING_IDIOM.test(clause)
+  );
+}
+
+// "hurt myself" in a physical-activity clause is injury avoidance, not self-harm.
+const SELF_HARM_CORE = /(?:kill(?:ing)?\s+myself|suicid(?:e|al)|end\s+my\s+life)/i;
+const HURT_MYSELF = /\bhurt\s+myself\b/i;
+const PHYSICAL_ACTIVITY_CONTEXT =
+  /\b(?:lift(?:ing)?|carry(?:ing)?|mov(?:e|ing)|bend(?:ing)?|exercis\w*|work(?:ing)?\s+out|the\s+gym|yoga|stretch\w*|running|walking|the\s+treadmill|wheelchair|groceries)\b/i;
+
+function isSelfHarmPhrase(input: string): boolean {
+  if (SELF_HARM_CORE.test(input)) return true;
+  if (!HURT_MYSELF.test(input)) return false;
+  return englishClauses(input).some(
+    (clause) => HURT_MYSELF.test(clause) && !PHYSICAL_ACTIVITY_CONTEXT.test(clause)
   );
 }
 
@@ -382,7 +661,7 @@ const CRISIS_RULES: CrisisRule[] = [
   {
     id: "vision_loss",
     domain: "vision",
-    pattern: /(?:loss\s+of\s+vision|vision\s+loss|cannot\s+see|can't\s+see|cant\s+see)/i
+    pattern: VISION_CANNOT_SEE
   },
   {
     id: "vision_sudden_changes",
@@ -404,7 +683,7 @@ const CRISIS_RULES: CrisisRule[] = [
   {
     id: "vision_eye_pain",
     domain: "vision",
-    pattern: /(?:severe\s+)?eye\s+pain|eye\s+pain.{0,48}(?:worse|severe)|eye\s+pain\s+is\s+severe/i
+    match: isEyePain
   },
   // Plain-language acute-vision phrasings that the corpus-shaped patterns above
   // miss. Each requires a present/acute marker, so general education questions
@@ -418,7 +697,7 @@ const CRISIS_RULES: CrisisRule[] = [
   {
     id: "vision_going_blind",
     domain: "vision",
-    pattern: /\bgoing\s+blind\b/i
+    match: isGoingBlind
   },
   {
     id: "vision_new_floaters",
@@ -428,12 +707,12 @@ const CRISIS_RULES: CrisisRule[] = [
   {
     id: "vision_flashes_light",
     domain: "vision",
-    pattern: /\bflash(?:es|ing)?\s+(?:of\s+)?light/i
+    match: isFlashesOfLight
   },
   {
     id: "vision_went_dark",
     domain: "vision",
-    pattern: /\b(?:everything|my\s+vision|my\s+sight)\s+(?:went|going|turned)\s+(?:dark|black)\b/i
+    match: isVisionWentDark
   },
   {
     id: "self_harm_wake_up",
@@ -443,7 +722,7 @@ const CRISIS_RULES: CrisisRule[] = [
   {
     id: "self_harm_suicide",
     domain: "self_harm",
-    pattern: /(?:kill(?:ing)?\s+myself|suicid(?:e|al)|end\s+my\s+life|hurt\s+myself)/i
+    match: isSelfHarmPhrase
   },
   {
     id: "self_harm_dont_want_to_be_here",
@@ -453,7 +732,17 @@ const CRISIS_RULES: CrisisRule[] = [
   {
     id: "self_harm_want_to_die",
     domain: "self_harm",
-    pattern: /\bwant\s+to\s+die\b|\bend(?:ing)?\s+it\s+all\b/i
+    match: isWantToDie
+  },
+  {
+    id: "self_harm_english_direct_ideation",
+    domain: "self_harm",
+    match: isEnglishDirectIdeation
+  },
+  {
+    id: "self_harm_english_reported_ideation",
+    domain: "self_harm",
+    match: isEnglishReportedIdeation
   },
   {
     id: "self_harm_overdose_disclosure",
@@ -486,14 +775,34 @@ const CRISIS_RULES: CrisisRule[] = [
     pattern: MISSING_CHILD
   },
   {
+    id: "acute_english_currently_missing_child",
+    domain: "acute_danger",
+    match: isEnglishCurrentlyMissingChild
+  },
+  {
+    id: "acute_medical_emergency",
+    domain: "acute_danger",
+    match: isAcuteMedical
+  },
+  {
     id: "caregiver_collapse_combined",
     domain: "caregiver_collapse",
     pattern: CAREGIVER_COLLAPSE
   },
   {
+    id: "caregiver_collapse_english_broadened",
+    domain: "caregiver_collapse",
+    match: isEnglishCaregiverCollapse
+  },
+  {
     id: "abuse_child_harm_disclosure",
     domain: "abuse",
     pattern: CHILD_HARM_DISCLOSURE
+  },
+  {
+    id: "abuse_english_named_perpetrator",
+    domain: "abuse",
+    match: isEnglishNamedAbuse
   },
   {
     id: "self_harm_spanish_direct",

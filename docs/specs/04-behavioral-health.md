@@ -1,5 +1,7 @@
 # Integrated Behavioral Health & Crisis Escalation
 
+**Status:** implemented — `src/domain/crisis-red-flags.ts`, PHQ/GAD instruments, `/checkin`. Verified 2026-08-04.
+
 > A between-visits behavioral health layer — guided CBT/behavioral-activation skills practice, validated symptom tracking (PHQ-9/GAD-7/AUDIT-C), and substance-use and loneliness coaching — that turns a family doctor's under-resourced mental health caseload into a monitored, escalation-safe program. Built as an *extension* of the app's existing coach, safety gate, and adherence loop, with a deterministic, provider-independent, exhaustively tested suicidality guardrail that outranks every other safety branch.
 
 ---

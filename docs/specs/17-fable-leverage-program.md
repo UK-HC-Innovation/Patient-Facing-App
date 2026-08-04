@@ -45,7 +45,7 @@ The motivating precedent for A: the 2026-07-25 waitlist-companion adversarial re
 
 ### D. Voice-first verification and gap closure (spec 12)
 
-> **Re-scoped 2026-08-04 by workstream B.** This section originally read "execute the already-designed P0–P7 voice build." That premise was wrong: **P0–P6 are built and wired**, and the stale `food-lens-demo.md` cleanup item inside P6 is already done. Per-phase evidence is in [the coherence report](../qa/2026-08-04-spec-coherence.md) → Finding 1. There is no build to execute.
+> **Re-scoped 2026-08-04 by workstream B.** This section originally read "execute the already-designed P0–P7 voice build." That premise was wrong, and the fault was mine, not the repo's: **spec 12 already says at line 3 that the software is complete** — `1b17ef0` on 2026-07-20, production `4cbe8c7` on 2026-07-21, and in its own words "must not be re-executed." Workstream D was written from a stale memory entry without opening spec 12's header. Per-phase confirmation is in [the coherence report](../qa/2026-08-04-spec-coherence.md) → Finding 1. There is no build to execute.
 
 **Goal:** confirm the built voice surfaces hold end to end, and close the one item spec 12 leaves genuinely open.
 

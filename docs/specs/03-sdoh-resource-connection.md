@@ -1,5 +1,7 @@
 # Social Determinants Screening & Resource Connection (Food-is-Medicine)
 
+**Status:** implemented — `src/domain/coverage-logistics.ts`, `instruments/hunger-vital-sign.ts`, `/support`. Verified 2026-08-04.
+
 > A validated social-needs screen (PRAPARE / Health Leads) built into the patient app that, instead of stopping at "we noticed you can't afford your medicine," closes the loop — routing patients to SNAP, food banks, produce prescriptions, transportation, and utility/housing help, and extending Food Lens from "is this food good for my blood pressure?" to "here is how to get food that is." **P0 screens only the material/logistical domains (food, housing, utilities, transport, financial); it deliberately does not screen for suicidality, self-harm, or interpersonal violence until a designed crisis pathway ships in P1 — because a patient app must never elicit a disclosure it cannot safely hold.**
 
 ## Problem & Upstream Rationale

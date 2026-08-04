@@ -1,7 +1,8 @@
 # Crisis gate — adversarial candidate report (spec 17 workstream A)
 
 **Date:** 2026-08-04
-**Status:** awaiting owner adjudication — no corpus or detector change has been made
+**Status:** ✅ adjudicated and implemented 2026-08-04. The owner accepted every recommendation in this
+report. See [Adjudication outcome](#adjudication-outcome) at the end for what landed.
 **Baseline:** `npm run crisis:gate` PASS before generation (`docs/ops/red-team-results/2026-08-04-crisis-gate.md`)
 **Corpus at time of run:** 211 cases (131 positives, 80 traps)
 
@@ -153,12 +154,65 @@ Notes:
 5. Section A rows 5, 7–9, 11 — unambiguous FP fixes.
 6. Everything marked FIX-CARE or ADJUDICATE, individually.
 
-## What was not done
+## Adjudication outcome
 
-- No corpus entry added, no detector line changed, nothing committed to
-  `crisis-red-flags.ts` or `crisis-red-flags.corpus.ts`. Spec 17 §A makes adjudication a
-  human gate; this report is the input to it.
-- The verification harness was temporary and has been removed. To re-run, recreate it from this
-  report's candidate list — every text string above is reproduced verbatim.
-- No Spanish candidates were generated. The Spanish rules are the stronger set and were used here as
-  the reference standard for English parity; a dedicated Spanish pass is separate work.
+Owner adjudicated 2026-08-04: **accept all recommendations.** What landed:
+
+**Finding 1 (the zero-FP assertion).** Kept absolute. The two candidates whose ideation reading is
+not clearly dominated — #14 "I don't want to be here at the clinic all afternoon" and #15 "this
+paperwork is endless, I want to end it all" — were **not** added to the corpus in either direction.
+They still fire, and that is now the recorded accepted behavior rather than an asserted trap. This
+keeps `falsePositives = []` meaningful without forcing a call on two genuinely ambiguous strings.
+
+**37 of 39 candidates became corpus cases** (13 traps, 24 positives). Corpus went 211 → 248;
+positives 131 → 155; traps 80 → 93. `npm run crisis:gate` PASS — recall still 1.00, false positives
+still 0.
+
+Detector changes, all in `src/domain/crisis-red-flags.ts`:
+
+| Area | Change |
+|---|---|
+| `vision_loss` | Bare `cannot see` now needs a vision-shaped object (`anything`, `at all`, `out of`, `clearly`) or a clause end. "I can't see the numbers on my meter" no longer escalates; "I can't see" and "can't see out of one eye" still do. |
+| `vision_eye_pain` | Became a clause-scanning match with a downgrade window (`no`/`mild`/`slight`) and a resolution check (`gone`, `cleared up`). |
+| `vision_flashes_light` | Suppressed when the flash is attributed to a device (`on my meter/pump/sensor`). |
+| `vision_went_dark` | Suppressed on external causes (power outage, storm, bulb). |
+| `vision_going_blind` | Suppressed on fear/hypothetical framing (`scared of`, `someday`, `will I`). |
+| `self_harm_want_to_die` | English idiom exclusion for `die of embarrassment/shame/laughter/boredom`, mirroring the Spanish trap that already existed. |
+| `self_harm_suicide` | `hurt myself` suppressed inside a physical-activity clause (lifting, exercising, the gym). The `kill myself` / `suicide` / `end my life` core is untouched. |
+| **new** `self_harm_english_direct_ideation` | `don't want to live`, `no point in living`, `wish I was dead`, `better off without me`, `thinking about ending things`. Split into inherently-negative phrases (where "don't" *is* the signal) and deniable ones. |
+| **new** `self_harm_english_reported_ideation` | Third-party equivalents — `he wishes he was dead`, `she doesn't want to live`, `talking about wanting to be dead`. |
+| **new** `caregiver_collapse_english_broadened` | Collapse half accepts `can't keep going`, `can't take it anymore`, `nothing left`, `breaking point`. Still requires a separate giving-up clause, and still excludes ordinary-task framing. |
+| **new** `abuse_english_named_perpetrator` | Coach / teacher / caregiver / stepdad etc. as the actor, plus `touched … inappropriately`. Ports the Spanish rules. |
+| **new** `acute_english_currently_missing_child` | Currently-missing with no elopement verb, with returned-child and media-context suppressors. |
+| **new** `acute_medical_emergency` | Severe hypoglycemia (`unresponsive`, `can't wake … up`), seizure, anaphylaxis (`throat is closing`), chest pain radiating to arm/jaw, and `passed out` qualified by unresponsiveness. |
+| `HARM_TO_OTHERS_SIGNALS` | Added `said he'd stab/kill/hurt …`, and infant-directed `hit` only. `hit` was deliberately **not** added to `HARM_VERB` — it fires on "hit the ball" and "hit her head". |
+
+Verified beyond the corpus: a 20-case edge check confirmed the accepted-FP pair still fires, bare
+"I can't see" still fires, "he never hit the baby" and "I would never wish I was dead" stay clear,
+collapse-alone and giving-up-alone each stay clear, and "hit the ball" / "hit her head" stay clear.
+
+### Performance — the detector is now half its original cost
+
+The first implementation added seven clause-scanning match functions, each independently re-splitting
+the input. `screenCrisisRedFlags` went **0.318 → 0.689 ms/call**, and that showed up immediately: the
+component suite began failing intermittently under full parallelism (11, then 9, then 5 failures
+across three runs, never the same set, all passing in isolation). This function runs on **every
+keystroke of every composer in the app**, so the regression mattered well beyond the tests.
+
+Each expensive function now opens with a cheap pre-filter — a single regex that is a strict superset
+of that function's own signal set, so it can change cost but not behavior — and
+`isEnglishCaregiverCollapse` tests its rarer half first and skips the clause split when it misses.
+
+| | ms/call | Full suite |
+|---|---|---|
+| Before this report's changes | 0.318 | — |
+| After the rules, before pre-filters | 0.689 | 185s, 5–11 flaky failures |
+| **After pre-filters** | **0.154** | **88s, 2797 passed, 0 failures** |
+
+The detector is now **2× faster than it was before any of this work**, while carrying ten more rule
+categories. The suite went from 185s to 88s, which says the crisis screen was already a hot spot in
+this codebase and nobody had measured it. All 248 corpus cases behave identically across the change.
+
+**Not done, deliberately:** no Spanish candidates were generated. The Spanish rules are the stronger
+set and were used here as the reference standard for English parity; a dedicated Spanish pass is
+separate work and is the obvious next red-team.

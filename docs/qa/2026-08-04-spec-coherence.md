@@ -28,13 +28,27 @@ Every spec below was opened and checked. "Clean" is a checked claim, not an unre
 | 09 Family Navigator | Clean | `/ladder`, `src/domain/family-*` |
 | 10 Screening Hub | **Stale doc** | Fully built — `src/domain/instruments/registry.ts` + 21 instruments + `/checkin/[instrumentId]`. The spec carries no status header, and project memory still records it as "UNCOMMITTED awaiting Codex" (2026-07-20). |
 | 11 Rank-and-justify | Clean | `/api/family/recommend`, `src/ai/family-rank-prompt.ts`, `src/domain/family-rank.ts` |
-| 12 Voice-first infrastructure | **Stale doc — materially** | **P0–P6 are built and wired.** See the phase table below. Spec 12 reads as a forward-looking plan; project memory records "P0–P7 build not started"; spec 17 §D was written on that premise and is wrong. |
+| 12 Voice-first infrastructure | **Clean — the audit was wrong first time** | P0–P7 are built, and **the spec says so itself**: a lifecycle blockquote at line 3 records "software complete", `1b17ef0` on 2026-07-20, production `4cbe8c7` on 2026-07-21, and "must not be re-executed." The first pass of this audit mislabelled it "stale doc" because the status grep only looked for a `**Status:**` marker. See Finding 1. |
 | 13 Ladder waitlist companion | Clean | Status text matches; `family-journal.tsx`, `family-checkin.tsx`, `family-appointment-card.tsx` present |
 | 14 Ladder narrative integrity (Wave 1) | Clean | Status text matches |
 | 15 Ladder Wave 2 | Clean | Status text matches |
 | 16 Ladder Wave 3 | Clean | Status text matches; validation report present |
 
-## Finding 1 (material): spec 12 is built, not pending
+## Finding 1 (material): spec 17 §D was authored from stale memory — spec 12 was never wrong
+
+**Corrected 2026-08-04, after the first version of this report got it backwards.** The first pass
+called spec 12 a stale doc. It is not. Line 3 of the spec is a lifecycle blockquote reading
+*"software complete, external validation pending… landed in `1b17ef0` on 2026-07-20 and shipped in
+production `4cbe8c7` on 2026-07-21… This brief preserves the pre-build architecture and must not be
+re-executed."* That is accurate, current, and explicitly warns against exactly the mistake spec 17 §D
+made.
+
+The real defect was upstream of the repo: a project-memory entry still said "P0–P7 build not
+started," spec 17 §D was written from that memory without opening spec 12's header, and this audit's
+first pass then compounded it by grepping only for a literal `**Status:**` marker — which spec 12
+does not use. Three layers of not reading the document.
+
+The build is real either way; the phase-by-phase verification below stands:
 
 Every phase artifact exists **and is wired to a surface**:
 
@@ -49,10 +63,11 @@ Every phase artifact exists **and is wired to a surface**:
 | P5 | `/chat` live voice | `src/hooks/use-chat-voice-session.ts` |
 | P6 | Verification + fix the stale `food-lens-demo.md` "gate deferred" note | Note is fixed — the doc now reads "The voice safety gate is active" |
 
-**Consequence:** spec 17 workstream D ("execute the already-designed P0–P7 voice build") has no build to
-execute. It should be re-scoped to a verification-and-gap pass, or dropped. The one item this audit
-could not confirm from the tree is the real-phone hardware pass that spec 12 P5 leaves explicitly
-pending — that remains genuinely open and needs a device, not a code change.
+**Consequence:** spec 17 workstream D ("execute the already-designed P0–P7 voice build") has no build
+to execute and has been re-scoped. Spec 12's own lifecycle note already names what is left, and it is
+not code: real-device mic, WebRTC, echo-cancellation and TTS checks are unrecorded, and clinical/legal
+review plus a BAA-backed production voice posture remain external release gates. None of those can be
+closed by an agent.
 
 ## Finding 2 (material): the Ladder's safety entry point is outside the crisis gate
 
@@ -94,17 +109,26 @@ routes after workstream C; only indirectly asserted through route tests).
 
 ## Finding 4: specs 01–07 and 09–12 carry no status header
 
-Specs 08 and 13–16 open with a `**Status:**` line. Specs 01–07 and 09–12 do not, so the document
-cannot tell a reader whether it describes shipped behavior or an intention. That is the mechanism
-behind Findings 1 and the spec-10 row: two fully-built specs read as pending because nothing in the
-document says otherwise. A one-line status header on each is the cheapest fix in this report.
+Specs 08 and 13–16 opened with a `**Status:**` line; specs 01–07 and 09–11 had none, so the document
+could not tell a reader whether it described shipped behavior or an intention. Spec 12 is the
+instructive case: it *did* record its status, but as a `> **Lifecycle —` blockquote rather than the
+`**Status:**` marker, and a status sweep that greps for one marker silently misses the other. That
+inconsistency is what let this audit's first pass mislabel a correct document.
+
+**Fixed 2026-08-04:** a `**Status:**` line was added to specs 01–07 and 09–11. Spec 12 was left alone —
+its lifecycle blockquote is more informative than a one-liner would be. The lesson for future sweeps
+is to read the head of each spec rather than grep for a single marker.
 
 ## In-tree vs deployed
 
-All findings above are **in-tree** on `codex/security-ci-wave3`. That branch is 5 commits ahead of
-`master` and 0 behind. Deployment state was not verified against the live URL and is out of scope for
-a report-only pass — note that this repo has no GitHub auto-deploy, so `master` being current does not
-imply production is current.
+Findings above were read from the tree on `codex/security-ci-wave3`. Deployment state was **not**
+verified against the live URL and is out of scope for a report-only pass — this repo has no GitHub
+auto-deploy, so `master` being current does not imply production is current.
+
+One correction to the first version of this section, which framed everything as in-tree only: spec 12
+records voice as **shipped in production `4cbe8c7` on 2026-07-21**. That is the spec's own claim, not
+something this audit confirmed against the live URL, but it means the voice work is not merely
+in-tree. Treat any "built but undeployed" reading of spec 12 as wrong.
 
 ## Recommended order
 
