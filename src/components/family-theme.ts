@@ -21,6 +21,12 @@ export const BTN_CHOICE = `min-h-12 min-w-0 break-words rounded-control border b
 /** Reversible, low-stakes toggles: no box, just a readable label. */
 export const BTN_QUIET = `inline-flex min-h-12 min-w-0 items-center gap-2 break-words rounded-control px-2 py-2 text-sm font-semibold text-ink/70 underline underline-offset-4 disabled:cursor-not-allowed disabled:no-underline disabled:opacity-60 ${CONTROL_FOCUS}`;
 
+/** Checklist answers: a yes/no pair sitting beside one line of the family's words. */
+export const BTN_ROW = `min-h-12 min-w-12 shrink-0 rounded-control border border-ink/20 bg-white px-3 text-sm font-semibold text-ink/75 disabled:cursor-not-allowed ${CONTROL_FOCUS}`;
+
+/** The chosen half of that pair. */
+export const BTN_ROW_ON = `min-h-12 min-w-12 shrink-0 rounded-control border border-care bg-care px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-100 ${CONTROL_FOCUS}`;
+
 /** Standard content section: a plain white card. */
 export const CARD_SECTION = "rounded-control border border-ink/10 bg-white p-4 scroll-mt-4";
 

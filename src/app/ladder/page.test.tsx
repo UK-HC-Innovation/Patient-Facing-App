@@ -1446,7 +1446,7 @@ describe("orientation follow-up rounds", () => {
 
     openAllFamilyFolds();
     const journal = screen.getByTestId("family-journal");
-    expect(within(journal).getAllByRole("article")).toHaveLength(3);
+    expect(within(journal).getAllByTestId("family-fact-row")).toHaveLength(3);
     // Three fact cards, but the family wrote one note — the heading counts notes.
     expect(within(journal).getByRole("heading", { level: 3, name: /— 1 note$/ })).toBeVisible();
 

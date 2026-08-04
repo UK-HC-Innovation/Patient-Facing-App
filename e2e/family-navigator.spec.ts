@@ -1113,9 +1113,17 @@ test("resources-first: one paragraph brings help before any question, with zero 
   await expect(page.getByTestId("family-heard-strip")).toHaveCount(1);
   await expect(page.getByTestId("thread-family-resources")).toHaveCount(1);
   await expect(page.getByText("Thanks. That is enough to get you started.")).toHaveCount(0);
-  // The confirmation the caregiver just made is still theirs after the round.
+  // The confirmation the caregiver just made is still theirs after the round —
+  // the checklist row carries it as an answered "Yes".
   await openFold(page, "family-journal");
-  await expect(page.getByTestId("family-journal").getByText("You said this is right")).toBeVisible();
+  const confirmedRow = page
+    .getByTestId("family-journal")
+    .locator('[data-testid="family-fact-row"][data-fact-status="confirmed"]');
+  await expect(confirmedRow).toHaveCount(1);
+  await expect(confirmedRow.getByRole("button", { name: /Yes, that is right/ })).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
 });
 
 // Spec 19's own acceptance walk: the same Scott County paragraph, on a phone,
@@ -1147,10 +1155,17 @@ test("phone fit: compact answers, expand in place, two-tap share, folded referen
   const lead = threadCards.first();
   const leadTop = await lead.evaluate((node) => node.getBoundingClientRect().top + window.scrollY);
   expect(leadTop).toBeLessThan(2 * 812);
-  // A compact card carries one description, its commit CTA, and the way in.
+  // A compact card carries one description, its commit CTA, and the way out to
+  // the program itself — an answer card that can only be expanded is a dead end.
   await expect(lead.getByRole("paragraph")).toHaveCount(1);
   await expect(lead.getByTestId("family-step-plan")).toBeVisible();
   await expect(lead.getByTestId("family-resource-expand")).toBeVisible();
+  for (const card of await threadCards.all()) {
+    const source = card.getByTestId("family-resource-compact-source");
+    await expect(source).toBeVisible();
+    await expect(source).toHaveAttribute("target", "_blank");
+    expect(await source.getAttribute("href")).toMatch(/^https:\/\//);
+  }
   await expect(lead.getByTestId("family-resource-quote")).toHaveCount(0);
   await expect(lead.getByTestId("family-resource-share-open")).toHaveCount(0);
   await expect(lead.getByText("Why it helps to start now")).toHaveCount(0);
@@ -1175,12 +1190,26 @@ test("phone fit: compact answers, expand in place, two-tap share, folded referen
   await expect(page.getByTestId("family-journal").getByText(/1 note ·/)).toBeVisible();
   await expect(page.getByText("UKHCI Ladder · concept demo — not an official service")).toHaveCount(1);
 
-  // 5. A nav chip opens the section it points at, and Print is one tap in.
+  // 5. The notes are a checklist, not a stack of cards: one line per thing we
+  //    wrote down, a yes and a no beside it, the rest one tap in.
+  await openFold(page, "family-journal");
+  const rows = page.getByTestId("family-journal").getByTestId("family-fact-row");
+  await expect(rows.first()).toBeVisible();
+  const firstRow = rows.first();
+  await expect(firstRow.getByRole("button", { name: /Yes, that is right/ })).toBeVisible();
+  await expect(firstRow.getByRole("button", { name: /No, that is not right/ })).toBeVisible();
+  await expect(firstRow.getByText(/From your words|Our guess/)).toBeHidden();
+  await firstRow.getByText("Why we wrote this").click();
+  await expect(firstRow.getByText(/From your words|Our guess/)).toBeVisible();
+  await firstRow.getByRole("button", { name: /Yes, that is right/ }).click();
+  await expect(firstRow).toHaveAttribute("data-fact-status", "confirmed");
+
+  // 6. A nav chip opens the section it points at, and Print is one tap in.
   await page.getByRole("link", { name: "Visit packet" }).click();
   await expect(page.getByTestId("family-visit-packet-body")).toBeVisible();
   await expect(page.getByRole("button", { name: "Print" })).toBeVisible();
 
-  // 6. Safety surfaces never fold: the crisis banner leads, uncollapsed, and the
+  // 7. Safety surfaces never fold: the crisis banner leads, uncollapsed, and the
   //    answer stays on the page beneath it.
   await page.getByRole("button", { name: "Start over" }).click();
   await page.getByLabel("What would you like help with?").fill(SAFETY_PHRASE);

@@ -61,7 +61,10 @@ describe("FamilyJournal", () => {
     expect(months).toHaveLength(2);
     expect(within(months[0]).getByRole("heading", { name: "July 2026 — 1 note" })).toBeVisible();
     expect(within(months[1]).getByRole("heading", { name: "June 2026 — 1 note" })).toBeVisible();
-    expect(within(months[1]).getByText("Grade")).toBeVisible();
+    // The checklist row shows the family's own words; the label we filed it under
+    // is one tap in, with the quote and the provenance badge.
+    expect(within(months[1]).getByText("reading is hard")).toBeVisible();
+    expect(within(months[1]).getByText("Grade")).not.toBeVisible();
     // The raw note stays collapsed until asked for, but it is the June group's.
     expect(within(months[1]).getByText("June: he read a whole page.")).toBeInTheDocument();
     expect(within(months[1]).getByText(/^You wrote · Jun/)).toBeVisible();
@@ -102,7 +105,7 @@ describe("FamilyJournal", () => {
 
     const month = screen.getByTestId("family-journal-month");
     expect(within(month).getByRole("heading", { name: "July 2026 — 1 note" })).toBeVisible();
-    expect(within(month).getAllByRole("article")).toHaveLength(3);
+    expect(within(month).getAllByTestId("family-fact-row")).toHaveLength(3);
   });
 
   it("keeps the plural once a month holds more than one note", () => {
@@ -137,9 +140,16 @@ describe("FamilyJournal", () => {
       />
     );
 
+    // "No" on the checklist row is the quick way to say "do not use this"; the
+    // explicit packet checkbox behind the row says the same thing to the same
+    // reducer, so both are asserted against the same call.
+    const no = screen.getByRole("button", { name: /No, that is not right.*Grade/i });
+    expect(no).toHaveAttribute("aria-pressed", "false");
+    await user.click(no);
+    expect(onToggleInclude).toHaveBeenLastCalledWith("fact-june", false);
+
     await user.click(screen.getByLabelText("Include in visit packet: Grade"));
-    expect(onToggleInclude).toHaveBeenCalledWith("fact-june", false);
-    expect(screen.queryByText("Not in packet")).not.toBeInTheDocument();
+    expect(onToggleInclude).toHaveBeenLastCalledWith("fact-june", false);
 
     rerender(
       <FamilyJournal
@@ -155,8 +165,13 @@ describe("FamilyJournal", () => {
       />
     );
 
-    expect(screen.getByText("Not in packet")).toBeVisible();
-    expect(screen.getByText("Grade")).toBeVisible();
+    // An excluded fact wears its "No" on the row, and the journal still shows the
+    // family's words — exclusion curates the packet, it never deletes a note.
+    expect(screen.getByRole("button", { name: /No, that is not right.*Grade/i })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.getAllByText("reading is hard")[0]).toBeVisible();
     expect(screen.getByLabelText("Include in visit packet: Grade")).not.toBeChecked();
   });
 
@@ -229,7 +244,8 @@ describe("FamilyJournal", () => {
 
     expect(screen.getByRole("heading", { name: "Tus notas hasta ahora" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "julio de 2026 — 1 nota" })).toBeVisible();
-    expect(screen.getAllByText("Incluir en el paquete de la visita")[0]).toBeVisible();
+    expect(screen.getAllByRole("button", { name: /Sí, así es/ })[0]).toBeVisible();
+    expect(screen.getAllByText("Por qué lo escribimos")[0]).toBeVisible();
     expect(
       screen.getByText(
         "Las notas se quedan en este dispositivo. Imprime o comparte una copia de vez en cuando para no perderlas."
@@ -295,5 +311,68 @@ describe("FamilyJournal across a month boundary", () => {
       within(months[1]).getByText("July 31, late: he asked for water in a full sentence.")
     ).toBeInTheDocument();
     expect(within(months[1]).getByText(/^You wrote · Jul 31/)).toBeVisible();
+  });
+});
+
+describe("FamilyJournal checklist", () => {
+  it("puts each thing we wrote down on one line with a yes and a no beside it", async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    render(
+      <FamilyJournal
+        family={familyState()}
+        language="en"
+        onConfirm={onConfirm}
+        onToggleInclude={vi.fn()}
+      />
+    );
+
+    const rows = screen.getAllByTestId("family-fact-row");
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      // The line itself is the family's words plus the two answers. Everything
+      // the old card showed is still here, one tap in.
+      expect(within(row).getByRole("button", { name: /Yes, that is right/ })).toBeVisible();
+      expect(within(row).getByRole("button", { name: /No, that is not right/ })).toBeVisible();
+      expect(within(row).getByText("Why we wrote this")).toBeVisible();
+      expect(within(row).getByText(/reading is really hard for him/)).not.toBeVisible();
+    }
+
+    await user.click(within(rows[0]).getByText("Why we wrote this"));
+    expect(within(rows[0]).getByText(/reading is really hard for him/)).toBeVisible();
+    expect(within(rows[0]).getByText(/From your words · You wrote/)).toBeVisible();
+    expect(within(rows[0]).getByText("About school and learning")).toBeVisible();
+  });
+
+  it("marks a row answered yes and leaves it answered after a confirm", () => {
+    const { unmount } = render(
+      <FamilyJournal
+        family={familyState({
+          facts: [fact("fact-july", "interview-july", { status: "confirmed" })]
+        })}
+        language="en"
+        onConfirm={vi.fn()}
+        onToggleInclude={vi.fn()}
+      />
+    );
+
+    const yes = screen.getByRole("button", { name: /Yes, that is right/ });
+    expect(yes).toHaveAttribute("aria-pressed", "true");
+    expect(yes).toBeDisabled();
+    expect(screen.getByTestId("family-fact-row")).toHaveAttribute("data-fact-status", "confirmed");
+    unmount();
+
+    render(
+      <FamilyJournal
+        family={familyState({ facts: [fact("fact-july", "interview-july")] })}
+        language="en"
+        onConfirm={vi.fn()}
+        onToggleInclude={vi.fn()}
+      />
+    );
+    expect(screen.getByRole("button", { name: /Yes, that is right/ })).toHaveAttribute(
+      "aria-pressed",
+      "false"
+    );
   });
 });

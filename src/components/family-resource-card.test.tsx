@@ -270,6 +270,15 @@ describe("FamilyResourceCard", () => {
     expect(screen.getByTestId("family-resource-clock")).toBeVisible();
     expect(screen.getByRole("button", { name: /I'll do this/i })).toBeVisible();
 
+    // The way out to the program is on the answer card, not behind the expand —
+    // a family who already knows they want this one should not have to open it.
+    const source = screen.getByTestId("family-resource-compact-source");
+    expect(source).toBeVisible();
+    expect(source).toHaveAttribute("href", firstSteps.sourceUrl);
+    expect(source).toHaveAttribute("target", "_blank");
+    expect(source).toHaveAttribute("rel", "noreferrer");
+    expect(source).toHaveAccessibleName(`See their official page: ${firstSteps.name}`);
+
     // What it defers: the quote, the locality line, save, enroll, details, share.
     expect(screen.queryByTestId("family-resource-quote")).not.toBeInTheDocument();
     expect(screen.queryByTestId("family-resource-locality")).not.toBeInTheDocument();

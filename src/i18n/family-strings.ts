@@ -128,6 +128,10 @@ export type FamilyStringKey =
   | "factSource"
   | "factConfirm"
   | "factConfirmed"
+  | "factNotRight"
+  | "factRowYes"
+  | "factRowNo"
+  | "factRowDetails"
   | "needsScreenDisclosureTitle"
   | "needsScreenDisclosureBody"
   | "domainRationaleTitle"
@@ -560,6 +564,10 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     factSource: "You wrote",
     factConfirm: "Yes, that is right",
     factConfirmed: "Marked as correct",
+    factNotRight: "No, that is not right — leave it out of the visit packet",
+    factRowYes: "Yes",
+    factRowNo: "No",
+    factRowDetails: "Why we wrote this",
     needsScreenDisclosureTitle: "Would you rather answer yes or no questions?",
     needsScreenDisclosureBody: "Eight quick questions instead of writing.",
     domainRationaleTitle: "Why we are showing this",
@@ -996,6 +1004,10 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     factSource: "Escribiste",
     factConfirm: "Sí, así es",
     factConfirmed: "Marcado como correcto",
+    factNotRight: "No, no es así — déjalo fuera del paquete de la visita",
+    factRowYes: "Sí",
+    factRowNo: "No",
+    factRowDetails: "Por qué lo escribimos",
     needsScreenDisclosureTitle: "¿Prefieres responder preguntas de sí o no?",
     needsScreenDisclosureBody: "Ocho preguntas rápidas en vez de escribir.",
     domainRationaleTitle: "Por qué te mostramos esto",

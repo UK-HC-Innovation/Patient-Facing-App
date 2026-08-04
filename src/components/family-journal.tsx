@@ -144,12 +144,18 @@ export function FamilyJournal({ family, language, onConfirm, onToggleInclude }: 
                   { month: group.label, count: group.interviews.length }
                 )}
           </h3>
-          <div className="mt-3 grid gap-3">
+          {/* A checklist, not a stack of cards: one line per thing we wrote
+              down, with the yes/no beside it and everything else one tap in. */}
+          <ul
+            data-testid="family-journal-checklist"
+            className="mt-3 rounded-control border border-ink/10 bg-white px-3"
+          >
             {group.facts.map((fact) => (
               <FamilyFactCard
                 key={fact.id}
                 fact={fact}
                 language={language}
+                variant="row"
                 onConfirm={onConfirm}
                 includeToggle={{
                   included: fact.includeInSummary !== false,
@@ -157,7 +163,7 @@ export function FamilyJournal({ family, language, onConfirm, onToggleInclude }: 
                 }}
               />
             ))}
-          </div>
+          </ul>
           {group.interviews.map((interview) => (
             <details
               key={interview.id}

@@ -17,6 +17,14 @@
 
 Final state: `next lint` clean, **2834 unit tests passing** (baseline 2817), `next build` clean, `crisis:gate` PASS with 334 tests across 7 files unchanged (only the two timing lines differ), ladder e2e 31 passed / 1 skipped, full e2e 85 passed with only the two pre-existing coach failures.
 
+### Follow-up, same day — F1a and F4a (from a second pass on the live phone build)
+
+Two additions after the caregiver-side read of the shipped build. Measured effect: **4.9 → 3.8 phone viewports**.
+
+- **F1a — the answer card carries the way out.** The compact card now renders the resource's `sourceUrl` as an external link ("See their official page", `target="_blank" rel="noreferrer"`) beside "I'll do this" and "More about this". F1 had put every route to the program itself behind the expand, which is a dead end for a family who already knows which one they want. The link is the same catalog `sourceUrl` the full card's Details shows — no new data, and the deterministic catalog is still the only source of program identity.
+- **F4a — the journal is a checklist, not a stack of cards.** `FamilyFactCard` gains `variant="row"`: one line carrying the fact in the family's own words, with **Yes** / **No** beside it and a "Why we wrote this" disclosure holding the label, the provenance badge, the "You wrote" quote, and the explicit packet checkbox. **Yes** is the existing `confirmFamilyFact` (one-way; the button goes pressed and disabled, matching the reducer). **No** is the existing `setFamilyFactInclusion(id, false)` — the only durable way to say "do not use this", which pulls the fact from the clinician's packet without deleting the family's words. The two are orthogonal on purpose: a fact can be confirmed *and* left out, and the row shows both. The review turn inside the strip keeps the full card, where the quote is the point.
+  - **Known limitation, deliberately not fixed here:** "No" records *excluded from the packet*, not *factually wrong* — there is no `rejected` status in `FamilyFact`, and adding one is a schema change with storage backfill that this presentation-only spec excludes. If a caregiver needs to say "you misheard me" as distinct from "don't send this", that is the next spec.
+
 ## Problem & Rationale
 
 Three causes, each fully legible in two files:

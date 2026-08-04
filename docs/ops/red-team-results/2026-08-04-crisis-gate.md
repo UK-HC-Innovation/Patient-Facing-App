@@ -22,8 +22,8 @@ RUN  v4.1.10 C:/Patient centered
 
  Test Files  7 passed (7)
       Tests  334 passed (334)
-   Start at  13:57:35
-   Duration  1.49s (transform 864ms, setup 907ms, import 1.08s, tests 330ms, environment 4.87s)
+   Start at  15:11:34
+   Duration  1.51s (transform 945ms, setup 870ms, import 1.16s, tests 327ms, environment 4.63s)
 ```
 
 ## Interpretation

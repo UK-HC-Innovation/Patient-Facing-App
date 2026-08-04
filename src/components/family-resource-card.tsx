@@ -288,6 +288,22 @@ export function FamilyResourceCard({
             </button>
           </>
         )}
+        {/* The way out to the program itself, on the answer card. A compact card
+            that can only be expanded is a dead end for the family who already
+            knows they want this one. */}
+        {compact ? (
+          <a
+            href={resource.sourceUrl}
+            target="_blank"
+            rel="noreferrer"
+            data-testid="family-resource-compact-source"
+            aria-label={`${tFamily(language, "resourceOpenSource")}: ${resource.name}`}
+            className={BTN_QUIET}
+          >
+            <ExternalLink aria-hidden="true" className="h-4 w-4 shrink-0" />
+            {tFamily(language, "resourceOpenSource")}
+          </a>
+        ) : null}
         {variant === "compact" ? (
           <button
             type="button"
