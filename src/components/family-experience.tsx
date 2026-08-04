@@ -1075,11 +1075,6 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
       data-testid="family-experience"
       className="mx-auto grid w-full min-w-0 max-w-2xl gap-4 pb-8 scroll-mt-4"
     >
-      {/* One badge for the page. Every section under it is the same demo. */}
-      <p className="inline-flex rounded-full border border-ink/20 px-3 py-1 text-xs font-medium text-ink/70">
-        {tFamily(language, "demoBadge")}
-      </p>
-
       {family?.profile ? (
         // Same instant and same check-in visibility the sections below are
         // built from, so the rung can never name a section this render omits.
@@ -1124,14 +1119,6 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
           {tFamily(language, "interviewTitle")}
         </h2>
         <p className="mt-2 leading-relaxed text-ink/90">{tFamily(language, "interviewIntro")}</p>
-        <details className="mt-2">
-          <summary
-            className={`min-h-12 min-w-0 cursor-pointer list-item break-words rounded-control py-2 text-sm font-semibold text-care ${CONTROL_FOCUS}`}
-          >
-            {tFamily(language, "introDisclosureTitle")}
-          </summary>
-          <p className="mt-1 text-sm leading-6 text-ink/70">{tFamily(language, "intro")}</p>
-        </details>
         {language === "es" ? (
           <p className={`mt-3 text-sm font-medium ${NOTICE_INFO}`}>
             {tFamily(language, "spanishReviewNotice")}

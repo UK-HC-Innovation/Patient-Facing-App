@@ -259,21 +259,19 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     document.documentElement.lang = originalLanguage;
   });
 
-  it("keeps the English and Spanish tool-limits disclosure available on demand", async () => {
-    const user = userEvent.setup();
+  it("states the tool's limits plainly, in English and Spanish, without a tap", () => {
+    // The owner removed the standing demo banner and the "what this tool can and
+    // cannot do" disclosure it sat beside — this line is what still says it,
+    // always visible.
     const { unmount } = render(
       <FamilyExperience state={withFamily(schoolAgeFamilyState, "en")} dispatch={vi.fn()} passcode="" />
     );
-
-    // Characterization mutation: removing the disclosure or leaving its content
-    // permanently hidden would make the tool's limits unavailable to families.
-    await user.click(screen.getByText("What this tool can and cannot do"));
-    expect(screen.getByText(/cannot say what your child has/i)).toBeVisible();
+    expect(screen.getByText(/We do not diagnose/i)).toBeVisible();
+    expect(screen.queryByText("What this tool can and cannot do")).not.toBeInTheDocument();
 
     unmount();
     render(<FamilyExperience state={withFamily(schoolAgeFamilyState, "es")} dispatch={vi.fn()} passcode="" />);
-    await user.click(screen.getByText("Qué puede y qué no puede hacer esta herramienta"));
-    expect(screen.getByText(/No podemos decir qué tiene tu hijo o hija/i)).toBeVisible();
+    expect(screen.getByText(/No diagnosticamos/i)).toBeVisible();
   });
 
   it("keeps every rendered back-to-top link pointed at the Ladder experience", () => {
@@ -426,11 +424,6 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     const user = userEvent.setup();
     render(<ReducerHarness initialState={withFamily(describedFamily)} />);
 
-    // One badge for the whole page, not one per section.
-    expect(screen.getByText(/Demo.*not an official service/i)).toBeVisible();
-    expect(
-      within(screen.getByTestId("family-appointment-card")).queryByText(/not an official service/i)
-    ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /rather answer yes or no/i })).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("heading", { name: "What would help?" })).not.toBeInTheDocument();
     expect(screen.getByLabelText(/What would you like help with/i)).toHaveValue(SAMPLE_CAREGIVER_TEXT);
@@ -1817,10 +1810,26 @@ describe("phone fit", () => {
     expect(screen.getByRole("button", { name: "Print" })).toBeVisible();
   });
 
-  it("wears exactly one concept-demo badge", () => {
+  it("carries no standing demo banner or its disclosure, and still says what it cannot do", async () => {
     render(<ReducerHarness initialState={withFamily(describedFamily)} />);
 
-    expect(screen.getAllByText(/UKHCI Ladder · concept demo/)).toHaveLength(1);
+    // Both are gone: the top-of-page badge and the "what this tool can and
+    // cannot do" disclosure it sat beside.
+    expect(screen.queryByText(/concept demo|not an official service/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("What this tool can and cannot do")
+    ).not.toBeInTheDocument();
+
+    // The honesty they carried is not gone — these lines say it plainly, always
+    // visible, without a tap.
+    expect(screen.getByText(/We do not diagnose/i)).toBeVisible();
+    // Two copies by design: the visible line and the sr-only aria-live echo
+    // that announces it (documented in spec 19).
+    expect(
+      within(screen.getByTestId("family-appointment-card")).getAllByText(
+        /Nothing here is a real appointment/i
+      )
+    ).toHaveLength(2);
   });
 
   it("folds the notes, the packet, and the timeline until they are asked for", async () => {

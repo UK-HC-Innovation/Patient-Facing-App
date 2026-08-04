@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { familyStrings, tFamily, type FamilyStringKey } from "./family-strings";
 
+// Spec 09's acceptance list, minus "demoBadge" and "intro": the standing
+// top-of-page demo banner and the "What this tool can and cannot do"
+// disclosure it partly duplicated were both removed at the owner's request.
+// `interviewIntro`'s "We do not diagnose" and `resourcesIntro`'s eligibility
+// caveat carry the remaining honesty content and are asserted where they live.
 const TASK_7_REQUIRED_KEYS = [
   "pageTitle",
-  "demoBadge",
-  "intro",
   "spanishReviewNotice",
   "setupTitle",
   "profileCountyLabel",
@@ -217,12 +220,12 @@ describe("familyStrings", () => {
   it("keeps the demo honest and interpolates family copy", () => {
     expect(tFamily("en", "pageTitle")).toBe("Ladder — your child's development");
     expect(tFamily("es", "pageTitle")).toBe("Ladder — el desarrollo de tu hijo o hija");
-    expect(tFamily("en", "demoBadge")).toBe("UKHCI Ladder · concept demo — not an official service");
-    expect(tFamily("es", "demoBadge")).toBe("UKHCI Ladder · demo conceptual — no es un servicio oficial");
     expect(tFamily("en", "interviewCount", { count: 42, max: 5000 })).toBe("42 of 5000 characters");
-    expect(familyStrings.en.intro).toMatch(/cannot say what your child has/i);
-    expect(familyStrings.en.intro).toMatch(/cannot decide what you qualify for/i);
-    expect(familyStrings.es.intro).toMatch(/no podemos decir qu[eé] tiene/i);
+    // The standing demo banner and its "what this tool can and cannot do"
+    // disclosure are gone; these are the lines now carrying that honesty.
+    expect(familyStrings.en.interviewIntro).toMatch(/we do not diagnose/i);
+    expect(familyStrings.es.interviewIntro).toMatch(/no diagnosticamos/i);
+    expect(familyStrings.en.resourcesIntro).toMatch(/program's own page/i);
     expect(familyStrings.en.timelineDemoControlIntro).toMatch(/does not change the clock on your device/i);
   });
 

@@ -2,8 +2,6 @@ import type { Language } from "./strings";
 
 export type FamilyStringKey =
   | "pageTitle"
-  | "demoBadge"
-  | "intro"
   | "spanishReviewNotice"
   | "setupTitle"
   | "setupIntro"
@@ -397,7 +395,6 @@ export type FamilyStringKey =
   | "soonerLeave"
   | "soonerDemoCta"
   | "soonerDecline"
-  | "introDisclosureTitle"
   | "navOnThisPage"
   | "navTell"
   | "navVisit"
@@ -438,8 +435,6 @@ export type FamilyStringKey =
 export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = {
   en: {
     pageTitle: "Ladder — your child's development",
-    demoBadge: "UKHCI Ladder · concept demo — not an official service",
-    intro: "This tool focuses on your child's growth, learning, and development. We can point you to Kentucky programs that may help. We cannot say what your child has, and we cannot decide what you qualify for. Only the program can do that.",
     spanishReviewNotice: "The Spanish here is a rough draft. A native speaker still needs to check it.",
     setupTitle: "Add or change your child's details",
     setupIntro: "Name, birth month, school stage, and any diagnoses help fine-tune what we show. Please do not enter a last name, a full birthday, an address, or income.",
@@ -841,7 +836,6 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     soonerLeave: "Leave the list",
     soonerDemoCta: "An earlier opening appeared (demo)",
     soonerDecline: "Keep our current time",
-    introDisclosureTitle: "What this tool can and cannot do",
     navOnThisPage: "On this page",
     navTell: "Tell us",
     navVisit: "Your visit",
@@ -878,8 +872,6 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
   },
   es: {
     pageTitle: "Ladder — el desarrollo de tu hijo o hija",
-    demoBadge: "UKHCI Ladder · demo conceptual — no es un servicio oficial",
-    intro: "Esta herramienta se enfoca en el crecimiento, el aprendizaje y el desarrollo de tu hijo o hija. Podemos mostrarte programas de Kentucky que pueden ayudar. No podemos decir qué tiene tu hijo o hija, ni decidir para qué califican. Solo el programa puede hacer eso.",
     spanishReviewNotice: "El español aquí es un borrador. Todavía falta que lo revise una persona hablante nativa.",
     setupTitle: "Agrega o cambia los datos de tu hijo o hija",
     setupIntro: "El nombre, el mes de nacimiento, la etapa escolar y los diagnósticos ayudan a afinar lo que mostramos. Por favor no escribas apellido, fecha de nacimiento completa, dirección ni ingresos.",
@@ -1279,7 +1271,6 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     soonerLeave: "Salir de la lista",
     soonerDemoCta: "Se abrió un lugar antes (demo)",
     soonerDecline: "Mantener nuestro horario",
-    introDisclosureTitle: "Qué puede y qué no puede hacer esta herramienta",
     navOnThisPage: "En esta página",
     navTell: "Cuéntanos",
     navVisit: "Tu visita",

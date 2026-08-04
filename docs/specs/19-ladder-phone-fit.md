@@ -25,6 +25,17 @@ Two additions after the caregiver-side read of the shipped build. Measured effec
 - **F4a — the journal is a checklist, not a stack of cards.** `FamilyFactCard` gains `variant="row"`: one line carrying the fact in the family's own words, with **Yes** / **No** beside it and a "Why we wrote this" disclosure holding the label, the provenance badge, the "You wrote" quote, and the explicit packet checkbox. **Yes** is the existing `confirmFamilyFact` (one-way; the button goes pressed and disabled, matching the reducer). **No** is the existing `setFamilyFactInclusion(id, false)` — the only durable way to say "do not use this", which pulls the fact from the clinician's packet without deleting the family's words. The two are orthogonal on purpose: a fact can be confirmed *and* left out, and the row shows both. The review turn inside the strip keeps the full card, where the quote is the point.
   - **Known limitation, deliberately not fixed here:** "No" records *excluded from the packet*, not *factually wrong* — there is no `rejected` status in `FamilyFact`, and adding one is a schema change with storage backfill that this presentation-only spec excludes. If a caregiver needs to say "you misheard me" as distinct from "don't send this", that is the next spec.
 
+### Follow-up, same day — the standing demo banner and its disclosure removed (owner request)
+
+Two more strings deleted at the owner's explicit request, after seeing the shipped build: `demoBadge` ("UKHCI Ladder · concept demo — not an official service", rendered once at the top of the page) and the "What this tool can and cannot do" `<details>` disclosure (strings `introDisclosureTitle` + `intro`) inside the interview section. Both are gone from `family-experience.tsx`, both languages, and every test that asserted on them.
+
+The honesty content they carried was not simply deleted — it survives in strings that were already there and already always-visible, so nothing the family needs to know became harder to find:
+- "We do not diagnose" — `interviewIntro`, unconditionally visible above the composer.
+- "check the program's own page — their rules are the ones that count" — `resourcesIntro`, unconditionally visible above the resource cards.
+- Per-surface demo wording (the appointment card's "Nothing here is a real appointment", the timeline's demo-control caveat) was already there and is untouched.
+
+What did *not* survive, because nothing else said it: `intro`'s specific pairing of "we cannot say what your child has" with "we cannot decide what you qualify for" in one sentence. The first half is subsumed by "We do not diagnose"; the second half has no direct replacement — `resourcesIntro`'s eligibility caveat is the nearest surviving cousin, but it is about programs' rules, not about the tool declining to decide qualification. Flagged here rather than silently dropped, since it is a step beyond spec 19's original "relocate or fold, never delete" discipline — this deletion was requested, not the presentation-only default.
+
 ## Problem & Rationale
 
 Three causes, each fully legible in two files:

@@ -223,7 +223,7 @@ test(`golden path works on ordinary caregiver wording: ${PARENT_DESCRIPTION}`, a
   await page.goto("/ladder?k=demo-passcode");
 
   await expect(page.getByRole("heading", { name: "Ladder — your child's development", level: 1 })).toBeVisible();
-  await expect(page.getByText("UKHCI Ladder · concept demo — not an official service")).toBeVisible();
+  await expect(page.getByText(/concept demo|not an official service/i)).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Tell us about your child and their needs" })).toBeVisible();
   await fillBasics(page, {
     county: "Scott",
@@ -714,8 +714,10 @@ test("ladder walks a family from waitlist to a confirmed evaluation visit", asyn
 
   const card = page.getByTestId("family-appointment-card");
   await expect(card).toBeVisible();
-  // The badge is the page's, once — this card no longer prints its own copy.
-  await expect(page.getByText("UKHCI Ladder · concept demo — not an official service")).toHaveCount(1);
+  // No standing demo banner anywhere; this card carries its own demo wording —
+  // once visibly and once as its sr-only aria-live echo.
+  await expect(page.getByText(/concept demo|not an official service/i)).toHaveCount(0);
+  await expect(card.getByText(/Nothing here is a real appointment/i)).toHaveCount(2);
   await card.getByRole("button", { name: "Show me (demo)" }).click();
 
   // Book the first offered slot
@@ -1188,7 +1190,7 @@ test("phone fit: compact answers, expand in place, two-tap share, folded referen
   await expect(page.getByTestId("matched-family-resources")).toBeHidden();
   await expect(page.getByTestId("family-visit-packet-body")).toBeHidden();
   await expect(page.getByTestId("family-journal").getByText(/1 note ·/)).toBeVisible();
-  await expect(page.getByText("UKHCI Ladder · concept demo — not an official service")).toHaveCount(1);
+  await expect(page.getByText(/concept demo|not an official service/i)).toHaveCount(0);
 
   // 5. The notes are a checklist, not a stack of cards: one line per thing we
   //    wrote down, a yes and a no beside it, the rest one tap in.
