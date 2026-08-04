@@ -60,6 +60,12 @@ export type FamilyOrientationInterviewProps = {
   interlude?: React.ReactNode;
   /** Hide the next follow-up question while something else (like the basics turns) is being asked. */
   holdTurn?: boolean;
+  /**
+   * "That is enough to get you started" is worth saying when the thread is all
+   * the caregiver got. With resource cards already on screen it is just noise,
+   * so the caller turns it off.
+   */
+  showComplete?: boolean;
   /** Dictation stays closed while an unacknowledged safety banner is on screen. */
   voiceLocked?: boolean;
   /**
@@ -79,6 +85,13 @@ export type FamilyOrientationInterviewProps = {
     context: { round: number; newText: string }
   ) => void;
   onSafetyEscalation: (screen: FamilySafetyScreen) => void;
+  /**
+   * Fires once the caregiver has started a conversation here, so the page can
+   * keep its one-ask rule: nothing else may ask while this thread owns the ask.
+   * Reported for the whole conversation rather than per question — a signal that
+   * blinked off between rounds would let a second question in for a frame.
+   */
+  onThreadActiveChange?: (active: boolean) => void;
 };
 
 const FOLLOW_UP_TRANSCRIPT_RESERVE = 200 + FAMILY_FOLLOW_UP_ANSWER_MAX + 8;
@@ -131,11 +144,13 @@ export function FamilyOrientationInterview({
   voiceEntryContext,
   interlude,
   holdTurn = false,
+  showComplete = true,
   voiceLocked = false,
   completePlaceholder,
   onDraftChange,
   onInterviewExtracted,
-  onSafetyEscalation
+  onSafetyEscalation,
+  onThreadActiveChange
 }: FamilyOrientationInterviewProps) {
   const [thread, setThread] = useState<OrientationState>(initialOrientationState);
   const submittingRef = useRef(false);
@@ -152,16 +167,24 @@ export function FamilyOrientationInterview({
     };
   }, []);
 
+  // Monotonic within a visit: idle -> active -> complete, never back. A per-question
+  // signal would drop to false between rounds and let another surface ask.
+  const threadActive = thread.status !== "idle";
+  useEffect(() => {
+    onThreadActiveChange?.(threadActive);
+  }, [onThreadActiveChange, threadActive]);
+
+  // Only a language switch is a different conversation. Editing the child's
+  // details mid-thread — from the basics turns, the setup panel, or the strip's
+  // own editor — must never throw the thread away: doing so would drop a pending
+  // follow-up and, if a safety banner were up, move it out from the top of the
+  // page and under the composer.
   useEffect(() => {
     const previous = previousContextRef.current;
     if (previous.contextKey === contextKey) return;
-    const basicsJustArrived =
-      previous.profileWasEmpty && !isEmptyProfile(profile) && previous.language === language;
+    const languageChanged = previous.language !== language;
     previousContextRef.current = { contextKey, profileWasEmpty: isEmptyProfile(profile), language };
-    if (basicsJustArrived) {
-      // Same conversation — the county/age turns just filled in. Keep the thread.
-      return;
-    }
+    if (!languageChanged) return;
     submittingRef.current = false;
     setThread(initialOrientationState());
   }, [contextKey, language, profile]);
@@ -311,10 +334,9 @@ export function FamilyOrientationInterview({
 
   return (
     <div className="space-y-4">
+      {/* The opening description is not echoed back: the strip is the
+          acknowledgement, and the raw text is kept, dated, in the journal. */}
       <div className="space-y-3" role="log" aria-live="polite">
-        <div className="ml-auto max-w-[90%] rounded-control bg-calm/60 p-3">
-          <p className="break-words whitespace-pre-wrap leading-relaxed">{thread.openingText}</p>
-        </div>
         {thread.rounds.map(({ question, answer }, index) =>
           answer === undefined ? null : (
             <React.Fragment key={`${index}-${question.question}`}>
@@ -351,7 +373,7 @@ export function FamilyOrientationInterview({
         </p>
       ) : null}
 
-      {!holdTurn && thread.status === "complete" ? (
+      {showComplete && !holdTurn && thread.status === "complete" ? (
         <div role="status" tabIndex={-1} className="rounded-control bg-calm/60 p-4 font-semibold text-ink/80">
           <p className="min-w-0">{tFamily(language, "orientationComplete")}</p>
         </div>

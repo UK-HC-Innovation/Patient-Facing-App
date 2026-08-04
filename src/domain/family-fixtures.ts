@@ -21,6 +21,7 @@ export const schoolAgeFamilyState: FamilyNavigatorState = {
       { id: "fixture-diagnosis-adhd", label: "adhd", diagnosedAt: "2026-05" }
     ]
   },
+  profileProvenance: "stated",
   referral: null,
   appointments: [],
   safetyEvents: [],
@@ -55,6 +56,7 @@ export function eighteenMonthFamilyState(now: Date): FamilyNavigatorState {
       county: "Fayette",
       diagnoses: []
     },
+    profileProvenance: "stated",
     referral: null,
     appointments: [],
     safetyEvents: [],

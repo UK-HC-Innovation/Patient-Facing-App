@@ -1100,6 +1100,9 @@ function isFamilyNavigatorState(value: unknown): value is FamilyNavigatorState {
   return (
     isObject(value) &&
     (value.profile === null || sanitizeFamilyProfile(value.profile) !== undefined) &&
+    (value.profileProvenance === undefined ||
+      value.profileProvenance === "stated" ||
+      value.profileProvenance === "extracted") &&
     (value.referral === undefined || value.referral === null || isFamilyReferral(value.referral)) &&
     (value.appointments === undefined || isArrayOfObjects(value.appointments, isFamilyAppointment)) &&
     (value.safetyEvents === undefined || isArrayOfObjects(value.safetyEvents, isFamilySafetyEvent)) &&
@@ -1152,6 +1155,10 @@ function sanitizeFamilyNavigatorState(value: unknown): FamilyNavigatorState | nu
 
   return {
     profile,
+    // Closed coercion, never a pass-through: an unrecognized stored value that
+    // survived to here would fail isFamilyNavigatorState after sanitize and wipe
+    // the whole app back to the demo, not just this slice.
+    profileProvenance: value.profileProvenance === "extracted" ? "extracted" : "stated",
     referral: isFamilyReferral(value.referral) ? value.referral : null,
     appointments: Array.isArray(value.appointments)
       ? sanitizeFamilyAppointmentSupersedes(uniqueFamilyAppointments(value.appointments.filter(isFamilyAppointment)))

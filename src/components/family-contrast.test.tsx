@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -255,5 +255,30 @@ describe("Ladder semantic contrast", () => {
     await userEvent.click(screen.getByRole("button", { name: /find help/i }));
     const completion = await screen.findByText("Thanks. That is enough to get you started.");
     expectAaContrast(completion.closest('[role="status"]') as HTMLElement);
+  });
+
+  // The strip is the first thing a caregiver reads after describing their child,
+  // and it sits on the paper card rather than on white.
+  it("keeps the heard strip legible", async () => {
+    const user = userEvent.setup();
+    render(
+      <FamilyExperience
+        state={{
+          ...brentState,
+          family: { ...schoolAgeFamilyState, interviewDraft: SAMPLE_CAREGIVER_TEXT }
+        }}
+        dispatch={vi.fn()}
+        passcode=""
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Find help" }));
+    const strip = await screen.findByTestId("family-heard-strip");
+
+    expectAaContrast(screen.getByTestId("family-heard"));
+    expectAaContrast(within(strip).getByText(/Check or change this/i));
+    await user.click(within(strip).getByText(/Check or change this/i));
+    expectAaContrast(within(strip).getByText(/Nothing here is saved anywhere but this device/i));
+    expectAaContrast(screen.getByText("Optional — answering sharpens the list."));
   });
 });

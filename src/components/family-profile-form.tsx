@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 import { KY_COUNTIES } from "@/domain/family-resources";
 import type { ChildDiagnosis, DevDiagnosis, FamilyProfile } from "@/domain/types";
 import { tFamily, type FamilyStringKey } from "@/i18n/family-strings";
@@ -52,6 +52,9 @@ export function FamilyProfileForm({
   defaultCounty,
   onSave
 }: FamilyProfileFormProps) {
+  // The strip disclosure and the setup panel can both mount this form at once;
+  // fixed ids would bind every label to whichever copy came first in the document.
+  const uid = useId();
   const [county, setCounty] = useState(
     normalizedCounty(initialProfile?.county) || normalizedCounty(defaultCounty)
   );
@@ -137,10 +140,10 @@ export function FamilyProfileForm({
 
   return (
     <form className="grid gap-4" onSubmit={submit}>
-        <label className="grid gap-1 text-sm font-medium" htmlFor="family-county">
+        <label className="grid gap-1 text-sm font-medium" htmlFor={`${uid}-county`}>
           {tFamily(language, "profileCountyLabel")}
           <select
-            id="family-county"
+            id={`${uid}-county`}
             required
             value={county}
             onChange={(event) => {
@@ -158,10 +161,10 @@ export function FamilyProfileForm({
           </select>
         </label>
 
-        <label className="grid gap-1 text-sm font-medium" htmlFor="family-child-first-name">
+        <label className="grid gap-1 text-sm font-medium" htmlFor={`${uid}-child-first-name`}>
           {tFamily(language, "profileChildNameLabel")}
           <input
-            id="family-child-first-name"
+            id={`${uid}-child-first-name`}
             value={childFirstName}
             placeholder={tFamily(language, "profileChildNamePlaceholder")}
             onChange={(event) => {
@@ -173,13 +176,13 @@ export function FamilyProfileForm({
         </label>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="grid gap-1 text-sm font-medium" htmlFor="family-birth-year">
+          <label className="grid gap-1 text-sm font-medium" htmlFor={`${uid}-birth-year`}>
             {tFamily(language, "profileBirthYearLabel")}
             <input
-              id="family-birth-year"
+              id={`${uid}-birth-year`}
               inputMode="numeric"
               aria-invalid={birthYearError}
-              aria-describedby={birthYearError ? "family-birth-year-error" : undefined}
+              aria-describedby={birthYearError ? `${uid}-birth-year-error` : undefined}
               value={birthYear}
               placeholder={tFamily(language, "profileBirthYearPlaceholder")}
               onChange={(event) => {
@@ -190,16 +193,16 @@ export function FamilyProfileForm({
               className={`min-h-12 rounded-control border border-ink/20 px-3 py-2 ${CONTROL_FOCUS}`}
             />
             {birthYearError ? (
-              <span id="family-birth-year-error" role="alert" className="text-sm font-medium text-rose-700">
+              <span id={`${uid}-birth-year-error`} role="alert" className="text-sm font-medium text-rose-700">
                 {tFamily(language, "profileBirthYearError")}
               </span>
             ) : null}
           </label>
 
-          <label className="grid gap-1 text-sm font-medium" htmlFor="family-birth-month">
+          <label className="grid gap-1 text-sm font-medium" htmlFor={`${uid}-birth-month`}>
             {tFamily(language, "profileBirthMonthLabel")}
             <select
-              id="family-birth-month"
+              id={`${uid}-birth-month`}
               value={birthMonth}
               onChange={(event) => {
                 markEdited();
@@ -217,10 +220,10 @@ export function FamilyProfileForm({
           </label>
         </div>
 
-        <label className="grid gap-1 text-sm font-medium" htmlFor="family-school-stage">
+        <label className="grid gap-1 text-sm font-medium" htmlFor={`${uid}-school-stage`}>
           {tFamily(language, "profileSchoolStageLabel")}
           <select
-            id="family-school-stage"
+            id={`${uid}-school-stage`}
             value={schoolStage}
             onChange={(event) => {
               markEdited();
@@ -241,7 +244,7 @@ export function FamilyProfileForm({
           {DIAGNOSIS_OPTIONS.map((option) => {
             const diagnosis = diagnoses.find((candidate) => candidate.label === option.label);
             const diagnosisLabel = tFamily(language, option.key);
-            const checkboxId = `family-diagnosis-${option.label}`;
+            const checkboxId = `${uid}-diagnosis-${option.label}`;
             return (
               <div key={option.label} className="grid gap-2 rounded-control bg-paper p-3">
                 <label className="flex min-h-12 items-center gap-2 text-sm font-medium" htmlFor={checkboxId}>
@@ -257,13 +260,15 @@ export function FamilyProfileForm({
                 {diagnosis ? (
                   <div className="grid gap-3 pl-6 sm:grid-cols-2">
                     {option.label === "other" ? (
-                      <label className="grid gap-1 text-sm" htmlFor="family-other-diagnosis-label">
+                      <label className="grid gap-1 text-sm" htmlFor={`${uid}-other-diagnosis-label`}>
                         {tFamily(language, "profileOtherDiagnosisLabel")}
                         <input
-                          id="family-other-diagnosis-label"
+                          id={`${uid}-other-diagnosis-label`}
                           aria-required="true"
                           aria-invalid={otherDiagnosisError}
-                          aria-describedby={otherDiagnosisError ? "family-other-diagnosis-error" : undefined}
+                          aria-describedby={
+                            otherDiagnosisError ? `${uid}-other-diagnosis-error` : undefined
+                          }
                           value={diagnosis.otherLabel ?? ""}
                           placeholder={tFamily(language, "profileOtherDiagnosisPlaceholder")}
                           onChange={(event) => {
@@ -274,7 +279,7 @@ export function FamilyProfileForm({
                         />
                         {otherDiagnosisError ? (
                           <span
-                            id="family-other-diagnosis-error"
+                            id={`${uid}-other-diagnosis-error`}
                             role="alert"
                             className="text-sm font-medium text-rose-700"
                           >

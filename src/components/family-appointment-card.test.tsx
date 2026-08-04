@@ -36,6 +36,7 @@ function familyState(overrides: Partial<FamilyNavigatorState>): FamilyNavigatorS
       county: "Scott",
       diagnoses: []
     },
+    profileProvenance: "stated",
     referral: { clinic: "UK Developmental Pediatrics", referredAt: new Date().toISOString() },
     appointments: [],
     safetyEvents: [],

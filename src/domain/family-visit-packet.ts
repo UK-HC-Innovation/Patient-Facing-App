@@ -123,7 +123,13 @@ export function buildFamilyVisitSummary(
     ]
       .filter((part) => part.length > 0)
       .join(" · ");
-    lines.push(childLine);
+    // Basics the app read out of the description, and nobody has confirmed yet,
+    // say so on the sheet the clinician reads.
+    lines.push(
+      family.profileProvenance === "extracted"
+        ? `${childLine} ${t("packetBasicsExtracted")}`
+        : childLine
+    );
     for (const diagnosis of profile.diagnoses) {
       const when = diagnosis.diagnosedAt ? ` (${diagnosis.diagnosedAt})` : "";
       lines.push(`- ${diagnosisDisplayLabel(diagnosis, language)}${when}`);

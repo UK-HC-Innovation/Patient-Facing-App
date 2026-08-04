@@ -32,6 +32,7 @@ describe("storage", () => {
         { id: "diagnosis-adhd", label: "adhd" }
       ]
     },
+    profileProvenance: "stated",
     referral: null,
     appointments: [],
     safetyEvents: [],
@@ -542,6 +543,7 @@ describe("storage", () => {
     delete legacyFamily.soonerList;
     delete legacyFamily.packetQuestionIds;
     delete legacyFamily.checkinTouchedAt;
+    delete legacyFamily.profileProvenance;
     legacyFamily.interviews = validFamily.interviews.map((interview) => {
       const legacyInterview: Record<string, unknown> = { ...interview };
       delete legacyInterview.kind;
@@ -559,6 +561,35 @@ describe("storage", () => {
     expect(loaded.family?.packetQuestionIds).toEqual([]);
     expect(loaded.family?.checkinTouchedAt).toBeNull();
     expect(loaded.family?.interviews.every((row) => row.kind === "orientation")).toBe(true);
+    // A save written before provenance existed describes basics a person typed.
+    expect(loaded.family?.profileProvenance).toBe("stated");
+    expect(loaded.family?.profile).toEqual(validFamily.profile);
+  });
+
+  it("round-trips an extracted profile provenance", () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ ...demoState, family: { ...validFamily, profileProvenance: "extracted" } })
+    );
+
+    expect(loadStoredState().family?.profileProvenance).toBe("extracted");
+  });
+
+  // A provenance value we do not recognize must cost the value and nothing else.
+  // Letting it through the sanitizer would fail the post-sanitize validation and
+  // wipe the entire app — every condition, reading, and referral — to the demo.
+  it("coerces an unknown profile provenance without resetting anything", () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ ...demoState, family: { ...validFamily, profileProvenance: "guessed" } })
+    );
+
+    const loaded = loadStoredState();
+
+    expect(loaded.family?.profileProvenance).toBe("stated");
+    expect(loaded.family).not.toBeNull();
+    expect(loaded.family?.interviews).toHaveLength(validFamily.interviews.length);
+    expect(loaded.patient.id).toBe(demoState.patient.id);
   });
 
   // A family who ticked "we're already in First Steps" before the step tracker
@@ -1774,6 +1805,7 @@ describe("P4 assessment storage", () => {
       county: "Fayette",
       diagnoses: []
     },
+    profileProvenance: "stated",
     referral: null,
     appointments: [],
     safetyEvents: [],

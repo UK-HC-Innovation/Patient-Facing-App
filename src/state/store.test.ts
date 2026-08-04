@@ -70,6 +70,72 @@ describe("healthReducer", () => {
     ).toBe(withoutDiagnoses);
   });
 
+  describe("profile provenance", () => {
+    const profile = schoolAgeFamilyState.profile!;
+
+    it("treats an unmarked save as something a person typed, on both write paths", () => {
+      // No family yet: routes through emptyFamilyState.
+      expect(
+        healthReducer({ ...demoState, family: null }, { type: "saveFamilyProfile", profile }).family
+          ?.profileProvenance
+      ).toBe("stated");
+      // Family exists, and the domain-recomputing branch.
+      expect(
+        healthReducer(
+          { ...demoState, family: schoolAgeFamilyState },
+          { type: "saveFamilyProfile", profile, deterministicDomains: ["school_iep"] }
+        ).family?.profileProvenance
+      ).toBe("stated");
+    });
+
+    it("marks a silently applied profile as extracted, on both write paths", () => {
+      expect(
+        healthReducer(
+          { ...demoState, family: null },
+          { type: "saveFamilyProfile", profile, provenance: "extracted" }
+        ).family?.profileProvenance
+      ).toBe("extracted");
+      expect(
+        healthReducer(
+          { ...demoState, family: schoolAgeFamilyState },
+          {
+            type: "saveFamilyProfile",
+            profile,
+            deterministicDomains: ["school_iep"],
+            provenance: "extracted"
+          }
+        ).family?.profileProvenance
+      ).toBe("extracted");
+    });
+
+    it("clears the extracted mark as soon as a person saves", () => {
+      const extracted = healthReducer(
+        { ...demoState, family: null },
+        { type: "saveFamilyProfile", profile, provenance: "extracted" }
+      );
+      expect(
+        healthReducer(extracted, { type: "saveFamilyProfile", profile: { ...profile, county: "Fayette" } })
+          .family?.profileProvenance
+      ).toBe("stated");
+    });
+
+    // Backdating rewrites diagnosis dates, not the basics — a demo button must
+    // not clear the "we read this from your description" marker.
+    it("leaves the mark alone when the demo control backdates diagnoses", () => {
+      const extracted = healthReducer(
+        { ...demoState, family: schoolAgeFamilyState },
+        { type: "saveFamilyProfile", profile, provenance: "extracted" }
+      );
+      expect(
+        healthReducer(extracted, {
+          type: "backdateFamilyDiagnoses",
+          monthsAgo: 6,
+          now: "2026-07-17T12:00:00.000Z"
+        }).family?.profileProvenance
+      ).toBe("extracted");
+    });
+  });
+
   it("removes a care context item with its facts and audits the deletion", () => {
     const contextItemId = demoState.contextItems[0]?.id ?? "voice-note-1";
     const state = {

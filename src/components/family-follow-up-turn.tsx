@@ -148,6 +148,10 @@ export function FamilyFollowUpTurn({
       <p className="text-xs font-semibold uppercase tracking-wide text-care" aria-live="polite">
         {tFamily(language, "orientationRoundCount", { round, max: roundCap })}
       </p>
+      {/* Help is already on screen above this; answering only sharpens it. */}
+      <p className="mt-1 break-words text-sm font-medium text-ink/75">
+        {tFamily(language, "followUpOptional")}
+      </p>
       <h3
         id="family-follow-up-question"
         ref={questionRef}

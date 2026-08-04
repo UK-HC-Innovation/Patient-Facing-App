@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const STORAGE_KEY = "home-health-ai-ownership-state";
 const FROZEN_NOW = new Date("2026-07-17T12:00:00.000Z");
@@ -15,6 +15,9 @@ const TODDLER_DESCRIPTION =
   "My son is two and barely talking. Someone said to ask about First Steps but I do not know who to call.";
 // Loss of an acquired skill, in a caregiver's own plain words.
 const REGRESSION_NOTE = "He stopped saying more at dinner.";
+// One paragraph that already carries county and age — the resources-first path.
+const RESOURCES_FIRST_DESCRIPTION =
+  "We live in Scott County and my son just turned three. He isn't talking yet and I'm worried about his speech.";
 const SCOTT_SOURCE_URL =
   "https://www.scott.kyschools.us/departments/student-learning/exceptional-child-services/special-education";
 
@@ -58,6 +61,19 @@ async function stubUnconfiguredFamilyInterview(
   });
 }
 
+// The zero-key demo path. With ranking unconfigured the strip keeps its
+// deterministic sentence instead of swapping in a model's, and the card order is
+// the deterministic one — so an ordering assertion means what it says.
+async function stubUnconfiguredFamilyRecommend(page: Page): Promise<void> {
+  await page.route("**/api/family/recommend", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ mode: "unconfigured", data: null })
+    });
+  });
+}
+
 type BasicsInput = {
   county: string;
   birthYear: string;
@@ -70,38 +86,49 @@ type BasicsInput = {
 
 // The navigator no longer ships fictional example shortcuts, so each journey
 // builds its profile through the same basics form a caregiver would use.
-async function openBasics(page: Page, language: "en" | "es" = "en"): Promise<void> {
+// Returns the setup panel: the "here is what we heard" strip can mount a second
+// copy of this same form behind its disclosure, so every field query below is
+// scoped to the panel rather than to the page.
+async function openBasics(page: Page, language: "en" | "es" = "en"): Promise<Locator> {
   const disclosure = page.getByRole("button", {
     name: language === "es" ? /Agrega o cambia los datos/ : /Add or change your child's details/
   });
   if ((await disclosure.getAttribute("aria-expanded")) === "false") {
     await disclosure.click();
   }
+  return page.locator("#family-basics-panel");
 }
 
 async function fillBasics(page: Page, basics: BasicsInput): Promise<void> {
   const spanish = basics.language === "es";
-  await openBasics(page, spanish ? "es" : "en");
-  await page.getByLabel(spanish ? "Condado de Kentucky" : "Kentucky county").selectOption(basics.county);
-  await page.getByLabel(spanish ? "Año de nacimiento" : "Birth year").fill(basics.birthYear);
+  const setup = await openBasics(page, spanish ? "es" : "en");
+  await setup.getByLabel(spanish ? "Condado de Kentucky" : "Kentucky county").selectOption(basics.county);
+  await setup.getByLabel(spanish ? "Año de nacimiento" : "Birth year").fill(basics.birthYear);
   if (basics.birthMonth) {
-    await page.getByLabel(spanish ? "Mes de nacimiento" : "Birth month").selectOption(basics.birthMonth);
+    await setup.getByLabel(spanish ? "Mes de nacimiento" : "Birth month").selectOption(basics.birthMonth);
   }
   if (basics.schoolStage) {
-    await page.getByLabel(spanish ? "Etapa escolar" : "School stage").selectOption(basics.schoolStage);
+    await setup.getByLabel(spanish ? "Etapa escolar" : "School stage").selectOption(basics.schoolStage);
   }
   if (basics.childFirstName) {
-    await page
+    await setup
       .getByLabel(spanish ? "Primer nombre del niño o niña (opcional)" : "Child's first name (optional)")
       .fill(basics.childFirstName);
   }
   for (const { name, month } of basics.diagnoses ?? []) {
-    await page.getByRole("checkbox", { name }).check();
+    await setup.getByRole("checkbox", { name }).check();
     if (month) {
-      await page.getByLabel(`${name} diagnosis month (optional)`).fill(month);
+      await setup.getByLabel(`${name} diagnosis month (optional)`).fill(month);
     }
   }
-  await page.getByRole("button", { name: spanish ? "Guardar estos datos" : "Save these details" }).click();
+  await setup.getByRole("button", { name: spanish ? "Guardar estos datos" : "Save these details" }).click();
+}
+
+// Everything the caregiver told us now lives one tap in, behind the strip's
+// disclosure. Content inside a closed <details> is not actionable, so a journey
+// that asserts on a relocated fact card has to open it first.
+async function openHeardDisclosure(strip: Locator): Promise<void> {
+  await strip.locator("summary").click();
 }
 
 async function waitForPersistedState(page: Page): Promise<void> {
@@ -203,6 +230,9 @@ test(`golden path works on ordinary caregiver wording: ${PARENT_DESCRIPTION}`, a
   const review = page.getByRole("region", { name: "Here is what we heard" });
   await expect(review).toBeVisible();
   await expect(review).toBeFocused();
+  // The verification is one line now, and the wall of fact cards is one tap in.
+  await expect(review.getByTestId("family-heard")).toContainText("Scott County");
+  await openHeardDisclosure(review);
   const gradeFact = review.getByRole("article", { name: "Grade" });
   await expect(gradeFact).toBeVisible();
   await expect(gradeFact.getByRole("paragraph").filter({ hasText: /^second grade$/ })).toBeVisible();
@@ -221,8 +251,14 @@ test(`golden path works on ordinary caregiver wording: ${PARENT_DESCRIPTION}`, a
   await expect(review.getByText("You said this is right")).toBeVisible();
 
   const matched = page.getByTestId("matched-family-resources");
+  const thread = page.getByTestId("thread-family-resources");
   const cards = matched.locator("[data-family-resource-card]");
   await expect(cards.first()).toHaveAttribute("data-resource-id", "scott_county_exceptional_child_services");
+  // The thread carries the head of the same list, so the lead card answers first.
+  await expect(thread.locator("[data-family-resource-card]").first()).toHaveAttribute(
+    "data-resource-id",
+    "scott_county_exceptional_child_services"
+  );
   const scottCard = matched.locator('[data-resource-id="scott_county_exceptional_child_services"]');
   await scottCard.locator("summary").click();
   const sourceLink = scottCard.getByRole("link", { name: /See their official page.*Scott County Schools/i });
@@ -239,12 +275,17 @@ test(`golden path works on ordinary caregiver wording: ${PARENT_DESCRIPTION}`, a
   await scottCard.getByRole("button", { name: /Save.*Scott County Schools/i }).click();
   const savedRegion = page.getByRole("region", { name: "Saved for later" });
   await expect(savedRegion.getByRole("heading", { name: "Scott County Schools Exceptional Child Services" })).toBeVisible();
-  await expect(page.locator('[data-resource-id="scott_county_exceptional_child_services"]')).toHaveCount(1);
-  await expect(page.getByRole("button", { name: /Saved.*Scott County Schools/i })).toHaveCount(1);
-  await expect(page.getByRole("button", { name: /Share.*Scott County Schools/i })).toHaveCount(1);
+  // The top three answer twice on purpose — once in the thread, once in the
+  // library below. Saving adds a summary line, never a third card or a third
+  // copy of any control.
+  await expect(thread.locator('[data-resource-id="scott_county_exceptional_child_services"]')).toHaveCount(1);
+  await expect(matched.locator('[data-resource-id="scott_county_exceptional_child_services"]')).toHaveCount(1);
+  await expect(page.locator('[data-resource-id="scott_county_exceptional_child_services"]')).toHaveCount(2);
+  await expect(page.getByRole("button", { name: /Saved.*Scott County Schools/i })).toHaveCount(2);
+  await expect(page.getByRole("button", { name: /Share.*Scott County Schools/i })).toHaveCount(2);
   await expect(
     page.getByRole("checkbox", { name: /I agree to share this resource now.*Scott County Schools/i })
-  ).toHaveCount(1);
+  ).toHaveCount(2);
   await expect(savedRegion.locator("[data-family-resource-card]")).toHaveCount(0);
   await expect(savedRegion.getByRole("button", { name: /Share.*Scott County Schools/i })).toHaveCount(0);
   await expect(savedRegion.getByRole("checkbox")).toHaveCount(0);
@@ -301,7 +342,8 @@ test(`golden path works on ordinary caregiver wording: ${PARENT_DESCRIPTION}`, a
   );
   expect(resourceIds.at(-1)).toBe("michelle_p_waiver");
 
-  // Exact match: the ranked "What matters most right now" heading is also an h3.
+  // Exact match: several card headings end in "now", so a substring name would
+  // resolve to more than the timeline's own rung.
   await expect(page.getByRole("heading", { name: "Now", level: 3, exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Next", level: 3, exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Later", level: 3, exact: true })).toBeVisible();
@@ -347,7 +389,15 @@ test("conversational path: describe first, then county, year, and school stage a
   await turns.getByRole("button", { name: "Elementary school" }).click();
 
   await expect(page.getByRole("heading", { name: "What has the school offered so far?" })).toBeVisible();
-  await expect(page.getByText(/places that can help — they're just below/i)).toBeVisible();
+  // The pointer paragraph is gone: the thread now carries the real top-three
+  // cards, and only the link points down at the rest.
+  await expect(page.getByText(/places that can help — they're just below/i)).toHaveCount(0);
+  const thread = page.getByTestId("thread-family-resources");
+  await expect(thread.locator("[data-family-resource-card]")).toHaveCount(3);
+  await expect(thread.getByRole("link", { name: /See all \d+ places below/ })).toHaveAttribute(
+    "href",
+    "#family-resources"
+  );
   await expect(
     page
       .getByTestId("matched-family-resources")
@@ -398,8 +448,8 @@ test("demo timeline control backdates diagnosis data and advances staged nudges 
   const current = timeline.getByRole("region", { name: "Now" });
   await expect(current.getByRole("heading", { name: "Talk to another parent" })).toBeVisible();
   await expect(current.getByRole("heading", { name: "Look into help for siblings and a break for you" })).toBeVisible();
-  await openBasics(page);
-  await expect(page.getByLabel("Dyslexia diagnosis month (optional)")).toHaveValue("2026-01");
+  const setup = await openBasics(page);
+  await expect(setup.getByLabel("Dyslexia diagnosis month (optional)")).toHaveValue("2026-01");
   await expect
     .poll(() =>
       page.evaluate((key) => {
@@ -446,7 +496,9 @@ test(`Safety phrase raises the banner in-thread and never reaches the network: $
   await expect(banner.getByRole("link", { name: /Call 911/ })).toHaveAttribute("href", "tel:911");
   // The navigator stays put and keeps helping instead of redirecting away.
   await expect(page).toHaveURL(/\/ladder$/);
-  await expect(page.getByRole("heading", { name: "Here is what we heard" })).toBeVisible();
+  // The strip labels itself with the same heading, which now sits inside its
+  // collapsed disclosure — the region is the on-screen proof it survived.
+  await expect(page.getByRole("region", { name: "Here is what we heard" })).toBeVisible();
   expect(familyApiRequests).toBe(0);
 
   await banner.getByRole("button", { name: /I've seen this/i }).click();
@@ -483,6 +535,10 @@ test("Spanish mobile mock path is substantive, language-correct, and horizontall
     language: "es"
   });
   const review = page.getByRole("region", { name: "Esto fue lo que entendimos" });
+  await expect(review).toBeVisible();
+  await expect(review.getByTestId("family-heard")).toContainText("condado de Scott");
+  await expect(review.getByText("Revisa o cambia esto")).toBeVisible();
+  await openHeardDisclosure(review);
   await expect(review.getByRole("article", { name: "Grado" })).toContainText("segundo grado");
   await expect(review.getByRole("article", { name: "Diagnóstico informado" })).toContainText("dislexia");
   await expect(review.getByRole("article", { name: "Sobre la escuela y el aprendizaje" })).toBeVisible();
@@ -492,11 +548,19 @@ test("Spanish mobile mock path is substantive, language-correct, and horizontall
   await expect(
     page.getByText(/vienen directo de las organizaciones.*en inglés/i)
   ).toBeVisible();
+  // The catalog card renders twice by design now, so the Spanish assertions name
+  // the section they belong to.
+  const matched = page.getByTestId("matched-family-resources");
   await expect(
-    page.getByRole("heading", { name: "Scott County Schools Exceptional Child Services" })
+    matched.getByRole("heading", { name: "Scott County Schools Exceptional Child Services" })
   ).toBeVisible();
   await expect(
-    page.getByText(/district special-education office and named contacts/i)
+    matched.getByText(/district special-education office and named contacts/i)
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("thread-family-resources").getByRole("heading", {
+      name: "Scott County Schools Exceptional Child Services"
+    })
   ).toBeVisible();
   expect(
     await page.evaluate(
@@ -552,14 +616,29 @@ test("the Breathitt case leads with school procedure and keeps the banner in-thr
   await expect(banner.getByText(/emergency department/i)).toBeVisible();
   await banner.getByRole("button", { name: /I've seen this/i }).click();
 
-  // Basics came out of the caregiver's own words — one tap, no re-asking.
-  const prefill = page.getByTestId("family-basics-prefill");
-  await expect(prefill).toBeVisible();
-  await expect(prefill.getByText("Breathitt", { exact: true })).toBeVisible();
-  await prefill.getByRole("button", { name: "Yes, that is right" }).click();
+  // Basics came out of the caregiver's own words — applied on sight, with no
+  // confirm card and no turns, and marked as read-not-stated until someone checks.
+  await expect(page.getByTestId("family-basics-prefill")).toHaveCount(0);
+  await expect(page.getByTestId("family-basics-turns")).toHaveCount(0);
+  const strip = page.getByTestId("family-heard-strip");
+  await expect(strip.getByTestId("family-heard")).toContainText("Breathitt County");
+  await expect(strip.getByTestId("family-heard-guess-chip")).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate((key) => {
+        const raw = window.localStorage.getItem(key);
+        const state = raw
+          ? (JSON.parse(raw) as {
+              family?: { profile?: { county?: string }; profileProvenance?: string };
+            })
+          : null;
+        return [state?.family?.profile?.county ?? null, state?.family?.profileProvenance ?? null];
+      }, STORAGE_KEY)
+    )
+    .toEqual(["Breathitt", "extracted"]);
 
   // The lead is school procedure, not help-with-reading.
-  const cards = page.locator("[data-family-resource-card]");
+  const cards = page.getByTestId("matched-family-resources").locator("[data-family-resource-card]");
   await expect(cards.first()).toBeVisible();
   const resourceIds = await cards.evaluateAll((nodes) =>
     nodes.map((node) => node.getAttribute("data-resource-id"))
@@ -859,4 +938,134 @@ test("ladder companion: an earlier visit survives reload and reschedules without
       replacementAuditCount: 1,
       finalAuditLabel: "Evaluation visit booked"
     });
+});
+
+test("resources-first: one paragraph brings help before any question, with zero confirm taps", async ({
+  page
+}) => {
+  await stubUnconfiguredFamilyInterview(page);
+  await stubUnconfiguredFamilyRecommend(page);
+  await page.goto("/ladder");
+
+  await page.getByLabel("What would you like help with?").fill(RESOURCES_FIRST_DESCRIPTION);
+  await page.getByRole("button", { name: "Find help" }).click();
+
+  // 1. The verification is one line, it takes focus, and it stays shut.
+  const strip = page.getByTestId("family-heard-strip");
+  await expect(strip).toBeVisible();
+  await expect(strip).toBeFocused();
+  await expect(strip.getByTestId("family-heard")).toHaveText(
+    /^Sounds like: Scott County · your child, about 3 years old · .+\.$/
+  );
+  expect(await strip.locator("details").evaluate((node: HTMLDetailsElement) => node.open)).toBe(false);
+  // Read from the description, not stated — so the strip says so.
+  await expect(strip.getByTestId("family-heard-guess-chip")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Here is what we heard" })).toHaveCount(1);
+
+  // 2. Nothing was confirmed to get here: no prefill card, no basics turns, and
+  // the saved profile carries its own provenance.
+  await expect(page.getByTestId("family-basics-prefill")).toHaveCount(0);
+  await expect(page.getByTestId("family-basics-turns")).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page.evaluate((key) => {
+        const raw = window.localStorage.getItem(key);
+        const state = raw
+          ? (JSON.parse(raw) as {
+              family?: {
+                profile?: { county?: string; birthYear?: number; schoolStage?: string };
+                profileProvenance?: string;
+                facts?: Array<{ status?: string }>;
+              };
+            })
+          : null;
+        const family = state?.family;
+        return {
+          county: family?.profile?.county ?? null,
+          birthYear: family?.profile?.birthYear ?? null,
+          schoolStage: family?.profile?.schoolStage ?? null,
+          provenance: family?.profileProvenance ?? null,
+          confirmedFacts: family?.facts?.filter(({ status }) => status === "confirmed").length ?? 0
+        };
+      }, STORAGE_KEY)
+    )
+    .toEqual({
+      county: "Scott",
+      birthYear: 2023,
+      schoolStage: "not_school_age",
+      provenance: "extracted",
+      confirmedFacts: 0
+    });
+
+  // 3. The thread's cards are the head of the section's list — one array, two
+  // renders. Read in one pass so a re-rank between reads cannot split them.
+  const threadRegion = page.getByTestId("thread-family-resources");
+  await expect(threadRegion.locator("[data-family-resource-card]").first()).toBeVisible();
+  const ids = await page.evaluate(() => {
+    const read = (root: Element | null): string[] | null =>
+      root
+        ? Array.from(root.querySelectorAll("[data-family-resource-card]")).map(
+            (node) => node.getAttribute("data-resource-id") ?? ""
+          )
+        : null;
+    return {
+      thread: read(document.querySelector('[data-testid="thread-family-resources"]')),
+      section: read(document.querySelector('[data-testid="matched-family-resources"]'))
+    };
+  });
+  expect(ids.thread?.length ?? 0).toBeGreaterThan(0);
+  expect(ids.thread?.length ?? 0).toBeLessThanOrEqual(3);
+  expect(ids.section?.slice(0, ids.thread?.length ?? 0)).toEqual(ids.thread);
+
+  // 4. The question is optional and it lands below the last card, not above it.
+  const question = page.locator("#family-follow-up-question");
+  await expect(question).toBeVisible();
+  expect(
+    await page.evaluate(() => {
+      const cards = document.querySelectorAll(
+        '[data-testid="thread-family-resources"] [data-family-resource-card]'
+      );
+      const lastCard = cards[cards.length - 1] ?? null;
+      const turn = document.getElementById("family-follow-up-question")?.closest("section") ?? null;
+      if (!lastCard || !turn) return null;
+      const eyebrow = Array.from(turn.querySelectorAll("p")).some(
+        (node) => node.textContent?.trim() === "Optional — answering sharpens the list."
+      );
+      return {
+        eyebrowAboveQuestion: eyebrow,
+        questionBelowLastCard:
+          (lastCard.compareDocumentPosition(turn) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+      };
+    })
+  ).toEqual({ eyebrowAboveQuestion: true, questionBelowLastCard: true });
+
+  // 5. Nothing was lost on the way in: the quote and the confirm action are one
+  // tap away, wired to the same reducer the journal uses. Checked before the
+  // answer, because every follow-up round re-extracts the whole conversation and
+  // the store keeps the first copy of a repeated fact on its original interview.
+  await openHeardDisclosure(strip);
+  await expect(strip.getByRole("article").first()).toBeVisible();
+  await expect(strip.getByText("You wrote").first()).toBeVisible();
+  await expect(strip.getByText(/isn't talking yet/i).first()).toBeVisible();
+  await strip.getByRole("button", { name: /Yes, that is right/ }).first().click();
+  await expect(strip.getByText("You said this is right").first()).toBeVisible();
+
+  // 6. Answering sharpens the list without stacking a second recap, and the
+  // "that is enough to get you started" thanks stays away while cards are up.
+  await page.getByLabel("Or type a short answer").fill("Speech therapy, as soon as we can.");
+  await page.getByRole("button", { name: "Add answer" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate((key) => {
+        const raw = window.localStorage.getItem(key);
+        const state = raw ? (JSON.parse(raw) as { family?: { interviews?: unknown[] } }) : null;
+        return state?.family?.interviews?.length ?? 0;
+      }, STORAGE_KEY)
+    )
+    .toBe(2);
+  await expect(page.getByTestId("family-heard-strip")).toHaveCount(1);
+  await expect(page.getByTestId("thread-family-resources")).toHaveCount(1);
+  await expect(page.getByText("Thanks. That is enough to get you started.")).toHaveCount(0);
+  // The confirmation the caregiver just made is still theirs after the round.
+  await expect(page.getByTestId("family-journal").getByText("You said this is right")).toBeVisible();
 });

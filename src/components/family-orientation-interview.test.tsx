@@ -101,6 +101,42 @@ beforeEach(() => {
 });
 
 describe("FamilyOrientationInterview", () => {
+  // The strip is the acknowledgement, and the journal keeps the raw text with a
+  // date. Reading your own paragraph back to you is just one more thing to scroll.
+  it("does not echo the caregiver's opening text back into the thread", async () => {
+    requestFamilyInterview.mockResolvedValueOnce(result([schoolQuestion]));
+    renderOrientation();
+    await submitOpening();
+
+    expect(screen.queryByText(SAMPLE_CAREGIVER_TEXT)).not.toBeInTheDocument();
+  });
+
+  // Help first, question second — the whole point of the reordering.
+  it("puts the follow-up question below whatever the interlude is showing", async () => {
+    requestFamilyInterview.mockResolvedValueOnce(result([schoolQuestion]));
+    renderOrientation({
+      interlude: <div data-testid="interlude-cards">a resource card</div>
+    });
+    await submitOpening();
+
+    const cards = screen.getByTestId("interlude-cards");
+    const question = screen.getByRole("heading", { name: schoolQuestion.question });
+    expect(cards.compareDocumentPosition(question) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText("Optional — answering sharpens the list.")).toBeVisible();
+  });
+
+  it("holds back the sign-off when the caller has cards on screen", async () => {
+    requestFamilyInterview.mockResolvedValueOnce(result([]));
+    renderOrientation({ showComplete: false });
+
+    fireEvent.click(screen.getByRole("button", { name: /find help/i }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("heading", { name: schoolQuestion.question })).not.toBeInTheDocument()
+    );
+    expect(screen.queryByText("Thanks. That is enough to get you started.")).not.toBeInTheDocument();
+  });
+
   it("submits a chip answer with cumulative live and family-only transcripts", async () => {
     requestFamilyInterview.mockResolvedValueOnce(result([schoolQuestion])).mockResolvedValueOnce(result([]));
     const onInterviewExtracted = vi.fn();
@@ -264,7 +300,11 @@ describe("FamilyOrientationInterview", () => {
     ).toBeTruthy();
   });
 
-  it("keeps the thread when an empty pre-basics profile graduates to a real one, but resets on a real profile change", async () => {
+  // Editing the child's details is a correction, not a new conversation. The
+  // details can now be edited from inside the thread itself, so throwing the
+  // thread away would drop the question the caregiver was mid-answer on — and
+  // move an unacknowledged safety banner out from the top of the page.
+  it("keeps the thread through every profile change, and starts over only on a language switch", async () => {
     requestFamilyInterview.mockResolvedValueOnce(result([schoolQuestion]));
     const emptyProfile = { birthYear: 0, schoolStage: "not_school_age" as const, county: "", diagnoses: [] };
     const { rerender, props } = renderOrientation({ profile: emptyProfile });
@@ -276,10 +316,15 @@ describe("FamilyOrientationInterview", () => {
     rerender(
       <FamilyOrientationInterview {...props} profile={{ ...schoolAgeFamilyState.profile!, county: "Perry" }} />
     );
+    expect(screen.getByRole("heading", { name: schoolQuestion.question })).toBeVisible();
+
+    rerender(
+      <FamilyOrientationInterview {...props} profile={schoolAgeFamilyState.profile!} language="es" />
+    );
     await waitFor(() =>
       expect(screen.queryByRole("heading", { name: schoolQuestion.question })).not.toBeInTheDocument()
     );
-    expect(screen.getByRole("button", { name: /find help/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /buscar ayuda/i })).toBeInTheDocument();
   });
 
   it("raises the safety banner for a spoken crisis answer and preserves voice provenance", async () => {

@@ -346,6 +346,13 @@ export type FamilyProfile = {
   diagnoses: ChildDiagnosis[];
 };
 
+/**
+ * Where the child basics came from. "extracted" means the app read them out of
+ * the caregiver's own description and applied them without asking — so the
+ * surfaces that quote those basics say so until a person confirms them.
+ */
+export type FamilyProfileProvenance = "stated" | "extracted";
+
 export type FamilyScreenAnswer = {
   questionId: string;
   domain: DevNeedDomain;
@@ -491,6 +498,12 @@ export type FamilySoonerList = { optedInAt: string; constraints: FamilySoonerCon
 
 export type FamilyNavigatorState = {
   profile: FamilyProfile | null;
+  /**
+   * Where `profile` came from. Saves written before this existed backfill to
+   * "stated". Lives on the slice, not on FamilyProfile, so a provenance flip
+   * never perturbs `recommendationProfileIdentity` and re-runs ranking.
+   */
+  profileProvenance: FamilyProfileProvenance;
   referral: FamilyReferral | null;
   appointments: FamilyAppointment[];
   safetyEvents: FamilySafetyEvent[];

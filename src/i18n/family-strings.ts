@@ -122,7 +122,6 @@ export type FamilyStringKey =
   | "orientationComplete"
   | "orientationStartOver"
   | "factsTitle"
-  | "factsIntro"
   | "evidencePatientReported"
   | "evidenceInferred"
   | "evidenceConfirmed"
@@ -196,18 +195,10 @@ export type FamilyStringKey =
   | "apptSafetyHold"
   | "resourcesTitle"
   | "resourcesIntro"
-  | "resourcesFoundBelow"
-  | "resourcesFoundBelowOne"
   | "basicsCountyQuestion"
   | "basicsYearQuestion"
   | "basicsStageQuestion"
   | "basicsTurnNext"
-  | "basicsPrefillTitle"
-  | "basicsPrefillIntro"
-  | "basicsPrefillConfirm"
-  | "basicsPrefillChange"
-  | "basicsPrefillApproxYear"
-  | "rankHeardTitle"
   | "rankHeardFallback"
   | "rankQuotePrefix"
   | "rankUrgencyActNow"
@@ -408,6 +399,22 @@ export type FamilyStringKey =
   | "navPacket"
   | "backToTop"
   | "resourceDetailsToggle"
+  | "heardStripPrefix"
+  | "heardStripCounty"
+  | "heardStripChild"
+  | "heardStripChildOne"
+  | "heardStripChildUnderOne"
+  | "heardStripChildFallback"
+  | "stripDisclosureSummary"
+  | "stripGuessesChip"
+  | "stripTrustLine"
+  | "stripExtractedNote"
+  | "threadResourcesTitle"
+  | "seeAllResources"
+  | "seeAllResourcesOne"
+  | "fallbackInThread"
+  | "followUpOptional"
+  | "packetBasicsExtracted"
   | "askEyebrow";
 
 // Counted strings come in pairs: every "{count} things" key has a "…One" twin
@@ -536,7 +543,6 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     orientationComplete: "Thanks. That is enough to get you started.",
     orientationStartOver: "Start over",
     factsTitle: "Here is what we heard",
-    factsIntro: "Check anything we got right. Nothing is saved until you say it is correct.",
     evidencePatientReported: "From your words",
     evidenceInferred: "Our guess — please check",
     evidenceConfirmed: "You said this is right",
@@ -611,18 +617,10 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     apptSafetyHold: "Paused while the safety message above is open.",
     resourcesTitle: "Places that can help",
     resourcesIntro: "These are based on your county, your child's age, and what you told us. Always check the program's own page — their rules are the ones that count.",
-    resourcesFoundBelow: "We found {count} places that can help — they're just below.",
-    resourcesFoundBelowOne: "We found {count} place that can help — it's just below.",
     basicsCountyQuestion: "To find programs near you — which Kentucky county do you live in?",
     basicsYearQuestion: "What year was your child born? Just the year.",
     basicsStageQuestion: "Is your child in school yet?",
     basicsTurnNext: "Next",
-    basicsPrefillTitle: "We already picked this up from what you wrote",
-    basicsPrefillIntro: "So you do not have to type it twice. Nothing is saved until you say it is right.",
-    basicsPrefillConfirm: "Yes, that is right",
-    basicsPrefillChange: "Change something",
-    basicsPrefillApproxYear: "about {year}",
-    rankHeardTitle: "What matters most right now",
     rankHeardFallback:
       "These are based on what you told us, your county, and your child's age. Check each program's own page — their rules are the ones that count.",
     rankQuotePrefix: "You said",
@@ -830,6 +828,22 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     navPacket: "Visit packet",
     backToTop: "Back to top",
     resourceDetailsToggle: "Details and source",
+    heardStripPrefix: "Sounds like: {parts}.",
+    heardStripCounty: "{county} County",
+    heardStripChild: "{child}, about {age} years old",
+    heardStripChildOne: "{child}, about a year old",
+    heardStripChildUnderOne: "{child}, under a year old",
+    heardStripChildFallback: "your child",
+    stripDisclosureSummary: "Check or change this",
+    stripGuessesChip: "Check our guesses",
+    stripTrustLine: "Nothing here is saved anywhere but this device, and you can change any of it.",
+    stripExtractedNote: "We read these from your words — check them.",
+    threadResourcesTitle: "First places to try",
+    seeAllResources: "See all {count} places below",
+    seeAllResourcesOne: "See the {count} place below",
+    fallbackInThread: "We did not find county programs for this yet — statewide starting points are below.",
+    followUpOptional: "Optional — answering sharpens the list.",
+    packetBasicsExtracted: "(read from your description — please check)",
     askEyebrow: "Your next step"
   },
   es: {
@@ -954,7 +968,6 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     orientationComplete: "Gracias. Con eso basta para empezar.",
     orientationStartOver: "Empezar de nuevo",
     factsTitle: "Esto fue lo que entendimos",
-    factsIntro: "Marca lo que entendimos bien. No se guarda nada hasta que digas que está correcto.",
     evidencePatientReported: "De tus palabras",
     evidenceInferred: "Es una suposición — revísala",
     evidenceConfirmed: "Dijiste que está correcto",
@@ -1029,18 +1042,10 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     apptSafetyHold: "En pausa mientras el mensaje de seguridad de arriba esté abierto.",
     resourcesTitle: "Lugares que pueden ayudar",
     resourcesIntro: "Esto se basa en tu condado, la edad de tu hijo o hija y lo que nos contaste. Revisa siempre la página del programa — sus reglas son las que valen.",
-    resourcesFoundBelow: "Encontramos {count} lugares que pueden ayudar — están aquí abajo.",
-    resourcesFoundBelowOne: "Encontramos {count} lugar que puede ayudar — está aquí abajo.",
     basicsCountyQuestion: "Para buscar programas cerca de ti — ¿en qué condado de Kentucky vives?",
     basicsYearQuestion: "¿En qué año nació tu hijo o hija? Solo el año.",
     basicsStageQuestion: "¿Tu hijo o hija ya va a la escuela?",
     basicsTurnNext: "Siguiente",
-    basicsPrefillTitle: "Esto ya lo tomamos de lo que escribiste",
-    basicsPrefillIntro: "Así no lo tienes que escribir dos veces. No se guarda nada hasta que digas que está bien.",
-    basicsPrefillConfirm: "Sí, así es",
-    basicsPrefillChange: "Cambiar algo",
-    basicsPrefillApproxYear: "alrededor de {year}",
-    rankHeardTitle: "Lo más importante ahora",
     rankHeardFallback:
       "Esto se basa en lo que nos contaste, tu condado y la edad de tu hijo o hija. Revisa la página de cada programa — sus reglas son las que valen.",
     rankQuotePrefix: "Dijiste",
@@ -1249,6 +1254,22 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     resourceMatchReason: "Se muestra por: {need}.",
     backToTop: "Volver arriba",
     resourceDetailsToggle: "Detalles y fuente",
+    heardStripPrefix: "Al parecer: {parts}.",
+    heardStripCounty: "condado de {county}",
+    heardStripChild: "{child}, de unos {age} años",
+    heardStripChildOne: "{child}, de alrededor de un año",
+    heardStripChildUnderOne: "{child}, de menos de un año",
+    heardStripChildFallback: "tu hijo o hija",
+    stripDisclosureSummary: "Revisa o cambia esto",
+    stripGuessesChip: "Revisa nuestras suposiciones",
+    stripTrustLine: "Nada de esto se guarda fuera de este dispositivo, y puedes cambiar lo que quieras.",
+    stripExtractedNote: "Esto lo leímos de tus palabras — revísalo.",
+    threadResourcesTitle: "Primeros lugares para intentar",
+    seeAllResources: "Ver los {count} lugares de abajo",
+    seeAllResourcesOne: "Ver el {count} lugar de abajo",
+    fallbackInThread: "Todavía no encontramos programas de tu condado para esto — abajo hay opciones de todo el estado.",
+    followUpOptional: "Opcional — responder afina la lista.",
+    packetBasicsExtracted: "(leído de tu descripción — por favor revísalo)",
     askEyebrow: "Tu próximo paso"
   }
 };

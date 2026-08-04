@@ -57,6 +57,7 @@ import type {
   FamilyInterview,
   FamilyNavigatorState,
   FamilyProfile,
+  FamilyProfileProvenance,
   FamilyPulse,
   FamilyReferral,
   FamilyRecommendationSet,
@@ -118,7 +119,13 @@ export type HealthAction =
   | { type: "markClinicConfirmed"; referralId: string }
   | { type: "bookReferralSlot"; referralId: string; slot: string }
   | { type: "markReferralCompleted"; referralId: string }
-  | { type: "saveFamilyProfile"; profile: FamilyProfile; deterministicDomains?: DevNeedDomain[] }
+  | {
+      type: "saveFamilyProfile";
+      profile: FamilyProfile;
+      deterministicDomains?: DevNeedDomain[];
+      /** Omitted means a person typed it. "extracted" is only for the silent round-0 auto-apply. */
+      provenance?: FamilyProfileProvenance;
+    }
   | {
       type: "backdateFamilyDiagnoses";
       monthsAgo: FamilyDiagnosisBackdateMonths;
@@ -176,9 +183,13 @@ export type HealthAction =
   | { type: "resetDemo"; patient?: "jordan" | "brent" }
   | { type: "deleteDemoData" };
 
-function emptyFamilyState(profile: FamilyProfile | null): FamilyNavigatorState {
+function emptyFamilyState(
+  profile: FamilyProfile | null,
+  provenance: FamilyProfileProvenance = "stated"
+): FamilyNavigatorState {
   return {
     profile,
+    profileProvenance: provenance,
     referral: null,
     appointments: [],
     safetyEvents: [],
@@ -950,10 +961,13 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
     }
     case "saveFamilyProfile": {
       const family = state.family;
+      const profileProvenance = action.provenance ?? "stated";
       if (!family || !action.deterministicDomains) {
         return {
           ...state,
-          family: family ? { ...family, profile: action.profile } : emptyFamilyState(action.profile)
+          family: family
+            ? { ...family, profile: action.profile, profileProvenance }
+            : emptyFamilyState(action.profile, profileProvenance)
         };
       }
       const deterministicDomains = applyFamilyScreenRetractions(
@@ -983,12 +997,16 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
         family: {
           ...family,
           profile: action.profile,
+          profileProvenance,
           recommendations,
           latestInterviewDomains,
           activeDomains
         }
       };
     }
+    // Deliberately leaves profileProvenance alone: this rewrites diagnosis dates
+    // only, never the basics, and it is a demo control — flipping provenance here
+    // would clear the "read from your description" marker with a demo button.
     case "backdateFamilyDiagnoses": {
       const family = state.family;
       const profile = family?.profile;

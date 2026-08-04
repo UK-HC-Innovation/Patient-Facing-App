@@ -197,25 +197,33 @@ async function setLanguage(page: Page, language: "en" | "es"): Promise<void> {
   await page.reload();
 }
 
+// Scoped to the setup panel: the "here is what we heard" strip mounts a second
+// copy of this same form behind its disclosure, so an unscoped label lookup
+// would have two targets once a description has landed.
 async function fillProfile(page: Page, persona: Persona): Promise<void> {
   const spanish = persona.language === "es";
   const disclosure = page.getByRole("button", {
     name: spanish ? /Agrega o cambia los datos/ : /Add or change your child's details/
   });
   if ((await disclosure.getAttribute("aria-expanded")) === "false") await disclosure.click();
+  const setup = page.locator("#family-basics-panel");
 
-  await page.getByLabel(spanish ? "Condado de Kentucky" : "Kentucky county").selectOption(persona.profile.county);
-  await page.getByLabel(spanish ? "Año de nacimiento" : "Birth year").fill(persona.profile.birthYear);
-  await page.getByLabel(spanish ? "Mes de nacimiento" : "Birth month").selectOption(persona.profile.birthMonth);
-  await page.getByLabel(spanish ? "Etapa escolar" : "School stage").selectOption(persona.profile.schoolStage);
+  await setup.getByLabel(spanish ? "Condado de Kentucky" : "Kentucky county").selectOption(persona.profile.county);
+  await setup.getByLabel(spanish ? "Año de nacimiento" : "Birth year").fill(persona.profile.birthYear);
+  await setup.getByLabel(spanish ? "Mes de nacimiento" : "Birth month").selectOption(persona.profile.birthMonth);
+  await setup.getByLabel(spanish ? "Etapa escolar" : "School stage").selectOption(persona.profile.schoolStage);
   for (const diagnosis of persona.profile.diagnoses ?? []) {
-    await page.getByRole("checkbox", { name: diagnosis }).check();
+    await setup.getByRole("checkbox", { name: diagnosis }).check();
   }
-  await page.getByRole("button", { name: spanish ? "Guardar estos datos" : "Save these details" }).click();
+  await setup.getByRole("button", { name: spanish ? "Guardar estos datos" : "Save these details" }).click();
 }
 
+// The top three resources also render in the thread now, so the action is taken
+// against the section's copy — the durable library the routing assertions read.
 async function completeAction(page: Page, persona: Persona): Promise<void> {
-  const card = page.locator(`[data-resource-id="${persona.action.resourceId}"]`).first();
+  const card = page
+    .getByTestId("matched-family-resources")
+    .locator(`[data-resource-id="${persona.action.resourceId}"]`);
   await expect(card).toBeVisible();
   if (persona.action.kind === "plan") {
     await card.getByTestId("family-step-plan").click();

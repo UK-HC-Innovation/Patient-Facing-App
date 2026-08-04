@@ -47,11 +47,7 @@ import {
   familyFactStatus,
   shouldRaiseFamilyRegressionFlag
 } from "@/domain/family-interview";
-import {
-  extractFamilyBasics,
-  hasFamilyBasicsHints,
-  type FamilyBasicsHints
-} from "@/domain/family-basics-extract";
+import { extractFamilyBasics, type FamilyBasicsHints } from "@/domain/family-basics-extract";
 import {
   KY_COUNTIES,
   getFamilyResourceById,
@@ -76,6 +72,7 @@ import type {
   FamilyFact,
   FamilyInterview,
   FamilyProfile,
+  FamilyProfileProvenance,
   FamilyPulse,
   FamilyReminderOffset,
   FamilyResourceStep,
@@ -87,7 +84,6 @@ import {
   ASK_EYEBROW,
   BTN_CHOICE,
   BTN_PRIMARY,
-  BTN_SECONDARY,
   CARD_ASK,
   CARD_SECTION,
   CARD_SECTION_PAPER,
@@ -144,13 +140,23 @@ const BASICS_SCHOOL_OPTIONS: ReadonlyArray<{ value: FamilyProfile["schoolStage"]
 
 type FamilyBasicsAnswers = Pick<FamilyProfile, "county" | "birthYear" | "schoolStage">;
 
-const SCHOOL_STAGE_KEYS: Record<FamilyProfile["schoolStage"], FamilyStringKey> = Object.fromEntries(
-  BASICS_SCHOOL_OPTIONS.map(({ value, key }) => [value, key])
-) as Record<FamilyProfile["schoolStage"], FamilyStringKey>;
+// A stated or inferred hint wins; failing that, a child too young for school
+// does not need to be asked about school. Every extracted birth year is
+// approximate, so approximate-ness is not what makes a hint usable here.
+function resolveSchoolStage(
+  hints: FamilyBasicsHints,
+  birthYear: number | null,
+  now: Date
+): FamilyProfile["schoolStage"] | null {
+  if (hints.schoolStage) return hints.schoolStage.value;
+  if (birthYear === null) return null;
+  return now.getFullYear() - birthYear <= 4 ? "not_school_age" : null;
+}
 
 // Conversational county → birth year → school stage turns, asked in the thread
 // once the first description lands and no profile exists yet. Anything the
-// caregiver already wrote is offered back for a single yes instead of re-asked.
+// caregiver already wrote is committed on sight and never asked about — only the
+// genuinely missing field gets a turn.
 function FamilyBasicsTurns({
   language,
   hints,
@@ -160,13 +166,13 @@ function FamilyBasicsTurns({
   hints: FamilyBasicsHints;
   onComplete: (basics: FamilyBasicsAnswers) => void;
 }) {
-  const prefilled = hasFamilyBasicsHints(hints);
-  const [confirmingPrefill, setConfirmingPrefill] = useState(prefilled);
   const [county, setCounty] = useState(hints.county?.value ?? "");
-  const [committedCounty, setCommittedCounty] = useState<string | null>(null);
+  const [committedCounty, setCommittedCounty] = useState<string | null>(hints.county?.value ?? null);
   const [year, setYear] = useState(hints.birthYear ? String(hints.birthYear.value) : "");
-  const [committedYear, setCommittedYear] = useState<number | null>(null);
-  const [committedStage, setCommittedStage] = useState<FamilyProfile["schoolStage"] | null>(null);
+  const [committedYear, setCommittedYear] = useState<number | null>(hints.birthYear?.value ?? null);
+  const [committedStage, setCommittedStage] = useState<FamilyProfile["schoolStage"] | null>(
+    resolveSchoolStage(hints, hints.birthYear?.value ?? null, new Date())
+  );
   const [yearError, setYearError] = useState(false);
 
   const countyQuestion = tFamily(language, "basicsCountyQuestion");
@@ -183,94 +189,20 @@ function FamilyBasicsTurns({
   }
 
   // Saves as soon as all three are known, whichever mix came from the caregiver's
-  // own words and whichever they answered as turns.
+  // own words and whichever they answered as turns. Answering the year can settle
+  // the stage on its own — a two-year-old is not asked about school.
   function finish(
     nextCounty: string | null,
     nextYear: number | null,
     nextStage: FamilyProfile["schoolStage"] | null
   ): void {
+    const stage = nextStage ?? resolveSchoolStage(hints, nextYear, new Date());
     setCommittedCounty(nextCounty);
     setCommittedYear(nextYear);
-    setCommittedStage(nextStage);
-    if (nextCounty !== null && nextYear !== null && nextStage !== null) {
-      onComplete({ county: nextCounty, birthYear: nextYear, schoolStage: nextStage });
+    setCommittedStage(stage);
+    if (nextCounty !== null && nextYear !== null && stage !== null) {
+      onComplete({ county: nextCounty, birthYear: nextYear, schoolStage: stage });
     }
-  }
-
-  function acceptPrefill(): void {
-    setConfirmingPrefill(false);
-    finish(
-      hints.county?.value ?? null,
-      hints.birthYear?.value ?? null,
-      hints.schoolStage?.value ?? null
-    );
-  }
-
-  if (confirmingPrefill) {
-    const rows: Array<{ key: string; label: string; value: string; snippet: string }> = [];
-    if (hints.county) {
-      rows.push({
-        key: "county",
-        label: tFamily(language, "profileCountyLabel"),
-        value: hints.county.value,
-        snippet: hints.county.sourceSnippet
-      });
-    }
-    if (hints.birthYear) {
-      rows.push({
-        key: "birthYear",
-        label: tFamily(language, "profileBirthYearLabel"),
-        value: hints.birthYear.approximate
-          ? tFamily(language, "basicsPrefillApproxYear", { year: hints.birthYear.value })
-          : String(hints.birthYear.value),
-        snippet: hints.birthYear.sourceSnippet
-      });
-    }
-    if (hints.schoolStage) {
-      rows.push({
-        key: "schoolStage",
-        label: tFamily(language, "profileSchoolStageLabel"),
-        value: tFamily(language, SCHOOL_STAGE_KEYS[hints.schoolStage.value]),
-        snippet: hints.schoolStage.sourceSnippet
-      });
-    }
-
-    return (
-      <div className="space-y-3" data-testid="family-basics-turns">
-        <div
-          data-testid="family-basics-prefill"
-          className="mr-auto max-w-[90%] rounded-control border border-ink/10 bg-white p-3"
-        >
-          <p className="break-words font-semibold">{tFamily(language, "basicsPrefillTitle")}</p>
-          <p className="mt-1 text-sm leading-6 text-ink/75">{tFamily(language, "basicsPrefillIntro")}</p>
-          <ul className="mt-3 grid gap-2">
-            {rows.map((row) => (
-              <li key={row.key} className="rounded-control bg-paper p-3">
-                <p className="break-words text-sm text-ink/70">{row.label}</p>
-                <p className="break-words font-semibold">{row.value}</p>
-                {row.snippet ? (
-                  <blockquote className="mt-2 break-words border-l-4 border-care/30 pl-3 text-sm text-ink/70">
-                    {row.snippet}
-                  </blockquote>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" onClick={acceptPrefill} className={BTN_PRIMARY}>
-              {tFamily(language, "basicsPrefillConfirm")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirmingPrefill(false)}
-              className={BTN_SECONDARY}
-            >
-              {tFamily(language, "basicsPrefillChange")}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
   }
 
   return (
@@ -373,6 +305,12 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   const pendingSafetyEvent = pendingFamilySafetyEvent(safetyEvents);
   const latestSafetyEvent = safetyEvents[safetyEvents.length - 1];
   const [needsScreenOpen, setNeedsScreenOpen] = useState(false);
+  // Drives the strip's disclosure. Held here rather than left to the native
+  // <details> so the profile editor inside it can be mounted only while open.
+  const [stripOpen, setStripOpen] = useState(false);
+  // Reported up by the thread so the page's other asks can stand down for the
+  // rest of the visit once a conversation is underway.
+  const [threadActive, setThreadActive] = useState(false);
   const [basicsToggled, setBasicsToggled] = useState<boolean | null>(null);
   const [followupAnswered, setFollowupAnswered] = useState(false);
   // The check-in's own parts stamp touches, which would close the card halfway
@@ -588,11 +526,14 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     [family?.saved]
   );
 
-  function saveProfile(profile: FamilyProfile): void {
+  // The single dispatch site for the profile, which is what makes "any manual
+  // save is stated" true by construction — only the silent auto-apply passes
+  // "extracted".
+  function saveProfile(profile: FamilyProfile, provenance?: FamilyProfileProvenance): void {
     const deterministicDomains = latestInterview
       ? extractFamilyInterviewMock(latestInterview.rawText, profile, new Date(), language).domains.map(({ domain }) => domain)
       : undefined;
-    dispatch({ type: "saveFamilyProfile", profile, deterministicDomains });
+    dispatch({ type: "saveFamilyProfile", profile, deterministicDomains, provenance });
   }
 
   function backdateFamilyDiagnoses(monthsAgo: FamilyDiagnosisBackdateMonths, now: Date): void {
@@ -691,10 +632,14 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   }
 
   function shareResource(resource: FamilyResource): void {
-    dispatch({
-      type: "addAuditEvent",
-      event: recordAuditEvent(state.patient.id, "shared", `Shared family resource: ${resource.name}`)
-    });
+    // The same resource can be on screen twice — once in the thread, once in the
+    // library — and each card keeps its own consent checkbox. One share is one
+    // audit line either way.
+    const label = `Shared family resource: ${resource.name}`;
+    if (state.auditEvents.some((event) => event.label === label)) {
+      return;
+    }
+    dispatch({ type: "addAuditEvent", event: recordAuditEvent(state.patient.id, "shared", label) });
   }
 
   // The navigator shows the standard crisis resources and keeps working. The
@@ -747,11 +692,127 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     return described.length > 0 ? extractFamilyBasics(described, new Date(), language) : {};
   }, [family?.interviews, language]);
 
+  // County and birth year are what matching needs; the stage follows from a hint
+  // or, for a child too young for school, from the age itself. Anything short of
+  // all three falls through to a turn rather than guessing.
+  const autoBasics = useMemo<FamilyBasicsAnswers | null>(() => {
+    const county = basicsHints.county?.value;
+    const birthYear = basicsHints.birthYear?.value;
+    if (county === undefined || birthYear === undefined) return null;
+    const schoolStage = resolveSchoolStage(basicsHints, birthYear, new Date());
+    return schoolStage === null ? null : { county, birthYear, schoolStage };
+  }, [basicsHints]);
+
+  // Applied without asking, and marked "extracted" so the strip and the visit
+  // packet both keep saying these came from the description until someone checks
+  // them. Latched per interview rather than per mount: StrictMode double-invokes
+  // effects, and the same description must not re-apply over a later manual edit.
+  // Not scoped to the first interview — a caregiver who starts over and then
+  // writes a complete description would otherwise land in a profile-less state
+  // that no turn can finish.
+  const autoAppliedForRef = useRef<string | undefined>(undefined);
+  const canAutoApply = !!family && !family.profile && autoBasics !== null;
+  useEffect(() => {
+    if (!canAutoApply || autoBasics === null) return;
+    if (autoAppliedForRef.current === latestInterviewId) return;
+    autoAppliedForRef.current = latestInterviewId;
+    saveProfile({ ...autoBasics, diagnoses: [] }, "extracted");
+    // saveProfile is re-created every render and only reads current props.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAutoApply, autoBasics, latestInterviewId]);
+
   const basicsOpen = basicsToggled ?? false;
   const needsBasics =
     !!family &&
     !family.profile &&
     (family.interviews.length > 0 || family.activeDomains.length > 0);
+
+  // One reading per render, so every First Steps card in the list counts down to
+  // the same dated cutoff. Declared above the interlude because the inline cards
+  // read it during that eagerly-evaluated JSX.
+  const followupNow = new Date();
+  const clock = family?.profile
+    ? firstStepsClock(family.profile, followupNow, hasEnrolledFirstSteps(family))
+    : null;
+  const firstStepsClockLine =
+    clock === null
+      ? undefined
+      : tFamily(language, clock.yearOnly ? "clockFirstStepsYearOnly" : "clockFirstSteps", {
+          weeks: clock.weeksLeft
+        });
+  const clockLineFor = (resource: FamilyResource): string | undefined =>
+    isFirstStepsResource(resource.id) ? firstStepsClockLine : undefined;
+
+  // One card renderer, two places: the head of this list is what the thread
+  // shows and the whole list is what the section shows, so a reorder from
+  // ranking or an enrollment sink moves both.
+  function resourceCard(
+    item: (typeof displayResources)[number],
+    keyPrefix: string
+  ): React.ReactNode {
+    if (!family) return null;
+    const {
+      match: { resource, domain },
+      why,
+      quote,
+      urgency
+    } = item;
+    return (
+      <FamilyResourceCard
+        key={`${keyPrefix}-${resource.id}`}
+        resource={resource}
+        domain={domain}
+        language={language}
+        county={family.profile?.county}
+        matchNeed={tFamily(language, DOMAIN_KEYS[domain])}
+        step={family.steps.find(({ resourceId }) => resourceId === resource.id)}
+        onPlanStep={planStep}
+        clockLine={clockLineFor(resource)}
+        why={why}
+        becauseYouSaid={quote}
+        urgency={urgency}
+        isSaved={family.saved.some(({ resourceId }) => resourceId === resource.id)}
+        isEnrolled={family.alreadyEnrolled.includes(resource.id)}
+        onSave={saveResource}
+        onShare={shareResource}
+        onToggleEnrollment={(resourceId) => dispatch({ type: "toggleFamilyEnrollment", resourceId })}
+      />
+    );
+  }
+
+  // The verification, in one sentence. Pieces we do not know are left out rather
+  // than printed as empty placeholders, so this is assembled here and handed to
+  // the template whole — tFamily renders an unmatched {token} literally.
+  const heardParts: string[] = [];
+  if (family?.profile?.county) {
+    heardParts.push(tFamily(language, "heardStripCounty", { county: family.profile.county }));
+  }
+  if (family?.profile?.birthYear) {
+    // Ladder's youngest families are the common case, and "about 1 years old" is
+    // exactly the phrasing that reads as machine output. Each form is written out.
+    const age = followupNow.getFullYear() - family.profile.birthYear;
+    const child =
+      family.profile.childFirstName?.trim() || tFamily(language, "heardStripChildFallback");
+    const ageKey =
+      age <= 0 ? "heardStripChildUnderOne" : age === 1 ? "heardStripChildOne" : "heardStripChild";
+    heardParts.push(tFamily(language, ageKey, { child, age }));
+  }
+  const heardLead = rankedSet?.lead ?? family?.activeDomains[0];
+  if (heardLead) {
+    heardParts.push(tFamily(language, DOMAIN_KEYS[heardLead]));
+  }
+  // A validated live sentence replaces the deterministic one in place; both are
+  // one line, so the swap does not move anything below it. Only a live one: the
+  // deterministic ranker's `heard` is the generic catalog caveat, which says
+  // less about this family than the sentence assembled above.
+  const heardSentence =
+    (rankedSet?.extraction === "live" ? rankedSet.heard : undefined) ??
+    (heardParts.length > 0
+      ? tFamily(language, "heardStripPrefix", { parts: heardParts.join(" · ") })
+      : "");
+  const hasUncheckedGuess =
+    reviewFacts.some(({ status }) => status === "inferred") ||
+    family?.profileProvenance === "extracted";
 
   const reviewTurn =
     reviewFacts.length > 0 || reviewDetails ? (
@@ -760,33 +821,90 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
         tabIndex={-1}
         aria-live="polite"
         aria-labelledby="family-facts-title"
-        className="grid gap-3 rounded-control border border-ink/10 bg-paper p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care"
+        data-testid="family-heard-strip"
+        className="rounded-control border border-ink/10 bg-paper p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care"
       >
-        <h2 id="family-facts-title" className={H2_SECTION}>
-          {tFamily(language, "factsTitle")}
-        </h2>
-        <p className="leading-relaxed text-ink/80">{tFamily(language, "factsIntro")}</p>
-        {reviewFacts.map((fact) => (
-          <FamilyFactCard
-            key={fact.id}
-            fact={fact}
-            language={language}
-            onConfirm={(factId) => dispatch({ type: "confirmFamilyFact", factId })}
-          />
-        ))}
-        {reviewDetails?.domains.length ? (
-          <div>
-            <h3 className="font-semibold">{tFamily(language, "domainRationaleTitle")}</h3>
-            <ul className="mt-2 grid gap-2">
-              {reviewDetails.domains.map(({ domain, rationale }) => (
-                <li key={domain} className="rounded-control bg-white p-3 text-sm">
-                  <span className="font-semibold">{tFamily(language, DOMAIN_KEYS[domain])}</span>
-                  {rationale ? <p className="mt-1 break-words text-ink/75">{rationale}</p> : null}
-                </li>
-              ))}
-            </ul>
+        {heardSentence ? (
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+            <p
+              data-testid="family-heard"
+              className="min-w-0 break-words font-medium leading-relaxed text-ink"
+            >
+              {heardSentence}
+            </p>
+            {hasUncheckedGuess ? (
+              <span
+                data-testid="family-heard-guess-chip"
+                className="rounded-full bg-note/40 px-2 py-1 text-xs font-semibold text-ink"
+              >
+                {tFamily(language, "stripGuessesChip")}
+              </span>
+            ) : null}
           </div>
         ) : null}
+        <details open={stripOpen} className="mt-2">
+          <summary
+            onClick={(event) => {
+              event.preventDefault();
+              setStripOpen((open) => {
+                // Two copies of the profile form on screen would each hold their
+                // own draft, and whichever saved last would quietly undo the other.
+                if (!open) setBasicsToggled(false);
+                return !open;
+              });
+            }}
+            className={`min-h-12 min-w-0 cursor-pointer list-item break-words rounded-control py-2 text-sm font-semibold text-care ${CONTROL_FOCUS}`}
+          >
+            {tFamily(language, "stripDisclosureSummary")}
+          </summary>
+          <div className="grid gap-3 pt-2">
+            <h2 id="family-facts-title" className={H2_SECTION}>
+              {tFamily(language, "factsTitle")}
+            </h2>
+            {reviewFacts.map((fact) => (
+              <FamilyFactCard
+                key={fact.id}
+                fact={fact}
+                language={language}
+                onConfirm={(factId) => dispatch({ type: "confirmFamilyFact", factId })}
+              />
+            ))}
+            {reviewDetails?.domains.length ? (
+              <div>
+                <h3 className="font-semibold">{tFamily(language, "domainRationaleTitle")}</h3>
+                <ul className="mt-2 grid gap-2">
+                  {reviewDetails.domains.map(({ domain, rationale }) => (
+                    <li key={domain} className="rounded-control bg-white p-3 text-sm">
+                      <span className="font-semibold">{tFamily(language, DOMAIN_KEYS[domain])}</span>
+                      {rationale ? <p className="mt-1 break-words text-ink/75">{rationale}</p> : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {/* Mounted only while open: a second copy of this form on the page
+                would give every label two targets. */}
+            {stripOpen ? (
+              <div data-testid="family-heard-strip-editor">
+                {family?.profileProvenance === "extracted" ? (
+                  <p className="mb-2 break-words text-sm font-medium text-ink/75">
+                    {tFamily(language, "stripExtractedNote")}
+                  </p>
+                ) : null}
+                <FamilyProfileForm
+                  key={`strip-profile-${profileDiagnosisVersion}`}
+                  language={language}
+                  initialProfile={family?.profile ?? null}
+                  defaultCounty={state.patient.county}
+                  onSave={saveProfile}
+                />
+              </div>
+            ) : null}
+            <p className="break-words text-sm leading-6 text-ink/70">
+              {tFamily(language, "stripTrustLine")}
+            </p>
+          </div>
+        </details>
       </section>
     ) : null;
 
@@ -814,8 +932,23 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     />
   ) : null;
 
+  // The thread carries the head of the ranked list — the first answer — while the
+  // section below stays the whole library. Tied to the strip: these cards are an
+  // answer to something the caregiver just said, so without the strip above them
+  // they would be three cards floating under the composer with no question.
+  const threadAnswers = reviewTurn !== null;
+  const threadResources =
+    threadAnswers && !matchResult.isFallback ? displayResources.slice(0, 3) : [];
+  const showFallbackInThread =
+    threadAnswers && matchResult.isFallback && matchResult.resources.length > 0;
+
   const interlude =
-    safetyTurn || clinicNowTurn || reviewTurn || needsBasics || matchResult.resources.length > 0 ? (
+    safetyTurn ||
+    clinicNowTurn ||
+    reviewTurn ||
+    needsBasics ||
+    threadResources.length > 0 ||
+    showFallbackInThread ? (
       <>
         {safetyTurn}
         {clinicNowTurn}
@@ -834,13 +967,32 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
             }
           />
         ) : null}
-        {matchResult.resources.length > 0 ? (
+        {threadResources.length > 0 ? (
+          <div
+            role="region"
+            aria-label={tFamily(language, "threadResourcesTitle")}
+            data-testid="thread-family-resources"
+            className="grid gap-3"
+          >
+            {threadResources.map((item) => resourceCard(item, "thread"))}
+            <p>
+              <a
+                href="#family-resources"
+                className={`inline-flex min-h-12 min-w-0 items-center break-words font-semibold text-care underline underline-offset-4 ${CONTROL_FOCUS}`}
+              >
+                {/* The count names what the section actually renders — the
+                    display-capped list — not the wider retrieval set. */}
+                {tFamily(
+                  language,
+                  displayResources.length === 1 ? "seeAllResourcesOne" : "seeAllResources",
+                  { count: displayResources.length }
+                )}
+              </a>
+            </p>
+          </div>
+        ) : showFallbackInThread ? (
           <p className="mr-auto max-w-[90%] rounded-control border border-ink/10 bg-white p-3 font-medium leading-relaxed">
-            {tFamily(
-              language,
-              matchResult.resources.length === 1 ? "resourcesFoundBelowOne" : "resourcesFoundBelow",
-              { count: matchResult.resources.length }
-            )}{" "}
+            {tFamily(language, "fallbackInThread")}{" "}
             <a href="#family-resources" className={`font-semibold text-care underline underline-offset-4 ${CONTROL_FOCUS}`}>
               {tFamily(language, "navResources")}
             </a>
@@ -849,9 +1001,6 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
       </>
     ) : null;
 
-  // One follow-up per page visit, and never while the safety message, the
-  // clinic-now card, or the monthly check-in owns the page's single ask.
-  const followupNow = new Date();
   // The check-in is the page's one ask while it is up, and it yields to both the
   // safety banner and the clinic-now card above it.
   const checkinVisible =
@@ -861,29 +1010,18 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     openFlag === undefined &&
     !checkinSkipped &&
     (checkinStarted || checkInDue(family, followupNow));
+  // One ask at a time: the stale-step question also yields to an open thread turn,
+  // which owns the ask for the rest of this visit.
   const followupStep =
     family &&
     !followupAnswered &&
     pendingSafetyEvent === undefined &&
     openFlag === undefined &&
-    !checkinVisible
+    !checkinVisible &&
+    !threadActive
       ? answerableStaleStep(family.steps, followupNow)
       : undefined;
   const followupResource = followupStep ? getFamilyResourceById(followupStep.resourceId) : undefined;
-
-  // One reading per render, so every First Steps card in the list counts down to
-  // the same dated cutoff.
-  const clock = family?.profile
-    ? firstStepsClock(family.profile, followupNow, hasEnrolledFirstSteps(family))
-    : null;
-  const firstStepsClockLine =
-    clock === null
-      ? undefined
-      : tFamily(language, clock.yearOnly ? "clockFirstStepsYearOnly" : "clockFirstSteps", {
-          weeks: clock.weeksLeft
-        });
-  const clockLineFor = (resource: FamilyResource): string | undefined =>
-    isFirstStepsResource(resource.id) ? firstStepsClockLine : undefined;
 
   // Catalog content follows the resource lead, then fills the small strip from
   // additive needs. This lets a direct therapy route stay first while a neutral
@@ -990,6 +1128,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
             voiceEntryContext={{ patientId: state.patient.id, dispatch }}
             interlude={interlude}
             holdTurn={needsBasics}
+            showComplete={threadResources.length === 0}
             voiceLocked={pendingSafetyEvent !== undefined}
             completePlaceholder={
               (family?.interviews.length ?? 0) > 0
@@ -999,6 +1138,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
             onDraftChange={(draft) => dispatch({ type: "setFamilyInterviewDraft", draft })}
             onInterviewExtracted={addInterview}
             onSafetyEscalation={recordSafety}
+            onThreadActiveChange={setThreadActive}
           />
         </div>
         <div className="mt-4 border-t border-care/10 pt-4">
@@ -1157,12 +1297,12 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
               <h2 id="family-resources-title" className={H2_SECTION}>
                 {tFamily(language, "resourcesTitle")}
               </h2>
-              {rankedSet ? (
-                <div data-testid="family-heard" className="mt-2 rounded-control bg-white p-3">
-                  <h3 className="break-words font-semibold">{tFamily(language, "rankHeardTitle")}</h3>
-                  <p className="mt-1 break-words leading-relaxed text-ink/90">{rankedSet.heard}</p>
-                </div>
-              ) : (
+              {/* The "here is what we heard" line lives in the thread's strip now,
+                  but this paragraph also carries the eligibility caveat — every
+                  program's own rules are the ones that count. It stands down only
+                  when a grounded model sentence is on screen, which is exactly
+                  when it stood down before. */}
+              {rankedSet?.extraction === "live" ? null : (
                 <p className="mt-1 leading-relaxed text-ink/80">{tFamily(language, "resourcesIntro")}</p>
               )}
               {language === "es" ? (
@@ -1203,29 +1343,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
                 </section>
               ) : (
                 <div data-testid="matched-family-resources" className="mt-4 grid gap-3">
-                  {displayResources.map(({ match: { resource, domain }, why, quote, urgency }) => (
-                    <FamilyResourceCard
-                      key={`matched-${resource.id}`}
-                      resource={resource}
-                      domain={domain}
-                      language={language}
-                      county={family.profile?.county}
-                      matchNeed={tFamily(language, DOMAIN_KEYS[domain])}
-                      step={family.steps.find(({ resourceId }) => resourceId === resource.id)}
-                      onPlanStep={planStep}
-                      clockLine={clockLineFor(resource)}
-                      why={why}
-                      becauseYouSaid={quote}
-                      urgency={urgency}
-                      isSaved={family.saved.some(({ resourceId }) => resourceId === resource.id)}
-                      isEnrolled={family.alreadyEnrolled.includes(resource.id)}
-                      onSave={saveResource}
-                      onShare={shareResource}
-                      onToggleEnrollment={(resourceId) =>
-                        dispatch({ type: "toggleFamilyEnrollment", resourceId })
-                      }
-                    />
-                  ))}
+                  {displayResources.map((item) => resourceCard(item, "matched"))}
                 </div>
               )}
               {guides.length > 0 ? (
@@ -1324,7 +1442,11 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
           type="button"
           aria-expanded={basicsOpen}
           aria-controls="family-basics-panel"
-          onClick={() => setBasicsToggled(!basicsOpen)}
+          onClick={() => {
+            // Mirrors the strip's disclosure: one profile editor open at a time.
+            if (!basicsOpen) setStripOpen(false);
+            setBasicsToggled(!basicsOpen);
+          }}
           className={`min-h-12 w-full min-w-0 rounded-control text-left ${CONTROL_FOCUS}`}
         >
           <span className="block break-words font-semibold text-ink/90">

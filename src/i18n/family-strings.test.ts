@@ -265,12 +265,8 @@ describe("familyStrings", () => {
     expect(tFamily("es", "journalMonthNoteOne", { month: "julio de 2026", count: 1 })).toBe(
       "julio de 2026 — 1 nota"
     );
-    expect(tFamily("en", "resourcesFoundBelowOne", { count: 1 })).toBe(
-      "We found 1 place that can help — it's just below."
-    );
-    expect(tFamily("es", "resourcesFoundBelowOne", { count: 1 })).toBe(
-      "Encontramos 1 lugar que puede ayudar — está aquí abajo."
-    );
+    expect(tFamily("en", "seeAllResourcesOne", { count: 1 })).toBe("See the 1 place below");
+    expect(tFamily("es", "seeAllResourcesOne", { count: 1 })).toBe("Ver el 1 lugar de abajo");
 
     // Each pair really is a pair: the singular says something different, and the
     // plural is still the one that carries the plural noun.
@@ -278,7 +274,7 @@ describe("familyStrings", () => {
       ["waitChipNotesOne", "waitChipNotes"],
       ["waitChipStepsOne", "waitChipSteps"],
       ["journalMonthNoteOne", "journalMonthNote"],
-      ["resourcesFoundBelowOne", "resourcesFoundBelow"]
+      ["seeAllResourcesOne", "seeAllResources"]
     ] satisfies Array<[FamilyStringKey, FamilyStringKey]>;
     for (const language of ["en", "es"] as const) {
       for (const [one, many] of PAIRS) {

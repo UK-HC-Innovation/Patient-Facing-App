@@ -233,6 +233,33 @@ describe("buildFamilyVisitSummary", () => {
     expect(summary).toContain("Written from our own notes in Ladder · printed 7/17/2026 · not a medical record.");
   });
 
+  // The clinician reads this sheet. Basics the app read out of a description and
+  // nobody has confirmed must not arrive looking like the family's own answers.
+  it("flags basics nobody has checked, and stays quiet once they have", () => {
+    const extracted = buildFamilyVisitSummary(
+      { ...fatFamily, profileProvenance: "extracted" },
+      "en",
+      NOW
+    );
+    expect(extracted).toContain(
+      "Riley · born 2017 · Scott (read from your description — please check)"
+    );
+
+    const stated = buildFamilyVisitSummary({ ...fatFamily, profileProvenance: "stated" }, "en", NOW);
+    expect(stated).toContain("Riley · born 2017 · Scott");
+    expect(stated).not.toContain("read from your description");
+  });
+
+  it("flags unchecked basics in Spanish too", () => {
+    const summary = buildFamilyVisitSummary(
+      { ...fatFamily, profileProvenance: "extracted" },
+      "es",
+      NOW
+    );
+
+    expect(summary).toContain("(leído de tu descripción — por favor revísalo)");
+  });
+
   it("prints picked questions in catalog order, not pick order", () => {
     const summary = buildFamilyVisitSummary(fatFamily, "en", NOW);
 
