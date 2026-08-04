@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { buildVoiceSafetyIdentifier } from "@/ai/voice-safety-identifier";
 import { devNeedDomainSchema, familyInterviewInputSchema, parseFamilyInterviewPayload } from "@/domain/family-interview";
 
 export const dynamic = "force-dynamic";
@@ -126,7 +127,11 @@ export async function POST(request: Request): Promise<Response> {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        // Matches the anonymous fallback the coach, vision, extract and realtime
+        // routes already send. The family flow carries no patient id in its body,
+        // so every caller is the anonymous bucket until one is threaded through.
+        "OpenAI-Safety-Identifier": buildVoiceSafetyIdentifier("anonymous")
       },
       body: JSON.stringify({
         model: process.env.HEALTH_AI_INTERVIEW_MODEL || DEFAULT_INTERVIEW_MODEL,
@@ -155,7 +160,10 @@ export async function POST(request: Request): Promise<Response> {
     } catch {
       decoded = null;
     }
-    return Response.json({ mode: "success", data: parseFamilyInterviewPayload(decoded) });
+    return Response.json(
+      { mode: "success", data: parseFamilyInterviewPayload(decoded) },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch {
     return Response.json({ data: null }, { status: 502 });
   } finally {

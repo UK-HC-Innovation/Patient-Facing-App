@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { familyRankSystemPrompt, familyRankUserPrompt } from "@/ai/family-rank-prompt";
+import { buildVoiceSafetyIdentifier } from "@/ai/voice-safety-identifier";
 import { familyInterviewInputSchema } from "@/domain/family-interview";
 import { familyRankResultSchema, parseFamilyRankPayload } from "@/domain/family-rank";
 import { getFamilyResourceById } from "@/domain/family-resources";
@@ -78,13 +79,6 @@ export async function POST(request: Request): Promise<Response> {
   }
   const body = parsedBody.data;
 
-  // Unknown ids are dropped before the model ever sees them, so a stale client
-  // cannot widen the candidate set past what the catalog actually contains.
-  const candidateIds = body.candidateIds.filter((id) => getFamilyResourceById(id) !== undefined);
-  if (candidateIds.length === 0) {
-    return Response.json({ mode: "success", data: null });
-  }
-
   const provider = process.env.HEALTH_AI_PROVIDER;
   const apiKey = process.env.HEALTH_AI_API_KEY;
   if (provider !== "openai" || !apiKey) {
@@ -96,12 +90,25 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ mode: "locked", data: null });
   }
 
+  // Unknown ids are dropped before the model ever sees them, so a stale client
+  // cannot widen the candidate set past what the catalog actually contains.
+  // Runs after the env/passcode gates so an unconfigured deploy still reports
+  // `unconfigured` rather than masking it as an empty-candidate success.
+  const candidateIds = body.candidateIds.filter((id) => getFamilyResourceById(id) !== undefined);
+  if (candidateIds.length === 0) {
+    return Response.json({ mode: "success", data: null });
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), RANK_TIMEOUT_MS);
   try {
     const upstream = await fetch(CHAT_COMPLETIONS_URL, {
       method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "OpenAI-Safety-Identifier": buildVoiceSafetyIdentifier("anonymous")
+      },
       body: JSON.stringify({
         model: process.env.HEALTH_AI_RANK_MODEL || DEFAULT_RANK_MODEL,
         temperature: 0,
@@ -150,10 +157,13 @@ export async function POST(request: Request): Promise<Response> {
     }
     // Second server-side pass: a hallucinated id never leaves this route.
     const allowed = new Set(candidateIds);
-    return Response.json({
-      mode: "success",
-      data: { ...ranked, recommendations: ranked.recommendations.filter(({ id }) => allowed.has(id)) }
-    });
+    return Response.json(
+      {
+        mode: "success",
+        data: { ...ranked, recommendations: ranked.recommendations.filter(({ id }) => allowed.has(id)) }
+      },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch {
     return Response.json({ data: null }, { status: 502 });
   } finally {

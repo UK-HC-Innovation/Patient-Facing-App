@@ -8,11 +8,15 @@ import type { RouteDecision } from "@/domain/route-classifier";
 export async function classifyRouteRemote(utterance: string, allowedHrefs: readonly string[]): Promise<RouteDecision> {
   const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
   const timer = controller ? setTimeout(() => controller.abort(), 4500) : null;
+  const passcode =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("k") ?? undefined
+      : undefined;
   try {
     const response = await fetch("/api/route/classify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ utterance, allowedHrefs }),
+      body: JSON.stringify({ utterance, allowedHrefs, passcode }),
       signal: controller?.signal
     });
     if (!response.ok) {

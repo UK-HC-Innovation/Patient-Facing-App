@@ -1,3 +1,4 @@
+import { buildVoiceSafetyIdentifier } from "@/ai/voice-safety-identifier";
 import { parseRouteToolArgs } from "@/domain/route-classifier";
 
 export const dynamic = "force-dynamic";
@@ -5,7 +6,7 @@ export const dynamic = "force-dynamic";
 const OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions";
 const DEFAULT_MODEL = "gpt-4o-mini";
 
-type ClassifyRequest = { utterance?: string; allowedHrefs?: string[] };
+type ClassifyRequest = { utterance?: string; allowedHrefs?: string[]; passcode?: string };
 
 async function readBody(request: Request): Promise<ClassifyRequest> {
   try {
@@ -35,6 +36,17 @@ export async function POST(request: Request): Promise<Response> {
   // No live model configured — defer to the Coach. The deterministic + mock
   // stages already ran on the client, so this is a graceful no-op, never a block.
   if (provider !== "openai" || !apiKey) {
+    return Response.json({ kind: "coach", confidence: 0 });
+  }
+
+  // Demo cost gate, same as every other credit-spending route. This one matters
+  // most: classify is reached on every home-composer submission, so an ungated
+  // deploy spends on each typed utterance from any visitor. Falling back to
+  // `coach` is the route's existing graceful degradation — the deterministic and
+  // mock stages have already run on the client, so nothing is blocked.
+  // Skipped when DEMO_PASSCODE is unset (local dev).
+  const requiredPasscode = process.env.DEMO_PASSCODE;
+  if (requiredPasscode && body.passcode !== requiredPasscode) {
     return Response.json({ kind: "coach", confidence: 0 });
   }
 
@@ -74,7 +86,11 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const upstream = await fetch(OPENAI_CHAT_URL, {
       method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "OpenAI-Safety-Identifier": buildVoiceSafetyIdentifier("anonymous")
+      },
       body: JSON.stringify({
         model,
         messages,

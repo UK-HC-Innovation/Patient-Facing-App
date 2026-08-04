@@ -84,7 +84,12 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ mode: "error", message: "no_client_secret" }, { status: 502 });
     }
 
-    return Response.json({ mode: "live", clientSecret: data.value, model, expiresAt: data.expires_at ?? null });
+    // The body carries a short-lived client secret, so it gets at least the same
+    // no-store treatment the coach and vision text responses already have.
+    return Response.json(
+      { mode: "live", clientSecret: data.value, model, expiresAt: data.expires_at ?? null },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch {
     return Response.json({ mode: "error", message: "token_request_error" }, { status: 502 });
   }
