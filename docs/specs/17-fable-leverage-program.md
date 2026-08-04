@@ -43,15 +43,17 @@ The motivating precedent for A: the 2026-07-25 waitlist-companion adversarial re
 - Every divergence is classified **intentional** (documented in the matrix with why) or **drift** (fixed). Fixes are drift-only, path-scoped commits, with route tests extended to pin the fixed behavior.
 - **Accept:** parity matrix committed to `docs/qa/`; every drift fix has a test; `npm run check` and `npm run crisis:gate` green.
 
-### D. Voice-first infrastructure execution (spec 12 / handoff 12)
+### D. Voice-first verification and gap closure (spec 12)
 
-**Goal:** execute the already-designed P0–P7 voice build as one long Fable run instead of a Codex phase-by-phase handoff.
+> **Re-scoped 2026-08-04 by workstream B.** This section originally read "execute the already-designed P0–P7 voice build." That premise was wrong: **P0–P6 are built and wired**, and the stale `food-lens-demo.md` cleanup item inside P6 is already done. Per-phase evidence is in [the coherence report](../qa/2026-08-04-spec-coherence.md) → Finding 1. There is no build to execute.
 
-- The locked decisions in `docs/handoffs/12-voice-everywhere.md` are **hard constraints**, unchanged: code-default realtime model stays `gpt-realtime-2` (cheaper model is env opt-in only, after the owner verifies the id); voice stays `marin`; P0 cherry-picks the `ab7896bb` language toggle; output-transcript gating with no jitter-buffer delay.
-- The handoff's step-by-step lists are **reference, not script**. Fable gets the goal, the constraints, and the acceptance gates; it chooses its own path. Over-prescription measurably degrades its output.
-- Pre-flight: run from `master` (current checkout is a codex branch), clean tree, gates green.
-- Verification per landing: `npm run check`, `npm run crisis:gate`, `npm run test:e2e`. Known non-bug: e2e kills the preview server's `.next` — restart the preview, don't debug it.
-- **Accept:** spec 12's own P0–P7 acceptance criteria, all three commands green, committed on master. Deploy is a separate owner decision (`vercel --prod --archive=tgz`; push does nothing).
+**Goal:** confirm the built voice surfaces hold end to end, and close the one item spec 12 leaves genuinely open.
+
+- **The real open item is the real-phone hardware pass** that spec 12 P5 marks pending. It needs a device (Android Galaxy S25 / Chrome per `docs/food-lens-demo.md`), not a code change, and no agent can close it.
+- Everything else here is verification, not construction: run the typed-simulation corpus through every voice path, confirm output-transcript gating on `/chat` and `/food`, and confirm read-aloud only ever speaks pre-authored or grounding-verified text.
+- The locked decisions in `docs/handoffs/12-voice-everywhere.md` remain **hard constraints** for any change made here: code-default realtime model stays `gpt-realtime-2` (cheaper model is env opt-in only, after the owner verifies the id); voice stays `marin`; output-transcript gating with no jitter-buffer delay.
+- Verification: `npm run check`, `npm run crisis:gate`, `npm run test:e2e`. Known non-bug: e2e kills the preview server's `.next` — restart the preview, don't debug it.
+- **Accept:** the three commands green, a dated voice-path verification note in `docs/qa/`, and the hardware pass either done or explicitly recorded as still-open with the reason.
 
 ### E. Vision oracle for screening extraction (stretch)
 
@@ -66,13 +68,15 @@ The motivating precedent for A: the 2026-07-25 waitlist-companion adversarial re
 
 - **No PHI in any Fable-visible input.** Source code, specs, and synthetic text/images only. This is what makes the retention requirement a non-issue for A–E.
 - **Refusal fallback:** any workstream that hits `refusal` reruns on Opus rather than weakening its goal.
-- **Cost scoping:** input is cheap; long autonomous output at $50/MTok is where cost lives. Rough per-run order of magnitude — A: $5–15, B: $10–30, C: $3–10, D: the large one (tens of dollars, potentially $100+ over a full P0–P7 run), E: $5–15. Scope each run to its acceptance gate; no open-ended overnight runs without a stated budget.
+- **Cost scoping:** input is cheap; long autonomous output at $50/MTok is where cost lives. Rough per-run order of magnitude — A: $5–15, B: $10–30, C: $3–10, D: $5–15 (verification only, since the build already exists), E: $5–15. Scope each run to its acceptance gate; no open-ended overnight runs without a stated budget.
 - **Repo rules:** no worktrees; path-scoped commits per workstream; no push and no deploy from any workstream — both remain owner actions.
 - **Security carve-out:** Fable's bug-finding gains exclude security-focused analysis (cyber classifiers). Auth/secrets review stays with `/security-review` and standard models; A–C target clinical/product logic, not exploitability.
 
 ## Sequencing
 
-A → C → B → D, with E whenever an image set exists. A is the highest-value safety work and is self-contained. C is small and sharpens the routes D will touch. B's drift findings should be known before D builds on top of the tree. Each workstream is independently executable; reordering is an owner call, not a dependency violation.
+A → C → B → D, with E whenever an image set exists. A is the highest-value safety work and is self-contained. C is small and sharpens the routes D touches. B must run before D because it is what establishes what D actually has left to do — as it turned out, almost nothing. Each workstream is independently executable; reordering is an owner call, not a dependency violation.
+
+**Executed 2026-08-04:** A (report, awaiting adjudication), C (six drift fixes landed), and B (report) are complete. B re-scoped D. E remains blocked on an image set.
 
 ## Non-goals
 
@@ -85,4 +89,10 @@ A → C → B → D, with E whenever an image set exists. A is the highest-value
 
 ## Plan mapping
 
-Companion execution plan, when written: `docs/plans/16-fable-leverage-program.md`. A–C can each be run as a single scoped agent session without a plan; D should get its plan derived from spec 12 + handoff 12 with the de-prescription rule applied.
+Companion execution plan, when written: `docs/plans/16-fable-leverage-program.md`. A–C were each run as a single scoped agent session without a plan, which is the right shape for them. D no longer needs a plan either — it is a verification pass plus one hardware task the owner has to perform.
+
+Artifacts produced 2026-08-04:
+
+- A — [crisis adversarial candidates](../qa/2026-08-04-crisis-adversarial-candidates.md) (39 verified breaks, awaiting adjudication)
+- B — [spec coherence report](../qa/2026-08-04-spec-coherence.md) (16 verdicts, 4 findings)
+- C — [LLM route gate parity matrix](../qa/2026-08-04-llm-route-gate-parity.md) (6 drifts fixed, 7 intentional)
