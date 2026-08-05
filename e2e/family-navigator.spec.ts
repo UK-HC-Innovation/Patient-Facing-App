@@ -644,9 +644,13 @@ test("Spanish mobile mock path is substantive, language-correct, and horizontall
   // its own surface — reached by a tab labelled in the caregiver's language.
   await goToSurface(page, "Programas");
   await openFold(page, "family-resources");
-  await expect(
-    page.getByText(/vienen directo de las organizaciones.*en inglés/i)
-  ).toBeVisible();
+  // F6a: the notice now renders wherever English content does — the library, the
+  // guide strip, and (below) the thread's own answer cards — so each is named.
+  await expect(page.getByTestId("library-source-language-notice")).toBeVisible();
+  await expect(page.getByTestId("guides-source-language-notice")).toBeVisible();
+  await expect(page.getByTestId("library-source-language-notice")).toContainText(
+    /vienen directo de las organizaciones.*en inglés/i
+  );
   // The thread answers with a compact card and the library holds the full one, so
   // the Spanish assertions name the section they belong to.
   const matched = page.getByTestId("matched-family-resources");
@@ -657,11 +661,15 @@ test("Spanish mobile mock path is substantive, language-correct, and horizontall
     matched.getByText(/district special-education office and named contacts/i)
   ).toBeVisible();
   await goToSurface(page, "Inicio");
+  await expect(page.getByTestId("thread-source-language-notice")).toBeVisible();
   await expect(
     page.getByTestId("thread-family-resources").getByRole("heading", {
       name: "Scott County Schools Exceptional Child Services"
     })
   ).toBeVisible();
+  // F6d: the draft-translation caveat is in the header, so it is on entry and on
+  // every surface rather than buried in one branch of the composer.
+  await expect(page.getByTestId("ladder-spanish-review-notice")).toBeVisible();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= document.documentElement.clientWidth
