@@ -16,6 +16,14 @@ export interface FamilyGuide {
   plainSummary: string;
   /** 3–4 short imperative lines, faithfully adapted from the cited page. */
   steps: string[];
+  /**
+   * F5e. A phone number a guide names goes here, not into a step's prose.
+   * In prose it was untappable, invisible to `familyResourcePhones`, and
+   * therefore outside the provenance sweep that guarantees every digit Ladder
+   * renders is in the verified catalog (FR-1). Same shape as the org catalog's
+   * `contact`, so the same parser reads it.
+   */
+  contact?: string;
   sourceName: string;
   sourceUrl: string;
   verifiedAt: string;
@@ -25,9 +33,13 @@ export interface FamilyGuide {
 /** At most two guides in the resources strip — a nudge, never a reading list. */
 export const GUIDE_STRIP_LIMIT = 2;
 
-// Every URL below was fetched on this date (GET, redirects followed, browser
+// Every URL below was fetched on 2026-07-25 (GET, redirects followed, browser
 // user agent) and returned 200; the steps were written from the fetched pages.
-const VERIFIED_AT = "2026-07-25";
+// All eight were re-fetched on 2026-08-05 by scripts/verify-catalog.mjs and each
+// page still carried a signal from its own entry, so all eight carry that date.
+// See family-resources.ts for what a content-confirmed re-check does and does
+// not prove, and docs/ops/catalog-verification/ for the report.
+const RECHECKED_AT = "2026-08-05";
 
 // Verified exclusion 2026-07-25: do not seed
 // https://www.chfs.ky.gov/agencies/dph/dmch/ecdb/Pages/firststeps.aspx — it 404s.
@@ -49,7 +61,7 @@ export const FAMILY_GUIDE_CATALOG: FamilyGuide[] = [
     ],
     sourceName: "CDC, Learn the Signs. Act Early.",
     sourceUrl: "https://www.cdc.gov/act-early/",
-    verifiedAt: VERIFIED_AT
+    verifiedAt: RECHECKED_AT
   },
   {
     id: "cdc_milestone_tracker",
@@ -66,7 +78,7 @@ export const FAMILY_GUIDE_CATALOG: FamilyGuide[] = [
     ],
     sourceName: "CDC's Developmental Milestones",
     sourceUrl: "https://www.cdc.gov/act-early/milestones/index.html",
-    verifiedAt: VERIFIED_AT
+    verifiedAt: RECHECKED_AT
   },
   {
     id: "medline_speech_home",
@@ -83,7 +95,7 @@ export const FAMILY_GUIDE_CATALOG: FamilyGuide[] = [
     ],
     sourceName: "MedlinePlus, Speech and Language Problems in Children",
     sourceUrl: "https://medlineplus.gov/speechandlanguageproblemsinchildren.html",
-    verifiedAt: VERIFIED_AT
+    verifiedAt: RECHECKED_AT
   },
   {
     id: "medline_behavior",
@@ -100,7 +112,7 @@ export const FAMILY_GUIDE_CATALOG: FamilyGuide[] = [
     ],
     sourceName: "MedlinePlus, Child Behavior Disorders",
     sourceUrl: "https://medlineplus.gov/childbehaviordisorders.html",
-    verifiedAt: VERIFIED_AT
+    verifiedAt: RECHECKED_AT
   },
   {
     id: "firststeps_family_guide",
@@ -117,7 +129,7 @@ export const FAMILY_GUIDE_CATALOG: FamilyGuide[] = [
     ],
     sourceName: "Kentucky CHFS, Kentucky Early Intervention System (First Steps)",
     sourceUrl: "https://www.chfs.ky.gov/agencies/dph/dmch/ecdb/Pages/keis.aspx",
-    verifiedAt: VERIFIED_AT
+    verifiedAt: RECHECKED_AT
   },
   {
     id: "kyspin_resources",
@@ -127,14 +139,15 @@ export const FAMILY_GUIDE_CATALOG: FamilyGuide[] = [
     plainSummary:
       "KY-SPIN is Kentucky's statewide parent network, linking families of children with disabilities to resources and training.",
     steps: [
-      "Call the toll-free parent line at 800-525-7746 when you do not know who to ask.",
+      "Call the toll-free parent line when you do not know who to ask.",
       "Browse the Learning Center topics for parents and families, behavior, and military families.",
       "Sign up for a free webinar — IEP basics and life-after-high-school sessions run through the year.",
       "Remember KY-SPIN is not a legal services agency and cannot give legal advice."
     ],
+    contact: "Call 800-525-7746",
     sourceName: "KY-SPIN, Inc.",
     sourceUrl: "https://www.kyspin.com/",
-    verifiedAt: VERIFIED_AT
+    verifiedAt: RECHECKED_AT
   },
   {
     id: "cdc_autism_signs",
@@ -151,7 +164,7 @@ export const FAMILY_GUIDE_CATALOG: FamilyGuide[] = [
     ],
     sourceName: "CDC, Signs and Symptoms of Autism Spectrum Disorder",
     sourceUrl: "https://www.cdc.gov/autism/signs-symptoms/index.html",
-    verifiedAt: VERIFIED_AT
+    verifiedAt: RECHECKED_AT
   },
   {
     id: "medline_sleep_kids",
@@ -168,7 +181,7 @@ export const FAMILY_GUIDE_CATALOG: FamilyGuide[] = [
     ],
     sourceName: "MedlinePlus, Healthy Sleep",
     sourceUrl: "https://medlineplus.gov/healthysleep.html",
-    verifiedAt: VERIFIED_AT
+    verifiedAt: RECHECKED_AT
   }
 ];
 

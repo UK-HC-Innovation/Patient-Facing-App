@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FAMILY_GUIDE_CATALOG, GUIDE_STRIP_LIMIT, matchFamilyGuides } from "./family-guides";
+import { familyResourcePhones, familyResourceTel } from "./family-resource-contact";
 import type { FamilyProfile } from "./types";
 
 const NOW = new Date("2026-07-17T12:00:00.000Z");
@@ -16,6 +17,32 @@ function profileAged(months: number): FamilyProfile {
   };
 }
 
+describe("guide phone provenance", () => {
+  // FR-1, extended to the guides by F5e: a number in prose is a number no sweep
+  // can see, and 800-525-7746 sat in a step for three specs.
+  it("keeps every phone number in a structured contact line, never in prose", () => {
+    for (const guide of FAMILY_GUIDE_CATALOG) {
+      for (const step of guide.steps) {
+        expect(step, `${guide.id} step`).not.toMatch(/\b\d{3}-\d{3}-\d{4}\b/);
+      }
+      expect(guide.plainSummary, `${guide.id} summary`).not.toMatch(/\b\d{3}-\d{3}-\d{4}\b/);
+    }
+  });
+
+  it("parses every guide contact with the same reader the org catalog uses", () => {
+    const withContact = FAMILY_GUIDE_CATALOG.filter(({ contact }) => contact !== undefined);
+    expect(withContact.length).toBeGreaterThan(0);
+    for (const guide of withContact) {
+      const numbers = familyResourcePhones(guide.contact!);
+      expect(numbers.length, guide.id).toBeGreaterThan(0);
+      for (const number of numbers) {
+        expect(guide.contact).toContain(number);
+        expect(familyResourceTel(number)).toMatch(/^tel:\d{3,10}$/);
+      }
+    }
+  });
+});
+
 describe("family guide catalog integrity", () => {
   it("uses unique stable ids and dated, cited, https provenance", () => {
     const ids = FAMILY_GUIDE_CATALOG.map((guide) => guide.id);
@@ -28,7 +55,9 @@ describe("family guide catalog integrity", () => {
       expect(new URL(guide.sourceUrl).protocol).toBe("https:");
       expect(guide.verifiedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(Number.isNaN(Date.parse(guide.verifiedAt))).toBe(false);
-      expect(Date.parse(guide.verifiedAt)).toBeLessThanOrEqual(Date.parse("2026-07-25"));
+      // "Not in the future", not a pinned constant every re-verification pass
+      // has to remember to move; family-freshness.test.ts owns the lower bound.
+      expect(Date.parse(guide.verifiedAt)).toBeLessThanOrEqual(Date.now());
     }
   });
 

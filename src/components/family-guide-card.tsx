@@ -3,6 +3,7 @@
 import { ExternalLink } from "lucide-react";
 import React, { useId } from "react";
 import type { FamilyGuide } from "@/domain/family-guides";
+import { familyResourcePhones, familyResourceTel } from "@/domain/family-resource-contact";
 import { CONTROL_FOCUS, NOTICE_INFO } from "@/components/family-theme";
 import { tFamily } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
@@ -20,6 +21,7 @@ export type FamilyGuideCardProps = {
  */
 export function FamilyGuideCard({ guide, language }: FamilyGuideCardProps) {
   const titleId = `${useId()}-title`;
+  const [guidePhone] = familyResourcePhones(guide.contact ?? "");
 
   return (
     <article
@@ -40,6 +42,20 @@ export function FamilyGuideCard({ guide, language }: FamilyGuideCardProps) {
           </li>
         ))}
       </ul>
+
+      {/* F5e. Tappable, and drawn from the guide's own verified contact line —
+          never from a number written into a step's prose (FR-1). */}
+      {guidePhone ? (
+        <p className="mt-3">
+          <a
+            href={familyResourceTel(guidePhone)}
+            data-testid="family-guide-call"
+            className={`inline-flex min-h-12 min-w-0 items-center break-words rounded-control bg-care px-4 py-2 text-sm font-semibold text-white ${CONTROL_FOCUS}`}
+          >
+            {tFamily(language, "resourceCallNumber", { number: guidePhone })}
+          </a>
+        </p>
+      ) : null}
 
       <p data-testid="family-guide-source" className="mt-3 break-words text-sm text-ink/70">
         {tFamily(language, "resourceSource")}: {guide.sourceName} ·{" "}

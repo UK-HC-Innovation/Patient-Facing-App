@@ -44,6 +44,9 @@ export const sdohNeedOptions: readonly { id: SdohNeedType; label: string }[] = [
 
 const allNeeds = sdohNeedOptions.map((option) => option.id);
 
+/** The 2026-08-05 mechanical pass; see family-resources.ts for what it means. */
+const RECHECKED_AT = "2026-08-05";
+
 export const KENTUCKY_SDOH_RESOURCE_CATALOG: readonly KentuckySdohResource[] = [
   {
     id: "lklp_transportation_region_13",
@@ -55,7 +58,7 @@ export const KENTUCKY_SDOH_RESOURCE_CATALOG: readonly KentuckySdohResource[] = [
     contact: "Call 1-800-245-2826",
     sourceName: "Kentucky Transportation Cabinet Human Services Transportation",
     sourceUrl: "https://transportation.ky.gov/TransportationDelivery/Pages/Human-Services-Transportation.aspx",
-    verifiedAt: "2026-07-04",
+    verifiedAt: RECHECKED_AT,
     referralMode: "navigator_referral"
   },
   {
@@ -67,7 +70,7 @@ export const KENTUCKY_SDOH_RESOURCE_CATALOG: readonly KentuckySdohResource[] = [
     contact: "Ask navigator to confirm the best transportation provider for the trip",
     sourceName: "Kentucky Public Transit Association county directory",
     sourceUrl: "https://www.kypublictransit.org/transit-by-county",
-    verifiedAt: "2026-07-04",
+    verifiedAt: RECHECKED_AT,
     referralMode: "navigator_referral"
   },
   {
@@ -107,7 +110,7 @@ export const KENTUCKY_SDOH_RESOURCE_CATALOG: readonly KentuckySdohResource[] = [
     contact: "Browse kynect resources or ask a navigator to create the right referral path",
     sourceName: "Cabinet for Health and Family Services kynect resources",
     sourceUrl: "https://www.chfs.ky.gov/agencies/ohda/Pages/kynectresources.aspx",
-    verifiedAt: "2026-07-04",
+    verifiedAt: RECHECKED_AT,
     referralMode: "directory_search"
   },
   {

@@ -380,6 +380,16 @@ export function FamilyResourceCard({
         <div className={`mt-3 ${NOTICE_DEADLINE}`}>
           <h4 className="text-sm font-semibold text-pulse">{tFamily(language, "resourceActNow")}</h4>
           <p className="mt-1 break-words text-sm leading-6">{resource.actNow}</p>
+          {/* F5d. These lines carry the sharpest dated claims on any card — a
+              waiting-list count, a price, an eligibility band — and their
+              "Checked on" date used to live one fold in. A claim and its date
+              belong on the same face. */}
+          <p
+            data-testid="family-resource-act-now-checked"
+            className="mt-1 break-words text-xs font-medium text-ink/70"
+          >
+            {tFamily(language, "resourceVerified", { date: resource.verifiedAt })}
+          </p>
         </div>
       ) : null}
 

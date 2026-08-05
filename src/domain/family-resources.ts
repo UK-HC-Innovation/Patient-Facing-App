@@ -28,6 +28,15 @@ const VERIFIED_AT = "2026-07-17";
 // The procedural-guidance entries were added later and carry their own date, so
 // staleness stays honest per entry rather than being flattened to one constant.
 const PROCEDURAL_VERIFIED_AT = "2026-07-21";
+/**
+ * The 2026-08-05 mechanical pass (`scripts/verify-catalog.mjs`, report in
+ * docs/ops/catalog-verification/). This date is only on entries whose source
+ * page came back 200 **and** still carried a signal from the entry itself — a
+ * phone number it prints, or a distinctive phrase from its name. A page that
+ * merely answered, or that renders in JavaScript, or that is a PDF, kept its old
+ * date and went on the owner checklist instead (FR-6).
+ */
+const RECHECKED_AT = "2026-08-05";
 const POE_SOURCE_URL = "https://www.chfs.ky.gov/agencies/dph/dmch/ecdb/fs/POElistingforWebsite.pdf";
 
 const POE_DISTRICTS: PoeDistrict[] = [
@@ -211,7 +220,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     contact: "Call 800-525-7746 or email spininc@kyspin.com",
     sourceName: "Kentucky Special Parent Involvement Network",
     sourceUrl: "https://www.kyspin.com/",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "call"
   },
   {
@@ -224,7 +233,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     contact: "Call 800-232-1160 and ask for the office serving your county",
     sourceName: "Kentucky Cabinet for Health and Family Services",
     sourceUrl: "https://www.chfs.ky.gov/agencies/ocshcn/Pages/default.aspx",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "call"
   },
   {
@@ -238,7 +247,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     actNow: "The referral-to-IFSP process has a 45-day timeline, and new referrals are not accepted within 45 days of the third birthday.",
     sourceName: "Kentucky Early Intervention System",
     sourceUrl: "https://www.chfs.ky.gov/agencies/dph/dmch/ecdb/Pages/keis.aspx",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "call"
   },
   {
@@ -251,7 +260,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     contact: "Call 877-616-7388 or use the screening links on the CHFS page",
     sourceName: "Kentucky Cabinet for Health and Family Services",
     sourceUrl: "https://www.chfs.ky.gov/agencies/dph/dmch/ecdb/Pages/hmg_archive.aspx",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "self_serve"
   },
   {
@@ -265,7 +274,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     actNow: "Keep the active IFSP through transition so the IEP by the third birthday protections apply. The service coordinator must hold the conference at least 90 days and, by agreement, no more than nine months before the third birthday.",
     sourceName: "Kentucky Administrative Regulations — 902 KAR 30:110",
     sourceUrl: "https://apps.legislature.ky.gov/law/kar/titles/902/030/110/",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "school_contact"
   },
   {
@@ -279,7 +288,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     actNow: "IDEA written complaints generally use a one-year filing window; Kentucky due-process requests generally use a three-year window.",
     sourceName: "Kentucky Department of Education",
     sourceUrl: "https://www.education.ky.gov/specialed/excep/Pages/Dispute_Resolution_Process.aspx",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "self_serve"
   },
   {
@@ -292,7 +301,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     contact: "Open the toolbox and choose the ARC or IEP guide needed for the next school meeting",
     sourceName: "Kentucky Department of Education",
     sourceUrl: "https://www.education.ky.gov/specialed/excep/Pages/FamParTool.aspx",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "self_serve"
   },
   {
@@ -304,7 +313,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     contact: "Call 800-372-2988 or use the online intake form",
     sourceName: "Kentucky Protection & Advocacy",
     sourceUrl: "https://kypa.net/what-we-do/",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "call"
   },
   {
@@ -317,7 +326,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     actNow: "The Michelle P. waiting list is date ordered — 9,686 people were waiting as of 9/2/2025, with an average wait of about 3.5 years (CHFS report to the Kentucky legislature, 9/17/2025). Families who want the state to assess an application should start now rather than wait for a later milestone.",
     sourceName: "Kentucky Department for Medicaid Services",
     sourceUrl: "https://www.chfs.ky.gov/agencies/dms/dca/pages/mpw.aspx",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "self_serve"
   },
   {
@@ -330,7 +339,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     actNow: "Ask the state operating agency about the current category-of-need process and waiting-list status before relying on dated third-party estimates.",
     sourceName: "Kentucky Department for Medicaid Services",
     sourceUrl: "https://www.chfs.ky.gov/agencies/dms/dca/Pages/HCBSWaiver.aspx",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "call"
   },
   {
@@ -342,7 +351,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     contact: "Use the CHFS waiver page or call the waiver help desk at 844-784-5614",
     sourceName: "Kentucky Department for Medicaid Services",
     sourceUrl: "https://www.chfs.ky.gov/agencies/dms/dca/Pages/HCBSWaiver.aspx",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "self_serve"
   },
   {
@@ -356,7 +365,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     actNow: "CHFS currently publishes an application path for CHILD. Do not rely on unofficial slot counts; ask the waiver help desk about case-specific status.",
     sourceName: "Kentucky Department for Medicaid Services",
     sourceUrl: "https://www.chfs.ky.gov/agencies/dms/dca/Pages/child.aspx",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "self_serve"
   },
   {
@@ -398,7 +407,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     contact: "Use the HDI resources to begin a supported-decision-making conversation before age 18",
     sourceName: "University of Kentucky Human Development Institute",
     sourceUrl: "https://hdi.uky.edu/project/my-choice-kentucky/",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "self_serve"
   },
   {
@@ -410,7 +419,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     contact: "Search by topic, location, or organization name",
     sourceName: "University of Kentucky Human Development Institute",
     sourceUrl: "https://resources.hdiuky.org/",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "self_serve"
   },
   {
@@ -422,7 +431,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     contact: "Use the current KATC site for training and statewide resource information",
     sourceName: "Kentucky Autism Training Center",
     sourceUrl: "https://education.louisville.edu/research/centers-institutes/kentucky-autism-training-center/katc-resources",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "self_serve"
   },
   {
@@ -435,7 +444,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     contact: "Ask the child's primary care provider to review the published criteria and submit the required referral records",
     sourceName: "UK HealthCare",
     sourceUrl: "https://ukhealthcare.uky.edu/golisano-childrens-uk/services/developmental-pediatrics/refer-patient",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "provider_referral"
   },
   {
@@ -460,7 +469,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     contact: "Search kynect resources for terms such as “developmental disability” plus the county",
     sourceName: "Kentucky Cabinet for Health and Family Services",
     sourceUrl: "https://www.chfs.ky.gov/agencies/ohda/Pages/kynectresources.aspx",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "self_serve"
   },
   {
@@ -484,7 +493,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     contact: "Join the ASBG listserv or use the website contact information to confirm the next meeting",
     sourceName: "Autism Society of the Bluegrass",
     sourceUrl: "https://asbg.org/",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "self_serve"
   },
   {
@@ -497,7 +506,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     contact: "Contact the Client Relations Manager through the services page",
     sourceName: "Central Kentucky Riding for Hope",
     sourceUrl: "https://ckrh.org/services/",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "self_serve"
   },
   {
@@ -509,7 +518,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     contact: "Call 859-288-2928 and ask whether a program accepts non-Fayette residents",
     sourceName: "Lexington-Fayette Urban County Government",
     sourceUrl: "https://www.lexingtonky.gov/playing/therapeutic-recreation",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "call"
   },
   {
@@ -534,7 +543,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     contact: "Use the direct district contacts listed on the Special Education page",
     sourceName: "Scott County Schools",
     sourceUrl: "https://www.scott.kyschools.us/departments/student-learning/exceptional-child-services/special-education",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "school_contact"
   },
   {
@@ -547,7 +556,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     contact: "Call the child's school and ask for its Family Resource or Youth Services Center coordinator",
     sourceName: "Kentucky Family Resource and Youth Services Centers",
     sourceUrl: "https://www.chfs.ky.gov/agencies/dfrcvs/dfrysc/Pages/default.aspx",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "school_contact"
   },
   {
@@ -559,7 +568,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     contact: "Use the CHADD chapter page to request the next online meeting details",
     sourceName: "Children and Adults with Attention-Deficit/Hyperactivity Disorder",
     sourceUrl: "https://www.chadd.net/chapter/859",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "self_serve"
   },
   {
@@ -572,7 +581,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     contact: "Use the FEAT program pages to confirm the current session and registration window",
     sourceName: "Families for Effective Autism Treatment of Louisville",
     sourceUrl: "https://featoflouisville.org/",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "self_serve"
   },
   {
@@ -584,7 +593,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     contact: "Call 502-495-5088 or select the age-appropriate program on the website",
     sourceName: "Down Syndrome of Louisville",
     sourceUrl: "https://dsoflou.org/",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "self_serve"
   },
   {
@@ -596,7 +605,7 @@ const STATEWIDE_AND_LOCAL_RESOURCES: FamilyResource[] = [
     contact: "Use the website contact information and confirm current services",
     sourceName: "Learning Disabilities Association of Kentucky",
     sourceUrl: "https://www.ldaofky.org/",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: RECHECKED_AT,
     referralMode: "call"
   },
   {

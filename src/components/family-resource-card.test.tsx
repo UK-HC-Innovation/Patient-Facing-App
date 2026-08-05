@@ -86,13 +86,36 @@ describe("FamilyResourceCard", () => {
     const details = screen.getByText("Details and source").parentElement!;
     expect(screen.getByText(michelle.contact)).toBeVisible();
     expect(screen.getByText(michelle.sourceName, { exact: false })).toBeVisible();
-    expect(screen.getByText(michelle.verifiedAt, { exact: false })).toBeVisible();
+    // The date now appears twice on purpose: beside the dated claim on the
+    // face (F5d) and in the provenance block inside the fold.
+    expect(screen.getAllByText(michelle.verifiedAt, { exact: false }).length).toBeGreaterThan(0);
     expect(within(details).getByText(/all ages/i)).toBeVisible();
     expect(within(details).getByText(/start online/i)).toBeVisible();
     const sourceLink = screen.getByRole("link", { name: /See their official page.*Michelle P/i });
     expect(sourceLink).toHaveAttribute("href", michelle.sourceUrl);
     expect(sourceLink).toHaveAttribute("target", "_blank");
     expect(sourceLink).toHaveAttribute("rel", "noreferrer");
+  });
+
+  // F5d. Michelle P.'s act-now line prints "9,686 people were waiting as of
+  // 9/2/2025" on the face while its "Checked on" date sat inside the fold — the
+  // claim visible, its age hidden.
+  it("dates the act-now claim on the same face the claim is on", () => {
+    renderCard();
+
+    const dateOnFace = screen.getByTestId("family-resource-act-now-checked");
+    expect(dateOnFace).toBeVisible();
+    expect(dateOnFace).toHaveTextContent(`Checked on ${michelle.verifiedAt}`);
+    // On the face means outside the disclosure, not merely present.
+    expect(dateOnFace.closest("details")).toBeNull();
+  });
+
+  it("dates the act-now claim in Spanish too", () => {
+    renderCard({ language: "es" });
+
+    expect(screen.getByTestId("family-resource-act-now-checked")).toHaveTextContent(
+      `Revisado el ${michelle.verifiedAt}`
+    );
   });
 
   it("keeps Spanish provenance and its official source reachable from the details disclosure", async () => {
@@ -104,7 +127,9 @@ describe("FamilyResourceCard", () => {
     await user.click(screen.getByText("Detalles y fuente"));
     expect(screen.getByText(michelle.contact)).toBeVisible();
     expect(screen.getByText(michelle.sourceName, { exact: false })).toBeVisible();
-    expect(screen.getByText(michelle.verifiedAt, { exact: false })).toBeVisible();
+    // The date now appears twice on purpose: beside the dated claim on the
+    // face (F5d) and in the provenance block inside the fold.
+    expect(screen.getAllByText(michelle.verifiedAt, { exact: false }).length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: /Ver su página oficial.*Michelle P/i })).toHaveAttribute(
       "href",
       michelle.sourceUrl

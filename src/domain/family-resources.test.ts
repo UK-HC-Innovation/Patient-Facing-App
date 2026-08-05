@@ -31,7 +31,10 @@ describe("family resource catalog integrity", () => {
       // able to say honestly when they were checked.
       expect(resource.verifiedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(Number.isNaN(Date.parse(resource.verifiedAt))).toBe(false);
-      expect(Date.parse(resource.verifiedAt)).toBeLessThanOrEqual(Date.parse("2026-07-21"));
+      // The upper bound is "not in the future", not a pinned constant a
+      // re-verification pass has to remember to move. The lower bound — how old
+      // is too old — is family-freshness.test.ts's job now.
+      expect(Date.parse(resource.verifiedAt)).toBeLessThanOrEqual(Date.now());
     }
   });
 

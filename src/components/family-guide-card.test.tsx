@@ -28,6 +28,29 @@ describe("FamilyGuideCard", () => {
     );
   });
 
+  // F5e. The KY-SPIN parent line used to live inside a step's prose, where it
+  // was untappable and invisible to the sweep that guarantees every digit
+  // Ladder renders is in the verified catalog (FR-1).
+  it("makes a guide's phone line tappable and keeps it out of the prose", () => {
+    const guide = guideById("kyspin_resources");
+    render(<FamilyGuideCard guide={guide} language="en" />);
+
+    const call = screen.getByTestId("family-guide-call");
+    expect(call).toHaveAttribute("href", "tel:8005257746");
+    expect(call).toHaveTextContent("Call 800-525-7746");
+    expect(call.className).toContain("min-h-12");
+    // The number is the button, not a sentence a caregiver has to retype.
+    for (const step of guide.steps) {
+      expect(step).not.toMatch(/\d{3}-\d{3}-\d{4}/);
+    }
+  });
+
+  it("shows no call control for a guide with no phone line", () => {
+    render(<FamilyGuideCard guide={guideById("cdc_milestones_help")} language="en" />);
+
+    expect(screen.queryByTestId("family-guide-call")).toBeNull();
+  });
+
   it("links out to the cited page with a named, tappable control", () => {
     const guide = guideById("cdc_milestones_help");
     render(<FamilyGuideCard guide={guide} language="en" />);
