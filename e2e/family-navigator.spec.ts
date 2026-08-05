@@ -22,6 +22,34 @@ const SCOTT_SOURCE_URL =
   "https://www.scott.kyschools.us/departments/student-learning/exceptional-child-services/special-education";
 
 /**
+ * Ladder's four surfaces sit behind a tab bar. A journey opens the one it is
+ * about, the way a caregiver would; before a second surface exists there is no
+ * bar and Home is all there is.
+ */
+async function goToSurface(page: Page, name: string | RegExp): Promise<void> {
+  const tab = page.getByRole("tab", { name });
+  try {
+    // Stored state arrives after the first paint, and a surface only exists once
+    // there is something on it — so wait for the tab rather than racing it.
+    await tab.waitFor({ state: "attached", timeout: 10000 });
+  } catch {
+    return;
+  }
+  if ((await tab.getAttribute("aria-selected")) !== "true") {
+    await tab.click();
+  }
+  await expect(tab).toHaveAttribute("aria-selected", "true");
+}
+
+/** A return visit collapses the composer to one tap; opening it is that tap. */
+async function openComposer(page: Page): Promise<void> {
+  const open = page.getByTestId("family-composer-open");
+  if ((await open.count()) > 0) {
+    await open.click();
+  }
+}
+
+/**
  * Reference sections fold once the thread carries the answer. Journeys that are
  * about what a section *holds* open it the way a caregiver would — by tapping
  * its summary row — and never by reaching past the disclosure.
@@ -208,6 +236,11 @@ async function installRepeatedFinalSpeechShim(page: Page, transcript: string): P
 test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(FROZEN_NOW);
   await useFreshStorage(page);
+  // Suite-wide, not per-test: on a machine with a live key the ranking call
+  // reorders cards and rewrites the strip's sentence, so every ordering and
+  // copy assertion below would be non-deterministic (spec 18 OQ7). Interview is
+  // still stubbed per test, because several of them assert on what was sent.
+  await stubUnconfiguredFamilyRecommend(page);
 });
 
 test("family URL redirects to ladder and keeps the query string", async ({ page }) => {
@@ -222,7 +255,7 @@ test(`golden path works on ordinary caregiver wording: ${PARENT_DESCRIPTION}`, a
   });
   await page.goto("/ladder?k=demo-passcode");
 
-  await expect(page.getByRole("heading", { name: "Ladder — your child's development", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ladder", level: 1 })).toBeVisible();
   await expect(page.getByText(/concept demo|not an official service/i)).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Tell us about your child and their needs" })).toBeVisible();
   await fillBasics(page, {
@@ -273,6 +306,7 @@ test(`golden path works on ordinary caregiver wording: ${PARENT_DESCRIPTION}`, a
 
   // The library folds once the thread holds the answer; this journey is about
   // what the library carries, so open it first.
+  await goToSurface(page, "Programs");
   await openFold(page, "family-resources");
   const matched = page.getByTestId("matched-family-resources");
   const thread = page.getByTestId("thread-family-resources");
@@ -331,9 +365,12 @@ test(`golden path works on ordinary caregiver wording: ${PARENT_DESCRIPTION}`, a
     )
     .toBe(true);
   await page.reload();
+  await goToSurface(page, "Programs");
   await expect(savedRegion.getByRole("heading", { name: "Scott County Schools Exceptional Child Services" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Here is what we heard" })).not.toBeFocused();
+  // A return visit never replays last session's verification card.
+  await expect(page.getByTestId("family-heard-strip")).toHaveCount(0);
 
+  await goToSurface(page, "Programs");
   await openFold(page, "family-resources");
   const reloadedMatched = page.getByTestId("matched-family-resources");
   const reloadedScott = reloadedMatched.locator('[data-resource-id="scott_county_exceptional_child_services"]');
@@ -342,7 +379,12 @@ test(`golden path works on ordinary caregiver wording: ${PARENT_DESCRIPTION}`, a
     reloadedScott,
     /I agree to share this resource now.*Scott County Schools/i
   );
-  await expect(reloadedScott.getByText("Share recorded with your consent.")).toBeVisible();
+  // P6: the receipt names what actually left the phone. Which of the two
+  // wordings appears depends on whether this browser has a share sheet or only
+  // a clipboard; neither one may claim anything about the child.
+  await expect(
+    reloadedScott.getByText(/(Sent|Link copied): the program's name and link\. Nothing about /)
+  ).toBeVisible();
   await expect
     .poll(() =>
       page.evaluate((key) => {
@@ -372,6 +414,7 @@ test(`golden path works on ordinary caregiver wording: ${PARENT_DESCRIPTION}`, a
 
   // Exact match: several card headings end in "now", so a substring name would
   // resolve to more than the timeline's own rung.
+  await goToSurface(page, "Home");
   await openFold(page, "family-timeline");
   await expect(page.getByRole("heading", { name: "Now", level: 3, exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Next", level: 3, exact: true })).toBeVisible();
@@ -388,10 +431,12 @@ test("a two-year-old in Perry County gets the local First Steps POE before state
     .fill("My son is two and barely talking. Someone said to ask about First Steps but I do not know who to call.");
   await page.getByRole("button", { name: "Find help" }).click();
 
+  await goToSurface(page, "Programs");
   await openFold(page, "family-resources");
   const cards = page.getByTestId("matched-family-resources").locator("[data-family-resource-card]");
   await expect(cards.nth(0)).toHaveAttribute("data-resource-id", "first_steps_kentucky_river");
   await expect(cards.nth(1)).toHaveAttribute("data-resource-id", "first_steps_statewide");
+  await goToSurface(page, "Home");
   await openFold(page, "family-timeline");
   await expect(page.getByRole("heading", { name: "Contact First Steps now" })).toBeVisible();
 });
@@ -461,6 +506,7 @@ test("demo timeline control backdates diagnosis data and advances staged nudges 
     .fill("Reading is really hard for him at school and my other kids need attention too. I am exhausted.");
   await page.getByRole("button", { name: "Find help" }).click();
 
+  await goToSurface(page, "Home");
   await openFold(page, "family-timeline");
   const timeline = page.getByRole("region", { name: "What to do, and when" });
   await expect(
@@ -507,13 +553,13 @@ test("Ladder is reachable from both Menu and the home composer", async ({ page }
   await page.goto("/menu");
 
   await page.getByRole("link", { name: /^Ladder — your child's development/ }).click();
-  await expect(page.getByRole("heading", { name: "Ladder — your child's development", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ladder", level: 1 })).toBeVisible();
 
   await page.goto("/today");
   await page.waitForLoadState("networkidle");
   await page.getByLabel("Tell me what you need").fill("help for my daughter");
   await page.getByRole("button", { name: "Send" }).click();
-  await expect(page.getByRole("heading", { name: "Ladder — your child's development", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ladder", level: 1 })).toBeVisible();
 });
 
 test(`Safety phrase raises the banner in-thread and never reaches the network: ${SAFETY_PHRASE}`, async ({
@@ -584,8 +630,9 @@ test("Spanish mobile mock path is substantive, language-correct, and horizontall
   await expect(
     review.getByText(/Mencionaste la escuela/)
   ).toBeVisible();
-  // The source-language notice and the full cards live in the library, which is a
-  // summary row until it is asked for — in Spanish as in English.
+  // The source-language notice and the full cards live in the library, which is
+  // its own surface — reached by a tab labelled in the caregiver's language.
+  await goToSurface(page, "Programas");
   await openFold(page, "family-resources");
   await expect(
     page.getByText(/vienen directo de las organizaciones.*en inglés/i)
@@ -599,6 +646,7 @@ test("Spanish mobile mock path is substantive, language-correct, and horizontall
   await expect(
     matched.getByText(/district special-education office and named contacts/i)
   ).toBeVisible();
+  await goToSurface(page, "Inicio");
   await expect(
     page.getByTestId("thread-family-resources").getByRole("heading", {
       name: "Scott County Schools Exceptional Child Services"
@@ -680,6 +728,7 @@ test("the Breathitt case leads with school procedure and keeps the banner in-thr
     .toEqual(["Breathitt", "extracted"]);
 
   // The lead is school procedure, not help-with-reading.
+  await goToSurface(page, "Programs");
   await openFold(page, "family-resources");
   const cards = page.getByTestId("matched-family-resources").locator("[data-family-resource-card]");
   await expect(cards.first()).toBeVisible();
@@ -712,13 +761,18 @@ test("ladder walks a family from waitlist to a confirmed evaluation visit", asyn
 
   await fillBasics(page, { county: "Scott", birthYear: "2019", schoolStage: "elementary" });
 
+  // The appointment companion is a surface of its own, and it does not exist
+  // until a referral fits this child — so the demo seeds one from Home first.
+  await expect(page.getByRole("tab", { name: "Visit" })).toHaveCount(0);
+  const seed = page.getByTestId("family-referral-demo");
+  await expect(seed).toBeVisible();
+  await expect(page.getByText(/concept demo|not an official service/i)).toHaveCount(0);
+  await expect(seed.getByText(/Nothing here is a real appointment/i)).toBeVisible();
+  await seed.getByRole("button", { name: "Show me (demo)" }).click();
+
+  await goToSurface(page, "Visit");
   const card = page.getByTestId("family-appointment-card");
   await expect(card).toBeVisible();
-  // No standing demo banner anywhere; this card carries its own demo wording —
-  // once visibly and once as its sr-only aria-live echo.
-  await expect(page.getByText(/concept demo|not an official service/i)).toHaveCount(0);
-  await expect(card.getByText(/Nothing here is a real appointment/i)).toHaveCount(2);
-  await card.getByRole("button", { name: "Show me (demo)" }).click();
 
   // Book the first offered slot
   await card.getByRole("button").filter({ hasText: /,/ }).first().click();
@@ -781,6 +835,7 @@ test("ladder companion: notes accrue, check-in watches, packet prints", async ({
   await expect(page.getByTestId("family-clinic-now-card")).toHaveCount(0);
 
   // The journal is the record: grouped by month, with the caregiver's raw words.
+  await goToSurface(page, "Notes");
   await openFold(page, "family-journal");
   const journal = page.getByTestId("family-journal");
   await expect(journal.getByRole("heading", { name: "Your notes so far" })).toBeVisible();
@@ -789,7 +844,8 @@ test("ladder companion: notes accrue, check-in watches, packet prints", async ({
   await rawNote.locator("summary").click();
   await expect(rawNote.getByText(REGRESSION_NOTE)).toBeVisible();
   // One note so far, so the chip reads the singular — never "1 notes".
-  await expect(header.getByText("1 note", { exact: true })).toBeVisible();
+  await goToSurface(page, "Home");
+  await expect(page.getByTestId("family-wait-chips").getByText("1 note", { exact: true })).toBeVisible();
 
   // Demo time-travel: a month of quiet brings the check-in back.
   await page.getByTestId("family-checkin-demo").getByRole("button").click();
@@ -807,6 +863,7 @@ test("ladder companion: notes accrue, check-in watches, packet prints", async ({
   await expect(checkin.getByText("Thanks — see you next month.")).toBeVisible();
 
   // The packet carries the family's own sentence and whatever they chose to ask.
+  await goToSurface(page, "Notes");
   await openFold(page, "family-visit-packet");
   await page.getByRole("checkbox", { name: "Who coordinates the next steps?" }).check();
   const packet = page.getByTestId("family-visit-packet-body");
@@ -815,6 +872,47 @@ test("ladder companion: notes accrue, check-in watches, packet prints", async ({
   await expect(packet).toContainText("Changes we're flagging");
   await expect(packet).toContainText(REGRESSION_NOTE);
   await expect(packet).toContainText("not a medical record");
+});
+
+// FR-9. The packet is the one artifact a clinician ever sees, and print
+// isolation is a computed-style question no jsdom test can answer — the tab
+// redesign moved the packet two wrappers deeper and the old direct-child rule
+// silently printed a blank sheet with every unit test still green.
+test("print media isolates the visit packet from the rest of the surface", async ({ page }) => {
+  await stubUnconfiguredFamilyInterview(page);
+  await page.goto("/ladder");
+  await fillBasics(page, {
+    county: "Scott",
+    birthYear: "2024",
+    birthMonth: "1",
+    schoolStage: "not_school_age"
+  });
+
+  await goToSurface(page, "Notes");
+  await openFold(page, "family-visit-packet");
+  const packetBody = page.getByTestId("family-visit-packet-body");
+  const notesAdd = page.getByTestId("family-notes-add");
+  await expect(packetBody).toBeVisible();
+  await expect(notesAdd).toBeVisible();
+
+  const visibilityOf = (testId: string): Promise<string> =>
+    page.getByTestId(testId).evaluate((node) => window.getComputedStyle(node).visibility);
+
+  await page.emulateMedia({ media: "print" });
+  try {
+    // The sheet: the packet, and only the packet.
+    expect(await visibilityOf("family-visit-packet-body")).toBe("visible");
+    expect(await packetBody.boundingBox()).not.toBeNull();
+    // Its own panel's other content, the other panels, and the chrome all stand down.
+    expect(await visibilityOf("family-notes-add")).toBe("hidden");
+    expect(await visibilityOf("family-experience")).toBe("hidden");
+    await expect(page.getByTestId("ladder-tabs")).toBeHidden();
+    await expect(page.getByRole("link", { name: "All my health" })).toBeHidden();
+  } finally {
+    await page.emulateMedia({ media: "screen" });
+  }
+
+  await expect(notesAdd).toBeVisible();
 });
 
 test("ladder companion: an earlier visit survives reload and reschedules without reviving its prior booking", async ({ page }) => {
@@ -830,19 +928,23 @@ test("ladder companion: an earlier visit survives reload and reschedules without
   await page.getByRole("button", { name: "Find help" }).click();
 
   // Commit to a step: the card swaps its offer for a dated status the packet reads.
+  await goToSurface(page, "Programs");
   await openFold(page, "family-resources");
   const firstCard = page.getByTestId("matched-family-resources").locator("[data-family-resource-card]").first();
   await firstCard.getByTestId("family-step-plan").click();
   const stepStatus = firstCard.getByTestId("family-step-status");
   await expect(stepStatus).toHaveAttribute("data-step-status", "planned");
   await expect(stepStatus).toContainText("Planned");
+  await goToSurface(page, "Home");
   const header = page.getByTestId("family-wait-header");
   await expect(header).toContainText("1 step in motion");
 
-  // Seed the waitlist and book the offered visit, then answer the barriers turn
-  // so the card is quiet enough to ask about earlier openings.
+  // Seed the waitlist from Home — the Visit surface does not exist until a
+  // referral does — then book the offered visit and answer the barriers turn so
+  // the card is quiet enough to ask about earlier openings.
+  await page.getByTestId("family-referral-demo").getByRole("button", { name: "Show me (demo)" }).click();
+  await goToSurface(page, "Visit");
   const card = page.getByTestId("family-appointment-card");
-  await card.getByRole("button", { name: "Show me (demo)" }).click();
   const originalSlotButton = card.getByRole("button").filter({ hasText: /,/ }).first();
   const originalSlot = (await originalSlotButton.innerText()).trim();
   await originalSlotButton.click();
@@ -931,6 +1033,7 @@ test("ladder companion: an earlier visit survives reload and reschedules without
   }
 
   await page.reload();
+  await goToSurface(page, "Visit");
   await expect(card.getByText(/Booked for.*\(demo\)/)).toContainText(earlierSlot);
   await expect(card.getByText(originalSlot, { exact: true })).toHaveCount(0);
   await expect(card.getByRole("button", { name: "Keep our current time" })).toHaveCount(0);
@@ -993,7 +1096,6 @@ test("resources-first: one paragraph brings help before any question, with zero 
   page
 }) => {
   await stubUnconfiguredFamilyInterview(page);
-  await stubUnconfiguredFamilyRecommend(page);
   await page.goto("/ladder");
 
   await page.getByLabel("What would you like help with?").fill(RESOURCES_FIRST_DESCRIPTION);
@@ -1117,6 +1219,7 @@ test("resources-first: one paragraph brings help before any question, with zero 
   await expect(page.getByText("Thanks. That is enough to get you started.")).toHaveCount(0);
   // The confirmation the caregiver just made is still theirs after the round —
   // the checklist row carries it as an answered "Yes".
+  await goToSurface(page, "Notes");
   await openFold(page, "family-journal");
   const confirmedRow = page
     .getByTestId("family-journal")
@@ -1134,7 +1237,6 @@ test("phone fit: compact answers, expand in place, two-tap share, folded referen
   page
 }) => {
   await stubUnconfiguredFamilyInterview(page);
-  await stubUnconfiguredFamilyRecommend(page);
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/ladder");
 
@@ -1157,9 +1259,16 @@ test("phone fit: compact answers, expand in place, two-tap share, folded referen
   const lead = threadCards.first();
   const leadTop = await lead.evaluate((node) => node.getBoundingClientRect().top + window.scrollY);
   expect(leadTop).toBeLessThan(2 * 812);
-  // A compact card carries one description, its commit CTA, and the way out to
-  // the program itself — an answer card that can only be expanded is a dead end.
-  await expect(lead.getByRole("paragraph")).toHaveCount(1);
+  // A compact card carries the two facts that decide fit, one description, the
+  // way to reach the program, its commit CTA, and the way out to the program's
+  // own page — an answer card that can only be expanded is a dead end.
+  await expect(lead.getByTestId("family-resource-fit")).toBeVisible();
+  // P1: the phone number is the label of the biggest control on the card, on
+  // the face, at every variant. The audit found it three taps down as text.
+  const leadCall = lead.getByTestId("family-resource-call");
+  await expect(leadCall).toBeVisible();
+  expect(await leadCall.getAttribute("href")).toMatch(/^tel:\d{3,10}$/);
+  await expect(leadCall).toContainText(/^Call \d/);
   await expect(lead.getByTestId("family-step-plan")).toBeVisible();
   await expect(lead.getByTestId("family-resource-expand")).toBeVisible();
   for (const card of await threadCards.all()) {
@@ -1174,7 +1283,9 @@ test("phone fit: compact answers, expand in place, two-tap share, folded referen
 
   // 2. One tap grows it in place — no navigation, no scroll away.
   await lead.getByTestId("family-resource-expand").click();
-  await expect(lead.getByTestId("family-resource-locality")).toBeVisible();
+  // Expanding is the full card, in place: the match reason joins the fit line
+  // and everything the compact face deferred is now here.
+  await expect(lead.getByTestId("family-resource-fit")).toContainText("Shown for");
   await expect(lead.getByTestId("family-resource-share-open")).toBeVisible();
 
   // 3. Two-tap share, from the card the caregiver is already looking at.
@@ -1184,16 +1295,22 @@ test("phone fit: compact answers, expand in place, two-tap share, folded referen
   await expect(lead.getByRole("button", { name: /^Share/i })).toBeDisabled();
   await consent.check();
   await lead.getByRole("button", { name: /^Share/i }).click();
-  await expect(lead.getByText("Share recorded with your consent.")).toBeVisible();
+  await expect(
+    lead.getByText(/(Sent|Link copied): the program's name and link. Nothing about /)
+  ).toBeVisible();
 
-  // 4. Everything below the answer is a one-line row until it is asked for.
+  // 4. What the answer is not competing with lives on another surface, and what
+  //    shares a surface is still a one-line row until it is asked for.
   await expect(page.getByTestId("matched-family-resources")).toBeHidden();
   await expect(page.getByTestId("family-visit-packet-body")).toBeHidden();
+  await goToSurface(page, "Notes");
   await expect(page.getByTestId("family-journal").getByText(/1 note ·/)).toBeVisible();
+  await goToSurface(page, "Home");
   await expect(page.getByText(/concept demo|not an official service/i)).toHaveCount(0);
 
   // 5. The notes are a checklist, not a stack of cards: one line per thing we
   //    wrote down, a yes and a no beside it, the rest one tap in.
+  await goToSurface(page, "Notes");
   await openFold(page, "family-journal");
   const rows = page.getByTestId("family-journal").getByTestId("family-fact-row");
   await expect(rows.first()).toBeVisible();
@@ -1206,13 +1323,17 @@ test("phone fit: compact answers, expand in place, two-tap share, folded referen
   await firstRow.getByRole("button", { name: /Yes, that is right/ }).click();
   await expect(firstRow).toHaveAttribute("data-fact-status", "confirmed");
 
-  // 6. A nav chip opens the section it points at, and Print is one tap in.
-  await page.getByRole("link", { name: "Visit packet" }).click();
+  // 6. A doorway row brings up the surface it points at and opens the section
+  //    there, and Print is one tap in.
+  await goToSurface(page, "Home");
+  await page.getByTestId("family-doorways").getByRole("link", { name: /Visit packet/ }).click();
+  await expect(page.getByRole("tab", { name: "Notes" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("family-visit-packet-body")).toBeVisible();
   await expect(page.getByRole("button", { name: "Print" })).toBeVisible();
 
   // 7. Safety surfaces never fold: the crisis banner leads, uncollapsed, and the
   //    answer stays on the page beneath it.
+  await goToSurface(page, "Home");
   await page.getByRole("button", { name: "Start over" }).click();
   await page.getByLabel("What would you like help with?").fill(SAFETY_PHRASE);
   await page.getByRole("button", { name: "Find help" }).click();

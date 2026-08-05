@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AppShell } from "@/components/app-shell";
 import { FamilyExperience } from "@/components/family-experience";
-import { tFamily } from "@/i18n/family-strings";
 import { useHealthState } from "@/state/store";
 
+// Ladder brings its own shell: a header that carries the language control on
+// every surface, and four labelled tabs instead of the app-wide two-link bar
+// (which is also the thing that clips at 200% zoom). The way back to the rest
+// of the app is a quiet link at the foot of the shell.
 export default function FamilyPage() {
   const { state, dispatch } = useHealthState();
   const [passcode, setPasscode] = useState<string | undefined>();
@@ -15,9 +17,5 @@ export default function FamilyPage() {
     setPasscode(queryPasscode ?? undefined);
   }, []);
 
-  return (
-    <AppShell title={tFamily(state.patient.language, "pageTitle")}>
-      <FamilyExperience state={state} dispatch={dispatch} passcode={passcode} />
-    </AppShell>
-  );
+  return <FamilyExperience state={state} dispatch={dispatch} passcode={passcode} />;
 }

@@ -2,7 +2,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import tailwindConfig from "../../tailwind.config";
+import { PALETTE, rgbChannels } from "@/styles/palette";
 import { brentState } from "@/domain/fixtures";
 import { SAMPLE_CAREGIVER_TEXT, schoolAgeFamilyState } from "@/domain/family-fixtures";
 import { getFamilyResourceById } from "@/domain/family-resources";
@@ -51,13 +51,9 @@ const WHITE: Rgb = [255, 255, 255];
 
 function paletteColor(name: string): Rgb {
   if (name === "white") return WHITE;
-  const colors = tailwindConfig.theme?.extend?.colors;
-  if (colors === undefined || typeof colors !== "object" || Array.isArray(colors)) {
-    throw new Error("Tailwind family colors are unavailable.");
-  }
-  const value = (colors as Record<string, unknown>)[name];
+  const value = (PALETTE as Record<string, string | undefined>)[name];
   if (typeof value !== "string" || !/^#[\da-f]{6}$/i.test(value)) {
-    throw new Error(`Tailwind color ${name} is not a six-digit hex value.`);
+    throw new Error(`Palette color ${name} is not a six-digit hex value.`);
   }
   return [
     Number.parseInt(value.slice(1, 3), 16),
@@ -119,6 +115,32 @@ function expectAaContrast(element: HTMLElement, inheritedBackground: Rgb = WHITE
 afterEach(() => {
   cleanup();
   requestFamilyInterview.mockReset();
+});
+
+describe("platform palette", () => {
+  // The care color is the brand; the other three are meanings. A swap that drags
+  // urgency or caution along with it is the failure this pins.
+  it("is UK blue on cool white, with urgency and caution left where they were", () => {
+    expect(PALETTE.care).toBe("#0033a0");
+    expect(PALETTE.calm).toBe("#e3eaf8");
+    expect(PALETTE.paper).toBe("#f6f8fc");
+    expect(PALETTE.pulse).toBe("#9d3f31");
+    expect(PALETTE.note).toBe("#f4d06f");
+    expect(PALETTE.ink).toBe("#172026");
+  });
+
+  it("keeps UK blue readable on white in both directions", () => {
+    const care = paletteColor("care");
+    const ratio =
+      (Math.max(luminance(care), luminance(WHITE)) + 0.05) /
+      (Math.min(luminance(care), luminance(WHITE)) + 0.05);
+    // Blue text on white, and white text on the blue button, are the same pair.
+    expect(ratio).toBeGreaterThanOrEqual(7);
+  });
+
+  it("hands Tailwind the channel form its alpha syntax needs", () => {
+    expect(rgbChannels(PALETTE.care)).toBe("0 51 160");
+  });
 });
 
 describe("Ladder semantic contrast", () => {

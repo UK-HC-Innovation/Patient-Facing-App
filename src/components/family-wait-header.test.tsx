@@ -204,6 +204,8 @@ describe("FamilyWaitHeader", () => {
       render(
         <FamilyWaitHeader
           family={familyState({
+            // The Visit surface — and so its rung — exists only behind a referral.
+            referral: { clinic: "UK Developmental Pediatrics", referredAt: daysAgo(120) },
             appointments: [
               appointment({ id: "appointment-original", scheduledFor: daysFromNow(30) }),
               appointment({
@@ -276,26 +278,56 @@ describe("FamilyWaitHeader", () => {
         })}
         language="en"
         now={NOW}
+        programsCount={8}
       />
     );
 
-    // Characterization mutation: deleting or retargeting any chip below leaves
-    // a visible label that either points at the wrong section or nowhere useful.
+    // Characterization mutation: deleting or retargeting any row below leaves a
+    // visible label that either points at the wrong surface or nowhere useful.
     const nav = within(screen.getByRole("navigation", { name: "On this page" }));
-    expect(nav.getByRole("link", { name: "Tell us" })).toHaveAttribute("href", "#family-interview-title");
-    expect(nav.getByRole("link", { name: "Your visit" })).toHaveAttribute("href", "#family-appt-title");
-    expect(nav.getByRole("link", { name: "Programs" })).toHaveAttribute("href", "#family-resources");
-    expect(nav.getByRole("link", { name: "Notes" })).toHaveAttribute("href", "#family-journal");
-    expect(nav.getByRole("link", { name: "Visit packet" })).toHaveAttribute("href", "#family-visit-packet");
+    expect(nav.getByRole("link", { name: /Programs/ })).toHaveAttribute("href", "#family-resources");
+    expect(nav.getByRole("link", { name: /Visit packet/ })).toHaveAttribute(
+      "href",
+      "#family-visit-packet"
+    );
+    // No referral in this state, so there is no appointment companion to open.
+    expect(nav.queryByRole("link", { name: /Your visit/ })).not.toBeInTheDocument();
   });
 
-  it("omits Programs and Notes navigation when those sections cannot render", () => {
+  it("carries the count that makes each doorway worth the tap", () => {
+    render(
+      <FamilyWaitHeader
+        family={familyState({
+          activeDomains: ["school_iep"],
+          referral: { clinic: "UK Developmental Pediatrics", referredAt: daysAgo(120) },
+          facts: [
+            {
+              id: "fact-1",
+              label: "Grade",
+              value: "fourth grade",
+              status: "patient_reported",
+              sourceSnippet: "fourth grade"
+            }
+          ]
+        })}
+        language="en"
+        now={NOW}
+        programsCount={8}
+      />
+    );
+
+    const nav = within(screen.getByRole("navigation", { name: "On this page" }));
+    expect(nav.getByRole("link", { name: /Programs/ })).toHaveTextContent("8 matched");
+    expect(nav.getByRole("link", { name: /Your visit/ })).toHaveTextContent("on the list");
+    expect(nav.getByRole("link", { name: /Visit packet/ })).toHaveTextContent("1 note in");
+  });
+
+  it("omits the Programs doorway when that surface cannot render", () => {
     render(<FamilyWaitHeader family={familyState({ activeDomains: [], facts: [] })} language="en" now={NOW} />);
 
     // Characterization mutation: removing these guards creates dead in-page links.
     const nav = within(screen.getByRole("navigation", { name: "On this page" }));
-    expect(nav.queryByRole("link", { name: "Programs" })).not.toBeInTheDocument();
-    expect(nav.queryByRole("link", { name: "Notes" })).not.toBeInTheDocument();
+    expect(nav.queryByRole("link", { name: /Programs/ })).not.toBeInTheDocument();
   });
 
   it("keeps Spanish page-navigation labels on the same section targets", () => {
@@ -315,16 +347,17 @@ describe("FamilyWaitHeader", () => {
         })}
         language="es"
         now={NOW}
+        programsCount={8}
       />
     );
 
     // Characterization mutation: translated labels must not lose their target.
     const nav = within(screen.getByRole("navigation", { name: "En esta página" }));
-    expect(nav.getByRole("link", { name: "Cuéntanos" })).toHaveAttribute("href", "#family-interview-title");
-    expect(nav.getByRole("link", { name: "Tu visita" })).toHaveAttribute("href", "#family-appt-title");
-    expect(nav.getByRole("link", { name: "Programas" })).toHaveAttribute("href", "#family-resources");
-    expect(nav.getByRole("link", { name: "Notas" })).toHaveAttribute("href", "#family-journal");
-    expect(nav.getByRole("link", { name: "Paquete para la visita" })).toHaveAttribute("href", "#family-visit-packet");
+    expect(nav.getByRole("link", { name: /Programas/ })).toHaveAttribute("href", "#family-resources");
+    expect(nav.getByRole("link", { name: /Paquete para la visita/ })).toHaveAttribute(
+      "href",
+      "#family-visit-packet"
+    );
   });
 
   it("renders in Spanish", () => {

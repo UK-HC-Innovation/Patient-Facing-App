@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronRight } from "lucide-react";
 import React from "react";
 import { activeFamilyAppointment, formatFamilySlot } from "@/domain/family-appointments";
 import { monthsOnList, nextFamilyRung, type FamilyRung } from "@/domain/family-journey";
@@ -37,10 +38,26 @@ function rungLabel(rung: FamilyRung, language: Language): string | null {
     case "quiet":
       return null;
     case "clock":
-      return tFamily(language, "rungClock", { weeks: rung.weeksLeft });
+      // No week count when only the birth year is known: the rung points, and
+      // the card it points at names the window and offers the one-tap repair.
+      return rung.weeksLeft === undefined
+        ? tFamily(language, "rungClockRange")
+        : tFamily(language, "rungClock", { weeks: rung.weeksLeft });
     default:
       return tFamily(language, RUNG_LABEL_KEYS[rung.kind]);
   }
+}
+
+/** "about a month ago" — elapsed time only, in the words a person would use. */
+function timeAgo(from: string, now: Date, language: Language): string {
+  const days = Math.floor((now.valueOf() - new Date(from).valueOf()) / (24 * 60 * 60 * 1000));
+  if (days <= 0) return tFamily(language, "agoToday");
+  if (days === 1) return tFamily(language, "agoDaysOne");
+  if (days < 30) return tFamily(language, "agoDays", { count: days });
+  const months = Math.round(days / 30);
+  return months <= 1
+    ? tFamily(language, "agoMonthsOne")
+    : tFamily(language, "agoMonths", { count: months });
 }
 
 export type FamilyWaitHeaderProps = {
@@ -53,13 +70,29 @@ export type FamilyWaitHeaderProps = {
    * that first answer stamps a touch and the month of silence is over.
    */
   checkinOpen?: boolean;
+  /**
+   * True when the caregiver arrived with history. A return visit opens on what
+   * changed and what is due — never on interview framing, which is what the
+   * audit found the shipped page doing (P3).
+   */
+  returning?: boolean;
+  /** How many places the Programs surface is actually showing. */
+  programsCount?: number;
 };
 
+/**
+ * The front door. On a return visit it answers two questions before anything
+ * asks anything: what changed since last time, and what is due now. The doorway
+ * rows under it are the only navigation it offers — one labelled row per
+ * surface, each carrying the count that makes it worth the tap.
+ */
 export function FamilyWaitHeader({
   family,
   language,
   now = new Date(),
-  checkinOpen
+  checkinOpen,
+  returning = false,
+  programsCount
 }: FamilyWaitHeaderProps) {
   const rung = nextFamilyRung(family, now, { checkinOpen });
   const label = rungLabel(rung, language);
@@ -72,6 +105,11 @@ export function FamilyWaitHeader({
         year: "numeric"
       })
     : "";
+  const shortMonthName = referral
+    ? new Date(referral.referredAt).toLocaleDateString(language === "es" ? "es" : "en-US", {
+        month: "long"
+      })
+    : "";
   const notes = family.interviews.filter(({ kind }) => kind !== "orientation").length;
   const stepsInMotion = family.steps.filter(
     ({ status }) => status !== "not_for_us" && status !== "enrolled"
@@ -82,30 +120,71 @@ export function FamilyWaitHeader({
     (appointment.status === "booked" || appointment.status === "confirmed")
     ? formatFamilySlot(appointment.scheduledFor, language)
     : null;
+  const lastInterview = family.interviews.at(-1);
+  // Absent means included: what the packet would print if it were opened now.
+  const packetNotes = family.facts.filter(({ includeInSummary }) => includeInSummary !== false).length;
 
-  // The same conditions family-experience.tsx uses to render each section, so a
-  // chip can never point at a section this render omits.
-  const pageNav: Array<{ href: string; key: FamilyStringKey }> = [
-    { href: "#family-interview-title", key: "navTell" },
-    { href: "#family-appt-title", key: "navVisit" },
-    ...(family.activeDomains.length > 0
-      ? [{ href: "#family-resources", key: "navResources" as FamilyStringKey }]
+  // One labelled row per surface that exists, each with the count that makes it
+  // worth a tap. The hrefs stay in-page anchors so a folded section still opens
+  // and a deep load still lands.
+  const doorways: Array<{ href: string; key: FamilyStringKey; meta: string }> = [
+    ...(family.activeDomains.length > 0 && programsCount !== undefined
+      ? [
+          {
+            href: "#family-resources",
+            key: "navResources" as FamilyStringKey,
+            meta: tFamily(
+              language,
+              programsCount === 1 ? "homeDoorProgramsMetaOne" : "homeDoorProgramsMeta",
+              { count: programsCount }
+            )
+          }
+        ]
       : []),
-    ...(family.facts.length > 0
-      ? [{ href: "#family-journal", key: "navJournal" as FamilyStringKey }]
+    ...(referral
+      ? [
+          {
+            href: "#family-appt-title",
+            key: "navVisit" as FamilyStringKey,
+            meta: visitWhen ?? tFamily(language, "homeDoorVisitMeta")
+          }
+        ]
       : []),
-    { href: "#family-visit-packet", key: "navPacket" }
+    {
+      href: "#family-visit-packet",
+      key: "navPacket" as FamilyStringKey,
+      meta: tFamily(
+        language,
+        packetNotes === 0
+          ? "homeDoorNotesMetaNone"
+          : packetNotes === 1
+            ? "homeDoorNotesMetaOne"
+            : "homeDoorNotesMeta",
+        { count: packetNotes }
+      )
+    }
   ];
 
   return (
     <section
       data-testid="family-wait-header"
       aria-labelledby="family-wait-title"
-      className="rounded-control border border-care/30 bg-white p-4 shadow-sm"
+      className="min-w-0 rounded-control border border-care/30 bg-white p-4 shadow-sm"
     >
-      <h2 id="family-wait-title" className="text-xl font-semibold">
-        {tFamily(language, "waitHeaderTitle")}
+      <h2 id="family-wait-title" className="break-words text-xl font-semibold">
+        {tFamily(language, returning ? "homeReturnTitle" : "waitHeaderTitle")}
       </h2>
+      {returning && lastInterview ? (
+        <p data-testid="family-last-note" className="mt-1 break-words text-sm text-ink/70">
+          {tFamily(language, "homeLastNote", {
+            date: new Date(lastInterview.createdAt).toLocaleDateString(
+              language === "es" ? "es" : "en-US",
+              { month: "long", day: "numeric" }
+            ),
+            ago: timeAgo(lastInterview.createdAt, now, language)
+          })}
+        </p>
+      ) : null}
       {referral ? (
         <p className="mt-1 break-words leading-relaxed text-ink/90">
           {months >= 1
@@ -132,7 +211,7 @@ export function FamilyWaitHeader({
           {label}
         </a>
       ) : null}
-      <div className="mt-3 flex flex-wrap gap-2 text-sm">
+      <div data-testid="family-wait-chips" className="mt-3 flex flex-wrap gap-2 text-sm">
         {notes > 0 ? (
           <span className="rounded-full bg-calm px-3 py-1">
             {tFamily(language, notes === 1 ? "waitChipNotesOne" : "waitChipNotes", { count: notes })}
@@ -143,6 +222,11 @@ export function FamilyWaitHeader({
             {tFamily(language, stepsInMotion === 1 ? "waitChipStepsOne" : "waitChipSteps", {
               count: stepsInMotion
             })}
+          </span>
+        ) : null}
+        {referral ? (
+          <span className="rounded-full bg-calm px-3 py-1">
+            {tFamily(language, "homeChipOnListSince", { month: shortMonthName })}
           </span>
         ) : null}
         {visitWhen ? (
@@ -158,16 +242,23 @@ export function FamilyWaitHeader({
       </div>
       <nav
         aria-label={tFamily(language, "navOnThisPage")}
-        className="mt-4 border-t border-ink/10 pt-3"
+        data-testid="family-doorways"
+        className="mt-4 border-t border-ink/10 pt-1"
       >
-        <ul className="flex flex-wrap gap-2">
-          {pageNav.map(({ href, key }) => (
-            <li key={href}>
+        <ul>
+          {doorways.map(({ href, key, meta }) => (
+            <li key={href} className="border-b border-care/10 last:border-b-0">
               <a
                 href={href}
-                className={`inline-flex min-h-12 min-w-0 items-center break-words rounded-full border border-ink/15 bg-white px-3 text-sm font-medium text-ink/80 ${CONTROL_FOCUS}`}
+                className={`flex min-h-12 min-w-0 items-center justify-between gap-3 py-2 no-underline ${CONTROL_FOCUS}`}
               >
-                {tFamily(language, key)}
+                <span className="min-w-0 break-words font-semibold text-ink">
+                  {tFamily(language, key)}
+                </span>
+                <span className="flex shrink-0 items-center gap-1 text-sm font-semibold text-care">
+                  {meta}
+                  <ChevronRight aria-hidden="true" className="h-4 w-4" />
+                </span>
               </a>
             </li>
           ))}

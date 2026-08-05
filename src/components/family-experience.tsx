@@ -9,6 +9,14 @@ import React, {
 } from "react";
 import { FamilyAppointmentCard } from "@/components/family-appointment-card";
 import { FamilyCheckin, type CheckinPart } from "@/components/family-checkin";
+import { FamilyClockNotice, familyClockLine } from "@/components/family-clock-notice";
+import { FamilyGlossSurface } from "@/components/family-gloss";
+import {
+  LadderPanel,
+  LadderShell,
+  useLadderAnchorSurface,
+  type LadderSurface
+} from "@/components/ladder-shell";
 import { FamilyClinicNowCard } from "@/components/family-clinic-now-card";
 import { FamilyCrisisBanner } from "@/components/family-crisis-banner";
 import { FamilyFactCard } from "@/components/family-fact-card";
@@ -81,10 +89,12 @@ import type {
   FamilySoonerConstraint,
   FamilyStepStatus
 } from "@/domain/types";
+import { Mic } from "lucide-react";
 import {
   ASK_EYEBROW,
   BTN_CHOICE,
   BTN_PRIMARY,
+  BTN_SECONDARY,
   CARD_ASK,
   CARD_SECTION,
   CARD_SECTION_PAPER,
@@ -324,21 +334,34 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   // hands the caregiver back the part they had not answered (the pulse) instead
   // of restarting at the note invite and re-asking the probe.
   const [checkinPart, setCheckinPart] = useState<CheckinPart>("note");
+  // Which of the four surfaces is showing. Every panel stays mounted, so a tab
+  // is a change of view, never a loss of what the caregiver had open.
+  const [surface, setSurface] = useState<LadderSurface>("home");
+  // The composer collapses to a one-tap row on a return visit; opening it is
+  // what the front-door CTA and the check-in's "Add a note" both do.
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [composerFocusTick, setComposerFocusTick] = useState(0);
   const reviewRef = useRef<HTMLElement>(null);
   const pendingReviewFocusRef = useRef(false);
   const safetyTurnRef = useRef(false);
   // Set by a turn that owns the next submission (the monthly check-in); otherwise
   // the first interview is the orientation and everything after it is a note.
   const interviewKindRef = useRef<"note" | "checkin" | null>(null);
+  // Set in the click handler, before the render that sees the new interview, so
+  // a note written now is never mistaken for history the caregiver arrived with.
+  const wroteThisSessionRef = useRef(false);
   const latestInterview = family?.interviews.at(-1);
   const latestInterviewId = latestInterview?.id;
   const reviewFacts = family?.facts.filter(({ interviewId }) => interviewId === latestInterviewId) ?? [];
   const profileDiagnosisVersion =
     family?.profile?.diagnoses.map(({ id, diagnosedAt }) => `${id}:${diagnosedAt ?? ""}`).join("|") ?? "none";
 
-  // Nav chips, the wait-header rung link, and "See all" all point at sections
+  // Doorway rows, the wait-header rung link, and "See all" all point at sections
   // that may be folded; this opens whichever one they land on.
   useFamilyFoldAnchors();
+  // …and may now live on another surface, so the tab has to change first or the
+  // anchor lands on a hidden panel.
+  useLadderAnchorSurface(setSurface);
 
   useEffect(() => {
     const previousLanguage = document.documentElement.lang;
@@ -354,6 +377,12 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
       pendingReviewFocusRef.current = false;
     }
   }, [latestInterviewId]);
+
+  useEffect(() => {
+    if (composerFocusTick === 0) return;
+    const box = document.getElementById("family-interview-text");
+    if (box instanceof HTMLElement) box.focus();
+  }, [composerFocusTick]);
 
   const matchResult = useMemo(() => {
     if (!family?.profile) {
@@ -559,6 +588,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     { round, newText }: { round: number; newText: string }
   ): void {
     pendingReviewFocusRef.current = round === 0;
+    wroteThisSessionRef.current = true;
     const interviewId = crypto.randomUUID();
     const createdAt = new Date().toISOString();
     const facts: FamilyFact[] = result.facts.map((fact) => ({
@@ -662,15 +692,25 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     dispatch({ type: "acknowledgeFamilyRegressionFlag", flagId, at: new Date().toISOString() });
   }
 
+  /**
+   * The one composer, reached from anywhere. No surface adds a second free-text
+   * field: every "add a note" and "tell us more" comes here, which is also what
+   * keeps a single crisis gate over everything a caregiver writes.
+   */
+  function openComposer(kind: "note" | "checkin"): void {
+    interviewKindRef.current = kind === "checkin" ? "checkin" : null;
+    setSurface("home");
+    setComposerOpen(true);
+    // The box may not be mounted yet on a return visit, so focus waits for the
+    // render that puts it there.
+    setComposerFocusTick((tick) => tick + 1);
+  }
+
   // The check-in never opens a second writing surface: it hands the caregiver
   // the same interview box, tagged so the note files as a check-in.
   function openCheckinNote(): void {
     setCheckinStarted(true);
-    interviewKindRef.current = "checkin";
-    const box = document.getElementById("family-interview-text");
-    if (box instanceof HTMLElement) {
-      box.focus();
-    }
+    openComposer("checkin");
   }
 
   function answerCheckinProbe(answer: "no" | "yes"): void {
@@ -688,6 +728,18 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   function skipCheckin(): void {
     setCheckinSkipped(true);
     dispatch({ type: "skipFamilyCheckin", at: new Date().toISOString() });
+  }
+
+  // The demo's way onto a waitlist, and with it the Visit surface — which does
+  // not exist for a family with no referral.
+  function seedReferral(): void {
+    const now = new Date();
+    dispatch({
+      type: "setFamilyReferral",
+      referral: { clinic: FAMILY_APPOINTMENT_CLINIC, referredAt: now.toISOString() }
+    });
+    dispatch({ type: "offerFamilyAppointment", appointment: createFamilyAppointmentOffer(now) });
+    setSurface("visit");
   }
 
   // Everything the caregiver has already typed, so the basics turns can skip
@@ -739,12 +791,19 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   const clock = family?.profile
     ? firstStepsClock(family.profile, followupNow, hasEnrolledFirstSteps(family))
     : null;
+  // The child's own name wherever the copy addresses them, with the language's
+  // stand-in when the caregiver has not given one.
+  const childName =
+    family?.profile?.childFirstName?.trim() || tFamily(language, "heardStripChildFallback");
   const firstStepsClockLine =
-    clock === null
-      ? undefined
-      : tFamily(language, clock.yearOnly ? "clockFirstStepsYearOnly" : "clockFirstSteps", {
-          weeks: clock.weeksLeft
-        });
+    clock === null ? undefined : familyClockLine(clock, language, childName);
+
+  // The repair for a year-only clock: one month, saved as stated, and every
+  // clock on the page reads a real date from the next render on.
+  function addBirthMonth(birthMonth: number): void {
+    if (!family?.profile) return;
+    saveProfile({ ...family.profile, birthMonth }, "stated");
+  }
   const clockLineFor = (resource: FamilyResource): string | undefined =>
     isFirstStepsResource(resource.id) ? firstStepsClockLine : undefined;
 
@@ -949,16 +1008,12 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   const showFallbackInThread =
     threadAnswers && matchResult.isFallback && matchResult.resources.length > 0;
 
+  // The safety banner and the clinic-now card have left the thread: they are
+  // layer 0 now, above the header of whatever surface is open, so switching tabs
+  // cannot put them below anything (1i).
   const interlude =
-    safetyTurn ||
-    clinicNowTurn ||
-    reviewTurn ||
-    needsBasics ||
-    threadResources.length > 0 ||
-    showFallbackInThread ? (
+    reviewTurn || needsBasics || threadResources.length > 0 || showFallbackInThread ? (
       <>
-        {safetyTurn}
-        {clinicNowTurn}
         {reviewTurn}
         {needsBasics ? (
           <FamilyBasicsTurns
@@ -1030,6 +1085,24 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
       : undefined;
   const followupResource = followupStep ? getFamilyResourceById(followupStep.resourceId) : undefined;
 
+  /**
+   * Did the caregiver arrive with history? A return visit opens on what changed
+   * and what is due; the first session stays one continuous thread (P3).
+   *
+   * Latched on the first render that has stored state to read — which is not the
+   * first render, because storage is loaded in an effect — and never latched
+   * from a note written in this session: submitting the very first description
+   * would otherwise flip Home into return framing halfway through the thread.
+   */
+  const returningRef = useRef<boolean | null>(null);
+  if (returningRef.current === null && !wroteThisSessionRef.current && family !== null) {
+    returningRef.current = family.interviews.length > 0;
+  }
+  const returning = returningRef.current === true;
+  // On a return visit the composer is one tap away rather than open — but it is
+  // the same box, and nothing else on any surface can write.
+  const composerCollapsed = returning && family?.profile != null && !composerOpen;
+
   // Catalog content follows the resource lead, then fills the small strip from
   // additive needs. This lets a direct therapy route stay first while a neutral
   // evaluation-education ask still receives checked, non-diagnostic material.
@@ -1058,8 +1131,8 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
         )
       : [];
 
-  // The library folds only once the thread is carrying the answer. On the
-  // screen-only and fallback paths this section *is* the answer, so it stays open.
+  // The Programs surface *is* the disclosure now, so the library inside it does
+  // not fold as well. The summary line still names what it holds.
   const librarySize = matchResult.isFallback ? matchResult.resources.length : displayResources.length;
   const librarySummaryLine = [
     tFamily(language, librarySize === 1 ? "foldResourcesSummaryOne" : "foldResourcesSummary", {
@@ -1068,13 +1141,27 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     ...(guides.length > 0 ? [tFamily(language, "guidesTitle")] : [])
   ].join(" · ");
 
-  return (
-    <div
-      id="family-experience"
-      lang={language}
-      data-testid="family-experience"
-      className="mx-auto grid w-full min-w-0 max-w-2xl gap-4 pb-8 scroll-mt-4"
-    >
+  // Which surfaces exist for this family. Programs needs matched needs; Visit
+  // exists only once a referral fits this child, so a family with no waitlist
+  // never gets an appointment companion (1h).
+  const hasPrograms = !!family?.profile && family.activeDomains.length > 0;
+  const hasNotes = !!family && (family.profile !== null || family.facts.length > 0);
+  const hasVisit = !!family?.profile && family.referral !== null;
+  const surfaces: LadderSurface[] = [
+    "home",
+    ...(hasPrograms ? (["programs"] as const) : []),
+    ...(hasNotes ? (["notes"] as const) : []),
+    ...(hasVisit ? (["visit"] as const) : [])
+  ];
+  // The first session stays a single thread until there is an answer: Programs
+  // only exists once a need has been matched, Notes once something is written.
+  // The bar appears with the second surface, so no panel is ever unreachable.
+  const showTabs = surfaces.length > 1;
+  // A tab that stopped existing must not leave the caregiver on a blank panel.
+  const activeSurface = surfaces.includes(surface) ? surface : "home";
+
+  const homePanel = (
+    <>
       {family?.profile ? (
         // Same instant and same check-in visibility the sections below are
         // built from, so the rung can never name a section this render omits.
@@ -1083,6 +1170,8 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
           language={language}
           now={followupNow}
           checkinOpen={checkinVisible}
+          returning={returning}
+          programsCount={hasPrograms ? librarySize : undefined}
         />
       ) : null}
 
@@ -1114,7 +1203,41 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
         </section>
       ) : null}
 
+      {/* P5, on the front door: the deadline in the shape the profile can
+          actually support, with the one tap that turns a window into a date. */}
+      {returning && clock && family?.profile ? (
+        <FamilyClockNotice
+          clock={clock}
+          language={language}
+          childName={childName}
+          withHeadline
+          onAddBirthMonth={addBirthMonth}
+        />
+      ) : null}
+
       <section className={CARD_SECTION} aria-labelledby="family-interview-title">
+        {composerCollapsed ? (
+          <>
+            {/* P3: the composer never vanishes on a return visit — it collapses
+                to one tap, and the target of that tap is the same box. */}
+            <h2 id="family-interview-title" tabIndex={-1} className="sr-only scroll-mt-4">
+              {tFamily(language, "interviewTitle")}
+            </h2>
+            <button
+              type="button"
+              data-testid="family-composer-open"
+              onClick={() => openComposer("note")}
+              className={`flex w-full min-h-[52px] items-center justify-center gap-2 break-words rounded-control bg-care px-4 py-2 text-base font-bold text-white ${CONTROL_FOCUS}`}
+            >
+              <Mic aria-hidden="true" className="h-5 w-5 shrink-0" />
+              {tFamily(language, "homeComposerCtaNamed", { name: childName })}
+            </button>
+            <p className="mt-2 break-words text-sm leading-6 text-ink/70">
+              {tFamily(language, "homeTrustLine")}
+            </p>
+          </>
+        ) : (
+          <>
         <h2 id="family-interview-title" tabIndex={-1} className="text-xl font-semibold scroll-mt-4">
           {tFamily(language, "interviewTitle")}
         </h2>
@@ -1173,21 +1296,116 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
             </div>
           ) : null}
         </div>
+          </>
+        )}
       </section>
 
+      {followupAnswered ? (
+        <section id="family-followup" data-testid="family-followup" className={CARD_SECTION}>
+          <p role="status" className="break-words leading-relaxed">
+            {tFamily(language, "followupThanks")}
+          </p>
+        </section>
+      ) : followupStep && followupResource ? (
+        <section
+          id="family-followup"
+          data-testid="family-followup"
+          aria-labelledby="family-followup-question"
+          className={CARD_ASK}
+        >
+          <p className={ASK_EYEBROW}>{tFamily(language, "askEyebrow")}</p>
+          <p id="family-followup-question" className="mt-2 break-words text-xl font-semibold">
+            {tFamily(language, "followupQuestion", { name: followupResource.name })}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {FOLLOWUP_OPTIONS.map(({ status, key }) => (
+              <button
+                key={status}
+                type="button"
+                onClick={() => answerFollowup(followupStep, status)}
+                className={BTN_CHOICE}
+              >
+                {tFamily(language, key)}
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {/* Utility furniture, quiet and last: the details that fine-tune what the
+          other surfaces show. */}
+      <section className={CARD_SUBDUED}>
+        <button
+          type="button"
+          aria-expanded={basicsOpen}
+          aria-controls="family-basics-panel"
+          onClick={() => {
+            // Mirrors the strip's disclosure: one profile editor open at a time.
+            if (!basicsOpen) setStripOpen(false);
+            setBasicsToggled(!basicsOpen);
+          }}
+          className={`min-h-12 w-full min-w-0 rounded-control text-left ${CONTROL_FOCUS}`}
+        >
+          <span className="block break-words font-semibold text-ink/90">
+            {tFamily(language, "setupTitle")}
+          </span>
+          <span className="mt-1 block break-words text-sm leading-6 text-ink/70">
+            {tFamily(language, "setupIntro")}
+          </span>
+        </button>
+        {basicsOpen ? (
+          <div id="family-basics-panel" className="mt-4">
+            <FamilyProfileForm
+              key={`family-profile-${profileDiagnosisVersion}`}
+              language={language}
+              initialProfile={family?.profile ?? null}
+              defaultCounty={state.patient.county}
+              onSave={saveProfile}
+            />
+          </div>
+        ) : null}
+      </section>
+
+      {/* The demo's way onto a waitlist. It lives here rather than on the Visit
+          surface because that surface does not exist until a referral does. */}
+      {family?.profile && family.referral === null ? (
+        <section data-testid="family-referral-demo" className={DEMO_BLOCK}>
+          <p className="break-words text-sm leading-6 text-ink/75">
+            {tFamily(language, "apptJoinDemoBody")}
+          </p>
+          <button
+            type="button"
+            disabled={pendingSafetyEvent !== undefined}
+            onClick={seedReferral}
+            className={`mt-3 ${BTN_PRIMARY}`}
+          >
+            {tFamily(language, "apptJoinDemoCta")}
+          </button>
+        </section>
+      ) : null}
+
+      {/* The plan for the wait. It belongs to Home rather than to the Visit
+          companion because a family with no referral has no Visit surface —
+          and still has a wait, and still deserves the plan. */}
       {family?.profile ? (
+        <FamilyStageTimeline
+          family={family}
+          language={language}
+          nudgeFirstName={state.patient.preferredName}
+          onBackdateDiagnoses={backdateFamilyDiagnoses}
+        />
+      ) : null}
+    </>
+  );
+
+  const visitPanel = (
+    <>
+      {family?.profile && family.referral !== null ? (
         <FamilyAppointmentCard
           family={family}
           language={language}
           locked={pendingSafetyEvent !== undefined}
-          onSeedReferral={() => {
-            const now = new Date();
-            dispatch({
-              type: "setFamilyReferral",
-              referral: { clinic: FAMILY_APPOINTMENT_CLINIC, referredAt: now.toISOString() }
-            });
-            dispatch({ type: "offerFamilyAppointment", appointment: createFamilyAppointmentOffer(now) });
-          }}
+          onSeedReferral={seedReferral}
           onBook={(appointmentId, slot) =>
             dispatch({ type: "bookFamilyAppointment", appointmentId, slot, at: new Date().toISOString() })
           }
@@ -1257,43 +1475,11 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
           }
         />
       ) : null}
+    </>
+  );
 
-      {followupAnswered ? (
-        <section
-          id="family-followup"
-          data-testid="family-followup"
-          className={CARD_SECTION}
-        >
-          <p role="status" className="break-words leading-relaxed">
-            {tFamily(language, "followupThanks")}
-          </p>
-        </section>
-      ) : followupStep && followupResource ? (
-        <section
-          id="family-followup"
-          data-testid="family-followup"
-          aria-labelledby="family-followup-question"
-          className={CARD_ASK}
-        >
-          <p className={ASK_EYEBROW}>{tFamily(language, "askEyebrow")}</p>
-          <p id="family-followup-question" className="mt-2 break-words text-xl font-semibold">
-            {tFamily(language, "followupQuestion", { name: followupResource.name })}
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {FOLLOWUP_OPTIONS.map(({ status, key }) => (
-              <button
-                key={status}
-                type="button"
-                onClick={() => answerFollowup(followupStep, status)}
-                className={BTN_CHOICE}
-              >
-                {tFamily(language, key)}
-              </button>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
+  const programsPanel = (
+    <>
       {family && family.profile && family.activeDomains.length > 0 ? (
             <FamilyFoldSection
               id="family-resources"
@@ -1301,7 +1487,9 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
               title={tFamily(language, "resourcesTitle")}
               titleId="family-resources-title"
               summaryLine={librarySummaryLine}
-              defaultOpen={threadResources.length === 0}
+              // The tab is the disclosure now; the library inside it is the
+              // surface, not a fold under a thread.
+              defaultOpen
               className={CARD_SECTION_PAPER}
             >
               {/* The "here is what we heard" line lives in the thread's strip now,
@@ -1417,65 +1605,6 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
             </FamilyFoldSection>
           ) : null}
 
-      {family && family.facts.length > 0 ? (
-        <FamilyJournal
-          family={family}
-          language={language}
-          onConfirm={(factId) => dispatch({ type: "confirmFamilyFact", factId })}
-          onToggleInclude={(factId, include) =>
-            dispatch({ type: "setFamilyFactInclusion", factId, include })
-          }
-        />
-      ) : null}
-
-      {family?.profile ? (
-        <FamilyVisitPacket
-          family={family}
-          language={language}
-          onToggleQuestion={(questionId) =>
-            dispatch({ type: "toggleFamilyPacketQuestion", questionId })
-          }
-          onExport={(verb) =>
-            dispatch({
-              type: "addAuditEvent",
-              event: recordAuditEvent(state.patient.id, "shared", `Family visit packet ${verb}`)
-            })
-          }
-        />
-      ) : null}
-
-      <section className={CARD_SUBDUED}>
-        <button
-          type="button"
-          aria-expanded={basicsOpen}
-          aria-controls="family-basics-panel"
-          onClick={() => {
-            // Mirrors the strip's disclosure: one profile editor open at a time.
-            if (!basicsOpen) setStripOpen(false);
-            setBasicsToggled(!basicsOpen);
-          }}
-          className={`min-h-12 w-full min-w-0 rounded-control text-left ${CONTROL_FOCUS}`}
-        >
-          <span className="block break-words font-semibold text-ink/90">
-            {tFamily(language, "setupTitle")}
-          </span>
-          <span className="mt-1 block break-words text-sm leading-6 text-ink/70">
-            {tFamily(language, "setupIntro")}
-          </span>
-        </button>
-        {basicsOpen ? (
-          <div id="family-basics-panel" className="mt-4">
-            <FamilyProfileForm
-              key={`family-profile-${profileDiagnosisVersion}`}
-              language={language}
-              initialProfile={family?.profile ?? null}
-              defaultCounty={state.patient.county}
-              onSave={saveProfile}
-            />
-          </div>
-        ) : null}
-      </section>
-
       {savedResources.length > 0 ? (
         <section
           role="region"
@@ -1508,15 +1637,114 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
           </ul>
         </section>
       ) : null}
+    </>
+  );
 
-      {family?.profile ? (
-        <FamilyStageTimeline
+  const notesPanel = (
+    <>
+      {family && family.facts.length > 0 ? (
+        <FamilyJournal
           family={family}
           language={language}
-          nudgeFirstName={state.patient.preferredName}
-          onBackdateDiagnoses={backdateFamilyDiagnoses}
+          onConfirm={(factId) => dispatch({ type: "confirmFamilyFact", factId })}
+          onToggleInclude={(factId, include) =>
+            dispatch({ type: "setFamilyFactInclusion", factId, include })
+          }
         />
       ) : null}
-    </div>
+
+      {/* Same composer, reached from the surface that keeps its output. */}
+      {family?.profile ? (
+        <p>
+          <button
+            type="button"
+            data-testid="family-notes-add"
+            onClick={() => openComposer("note")}
+            className={BTN_SECONDARY}
+          >
+            {tFamily(language, "homeComposerCtaNamed", { name: childName })}
+          </button>
+        </p>
+      ) : null}
+
+      {family?.profile ? (
+        <FamilyVisitPacket
+          family={family}
+          language={language}
+          onToggleQuestion={(questionId) =>
+            dispatch({ type: "toggleFamilyPacketQuestion", questionId })
+          }
+          onExport={(verb) =>
+            dispatch({
+              type: "addAuditEvent",
+              event: recordAuditEvent(state.patient.id, "shared", `Family visit packet ${verb}`)
+            })
+          }
+        />
+      ) : null}
+    </>
+  );
+
+  return (
+    <LadderShell
+      language={language}
+      onLanguageChange={(next) => dispatch({ type: "setLanguage", language: next })}
+      subtitle={
+        family?.profile
+          ? [childName, family.profile.county ? `${family.profile.county} County` : null]
+              .filter((part): part is string => part !== null)
+              .join(" · ")
+          : tFamily(language, "shellHeaderSubtitle")
+      }
+      // Layer 0. Safety words lead whatever surface is open; the clinic-now card
+      // sits directly under them and, like them, is never behind a tab.
+      crisis={
+        safetyTurn || clinicNowTurn ? (
+          <div className="mx-auto grid w-full max-w-2xl gap-3">
+            {safetyTurn}
+            {clinicNowTurn}
+          </div>
+        ) : null
+      }
+      surfaces={surfaces}
+      surface={activeSurface}
+      onSurfaceChange={setSurface}
+      showTabs={showTabs}
+    >
+      <div
+        id="family-experience"
+        lang={language}
+        data-testid="family-experience"
+        className="grid w-full min-w-0 gap-4 scroll-mt-4"
+      >
+        {/* One glossary registry per surface — each screen is read on its own —
+            and one provider per panel, so switching tabs never remounts a panel
+            and loses what the caregiver had open in it.
+
+            A panel exists only for a surface that has a tab: a `tabpanel` whose
+            `aria-labelledby` points at an id no tab has rendered is a broken
+            reference, and on first run three of the four were exactly that.
+            Unlocked panels still stay mounted across tab switches, so drafts,
+            open cards, and scroll position survive. */}
+        <LadderPanel surface="home" active={activeSurface === "home"}>
+          <FamilyGlossSurface>{homePanel}</FamilyGlossSurface>
+        </LadderPanel>
+        {hasPrograms ? (
+          <LadderPanel surface="programs" active={activeSurface === "programs"}>
+            <FamilyGlossSurface>{programsPanel}</FamilyGlossSurface>
+          </LadderPanel>
+        ) : null}
+        {hasNotes ? (
+          <LadderPanel surface="notes" active={activeSurface === "notes"}>
+            <FamilyGlossSurface>{notesPanel}</FamilyGlossSurface>
+          </LadderPanel>
+        ) : null}
+        {hasVisit ? (
+          <LadderPanel surface="visit" active={activeSurface === "visit"}>
+            <FamilyGlossSurface>{visitPanel}</FamilyGlossSurface>
+          </LadderPanel>
+        ) : null}
+      </div>
+    </LadderShell>
   );
 }

@@ -134,7 +134,9 @@ export type FamilyRung =
   | { kind: "safety" }
   | { kind: "visit" }
   | { kind: "clinic_now" }
-  | { kind: "clock"; weeksLeft: number }
+  // `weeksLeft` is absent when only the birth year is known: there is a real
+  // cutoff window but no honest number of weeks to it.
+  | { kind: "clock"; weeksLeft?: number }
   | { kind: "checkin" }
   | { kind: "step"; resourceId: string }
   | { kind: "journal" }
@@ -169,7 +171,10 @@ export function nextFamilyRung(
     return { kind: "safety" };
   }
 
-  const appointment = activeFamilyAppointment(family.appointments);
+  // The appointment companion is a whole surface now, and that surface exists
+  // only once a referral fits this child — so without one there is nothing for
+  // this rung to point at.
+  const appointment = family.referral === null ? undefined : activeFamilyAppointment(family.appointments);
   if (
     appointment !== undefined &&
     (dueFamilyReminder(appointment, now) !== null ||
@@ -193,8 +198,16 @@ export function nextFamilyRung(
     family.profile && family.activeDomains.includes("early_intervention")
       ? firstStepsClock(family.profile, now, hasEnrolledFirstSteps(family))
       : null;
-  if (clock !== null && clock.weeksLeft <= RUNG_CLOCK_WEEKS) {
-    return { kind: "clock", weeksLeft: clock.weeksLeft };
+  if (clock !== null) {
+    // A dated cutoff only earns the header once it is close. A year-only window
+    // has no distance to measure, so it points as soon as the clock is showing —
+    // the one tap that fixes it (add the birth month) lives on that card.
+    if (clock.kind === "range") {
+      return { kind: "clock" };
+    }
+    if (clock.weeksLeft <= RUNG_CLOCK_WEEKS) {
+      return { kind: "clock", weeksLeft: clock.weeksLeft };
+    }
   }
 
   // Once the card is up it stays up for the visit, so the rung stays on it: the

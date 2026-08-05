@@ -108,6 +108,9 @@ export function FamilyAppointmentCard({
   // Session-only: "No thanks" quiets the ask for this visit. A refusal is never
   // stored — re-offering next session is honest, and the family may have moved.
   const [soonerRefused, setSoonerRefused] = useState(false);
+  // Session-only, like the sooner-list refusal: turning down a set of times says
+  // nothing about the family's place in the queue, so nothing is stored.
+  const [slotsRefused, setSlotsRefused] = useState(false);
   const [soonerPicking, setSoonerPicking] = useState(false);
   const [soonerPicks, setSoonerPicks] = useState<FamilySoonerConstraint[]>([]);
   const now = new Date();
@@ -438,7 +441,27 @@ export function FamilyAppointmentCard({
                   {formatFamilySlot(slot, language)}
                 </button>
               ))}
+              {/* P8: a first-class fourth option, not the absence of an answer.
+                  Its result is said out loud rather than left to be inferred. */}
+              <button
+                type="button"
+                data-testid="family-appt-none-work"
+                disabled={locked}
+                onClick={() => setSlotsRefused(true)}
+                className={`min-h-12 min-w-0 break-words rounded-control border border-ink/25 bg-white px-4 py-2 text-left font-semibold text-ink/80 disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`}
+              >
+                {tFamily(language, "apptNoneWork")}
+              </button>
             </div>
+            {slotsRefused ? (
+              <p
+                role="status"
+                data-testid="family-appt-keep-place"
+                className={`mt-3 break-words text-sm leading-6 ${NOTICE_INFO}`}
+              >
+                {tFamily(language, "apptKeepYourPlace")}
+              </p>
+            ) : null}
             {soonerOffer ? (
               <button
                 type="button"

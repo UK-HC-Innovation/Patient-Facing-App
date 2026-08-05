@@ -2,14 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Semantic palette, as space-separated RGB channels so Tailwind's `/40` alpha
+   syntax works. Kept in step with src/styles/palette.ts, which the contrast
+   tests read. UK blue is the care/action color; urgency, caution, and crisis
+   keep their own temperature on purpose. */
 :root {
-  color: #172026;
-  background: #fbfaf7;
+  --color-ink: 23 32 38;
+  --color-paper: 246 248 252;
+  --color-care: 0 51 160;
+  --color-pulse: 157 63 49;
+  --color-calm: 227 234 248;
+  --color-note: 244 208 111;
+
+  color: rgb(var(--color-ink));
+  background: rgb(var(--color-paper));
 }
 
 body {
   min-height: 100vh;
-  background: #fbfaf7;
+  background: rgb(var(--color-paper));
 }
 
 /* Anchor jumps animate only for readers who have not asked for reduced motion. */
@@ -42,8 +53,34 @@ select {
   }
 
   /* The packet prints alone. Everything else on the Ladder page is the family's
-     working surface; the sheet the clinician reads is only the packet. */
-  #family-experience > *:not(.family-visit-packet) {
+     working surface; the sheet the clinician reads is only the packet.
+
+     Visibility, not display, and not a direct-child selector: the packet sits
+     inside a tab panel inside a fold section, and any future wrapper would move
+     it again. Hiding the whole subtree and re-showing the packet's own subtree
+     is depth-independent — the previous `#family-experience > *` rule hid the
+     tab panels and printed a blank sheet. */
+  #family-experience,
+  #family-experience * {
+    visibility: hidden;
+  }
+
+  #family-experience .family-visit-packet,
+  #family-experience .family-visit-packet * {
+    visibility: visible;
+  }
+
+  /* Hidden ancestors still occupy their boxes, so the packet is lifted to the
+     page origin instead of printing after pages of blank working surface. */
+  #family-experience .family-visit-packet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+
+  /* The shell's quiet way back out is chrome, not part of the clinician's sheet. */
+  .ladder-shell__exit {
     display: none !important;
   }
 

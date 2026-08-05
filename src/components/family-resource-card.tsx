@@ -1,9 +1,20 @@
 "use client";
 
-import { Bookmark, ChevronDown, ChevronUp, ExternalLink, Share2 } from "lucide-react";
+import {
+  Bookmark,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  GraduationCap,
+  Phone,
+  Share2,
+  Stethoscope,
+  UserRound
+} from "lucide-react";
 import React, { useEffect, useId, useRef, useState } from "react";
 import type { FamilyResource } from "@/domain/family-resources";
 import { familyResourceServiceArea } from "@/domain/family-resource-intent";
+import { familyResourceFaceAction } from "@/domain/family-resource-contact";
 import type { DevNeedDomain, FamilyResourceStep, FamilyStepStatus } from "@/domain/types";
 import {
   BTN_SECONDARY,
@@ -12,6 +23,8 @@ import {
   NOTICE_DEADLINE,
   NOTICE_INFO
 } from "@/components/family-theme";
+import { FamilyGloss, familyGlossTermsIn } from "@/components/family-gloss";
+import { shareFamilyResource, type FamilyShareOutcome } from "@/components/family-share";
 import { tFamily, type FamilyStringKey } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
 
@@ -21,6 +34,8 @@ export type FamilyResourceCardProps = {
   language: Language;
   county?: string;
   matchNeed?: string;
+  /** The child's first name, or the language's stand-in, for the share receipt. */
+  childName?: string;
   /** The tracked next step for this resource, once the family has committed to one. */
   step?: FamilyResourceStep;
   onPlanStep?: (resource: FamilyResource, domain: DevNeedDomain) => void;
@@ -34,7 +49,7 @@ export type FamilyResourceCardProps = {
   /**
    * "compact" is the thread's answer card: name, one sentence, the dated clock
    * line, and the commit CTA — everything else is one tap away in place. The
-   * library and the fallback path pass nothing and render exactly as before.
+   * face action is never one of the things that moves: see below.
    */
   variant?: "full" | "compact";
   isSaved: boolean;
@@ -73,6 +88,10 @@ const STEP_STATUS_KEYS: Record<FamilyStepStatus, FamilyStringKey> = {
   not_for_us: "stepStatusNotForUs"
 };
 
+/** The face action, at the size a thumb finds first. */
+const FACE_ACTION =
+  "flex min-h-[52px] min-w-0 items-center justify-center gap-2 break-words rounded-control bg-care px-4 py-2 text-center text-base font-bold text-white no-underline";
+
 // Status plus the month it last moved — the family's own history of this step,
 // which is also what the follow-up turn counts from.
 function stepStatusLine(step: FamilyResourceStep, language: Language): string {
@@ -110,6 +129,7 @@ export function FamilyResourceCard({
   language,
   county,
   matchNeed,
+  childName,
   step,
   onPlanStep,
   clockLine,
@@ -127,7 +147,7 @@ export function FamilyResourceCard({
   const titleId = `${instanceId}-title`;
   const consentId = `${instanceId}-share-consent`;
   const [consented, setConsented] = useState(false);
-  const [shared, setShared] = useState(false);
+  const [shareOutcome, setShareOutcome] = useState<FamilyShareOutcome | null>(null);
   const [saveRequested, setSaveRequested] = useState(false);
   // Two-tap share: the consent row does not exist until someone asks to share.
   const [sharing, setSharing] = useState(false);
@@ -145,6 +165,17 @@ export function FamilyResourceCard({
   // One dated block: the clock line is the specific one (it counts down to a
   // real date), so when it shows, the general act-now paragraph moves to Details.
   const actNowInDetails = clockLine !== undefined;
+  // P1: what the caregiver came for. Derived from the catalog's referral mode,
+  // rendered on the face of every variant, never inside a fold.
+  const faceAction = familyResourceFaceAction(resource);
+  const serviceArea = county ? familyResourceServiceArea(resource, county) : undefined;
+  // P7: the systems words this card actually uses, explained once per surface.
+  const glossTerms = familyGlossTermsIn(
+    resource.name,
+    compact ? undefined : resource.summary,
+    compact ? undefined : resource.actNow
+  );
+  const shareChild = childName ?? tFamily(language, "heardStripChildFallback");
 
   useEffect(() => {
     if (sharing) consentRef.current?.focus();
@@ -153,7 +184,6 @@ export function FamilyResourceCard({
   const enrollmentLabel = isEnrolled
     ? tFamily(language, "resourceUnmarkEnrolled")
     : tFamily(language, "resourceMarkEnrolled");
-  const serviceArea = county ? familyResourceServiceArea(resource, county) : undefined;
 
   function save(): void {
     if (saved || saveRequestedRef.current) return;
@@ -162,11 +192,126 @@ export function FamilyResourceCard({
     onSave(resource, domain);
   }
 
-  function share(): void {
+  async function share(): Promise<void> {
     if (!consented || sharedRef.current) return;
     sharedRef.current = true;
-    setShared(true);
-    onShare(resource);
+    const outcome = await shareFamilyResource({ name: resource.name, url: resource.sourceUrl });
+    setShareOutcome(outcome);
+    if (outcome === "shared" || outcome === "copied") {
+      onShare(resource);
+      return;
+    }
+    // Cancelled or impossible: the caregiver is still where they were, so the
+    // control has to come back rather than sit there claiming it fired.
+    sharedRef.current = false;
+    if (outcome === "cancelled") {
+      setShareOutcome(null);
+    }
+  }
+
+  const shareReceipt =
+    shareOutcome === "shared"
+      ? tFamily(language, "resourceShareReceipt", { child: shareChild })
+      : shareOutcome === "copied"
+        ? tFamily(language, "resourceShareCopiedReceipt", { child: shareChild })
+        : saveRequested
+          ? tFamily(language, "resourceSaved")
+          : "";
+  const shareDone = shareOutcome === "shared" || shareOutcome === "copied";
+
+  /**
+   * The face action. `call` gets the number as the label at 52px, because "who
+   * do I call first" is the whole reason this app is open; everything else names
+   * the real way in, including when that way is a person rather than a line.
+   */
+  function faceActionNode(): React.ReactNode {
+    switch (faceAction.kind) {
+      case "call":
+        return (
+          <div className="mt-3 grid gap-1">
+            <a
+              href={faceAction.tel}
+              data-testid="family-resource-call"
+              aria-label={`${tFamily(language, "resourceCallNumber", { number: faceAction.number })}: ${resource.name}`}
+              className={`${FACE_ACTION} ${CONTROL_FOCUS}`}
+            >
+              <Phone aria-hidden="true" className="h-4 w-4 shrink-0" />
+              {tFamily(language, "resourceCallNumber", { number: faceAction.number })}
+            </a>
+            {faceAction.alsoNumber ? (
+              <p className="text-center text-sm text-ink/70">
+                <a
+                  href={faceAction.alsoTel}
+                  className={`font-semibold text-care underline underline-offset-4 ${CONTROL_FOCUS}`}
+                >
+                  {tFamily(language, "resourceCallAlso", { number: faceAction.alsoNumber })}
+                </a>
+              </p>
+            ) : null}
+          </div>
+        );
+      case "link":
+        return (
+          <div className="mt-3 grid gap-1">
+            <a
+              href={faceAction.href}
+              target="_blank"
+              rel="noreferrer"
+              data-testid="family-resource-start-online"
+              aria-label={`${tFamily(language, "resourceStartOnline")}: ${resource.name}`}
+              className={`${FACE_ACTION} ${CONTROL_FOCUS}`}
+            >
+              <ExternalLink aria-hidden="true" className="h-4 w-4 shrink-0" />
+              {tFamily(language, "resourceStartOnline")}
+            </a>
+            {faceAction.number ? (
+              <p className="text-center text-sm text-ink/70">
+                <a
+                  href={faceAction.tel}
+                  data-testid="family-resource-call"
+                  className={`font-semibold text-care underline underline-offset-4 ${CONTROL_FOCUS}`}
+                >
+                  {tFamily(language, "resourceCallNumber", { number: faceAction.number })}
+                </a>
+              </p>
+            ) : null}
+          </div>
+        );
+      case "provider":
+        return (
+          <p
+            data-testid="family-resource-face-provider"
+            className="mt-3 flex min-h-12 items-center gap-2 break-words rounded-control border border-care/40 bg-white px-3 py-2 font-semibold text-care"
+          >
+            <Stethoscope aria-hidden="true" className="h-4 w-4 shrink-0" />
+            {tFamily(language, "resourceAskProvider")}
+          </p>
+        );
+      case "school":
+        return (
+          <a
+            href={faceAction.href}
+            target="_blank"
+            rel="noreferrer"
+            data-testid="family-resource-face-school"
+            aria-label={`${tFamily(language, "resourceContactSchool")}: ${resource.name}`}
+            className={`mt-3 ${FACE_ACTION} ${CONTROL_FOCUS}`}
+          >
+            <GraduationCap aria-hidden="true" className="h-4 w-4 shrink-0" />
+            {tFamily(language, "resourceContactSchool")}
+          </a>
+        );
+      case "navigator":
+        return (
+          <p
+            data-testid="family-resource-face-navigator"
+            className="mt-3 flex min-h-12 items-center gap-2 break-words rounded-control border border-care/40 bg-white px-3 py-2 font-semibold text-care"
+          >
+            <UserRound aria-hidden="true" className="h-4 w-4 shrink-0" />
+            {tFamily(language, "resourceAskNavigator")}
+          </p>
+        );
+    }
   }
 
   return (
@@ -197,6 +342,23 @@ export function FamilyResourceCard({
           ) : null}
         </div>
       </div>
+
+      {/* Service area and age band are the two facts that decide fit, so they
+          stay on the face of both variants. */}
+      <p data-testid="family-resource-fit" className="mt-1 break-words text-sm text-ink/70">
+        {serviceArea
+          ? `${
+              serviceArea.kind === "county"
+                ? tFamily(language, "resourceCountyServiceArea", { county: serviceArea.county })
+                : tFamily(language, "resourceStatewideServiceArea")
+            } · `
+          : ""}
+        {ageBand(resource, language)}
+        {matchNeed && !compact
+          ? ` · ${tFamily(language, "resourceMatchReason", { need: matchNeed })}`
+          : ""}
+      </p>
+
       {why ? (
         <p data-testid="family-resource-why" className="mt-2 break-words font-medium leading-relaxed">
           {why}
@@ -213,15 +375,6 @@ export function FamilyResourceCard({
       {summaryInDetails ? null : (
         <p className="mt-2 break-words leading-relaxed text-ink/80">{resource.summary}</p>
       )}
-
-      {serviceArea && !compact ? (
-        <p data-testid="family-resource-locality" className="mt-2 break-words text-sm font-medium text-care">
-          {serviceArea.kind === "county"
-            ? tFamily(language, "resourceCountyServiceArea", { county: serviceArea.county })
-            : tFamily(language, "resourceStatewideServiceArea")}
-          {matchNeed ? ` · ${tFamily(language, "resourceMatchReason", { need: matchNeed })}` : ""}
-        </p>
-      ) : null}
 
       {!isEnrolled && resource.actNow && !actNowInDetails && !compact ? (
         <div className={`mt-3 ${NOTICE_DEADLINE}`}>
@@ -244,6 +397,12 @@ export function FamilyResourceCard({
           {tFamily(language, "resourceHumanVerify")}
         </p>
       ) : null}
+
+      {/* THE action, on the face of every card, at every variant. No fold hides
+          a phone number ever again (P1). */}
+      {isEnrolled ? null : faceActionNode()}
+
+      <FamilyGloss terms={glossTerms} language={language} className="mt-2" />
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {step ? (
@@ -325,11 +484,12 @@ export function FamilyResourceCard({
 
       {compact ? null : (
       <>
-      {/* Trust furniture, one tap away: who runs this, ages, how to get in, and
-          when we last checked. Everything stays in the document for print and
+      {/* Trust furniture, one tap away: who runs this, how to get in, and when we
+          last checked. Everything stays in the document for print and
           find-in-page; it just is not first-read content. The catalog summary
           and the general act-now paragraph join it whenever a more specific line
-          — a grounded "why this", a dated clock — already says it above. */}
+          — a grounded "why this", a dated clock — already says it above. What
+          never joins it is the phone number: that is on the face. */}
       <details className="mt-3 rounded-control border border-ink/10">
         <summary
           className={`min-h-12 min-w-0 cursor-pointer break-words rounded-control p-3 text-sm font-semibold text-care ${CONTROL_FOCUS}`}
@@ -384,9 +544,11 @@ export function FamilyResourceCard({
 
       {/* Two taps, one consent: asking to share is what puts the consent question
           on screen, and the share itself still cannot fire without the tick.
-          `share()` re-checks consent, so no sequence of taps can get around it. */}
+          `share()` re-checks consent, so no sequence of taps can get around it.
+          What it hands the OS is the program's name and the catalog URL — and
+          the receipt says exactly that (P6). */}
       <div className="mt-4 border-t border-ink/10 pt-3">
-        {shared ? null : sharing ? (
+        {shareDone ? null : sharing ? (
           <div data-testid="family-resource-share-consent">
             <label htmlFor={consentId} className="flex min-h-12 min-w-0 items-center gap-2 text-sm">
               <input
@@ -407,7 +569,7 @@ export function FamilyResourceCard({
               type="button"
               disabled={!consented}
               aria-label={`${tFamily(language, "resourceShare")}: ${resource.name}`}
-              onClick={share}
+              onClick={() => void share()}
               className={BTN_QUIET}
             >
               <Share2 aria-hidden="true" className="h-4 w-4 shrink-0" />
@@ -427,12 +589,15 @@ export function FamilyResourceCard({
             {tFamily(language, "resourceShare")}
           </button>
         )}
+        {/* No silent no-ops: a phone with neither a share sheet nor a clipboard
+            says so, and says what to do instead. */}
+        {shareOutcome === "unavailable" ? (
+          <p role="alert" className="mt-2 break-words text-sm font-medium text-pulse">
+            {tFamily(language, "resourceShareUnavailable")}
+          </p>
+        ) : null}
         <p role="status" aria-live="polite" className="mt-2 text-sm font-medium text-care">
-          {shared
-            ? tFamily(language, "resourceShareComplete")
-            : saveRequested
-              ? tFamily(language, "resourceSaved")
-              : ""}
+          {shareReceipt}
         </p>
       </div>
       </>

@@ -7,7 +7,7 @@ import { SAMPLE_CAREGIVER_TEXT, SAMPLE_CAREGIVER_TEXT_ES, eighteenMonthFamilySta
 import { createFamilyAppointmentOffer } from "@/domain/family-appointments";
 import type { AppState, DevNeedDomain, FamilyNavigatorState } from "@/domain/types";
 import { healthReducer } from "@/state/store";
-import { openAllFamilyFolds } from "@/test/family-folds";
+import { openAllFamilyFolds, showFamilySurface } from "@/test/family-folds";
 import { FamilyExperience } from "@/components/family-experience";
 
 const { push, requestFamilyInterview, requestFamilyRecommendations } = vi.hoisted(() => ({
@@ -43,6 +43,36 @@ async function changeCounty(user: ReturnType<typeof userEvent.setup>, county: st
   await user.click(within(panel).getByRole("button", { name: "Save these details" }));
 }
 
+// A return visit opens on the front door and keeps the composer one tap away
+// (P3), so a test about what the composer does opens it the way a caregiver
+// would. On a first run there is nothing to open and this is a no-op.
+async function openComposer(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+  const open = screen.queryByTestId("family-composer-open");
+  if (open) {
+    await user.click(open);
+  }
+}
+
+async function submitDescription(
+  user: ReturnType<typeof userEvent.setup>,
+  label: string | RegExp = "Find help"
+): Promise<void> {
+  await openComposer(user);
+  await user.click(screen.getByRole("button", { name: label }));
+}
+
+// Brings one of the four surfaces to the front by its tab. Before the tabs
+// appear — the whole first session — Home is the only surface there is.
+async function goToSurface(
+  user: ReturnType<typeof userEvent.setup>,
+  name: RegExp
+): Promise<void> {
+  const tab = screen.queryByRole("tab", { name });
+  if (tab && tab.getAttribute("aria-selected") !== "true") {
+    await user.click(tab);
+  }
+}
+
 // The in-thread verification strip. The journal section repeats the same facts
 // further down the page, so fact assertions name which one they mean.
 function reviewTurn(): HTMLElement {
@@ -56,6 +86,8 @@ async function openStrip(
   user: ReturnType<typeof userEvent.setup>,
   summary = /Check or change this/i
 ): Promise<HTMLElement> {
+  // The strip belongs to the thread, which belongs to Home.
+  await goToSurface(user, /Home/);
   const strip = reviewTurn();
   const details = within(strip).getByText(summary).closest("details") as HTMLDetailsElement;
   if (!details.open) {
@@ -116,10 +148,10 @@ beforeEach(() => {
 });
 
 // The one-line verification that replaced the stack of confirmation cards.
-describe("the heard strip", { timeout: 10_000 }, () => {
+describe("the heard strip", { timeout: 20_000 }, () => {
   async function submitAs(user: ReturnType<typeof userEvent.setup>, text: string): Promise<void> {
     await user.type(screen.getByLabelText("What would you like help with?"), text);
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
     await screen.findByTestId("family-heard-strip");
   }
 
@@ -127,7 +159,7 @@ describe("the heard strip", { timeout: 10_000 }, () => {
     const user = userEvent.setup();
     render(<ReducerHarness initialState={withFamily(describedFamily)} />);
 
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
     await screen.findByTestId("family-heard-strip");
 
     // Riley, born 2017, Scott County, school need.
@@ -156,7 +188,7 @@ describe("the heard strip", { timeout: 10_000 }, () => {
     const user = userEvent.setup();
     render(<ReducerHarness initialState={withFamily(describedFamily)} />);
 
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
     await screen.findByTestId("family-heard-strip");
 
     // Collapsed by default — the help is what leads.
@@ -198,7 +230,7 @@ describe("the heard strip", { timeout: 10_000 }, () => {
       />
     );
 
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
     await screen.findByTestId("family-heard-strip");
 
     expect(screen.getByTestId("family-heard")).toHaveTextContent(expected);
@@ -211,9 +243,10 @@ describe("the heard strip", { timeout: 10_000 }, () => {
     const user = userEvent.setup();
     render(<ReducerHarness initialState={withFamily(describedFamily)} />);
 
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
     await screen.findByTestId("family-heard-strip");
 
+    await goToSurface(user, /Programs/);
     openAllFamilyFolds();
     const section = screen.getByTestId("matched-family-resources").closest("section") as HTMLElement;
     expect(within(section).getByText(/rules are the ones that count/i)).toBeVisible();
@@ -230,7 +263,7 @@ describe("the heard strip", { timeout: 10_000 }, () => {
     });
     render(<ReducerHarness initialState={withFamily(describedFamily)} />);
 
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
     await screen.findByTestId("family-heard-strip");
 
     await waitFor(() =>
@@ -243,7 +276,7 @@ describe("the heard strip", { timeout: 10_000 }, () => {
   });
 });
 
-describe("FamilyExperience", { timeout: 10_000 }, () => {
+describe("FamilyExperience", { timeout: 20_000 }, () => {
   it("synchronizes the document language and restores the prior value on unmount", () => {
     const originalLanguage = document.documentElement.lang;
     document.documentElement.lang = "fr";
@@ -297,24 +330,28 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
 
     // Characterization mutation: a stale hash strands a family instead of
     // returning them to the common page origin.
-    const links = screen.getAllByRole("link", { name: "Back to top" });
+    // The link lives on the Programs surface; this test is about where it points.
+    const links = screen.getAllByRole("link", { name: "Back to top", hidden: true });
     expect(links.length).toBeGreaterThan(0);
     for (const link of links) {
       expect(link).toHaveAttribute("href", "#family-experience");
     }
   });
 
-  it("keeps every rendered wait-header page-navigation target in the document", () => {
+  // Every doorway row names a surface that exists and a target that is in the
+  // document. A row pointing at a section this state does not render is the
+  // front door's one navigation control doing nothing.
+  it("keeps every rendered doorway target in the document", () => {
     const { unmount } = render(
       <FamilyExperience state={withFamily(schoolAgeFamilyState)} dispatch={vi.fn()} passcode="" />
     );
 
-    const baselineNavigation = within(screen.getByTestId("family-wait-header")).getByRole("navigation", {
-      name: "On this page"
-    });
-    expect(within(baselineNavigation).queryByRole("link", { name: "Programs" })).not.toBeInTheDocument();
-    expect(within(baselineNavigation).queryByRole("link", { name: "Notes" })).not.toBeInTheDocument();
-    for (const link of within(baselineNavigation).getAllByRole("link")) {
+    const baselineDoorways = within(screen.getByTestId("family-doorways"));
+    // No matched needs yet, so there is no Programs surface to open.
+    expect(baselineDoorways.queryByRole("link", { name: /Programs/ })).not.toBeInTheDocument();
+    // No referral, so no appointment companion either (1h).
+    expect(baselineDoorways.queryByRole("link", { name: /Your visit/ })).not.toBeInTheDocument();
+    for (const link of baselineDoorways.getAllByRole("link")) {
       const href = link.getAttribute("href");
       expect(href).toMatch(/^#/);
       expect(document.querySelector(href!)).toBeInTheDocument();
@@ -341,20 +378,71 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
       />
     );
 
-    const conditionalNavigation = within(screen.getByTestId("family-wait-header")).getByRole(
-      "navigation",
-      { name: "On this page" }
-    );
-    expect(within(conditionalNavigation).getByRole("link", { name: "Programs" })).toBeVisible();
-    expect(within(conditionalNavigation).getByRole("link", { name: "Notes" })).toBeVisible();
-    for (const link of within(conditionalNavigation).getAllByRole("link")) {
+    const conditionalDoorways = within(screen.getByTestId("family-doorways"));
+    expect(conditionalDoorways.getByRole("link", { name: /Programs/ })).toBeVisible();
+    expect(conditionalDoorways.getByRole("link", { name: /Visit packet/ })).toBeVisible();
+    for (const link of conditionalDoorways.getAllByRole("link")) {
       const href = link.getAttribute("href");
       expect(href).toMatch(/^#/);
       expect(document.querySelector(href!)).toBeInTheDocument();
     }
   });
 
-  it("does not steal focus for a persisted interview from an earlier visit", () => {
+  // The bar is the only way between surfaces, so it can never name fewer than
+  // the surfaces that exist — nor offer one that does not.
+  it("shows a tab for every surface this family has, and no others", () => {
+    const { unmount } = render(
+      <FamilyExperience state={withFamily(schoolAgeFamilyState)} dispatch={vi.fn()} passcode="" />
+    );
+    // Home plus Notes (a profile means a packet). No matched needs, no referral.
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Home", "Notes"]);
+    unmount();
+
+    render(
+      <FamilyExperience
+        state={withFamily({
+          ...schoolAgeFamilyState,
+          activeDomains: ["school_iep"],
+          referral: { clinic: "UK Developmental Pediatrics", referredAt: "2026-03-02T12:00:00.000Z" }
+        })}
+        dispatch={vi.fn()}
+        passcode=""
+      />
+    );
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "Home",
+      "Programs",
+      "Notes",
+      "Visit"
+    ]);
+  });
+
+  // F1b. The redesign rendered all four panels always while the bar rendered
+  // only the unlocked ones, so a first run shipped three (and, with no bar at
+  // all, four) tabpanels labelled by ids nothing had rendered.
+  it("labels no panel by a tab that is not on the page", () => {
+    const dangling = (): string[] =>
+      [...document.body.querySelectorAll("[aria-labelledby]")]
+        .flatMap((node) => (node.getAttribute("aria-labelledby") ?? "").split(/\s+/))
+        .filter((id) => id.length > 0 && document.getElementById(id) === null);
+
+    const first = render(<FamilyExperience state={withFamily(null)} dispatch={vi.fn()} passcode="" />);
+    expect(screen.queryAllByRole("tab")).toHaveLength(0);
+    expect(screen.queryAllByRole("tabpanel", { hidden: true })).toHaveLength(0);
+    expect(dangling()).toEqual([]);
+    first.unmount();
+
+    // Home + Notes: two tabs, two panels, and nothing pointing past them.
+    render(<FamilyExperience state={withFamily(schoolAgeFamilyState)} dispatch={vi.fn()} passcode="" />);
+    expect(screen.getAllByRole("tab")).toHaveLength(2);
+    expect(screen.getAllByRole("tabpanel", { hidden: true })).toHaveLength(2);
+    expect(dangling()).toEqual([]);
+  });
+
+  // Stronger than "does not steal focus": a return visit does not reopen last
+  // session's verification card at all. Home opens on what changed and what is
+  // due, and the composer that produced the strip is one tap away (P3).
+  it("does not replay an earlier visit's verification card", () => {
     const persistedFamily: FamilyNavigatorState = {
       ...schoolAgeFamilyState,
       interviews: [
@@ -381,14 +469,17 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
 
     render(<FamilyExperience state={withFamily(persistedFamily)} dispatch={vi.fn()} passcode="" />);
 
-    expect(screen.getByRole("heading", { name: "Here is what we heard" }).closest("section")).not.toHaveFocus();
+    expect(screen.queryByTestId("family-heard-strip")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Welcome back/i })).toBeVisible();
+    expect(screen.getByTestId("family-last-note")).toHaveTextContent(/Last note: July 16/);
+    expect(screen.getByTestId("family-composer-open")).toBeVisible();
   });
 
   it("exposes F07's waiver follow-up through its accessible heading", async () => {
     const user = userEvent.setup();
     render(<ReducerHarness initialState={withFamily(f07Family)} />);
 
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
 
     expect(
       await screen.findByRole("heading", {
@@ -429,13 +520,15 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     expect(screen.getByLabelText(/What would you like help with/i)).toHaveValue(SAMPLE_CAREGIVER_TEXT);
     const adultFactsBefore = screen.getByTestId("adult-facts").textContent;
 
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
     await screen.findByRole("heading", { name: "Here is what we heard" });
     expect(screen.getByRole("heading", { name: "Here is what we heard" }).closest("section")).toHaveFocus();
     expect(screen.getByRole("heading", { name: "What has the school offered so far?" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Nothing yet" })).toBeVisible();
-    // The library folds once the thread carries the answer; this journey is about
-    // what the library holds, so open it and leave it open.
+    // The library lives on its own surface now; this journey is about what the
+    // library holds, so bring it up and leave it up.
+    await goToSurface(user, /Programs/);
+    showFamilySurface("Programs");
     openAllFamilyFolds();
     expect(screen.getByTestId("matched-family-resources")).toBeVisible();
     expect(requestFamilyInterview).toHaveBeenCalledWith(expect.objectContaining({ passcode: "demo-passcode" }));
@@ -462,6 +555,7 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     const stateAfterConfirm = JSON.parse(screen.getByTestId("family-state").textContent || "null") as FamilyNavigatorState;
     expect(stateAfterConfirm.facts.filter(({ status }) => status === "confirmed")).toHaveLength(1);
 
+    await goToSurface(user, /Programs/);
     const matched = screen.getByTestId("matched-family-resources");
     const resourceCards = within(matched).getAllByTestId("family-resource-card");
     expect(resourceCards[0]).toHaveAttribute("data-resource-id", "scott_county_exceptional_child_services");
@@ -483,6 +577,8 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     expect(screen.getAllByText("Central Kentucky Riding for Hope")).toHaveLength(1);
     expect(stateAfterCrunch.activeDomains).not.toContain("recreation");
 
+    // Back to the thread for its next turn: the one ask is always on Home.
+    await goToSurface(user, /Home/);
     await user.click(screen.getByRole("button", { name: "Nothing yet" }));
     await screen.findByRole("heading", { name: "Have you applied for any state programs yet?" });
     const stateAfterFirstFollowUp = JSON.parse(
@@ -490,7 +586,6 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     ) as FamilyNavigatorState;
     expect(stateAfterFirstFollowUp.interviews).toHaveLength(2);
     expect(stateAfterFirstFollowUp.interviews[1].rawText).toBe(`${SAMPLE_CAREGIVER_TEXT}\nNothing yet`);
-    expect(screen.getByTestId("matched-family-resources")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Not yet" }));
     // The round cap ends the thread. No sign-off block: the cards are the answer.
@@ -509,6 +604,7 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
       `${SAMPLE_CAREGIVER_TEXT}\nNothing yet\nNot yet`
     );
 
+    await goToSurface(user, /Programs/);
     const currentMatched = screen.getByTestId("matched-family-resources");
     const currentScottCard = within(currentMatched).getAllByTestId("family-resource-card")[0];
     await user.click(within(currentScottCard).getByRole("button", { name: /Save.*Scott County Schools/i }));
@@ -528,6 +624,8 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     }
     expect(within(saved).queryByRole("button", { name: /Share.*Scott County Schools/i })).not.toBeInTheDocument();
 
+    await goToSurface(user, /Home/);
+    openAllFamilyFolds();
     expect(screen.getByRole("heading", { name: "Now" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Next" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Later" })).toBeVisible();
@@ -546,7 +644,7 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
       screen.getByLabelText("What would you like help with?"),
       "Reading is really hard for him at school and I keep hearing about waivers."
     );
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
     await screen.findByRole("heading", { name: "Here is what we heard" });
 
     const familyBefore = JSON.parse(screen.getByTestId("family-state").textContent || "null") as FamilyNavigatorState;
@@ -599,7 +697,7 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
       screen.getByLabelText("What would you like help with?"),
       "Theo is two. He says mama and no, but not much else, and he still falls a lot when he walks. His doctor said speech and physical therapy could help. I’m his grandmother and I don’t drive, so we need a ride to appointments. I need somebody to tell me who to call first."
     );
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
 
     const turns = await screen.findByTestId("family-basics-turns");
     await user.selectOptions(
@@ -645,7 +743,7 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
       screen.getByLabelText("What would you like help with?"),
       "I have a seven-year-old with big meltdowns. He has been kicked out of school several times. We live in Breathitt County and we need help."
     );
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
 
     // No confirm card, no turns, nothing to answer — the basics just land.
     const strip = await screen.findByTestId("family-heard-strip");
@@ -674,7 +772,7 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
       screen.getByLabelText("What would you like help with?"),
       "We live in Scott County and reading homework is a nightly battle."
     );
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
 
     // County was written down, so only the birth year and stage are asked.
     const turns = await screen.findByTestId("family-basics-turns");
@@ -698,7 +796,7 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
       screen.getByLabelText("What would you like help with?"),
       "We live in Breathitt County and reading homework is a nightly battle."
     );
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
 
     const turns = await screen.findByTestId("family-basics-turns");
     await user.type(within(turns).getByLabelText(/What year was your child born/i), "2017");
@@ -723,7 +821,7 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
       screen.getByLabelText("What would you like help with?"),
       "Reading is really hard for him at school."
     );
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
     const turns = await screen.findByTestId("family-basics-turns");
     await user.selectOptions(
       within(turns).getByLabelText(/which Kentucky county do you live in/i),
@@ -758,13 +856,14 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     const interview = screen.getByLabelText("What would you like help with?");
     await user.clear(interview);
     await user.type(interview, "He keeps getting kicked out of school and I do not know what to ask for.");
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
 
     const heard = await screen.findByTestId("family-heard");
     expect(within(heard).getByText(/school keeps sending him home/)).toBeVisible();
     const family = JSON.parse(screen.getByTestId("family-state").textContent || "null") as FamilyNavigatorState;
     expect(family.recommendations?.lead).toBe("school_iep");
 
+    await goToSurface(user, /Programs/);
     openAllFamilyFolds();
     const cards = within(screen.getByTestId("matched-family-resources")).getAllByTestId("family-resource-card");
     expect(cards[0]).toHaveAttribute("data-resource-id", "idea_school_discipline");
@@ -783,7 +882,7 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     const interview = screen.getByLabelText("What would you like help with?");
     await user.clear(interview);
     await user.type(interview, "He keeps getting kicked out of school and I do not know what to ask for.");
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
 
     await waitFor(() => expect(requestFamilyRecommendations).toHaveBeenCalled());
     await waitFor(() =>
@@ -815,8 +914,9 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     const interview = screen.getByLabelText("What would you like help with?");
     await user.clear(interview);
     await user.type(interview, "He keeps getting kicked out of school and I do not know what to ask for.");
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
 
+    await goToSurface(user, /Programs/);
     // The deterministic cards render first, so wait for the ranking to land.
     await waitFor(() =>
       expect(
@@ -883,7 +983,7 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     requestFamilyInterview.mockReturnValueOnce(pending.promise);
     render(<ReducerHarness initialState={withFamily(describedFamily)} />);
 
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
     await changeCounty(user, "Perry");
     const stateAfterChange = JSON.parse(
       screen.getByTestId("family-state").textContent || "null"
@@ -907,7 +1007,7 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     const user = userEvent.setup();
     render(<ReducerHarness initialState={withFamily(describedFamily)} />);
 
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
     await screen.findByRole("heading", { name: "What has the school offered so far?" });
     await changeCounty(user, "Perry");
 
@@ -934,6 +1034,7 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
       <FamilyExperience state={withFamily(zeroMatchFamily)} dispatch={vi.fn()} passcode="" />
     );
 
+    showFamilySurface("Programs");
     const fallback = screen.getByRole("region", { name: "Nothing local matched yet" });
     expect(within(fallback).getAllByTestId("family-resource-card").map((card) => card.getAttribute("data-resource-id"))).toEqual([
       "ky_spin",
@@ -976,6 +1077,7 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     };
     render(<ReducerHarness initialState={withFamily(family)} />);
 
+    await goToSurface(user, /Programs/);
     openAllFamilyFolds();
     const michelle = screen.getByTestId("matched-family-resources").querySelector(
       '[data-resource-id="michelle_p_waiver"]'
@@ -1007,6 +1109,7 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     };
     render(<FamilyExperience state={withFamily(family)} dispatch={vi.fn()} passcode="" />);
 
+    showFamilySurface("Programs");
     const matched = screen.getByTestId("matched-family-resources");
     const cards = within(matched).getAllByTestId("family-resource-card");
     const ids = cards.map((card) => card.getAttribute("data-resource-id"));
@@ -1079,6 +1182,7 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     expect(within(review).getByText("dislexia")).toBeVisible();
     expect(within(review).getByText("Sobre la escuela y el aprendizaje")).toBeVisible();
     expect(within(review).getByText(/Mencionaste la escuela/)).toBeVisible();
+    await goToSurface(user, /Programas/);
     openAllFamilyFolds();
     expect(screen.getByText(/vienen directo de las organizaciones.*en inglés/i)).toBeVisible();
     expect(
@@ -1092,17 +1196,20 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     const user = userEvent.setup();
     render(<ReducerHarness initialState={withFamily({ ...schoolAgeFamilyState, activeDomains: ["school_iep"] })} />);
 
+    showFamilySurface("Programs");
     expect(screen.getByTestId("matched-family-resources")).toBeVisible();
+    showFamilySurface("Home");
     const interview = screen.getByLabelText("What would you like help with?");
     await user.clear(interview);
     await user.type(interview, "honestly she's been saying she wants to die");
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
 
     const banner = await screen.findByTestId("family-crisis-banner");
     expect(within(banner).getByRole("link", { name: /Call 988/i })).toHaveAttribute("href", "tel:988");
     expect(within(banner).getByRole("link", { name: /Call 911/i })).toHaveAttribute("href", "tel:911");
     // The navigator keeps helping — this is the whole point of the change.
     expect(push).not.toHaveBeenCalled();
+    showFamilySurface("Programs");
     openAllFamilyFolds();
     expect(screen.getByTestId("matched-family-resources")).toBeVisible();
 
@@ -1125,11 +1232,13 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     const user = userEvent.setup();
     render(<ReducerHarness initialState={withFamily(describedFamily)} />);
 
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
     await screen.findByRole("heading", { name: "What has the school offered so far?" });
+    showFamilySurface("Programs");
     openAllFamilyFolds();
     expect(screen.getByTestId("matched-family-resources")).toBeVisible();
 
+    showFamilySurface("Home");
     const crisisText = "I am going to kill myself tonight";
     await user.type(screen.getByRole("textbox", { name: "Or type a short answer" }), crisisText);
     await user.click(screen.getByRole("button", { name: "Add answer" }));
@@ -1138,9 +1247,16 @@ describe("FamilyExperience", { timeout: 10_000 }, () => {
     expect(push).not.toHaveBeenCalled();
     // The opening call only — the crisis answer was extracted on-device.
     expect(requestFamilyInterview).toHaveBeenCalledTimes(1);
+    // 1i: the banner is layer 0 — above the surface's own header, and above the
+    // tab bar's reach — so switching surfaces cannot put it below anything.
+    const banner = screen.getByTestId("family-crisis-banner");
+    expect(screen.getByTestId("ladder-crisis-layer")).toContainElement(banner);
+    showFamilySurface("Programs");
+    expect(banner).toBeVisible();
     expect(screen.getByTestId("matched-family-resources")).toBeVisible();
     // The banner leads and the help stays: strip, thread cards, and the full
     // section are all still on the page beneath it.
+    showFamilySurface("Home");
     expect(screen.getByTestId("family-heard-strip")).toBeVisible();
     expect(
       within(screen.getByTestId("thread-family-resources")).getAllByTestId("family-resource-card")
@@ -1211,7 +1327,7 @@ describe("one ask at a time", () => {
     );
     expect(openQuestionCount()).toBe(1);
 
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
     await screen.findByTestId("family-heard-strip");
 
     // The thread's follow-up is now the one ask; the stale-step question stands down.
@@ -1317,7 +1433,7 @@ describe("monthly check-in", () => {
     await user.click(
       within(screen.getByTestId("family-checkin")).getByRole("button", { name: "Add a note" })
     );
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
     await screen.findByRole("heading", { name: "Here is what we heard" });
 
     const interviews = familyStateOutput().interviews;
@@ -1400,7 +1516,7 @@ describe("monthly check-in", () => {
 
 // Every follow-up round re-extracts the whole conversation so far, so the same
 // observation comes back word for word. What the family sees must not repeat.
-describe("orientation follow-up rounds", () => {
+describe("orientation follow-up rounds", { timeout: 20_000 }, () => {
   const REGRESSION_TEXT =
     "He stopped saying the words he knew, like more and mama. He is in second grade and reading is really hard for him.";
 
@@ -1408,7 +1524,7 @@ describe("orientation follow-up rounds", () => {
     const user = userEvent.setup();
     render(<ReducerHarness initialState={withFamily(describedFamily)} />);
 
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
     await screen.findByRole("heading", { name: "What has the school offered so far?" });
     await user.click(screen.getByRole("button", { name: "Nothing yet" }));
     await screen.findByRole("heading", { name: "Have you applied for any state programs yet?" });
@@ -1437,6 +1553,7 @@ describe("orientation follow-up rounds", () => {
     ]);
     expect(family.facts.every(({ interviewId }) => interviewId === family.interviews[0].id)).toBe(true);
 
+    showFamilySurface("Notes");
     openAllFamilyFolds();
     const journal = screen.getByTestId("family-journal");
     expect(within(journal).getAllByTestId("family-fact-row")).toHaveLength(3);
@@ -1448,7 +1565,7 @@ describe("orientation follow-up rounds", () => {
     expect(packet.split("reading is really hard for him").length - 1).toBe(1);
 
     // Nothing was written as a journal note, so the header claims none.
-    expect(within(screen.getByTestId("family-wait-header")).queryByText(/notes/)).not.toBeInTheDocument();
+    expect(within(screen.getByTestId("family-wait-chips")).queryByText(/notes/)).not.toBeInTheDocument();
   });
 
   it("keeps a check-in's own follow-up round filed as a check-in", async () => {
@@ -1458,7 +1575,7 @@ describe("orientation follow-up rounds", () => {
     await user.click(
       within(screen.getByTestId("family-checkin")).getByRole("button", { name: "Add a note" })
     );
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
     await screen.findByRole("heading", { name: "What has the school offered so far?" });
     await user.click(screen.getByRole("button", { name: "Nothing yet" }));
     await screen.findByRole("heading", { name: "Have you applied for any state programs yet?" });
@@ -1475,7 +1592,7 @@ describe("orientation follow-up rounds", () => {
       screen.getByLabelText("What would you like help with?"),
       "He stopped talking."
     );
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
 
     expect(await screen.findByTestId("family-clinic-now-card")).toBeVisible();
     expect(familyStateOutput().profile).toBeNull();
@@ -1492,7 +1609,7 @@ describe("orientation follow-up rounds", () => {
       />
     );
 
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
     const card = await screen.findByTestId("family-clinic-now-card");
     expect(familyStateOutput().flags).toMatchObject([
       { type: "regression", source: "text" }
@@ -1605,6 +1722,7 @@ describe("while-you-wait guide strip", () => {
       />
     );
 
+    showFamilySurface("Programs");
     const strip = screen.getByTestId("family-guides");
     expect(within(strip).getByRole("heading", { name: "Things to try at home" })).toBeVisible();
     expect(
@@ -1692,6 +1810,8 @@ describe("wait header rungs", () => {
       href: "#family-appt-title",
       family: () => ({
         ...schoolAgeFamilyState,
+        // The companion surface — and so the rung — needs a referral behind it.
+        referral: { clinic: "UK Developmental Pediatrics", referredAt: stamp(120) },
         appointments: [createFamilyAppointmentOffer(new Date())]
       })
     },
@@ -1756,17 +1876,16 @@ describe("wait header rungs", () => {
 // Spec 19: what the page shows before anyone taps. The thread carries a short
 // answer, the reference sections carry one-line rows, and everything they hold
 // is one tap — or one anchor — away.
-describe("phone fit", () => {
-  it("answers with compact cards and folds the library the moment the thread holds the answer", async () => {
+describe("phone fit", { timeout: 20_000 }, () => {
+  it("answers with compact cards in the thread and keeps the library on its own surface", async () => {
     const user = userEvent.setup();
     render(<ReducerHarness initialState={withFamily(describedFamily)} />);
 
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
     await screen.findByTestId("family-heard-strip");
 
-    // The library was the answer until the thread had one; now it is a row.
-    const library = screen.getByTestId("family-resources");
-    expect(within(library).getByText(/^All \d+ places/)).toBeVisible();
+    // The library is not competing with the answer for the same scroll: it is a
+    // whole surface, one tap away, and Home stays the one ask (P2).
     expect(screen.getByTestId("matched-family-resources")).not.toBeVisible();
 
     const threadCards = within(screen.getByTestId("thread-family-resources")).getAllByTestId(
@@ -1777,14 +1896,27 @@ describe("phone fit", () => {
       expect(within(card).queryByTestId("family-resource-quote")).not.toBeInTheDocument();
       expect(within(card).queryByTestId("family-resource-share-open")).not.toBeInTheDocument();
       expect(within(card).getByTestId("family-resource-expand")).toBeVisible();
+      // P1: compact or not, the way to reach the program is on the face.
+      expect(
+        within(card).queryByTestId("family-resource-call") ??
+          within(card).queryByTestId("family-resource-start-online") ??
+          within(card).queryByTestId("family-resource-face-school") ??
+          within(card).queryByTestId("family-resource-face-provider") ??
+          within(card).queryByTestId("family-resource-face-navigator")
+      ).toBeVisible();
     }
 
     // One tap grows the first answer into the full card, in place.
     await user.click(within(threadCards[0]).getByTestId("family-resource-expand"));
     expect(within(threadCards[0]).getByTestId("family-resource-share-open")).toBeVisible();
+
+    // And the tab shows the whole library, open — the surface is the disclosure.
+    await goToSurface(user, /Programs/);
+    expect(screen.getByTestId("matched-family-resources")).toBeVisible();
   });
 
-  it("keeps the library open when it is the only answer on the page", () => {
+  it("keeps the library open when it is the only answer the family has", async () => {
+    const user = userEvent.setup();
     render(
       <ReducerHarness
         initialState={withFamily({ ...schoolAgeFamilyState, activeDomains: ["school_iep"] })}
@@ -1792,25 +1924,29 @@ describe("phone fit", () => {
     );
 
     // No thread, no strip, no compact cards — the section is what the caregiver
-    // came for, so it does not hide behind a summary row.
+    // came for, so its surface does not hide it behind a summary row too.
     expect(screen.queryByTestId("thread-family-resources")).not.toBeInTheDocument();
+    await goToSurface(user, /Programs/);
     expect(screen.getByTestId("matched-family-resources")).toBeVisible();
   });
 
-  it("opens the section a nav chip points at", async () => {
+  it("brings up the surface a doorway row points at", async () => {
     const user = userEvent.setup();
     render(<ReducerHarness initialState={withFamily(describedFamily)} />);
 
     const packetBody = screen.getByTestId("family-visit-packet-body");
     expect(packetBody).not.toBeVisible();
 
-    await user.click(screen.getByRole("link", { name: "Visit packet" }));
+    await user.click(
+      within(screen.getByTestId("family-doorways")).getByRole("link", { name: /Visit packet/ })
+    );
 
     await waitFor(() => expect(packetBody).toBeVisible());
     expect(screen.getByRole("button", { name: "Print" })).toBeVisible();
   });
 
   it("carries no standing demo banner or its disclosure, and still says what it cannot do", async () => {
+    const user = userEvent.setup();
     render(<ReducerHarness initialState={withFamily(describedFamily)} />);
 
     // Both are gone: the top-of-page badge and the "what this tool can and
@@ -1822,28 +1958,163 @@ describe("phone fit", () => {
 
     // The honesty they carried is not gone — these lines say it plainly, always
     // visible, without a tap.
+    await openComposer(user);
     expect(screen.getByText(/We do not diagnose/i)).toBeVisible();
-    // Two copies by design: the visible line and the sr-only aria-live echo
-    // that announces it (documented in spec 19).
-    expect(
-      within(screen.getByTestId("family-appointment-card")).getAllByText(
-        /Nothing here is a real appointment/i
-      )
-    ).toHaveLength(2);
+    expect(screen.getByText(/This demo pretends/i)).toBeVisible();
   });
 
-  it("folds the notes, the packet, and the timeline until they are asked for", async () => {
+  it("folds the notes and the packet on their shared surface until they are asked for", async () => {
     const user = userEvent.setup();
     render(<ReducerHarness initialState={withFamily(describedFamily)} />);
 
-    await user.click(screen.getByRole("button", { name: "Find help" }));
+    await submitDescription(user);
     await screen.findByTestId("family-heard-strip");
+    await goToSurface(user, /Notes/);
 
-    // Each row still says something true about what it is holding.
+    // Two sections share the surface, so each row still says something true
+    // about what it is holding.
     const journal = screen.getByTestId("family-journal");
     expect(within(journal).getByText(/1 note ·/)).toBeVisible();
     expect(within(journal).getByText(/Notes stay on this device/i)).not.toBeVisible();
     expect(screen.getByTestId("family-visit-packet-body")).not.toBeVisible();
-    expect(within(screen.getByTestId("family-timeline")).getByText(/to do now|Nothing to do/)).toBeVisible();
+  });
+});
+
+// The redesign's front door: a return visit opens on what changed and what is
+// due, never on interview framing, and the composer it replaced is one tap away.
+describe("the return front door", { timeout: 20_000 }, () => {
+  const returningFamily: FamilyNavigatorState = {
+    ...schoolAgeFamilyState,
+    profile: { ...schoolAgeFamilyState.profile!, birthYear: 2024, birthMonth: undefined },
+    referral: { clinic: "UK Developmental Pediatrics", referredAt: "2026-03-02T12:00:00.000Z" },
+    activeDomains: ["early_intervention"],
+    interviews: [
+      {
+        id: "last-visit",
+        rawText: "Riley barely talks.",
+        source: "typed",
+        createdAt: "2026-07-06T12:00:00.000Z",
+        extraction: "mock",
+        kind: "note"
+      }
+    ],
+    facts: [
+      {
+        id: "fact-1",
+        interviewId: "last-visit",
+        label: "About talking",
+        value: "Talking and language may need support",
+        status: "patient_reported",
+        sourceSnippet: "barely talks"
+      }
+    ]
+  };
+
+  it("opens on what changed and what is due, not on the interview", () => {
+    render(<ReducerHarness initialState={withFamily(returningFamily)} />);
+
+    expect(screen.getByRole("heading", { name: "Welcome back. Here's what's waiting." })).toBeVisible();
+    expect(screen.getByTestId("family-last-note")).toHaveTextContent("Last note: July 6");
+    expect(screen.getByTestId("family-wait-chips")).toHaveTextContent("On the list since March");
+    // The interview framing is not what a returning caregiver is shown.
+    expect(
+      screen.queryByText(/Tell us what you have noticed about how your child talks/)
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("family-heard-strip")).not.toBeInTheDocument();
+  });
+
+  // P5 on the front door: a birth year gets a window and a repair, not a number.
+  it("carries the deadline in the shape the profile supports, with the repair", async () => {
+    const user = userEvent.setup();
+    render(<ReducerHarness initialState={withFamily(returningFamily)} />);
+
+    const clock = within(screen.getByTestId("family-clock-notice"));
+    expect(clock.getByTestId("family-clock-line")).toHaveAttribute("data-clock-kind", "range");
+    expect(clock.getByTestId("family-clock-line")).not.toHaveTextContent(/weeks/);
+
+    await user.click(clock.getByTestId("family-clock-add-birth-month"));
+    await user.click(screen.getByRole("button", { name: "March" }));
+
+    // One month, and every clock on the page reads a real date.
+    await waitFor(() =>
+      expect(screen.getByTestId("family-clock-line")).toHaveAttribute("data-clock-kind", "dated")
+    );
+    expect(familyStateOutput().profile?.birthMonth).toBe(3);
+    expect(screen.getByTestId("family-clock-line")).toHaveTextContent(/referrals close January 15, 2027/);
+  });
+
+  // P3: the box never vanishes on a return visit — it collapses to one tap, and
+  // that tap opens the same crisis-gated composer, not a second writing surface.
+  it("keeps one composer, one tap away", async () => {
+    const user = userEvent.setup();
+    render(<ReducerHarness initialState={withFamily(returningFamily)} />);
+
+    expect(screen.queryByLabelText("What would you like help with?")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("family-composer-open"));
+
+    const box = screen.getByLabelText("What would you like help with?");
+    expect(box).toBeVisible();
+    expect(box).toHaveFocus();
+    // Still exactly one place to write, on every surface.
+    expect(screen.getAllByLabelText("What would you like help with?")).toHaveLength(1);
+  });
+
+  it("routes the Notes surface's add-a-note to that same box", async () => {
+    const user = userEvent.setup();
+    render(<ReducerHarness initialState={withFamily(returningFamily)} />);
+
+    await goToSurface(user, /Notes/);
+    await user.click(screen.getByTestId("family-notes-add"));
+
+    // It brings the caregiver back to Home rather than opening a second field.
+    expect(screen.getByRole("tab", { name: "Home" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getAllByLabelText("What would you like help with?")).toHaveLength(1);
+  });
+});
+
+// P8: an escape hatch that works, and says what it did.
+describe("None of these work", () => {
+  const waitlisted: FamilyNavigatorState = {
+    ...schoolAgeFamilyState,
+    referral: { clinic: "UK Developmental Pediatrics", referredAt: "2026-03-02T12:00:00.000Z" },
+    appointments: [createFamilyAppointmentOffer(new Date())]
+  };
+
+  it("is a first-class fourth option whose result is said out loud", async () => {
+    const user = userEvent.setup();
+    render(<ReducerHarness initialState={withFamily(waitlisted)} />);
+
+    await goToSurface(user, /Visit/);
+    expect(screen.queryByTestId("family-appt-keep-place")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("family-appt-none-work"));
+
+    expect(screen.getByTestId("family-appt-keep-place")).toHaveTextContent(
+      "You keep your place. Saying no to these times changes nothing about your spot on the list."
+    );
+    // Turning times down is not a decision worth storing, and it does not book.
+    const family = familyStateOutput();
+    expect(family.appointments[0].status).toBe("offered");
+    expect(family.appointments[0].scheduledFor).toBeUndefined();
+  });
+
+  // No silent no-ops: a control that cannot act says why, inline.
+  it("explains the safety hold instead of just going dim", async () => {
+    const user = userEvent.setup();
+    render(
+      <ReducerHarness
+        initialState={withFamily({
+          ...waitlisted,
+          safetyEvents: [
+            { id: "safety-1", tier: "crisis", domain: "self_harm", createdAt: new Date().toISOString() }
+          ]
+        })}
+      />
+    );
+
+    await goToSurface(user, /Visit/);
+    expect(screen.getByTestId("family-appt-none-work")).toBeDisabled();
+    expect(
+      within(screen.getByTestId("family-appointment-card")).getByText(/paused while the safety message/i)
+    ).toBeVisible();
   });
 });

@@ -224,6 +224,14 @@ async function fillProfile(page: Page, persona: Persona): Promise<void> {
  * would, by tapping its summary row.
  */
 async function openResourceLibrary(page: Page): Promise<void> {
+  // The library is a surface of its own now; its tab is labelled in whichever
+  // language the caregiver is reading.
+  const tab = page.getByRole("tab", { name: /Programs|Programas/ });
+  await tab.waitFor({ state: "attached", timeout: 10000 });
+  if ((await tab.getAttribute("aria-selected")) !== "true") {
+    await tab.click();
+  }
+  await expect(tab).toHaveAttribute("aria-selected", "true");
   const details = page.locator("#family-resources > details");
   const alreadyOpen = await details.evaluate((node) => (node as HTMLDetailsElement).open);
   if (!alreadyOpen) {
@@ -290,7 +298,7 @@ for (const persona of PERSONAS) {
     expect(ids.slice(0, persona.expectedPrefix.length)).toEqual(persona.expectedPrefix);
     for (const id of persona.includes) expect(ids).toContain(id);
     for (const id of persona.excludes) expect(ids).not.toContain(id);
-    await expect(cards.getByTestId("family-resource-locality")).toHaveCount(ids.length);
+    await expect(cards.getByTestId("family-resource-fit")).toHaveCount(ids.length);
 
     if (persona.id === "F03") {
       await expect(

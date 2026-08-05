@@ -11,13 +11,53 @@ const LANGUAGE_OPTIONS: { value: Language; label: string }[] = [
   { value: "es", label: "Español" }
 ];
 
+// The header control: both labels always visible, each its own ≥44px target,
+// and the inactive one a real word rather than a flag. "EN" is short enough to
+// keep the pair on one line at 375px without shrinking either target.
+const SEGMENTED_LABELS: Record<Language, string> = { en: "EN", es: "Español" };
+
 type LanguageToggleProps = {
   language: Language;
   onChange: (language: Language) => void;
   compact?: boolean;
+  /** Joined pair for a page header, instead of two free-standing buttons. */
+  variant?: "buttons" | "segmented";
 };
 
-export function LanguageToggle({ language, onChange, compact = false }: LanguageToggleProps) {
+export function LanguageToggle({
+  language,
+  onChange,
+  compact = false,
+  variant = "buttons"
+}: LanguageToggleProps) {
+  if (variant === "segmented") {
+    return (
+      <div
+        className="flex shrink-0 overflow-hidden rounded-control border border-care/40"
+        role="group"
+        aria-label="Language / Idioma"
+      >
+        {LANGUAGE_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            lang={option.value}
+            aria-pressed={language === option.value}
+            onClick={() => onChange(option.value)}
+            className={clsx(
+              "min-h-12 min-w-[48px] px-3 text-sm",
+              language === option.value
+                ? "bg-care font-bold text-white"
+                : "bg-white font-semibold text-care"
+            )}
+          >
+            {SEGMENTED_LABELS[option.value]}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className={clsx(!compact && "grid gap-2")}>
       {!compact ? <p className="text-sm font-medium">Language / Idioma</p> : null}

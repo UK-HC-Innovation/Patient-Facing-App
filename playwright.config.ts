@@ -15,7 +15,9 @@ export default defineConfig({
   use: {
     baseURL,
     trace: "on-first-retry",
-    permissions: ["camera", "microphone"],
+    // Sharing a program falls back to copying its link when the browser has no
+    // share sheet, which is exactly what headless Chromium is.
+    permissions: ["camera", "microphone", "clipboard-read", "clipboard-write"],
     launchOptions: {
       args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"]
     }

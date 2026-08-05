@@ -4,8 +4,8 @@
   "description": "Patient-owned support for medicines, readings, and visits.",
   "start_url": "/today",
   "display": "standalone",
-  "background_color": "#f7faf8",
-  "theme_color": "#1f6b5c",
+  "background_color": "#f6f8fc",
+  "theme_color": "#0033a0",
   "icons": [
     {
       "src": "/app-icon.svg",

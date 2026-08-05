@@ -233,7 +233,6 @@ export type FamilyStringKey =
   | "resourceShare"
   | "resourceShareConsent"
   | "resourceShareConsentRequired"
-  | "resourceShareComplete"
   | "resourceOpenSource"
   | "resourceAlreadyEnrolled"
   | "resourceMarkEnrolled"
@@ -300,6 +299,7 @@ export type FamilyStringKey =
   | "rungVisit"
   | "rungClinicNow"
   | "rungClock"
+  | "rungClockRange"
   | "rungCheckin"
   | "rungStep"
   | "rungJournal"
@@ -358,8 +358,7 @@ export type FamilyStringKey =
   | "followupNotYet"
   | "followupNotForUs"
   | "followupThanks"
-  | "clockFirstSteps"
-  | "clockFirstStepsYearOnly"
+  | "clockFirstStepsRangeOpen"
   | "factRegressionLabel"
   | "factRegressionValue"
   | "clinicNowTitle"
@@ -427,6 +426,55 @@ export type FamilyStringKey =
   | "foldTimelineSummary"
   | "foldTimelineSummaryOne"
   | "foldTimelineSummaryNone"
+  | "tabHome"
+  | "tabPrograms"
+  | "tabNotes"
+  | "tabVisit"
+  | "tabsLabel"
+  | "shellExit"
+  | "shellHeaderSubtitle"
+  | "homeReturnTitle"
+  | "homeLastNote"
+  | "agoToday"
+  | "agoDays"
+  | "agoDaysOne"
+  | "agoMonths"
+  | "agoMonthsOne"
+  | "homeChipOnListSince"
+  | "homeQueuedNext"
+  | "homeComposerCta"
+  | "homeComposerCtaNamed"
+  | "homeDoorProgramsMeta"
+  | "homeDoorProgramsMetaOne"
+  | "homeDoorVisitMeta"
+  | "homeDoorNotesMeta"
+  | "homeDoorNotesMetaOne"
+  | "homeDoorNotesMetaNone"
+  | "homeTrustLine"
+  | "clockFirstStepsDated"
+  | "clockFirstStepsRange"
+  | "clockHeadline"
+  | "clockAddBirthMonth"
+  | "clockAddBirthMonthHint"
+  | "clockBirthMonthSaved"
+  | "resourceCallNumber"
+  | "resourceCallAlso"
+  | "resourceStartOnline"
+  | "resourceAskProvider"
+  | "resourceContactSchool"
+  | "resourceAskNavigator"
+  | "resourceShareCopy"
+  | "resourceShareUnavailable"
+  | "resourceShareReceipt"
+  | "resourceShareCopiedReceipt"
+  | "glossPoe"
+  | "glossIfsp"
+  | "glossIep"
+  | "gloss504"
+  | "glossArc"
+  | "apptNoneWork"
+  | "apptKeepYourPlace"
+  | "apptNeedsBookedVisit"
   | "askEyebrow";
 
 // Counted strings come in pairs: every "{count} things" key has a "…One" twin
@@ -668,7 +716,6 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     resourceShare: "Share",
     resourceShareConsent: "I agree to share this resource now.",
     resourceShareConsentRequired: "Check the consent box before sharing.",
-    resourceShareComplete: "Share recorded with your consent.",
     resourceOpenSource: "See their official page",
     resourceMore: "More about this",
     resourceLess: "Show less",
@@ -735,6 +782,7 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     rungVisit: "Your evaluation visit needs a look",
     rungClinicNow: "Something to tell the clinic — see below",
     rungClock: "About {weeks} weeks left to start First Steps",
+    rungClockRange: "See the First Steps cutoff dates",
     rungCheckin: "Monthly check-in (about 30 seconds)",
     rungStep: "Quick follow-up on a step you planned",
     rungJournal: "Add a 10-second note about your child",
@@ -793,10 +841,6 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     followupNotYet: "Haven't yet",
     followupNotForUs: "Not for us",
     followupThanks: "Noted — it's in your packet's services section when it counts.",
-    clockFirstSteps:
-      "About {weeks} weeks left to start First Steps — after the cutoff, the school system takes over referrals.",
-    clockFirstStepsYearOnly:
-      "About {weeks} weeks left to start First Steps — after the cutoff, the school system takes over referrals. Timing is shown early because only the birth year is known.",
     factRegressionLabel: "Change you noticed",
     factRegressionValue: "Possible loss of skills — from your words",
     clinicNowTitle: "Worth telling the clinic now",
@@ -868,6 +912,61 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     foldTimelineSummary: "{count} things to do now",
     foldTimelineSummaryOne: "{count} thing to do now",
     foldTimelineSummaryNone: "Nothing to do right now",
+    tabHome: "Home",
+    tabPrograms: "Programs",
+    tabNotes: "Notes",
+    tabVisit: "Visit",
+    tabsLabel: "Ladder sections",
+    shellExit: "All my health",
+    shellHeaderSubtitle: "Tell us about your child and their needs",
+    homeReturnTitle: "Welcome back. Here's what's waiting.",
+    homeLastNote: "Last note: {date} · {ago}",
+    agoToday: "today",
+    agoDays: "{count} days ago",
+    agoDaysOne: "yesterday",
+    agoMonths: "about {count} months ago",
+    agoMonthsOne: "about a month ago",
+    homeChipOnListSince: "On the list since {month}",
+    homeQueuedNext: "1 more thing after this: a quick follow-up on the {name} step you planned.",
+    homeComposerCta: "Add a note — type or speak",
+    homeComposerCtaNamed: "Add a note about {name} — type or speak",
+    homeDoorProgramsMeta: "{count} matched",
+    homeDoorProgramsMetaOne: "{count} matched",
+    homeDoorVisitMeta: "on the list",
+    homeDoorNotesMeta: "{count} notes in",
+    homeDoorNotesMetaOne: "{count} note in",
+    homeDoorNotesMetaNone: "nothing in yet",
+    homeTrustLine:
+      "Your notes stay on this phone. We can't predict the exact evaluation date — here's how to make the wait count.",
+    clockFirstStepsDated:
+      "About {weeks} weeks left to start First Steps — referrals close {date}. After the cutoff, the school system takes over referrals.",
+    clockFirstStepsRange:
+      "We only know {name}'s birth year, so the cutoff lands between {earliest} and {latest} — it depends on their birthday.",
+    clockFirstStepsRangeOpen:
+      "We only know {name}'s birth year. Depending on their birthday the cutoff may already have passed, or may be as late as {latest} — one call to First Steps settles it.",
+    clockHeadline: "First Steps stops taking new referrals 45 days before {name} turns 3.",
+    clockAddBirthMonth: "＋ Add their birth month — we'll name the date",
+    clockAddBirthMonthHint: "Month only — not the full birthday.",
+    clockBirthMonthSaved: "Saved. The cutoff date is named everywhere the clock appears.",
+    resourceCallNumber: "Call {number}",
+    resourceCallAlso: "or toll-free {number}",
+    resourceStartOnline: "Start online",
+    resourceAskProvider: "Ask your doctor for a referral",
+    resourceContactSchool: "Contact the school",
+    resourceAskNavigator: "Ask a navigator to help",
+    resourceShareCopy: "Copy link",
+    resourceShareUnavailable: "This phone would not open a share sheet or copy the link. Open the program's official page and share it from there.",
+    resourceShareReceipt: "Sent: the program's name and link. Nothing about {child}.",
+    resourceShareCopiedReceipt: "Link copied: the program's name and link. Nothing about {child}.",
+    glossPoe: "Point of Entry — the local office that takes First Steps referrals.",
+    glossIfsp: "IFSP — the written plan First Steps makes with your family.",
+    glossIep: "IEP — the written plan the school must follow for your child.",
+    gloss504: "504 plan — school supports without special-education classes.",
+    glossArc: "ARC — Kentucky's name for the school meeting where your child's plan is decided.",
+    apptNoneWork: "None of these work for us",
+    apptKeepYourPlace:
+      "You keep your place. Saying no to these times changes nothing about your spot on the list. We'll show new times when they open.",
+    apptNeedsBookedVisit: "This needs a booked visit first — pick a time above.",
     askEyebrow: "Your next step"
   },
   es: {
@@ -1102,7 +1201,6 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     resourceShare: "Compartir",
     resourceShareConsent: "Acepto compartir este recurso ahora.",
     resourceShareConsentRequired: "Marca la casilla de consentimiento antes de compartir.",
-    resourceShareComplete: "Se registró el intercambio con tu consentimiento.",
     resourceOpenSource: "Ver su página oficial",
     resourceMore: "Más sobre esto",
     resourceLess: "Mostrar menos",
@@ -1169,6 +1267,7 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     rungVisit: "Tu visita de evaluación necesita atención",
     rungClinicNow: "Algo que contarle a la clínica — mira abajo",
     rungClock: "Quedan unas {weeks} semanas para empezar First Steps",
+    rungClockRange: "Ver las fechas de corte de First Steps",
     rungCheckin: "Chequeo mensual (unos 30 segundos)",
     rungStep: "Seguimiento rápido de un paso que planeaste",
     rungJournal: "Agrega una nota de 10 segundos sobre tu hijo o hija",
@@ -1227,10 +1326,6 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     followupNotYet: "Todavía no",
     followupNotForUs: "No es para nosotros",
     followupThanks: "Anotado — aparecerá en la sección de servicios de tu paquete cuando cuente.",
-    clockFirstSteps:
-      "Quedan unas {weeks} semanas para empezar First Steps — después del corte, el sistema escolar se encarga de los referidos.",
-    clockFirstStepsYearOnly:
-      "Quedan unas {weeks} semanas para empezar First Steps — después del corte, el sistema escolar se encarga de los referidos. El tiempo se muestra temprano porque solo se conoce el año de nacimiento.",
     factRegressionLabel: "Cambio que notaste",
     factRegressionValue: "Posible pérdida de habilidades — según tus palabras",
     clinicNowTitle: "Vale la pena avisar a la clínica ahora",
@@ -1306,6 +1401,61 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     foldTimelineSummary: "{count} cosas para hacer ahora",
     foldTimelineSummaryOne: "{count} cosa para hacer ahora",
     foldTimelineSummaryNone: "Nada que hacer por ahora",
+    tabHome: "Inicio",
+    tabPrograms: "Programas",
+    tabNotes: "Notas",
+    tabVisit: "Cita",
+    tabsLabel: "Secciones de Ladder",
+    shellExit: "Toda mi salud",
+    shellHeaderSubtitle: "Cuéntanos sobre tu hijo o hija y sus necesidades",
+    homeReturnTitle: "Qué bueno verte otra vez. Esto es lo que te espera.",
+    homeLastNote: "Última nota: {date} · {ago}",
+    agoToday: "hoy",
+    agoDays: "hace {count} días",
+    agoDaysOne: "ayer",
+    agoMonths: "hace unos {count} meses",
+    agoMonthsOne: "hace como un mes",
+    homeChipOnListSince: "En la lista desde {month}",
+    homeQueuedNext: "1 cosa más después de esto: una pregunta rápida sobre el paso de {name} que planeaste.",
+    homeComposerCta: "Agrega una nota — escribe o habla",
+    homeComposerCtaNamed: "Agrega una nota sobre {name} — escribe o habla",
+    homeDoorProgramsMeta: "{count} encontrados",
+    homeDoorProgramsMetaOne: "{count} encontrado",
+    homeDoorVisitMeta: "en la lista",
+    homeDoorNotesMeta: "{count} notas dentro",
+    homeDoorNotesMetaOne: "{count} nota dentro",
+    homeDoorNotesMetaNone: "todavía nada dentro",
+    homeTrustLine:
+      "Tus notas se quedan en este teléfono. No podemos predecir la fecha exacta de la evaluación — aquí verás cómo aprovechar la espera.",
+    clockFirstStepsDated:
+      "Quedan unas {weeks} semanas para empezar First Steps — los referidos cierran el {date}. Después del corte, el sistema escolar se encarga de los referidos.",
+    clockFirstStepsRange:
+      "Solo sabemos el año de nacimiento de {name}, así que el corte cae entre {earliest} y {latest} — depende de su cumpleaños.",
+    clockFirstStepsRangeOpen:
+      "Solo sabemos el año de nacimiento de {name}. Según su cumpleaños, el corte ya pudo haber pasado o puede ser tan tarde como {latest} — una llamada a First Steps lo aclara.",
+    clockHeadline: "First Steps deja de aceptar referidos nuevos 45 días antes de que {name} cumpla 3 años.",
+    clockAddBirthMonth: "＋ Agrega su mes de nacimiento — te diremos la fecha",
+    clockAddBirthMonthHint: "Solo el mes — no la fecha completa.",
+    clockBirthMonthSaved: "Guardado. La fecha de corte aparece en todos los lugares donde va el reloj.",
+    resourceCallNumber: "Llamar al {number}",
+    resourceCallAlso: "o gratis al {number}",
+    resourceStartOnline: "Empezar en línea",
+    resourceAskProvider: "Pídele un referido a tu doctor",
+    resourceContactSchool: "Comunícate con la escuela",
+    resourceAskNavigator: "Pide ayuda a un navegante",
+    resourceShareCopy: "Copiar enlace",
+    resourceShareUnavailable: "Este teléfono no abrió la hoja para compartir ni copió el enlace. Abre la página oficial del programa y compártela desde ahí.",
+    resourceShareReceipt: "Enviado: el nombre del programa y el enlace. Nada sobre {child}.",
+    resourceShareCopiedReceipt: "Enlace copiado: el nombre del programa y el enlace. Nada sobre {child}.",
+    glossPoe: "Punto de entrada — la oficina local que recibe los referidos de First Steps.",
+    glossIfsp: "IFSP — el plan escrito que First Steps hace con tu familia.",
+    glossIep: "IEP — el plan escrito que la escuela tiene que seguir para tu hijo o hija.",
+    gloss504: "Plan 504 — apoyos en la escuela sin clases de educación especial.",
+    glossArc: "ARC — así se llama en Kentucky la reunión escolar donde se decide el plan de tu hijo o hija.",
+    apptNoneWork: "Ninguno de estos nos sirve",
+    apptKeepYourPlace:
+      "Conservas tu lugar. Decir que no a estos horarios no cambia nada en tu lugar de la lista. Te mostraremos horarios nuevos cuando se abran.",
+    apptNeedsBookedVisit: "Esto necesita una cita reservada primero — elige un horario arriba.",
     askEyebrow: "Tu próximo paso"
   }
 };

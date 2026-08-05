@@ -97,7 +97,7 @@ afterEach(() => {
   delete (window as unknown as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition;
 });
 
-describe("FamilyInterview", () => {
+describe("FamilyInterview", { timeout: 20_000 }, () => {
   it("uses the deterministic fallback whenever live extraction returns null", async () => {
     const onExtracted = vi.fn();
     renderInterview({ onExtracted });

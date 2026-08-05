@@ -16,3 +16,18 @@ export function openAllFamilyFolds(): void {
     }
   });
 }
+
+/**
+ * Brings one of Ladder's four surfaces to the front, through the same tab a
+ * caregiver would press — for tests that assert what a surface holds without
+ * otherwise needing a user. Tests that are about the tab bar itself press it
+ * with userEvent instead.
+ */
+export function showFamilySurface(label: "Home" | "Programs" | "Notes" | "Visit"): void {
+  act(() => {
+    const tab = Array.from(document.querySelectorAll<HTMLElement>('[role="tab"]')).find(
+      (node) => node.textContent?.trim() === label
+    );
+    tab?.click();
+  });
+}

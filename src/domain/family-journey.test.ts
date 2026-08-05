@@ -66,6 +66,9 @@ function appointment(overrides: Partial<FamilyAppointment> = {}): FamilyAppointm
 
 const base = schoolAgeFamilyState;
 const STAMP = daysAgo(5);
+// The appointment companion is its own surface, and it only exists once a
+// referral fits the child — so the visit rung needs one behind it.
+const REFERRAL = { clinic: "UK Developmental Pediatrics", referredAt: daysAgo(120) };
 
 describe("familyLastTouchAt", () => {
   it("returns null for a family that has not done anything yet", () => {
@@ -229,6 +232,7 @@ describe("nextFamilyRung", () => {
   it("puts an offered visit above an unacknowledged flag", () => {
     const family: FamilyNavigatorState = {
       ...base,
+      referral: REFERRAL,
       appointments: [appointment({ status: "offered" })],
       flags: [{ id: "flag-1", type: "regression", source: "text", raisedAt: daysAgo(2) }]
     };
@@ -238,6 +242,7 @@ describe("nextFamilyRung", () => {
   it("puts a replaced latest visit above an unacknowledged flag so the card can find a new time", () => {
     const family: FamilyNavigatorState = {
       ...base,
+      referral: REFERRAL,
       appointments: [
         appointment({
           status: "replaced",
