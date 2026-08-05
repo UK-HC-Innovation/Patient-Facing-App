@@ -57,6 +57,29 @@ import type {
 } from "@/domain/types";
 
 const STORAGE_KEY = "home-health-ai-ownership-state";
+/**
+ * Single slot holding the last payload we refused to load.
+ *
+ * F3c. Everything a family has written lives in one localStorage key, and a
+ * payload this file cannot validate — a schema drift, a half-written save, a
+ * corrupted string — was simply removed, silently, and the app came back as the
+ * demo with months of notes gone. The reset still happens (a state we cannot
+ * trust must not drive the app), but the raw text is stashed here first with a
+ * console warning, so the record is recoverable by hand instead of destroyed.
+ * One slot, overwritten each time: this is a developer's escape hatch, not a
+ * backup, and it deliberately has no UI.
+ */
+const RECOVERY_KEY = `${STORAGE_KEY}.recovery`;
+
+function stashRejectedPayload(raw: string, reason: string): void {
+  safeSetItem(RECOVERY_KEY, raw);
+  if (typeof console !== "undefined") {
+    console.warn(
+      `[storage] Refused a stored payload (${reason}) and reset to the demo state. ` +
+        `The raw payload is kept at "${RECOVERY_KEY}" so it can be recovered by hand.`
+    );
+  }
+}
 
 function safeGetItem(key: string): string | null {
   if (typeof window === "undefined") {
@@ -1465,6 +1488,7 @@ export function loadStoredState(): AppState {
       };
 
       if (!isValidAppState(sanitizedState)) {
+        stashRejectedPayload(raw, "sanitized state still did not validate");
         safeRemoveItem(STORAGE_KEY);
         return defaultDemoState;
       }
@@ -1489,9 +1513,11 @@ export function loadStoredState(): AppState {
       return sanitizedState;
     }
 
+    stashRejectedPayload(raw, "not a recognizable app state");
     safeRemoveItem(STORAGE_KEY);
     return defaultDemoState;
   } catch {
+    stashRejectedPayload(raw, "unparseable");
     safeRemoveItem(STORAGE_KEY);
     return defaultDemoState;
   }
@@ -1511,6 +1537,9 @@ export function clearStoredState(): void {
   }
 
   safeRemoveItem(STORAGE_KEY);
+  // "Clear my data" has to mean it: a stashed payload is still the family's
+  // record, so it goes with the rest.
+  safeRemoveItem(RECOVERY_KEY);
 }
 
 // The first-run onboarding marker lives outside AppState (its own localStorage

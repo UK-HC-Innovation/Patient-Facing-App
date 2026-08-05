@@ -42,3 +42,40 @@ export async function shareFamilyResource({
 
   return "unavailable";
 }
+
+/**
+ * The visit packet, on the same rails — and with the opposite privacy weight.
+ * A program share is a name and a public link; this one is the child's own
+ * record, so the consent copy that gates it (packetShareConsent) says so
+ * outright. Still no network of ours: the OS sheet or the clipboard, nothing
+ * else (FR-8).
+ */
+export async function shareFamilyPacketText({
+  title,
+  text
+}: {
+  title: string;
+  text: string;
+}): Promise<FamilyShareOutcome> {
+  const nav: Navigator | undefined = typeof navigator === "undefined" ? undefined : navigator;
+
+  if (typeof nav?.share === "function") {
+    try {
+      await nav.share({ title, text });
+      return "shared";
+    } catch (error) {
+      if (wasCancelled(error)) return "cancelled";
+    }
+  }
+
+  if (typeof nav?.clipboard?.writeText === "function") {
+    try {
+      await nav.clipboard.writeText(text);
+      return "copied";
+    } catch {
+      return "unavailable";
+    }
+  }
+
+  return "unavailable";
+}

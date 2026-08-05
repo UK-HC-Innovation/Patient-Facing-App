@@ -184,7 +184,10 @@ describe("FamilyVisitPacket", () => {
     expect(body.queryByText("Who coordinates the next steps?")).toBeNull();
   });
 
-  it("prints the packet and records the export", async () => {
+  // F3a. The receipt waits for the print flow, not for the tap: it used to be
+  // written before the dialog even opened, so a dialog that never appeared —
+  // and a dismissed one — both left "Printed" in the audit trail.
+  it("records the print only once the print flow has run", async () => {
     const user = userEvent.setup();
     const print = vi.spyOn(window, "print").mockImplementation(() => {});
     const { onExport } = renderPacket();
@@ -192,7 +195,14 @@ describe("FamilyVisitPacket", () => {
     await user.click(screen.getByRole("button", { name: "Print" }));
 
     expect(print).toHaveBeenCalledTimes(1);
-    expect(onExport).toHaveBeenCalledWith("printed");
+    expect(onExport).not.toHaveBeenCalled();
+
+    window.dispatchEvent(new Event("afterprint"));
+    expect(onExport).toHaveBeenCalledExactlyOnceWith("printed");
+
+    // The listener is one-shot: a second dialog closing is not a second receipt.
+    window.dispatchEvent(new Event("afterprint"));
+    expect(onExport).toHaveBeenCalledTimes(1);
     print.mockRestore();
   });
 
@@ -211,6 +221,128 @@ describe("FamilyVisitPacket", () => {
     expect(writeText).toHaveBeenCalledWith(buildFamilyVisitSummary(fatFamily, "en", NOW));
     expect(onExport).toHaveBeenCalledWith("copied");
     expect(await screen.findByText("Copied.")).toBeVisible();
+  });
+
+  // F3a. A blocked clipboard used to be a tap that did nothing and said nothing.
+  it("says so when the clipboard refuses, and records no export", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockRejectedValue(new Error("blocked"));
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true
+    });
+    const { onExport } = renderPacket();
+
+    await user.click(screen.getByRole("button", { name: "Copy as text" }));
+
+    expect(
+      await within(screen.getByTestId("family-packet-receipt")).findByText(/would not let us copy/)
+    ).toBeVisible();
+    expect(onExport).not.toHaveBeenCalled();
+  });
+
+  it("says so when the phone has no clipboard at all", async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+    const { onExport } = renderPacket();
+
+    await user.click(screen.getByRole("button", { name: "Copy as text" }));
+
+    expect(
+      await within(screen.getByTestId("family-packet-receipt")).findByText(/would not let us copy/)
+    ).toBeVisible();
+    expect(onExport).not.toHaveBeenCalled();
+  });
+
+  // F3b. On-device export: a Blob and an anchor, no network (FR-8).
+  it("saves a copy of exactly the packet text to the device", async () => {
+    const user = userEvent.setup();
+    const createObjectURL = vi.fn().mockReturnValue("blob:packet");
+    const revokeObjectURL = vi.fn();
+    Object.defineProperty(URL, "createObjectURL", { value: createObjectURL, configurable: true });
+    Object.defineProperty(URL, "revokeObjectURL", { value: revokeObjectURL, configurable: true });
+    const clicked: Array<{ href: string; download: string }> = [];
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        clicked.push({ href: this.getAttribute("href") ?? "", download: this.download });
+      });
+    const { onExport } = renderPacket();
+
+    await user.click(screen.getByTestId("family-packet-save"));
+
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    const [blob] = createObjectURL.mock.calls[0] as [Blob];
+    // jsdom's Blob has no text(); FileReader is what it does implement.
+    const contents = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(blob);
+    });
+    expect(contents).toBe(buildFamilyVisitSummary(fatFamily, "en", NOW));
+    expect(blob.type).toContain("text/plain");
+    expect(clicked).toEqual([{ href: "blob:packet", download: "visit-packet.txt" }]);
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:packet");
+    expect(onExport).toHaveBeenCalledWith("saved");
+    expect(
+      await within(screen.getByTestId("family-packet-receipt")).findByText(/Saved to this device/)
+    ).toBeVisible();
+    click.mockRestore();
+  });
+
+  // FR-7. The one exit that leaves the device, behind a consent that names what
+  // is in the text.
+  it("requires an explicit consent naming the child's information before sharing", async () => {
+    const user = userEvent.setup();
+    const share = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "share", { value: share, configurable: true });
+    const { onExport } = renderPacket();
+
+    await user.click(screen.getByTestId("family-packet-share-open"));
+    const shareButton = screen.getByTestId("family-packet-share");
+    expect(shareButton).toBeDisabled();
+    expect(share).not.toHaveBeenCalled();
+
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: /this text includes my child's information and leaves this app/i
+      })
+    );
+    await user.click(shareButton);
+
+    expect(share).toHaveBeenCalledWith({
+      title: "Our visit packet",
+      text: buildFamilyVisitSummary(fatFamily, "en", NOW)
+    });
+    expect(onExport).toHaveBeenCalledWith("shared");
+    expect(
+      await within(screen.getByTestId("family-packet-receipt")).findByText(
+        "Shared: the packet text, including your child's information."
+      )
+    ).toBeVisible();
+  });
+
+  it("leaves no receipt when the caregiver backs out of the share sheet", async () => {
+    const user = userEvent.setup();
+    const abort = Object.assign(new Error("cancelled"), { name: "AbortError" });
+    Object.defineProperty(navigator, "share", {
+      value: vi.fn().mockRejectedValue(abort),
+      configurable: true
+    });
+    Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+    const { onExport } = renderPacket();
+
+    await user.click(screen.getByTestId("family-packet-share-open"));
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: /this text includes my child's information and leaves this app/i
+      })
+    );
+    await user.click(screen.getByTestId("family-packet-share"));
+
+    expect(onExport).not.toHaveBeenCalled();
+    expect(screen.getByTestId("family-packet-receipt")).toHaveTextContent("");
   });
 
   it("renders the packet in Spanish", () => {

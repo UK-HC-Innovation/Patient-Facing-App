@@ -2,6 +2,7 @@
 
 import React, { useId, useMemo, useState } from "react";
 import { FamilyFoldSection } from "@/components/family-fold-section";
+import { shareFamilyPacketText } from "@/components/family-share";
 import {
   PACKET_QUESTIONS,
   buildFamilyVisitSummary
@@ -55,14 +56,26 @@ function packetBlocks(bodyLines: string[], headings: Set<string>): PacketBlock[]
   return blocks;
 }
 
+export type FamilyPacketExportVerb = "printed" | "copied" | "saved" | "shared";
+
 export type FamilyVisitPacketProps = {
   family: FamilyNavigatorState;
   language: Language;
   /** Fixed by the caller in tests; the footer date is the only clock the packet reads. */
   now?: Date;
   onToggleQuestion: (questionId: string) => void;
-  onExport: (verb: "printed" | "copied") => void;
+  onExport: (verb: FamilyPacketExportVerb) => void;
 };
+
+/** Every receipt this card can show, success and failure alike. */
+type PacketReceipt =
+  | "packetCopied"
+  | "packetCopyFailed"
+  | "packetSaved"
+  | "packetSaveFailed"
+  | "packetShareReceipt"
+  | "packetShareCopiedReceipt"
+  | "packetShareUnavailable";
 
 export function FamilyVisitPacket({
   family,
@@ -72,7 +85,10 @@ export function FamilyVisitPacket({
   onExport
 }: FamilyVisitPacketProps) {
   const pickerId = useId();
-  const [copied, setCopied] = useState(false);
+  const consentId = useId();
+  const [receipt, setReceipt] = useState<PacketReceipt | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const [consented, setConsented] = useState(false);
   const summary = useMemo(
     () => buildFamilyVisitSummary(family, language, now),
     [family, language, now]
@@ -87,16 +103,83 @@ export function FamilyVisitPacket({
   // nothing here sends it anywhere.
   async function copyPacket(): Promise<void> {
     try {
-      if (typeof navigator === "undefined" || !navigator.clipboard) {
+      if (typeof navigator === "undefined" || typeof navigator.clipboard?.writeText !== "function") {
+        setReceipt("packetCopyFailed");
         return;
       }
       await navigator.clipboard.writeText(summary);
-      setCopied(true);
+      setReceipt("packetCopied");
       onExport("copied");
     } catch {
-      // A blocked clipboard is not an error worth interrupting the family with —
-      // the packet is still on screen to read from or print.
+      // A blocked clipboard used to fail silently into an empty live region —
+      // a caregiver tapped Copy, nothing happened, and nothing said so.
+      setReceipt("packetCopyFailed");
     }
+  }
+
+  /**
+   * The audit line is a receipt, so it waits for the print flow to finish
+   * instead of firing on the tap — a dialog that never opened used to leave
+   * "Printed" behind it. Honest limitation, stated where it lives: `afterprint`
+   * also fires when the dialog is dismissed, and no browser exposes a
+   * "paper actually came out" signal, so this narrows the false receipt to
+   * "the dialog ran" rather than eliminating it.
+   */
+  function printPacket(): void {
+    if (typeof window === "undefined") return;
+    if ("onafterprint" in window) {
+      const settle = (): void => {
+        window.removeEventListener("afterprint", settle);
+        onExport("printed");
+      };
+      window.addEventListener("afterprint", settle);
+    } else {
+      // Older engine with no event: keep the receipt rather than lose it.
+      onExport("printed");
+    }
+    window.print();
+  }
+
+  /**
+   * F3b. A plain-text file of exactly what is on screen — included,
+   * non-rejected facts and nothing else. Built from a Blob and revoked
+   * immediately: no network, no endpoint, no copy anywhere but this device
+   * (FR-8).
+   */
+  function savePacket(): void {
+    try {
+      const blob = new Blob([summary], { type: "text/plain;charset=utf-8" });
+      const href = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = href;
+      link.download = `${tFamily(language, "packetFileName")}.txt`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(href);
+      setReceipt("packetSaved");
+      onExport("saved");
+    } catch {
+      setReceipt("packetSaveFailed");
+    }
+  }
+
+  /**
+   * The one exit that leaves the device. Behind the same two-tap consent the
+   * resource cards use, with copy that names what is in the text rather than
+   * calling it "a summary" (FR-7).
+   */
+  async function sharePacket(): Promise<void> {
+    const outcome = await shareFamilyPacketText({ title, text: summary });
+    setSharing(false);
+    setConsented(false);
+    if (outcome === "cancelled") return;
+    if (outcome === "unavailable") {
+      setReceipt("packetShareUnavailable");
+      return;
+    }
+    setReceipt(outcome === "shared" ? "packetShareReceipt" : "packetShareCopiedReceipt");
+    onExport("shared");
   }
 
   return (
@@ -108,28 +191,88 @@ export function FamilyVisitPacket({
       summaryLine={tFamily(language, "foldPacketSummary")}
       className={`family-visit-packet ${CARD_SECTION}`}
     >
-      <div className="family-visit-packet__actions mt-3 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            onExport("printed");
-            window.print();
-          }}
-          className={BTN_PRIMARY}
+      <div className="family-visit-packet__actions mt-3 grid gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={printPacket} className={BTN_PRIMARY}>
+            {tFamily(language, "packetPrint")}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void copyPacket();
+            }}
+            className={BTN_SECONDARY}
+          >
+            {tFamily(language, "packetCopy")}
+          </button>
+          <button
+            type="button"
+            data-testid="family-packet-save"
+            onClick={savePacket}
+            className={BTN_SECONDARY}
+          >
+            {tFamily(language, "packetSave")}
+          </button>
+          {sharing ? null : (
+            <button
+              type="button"
+              data-testid="family-packet-share-open"
+              aria-expanded={false}
+              onClick={() => setSharing(true)}
+              className={BTN_SECONDARY}
+            >
+              {tFamily(language, "packetShare")}
+            </button>
+          )}
+        </div>
+
+        {/* Two taps, one consent — and the consent names what is in the text.
+            This is the only exit that leaves the device. */}
+        {sharing ? (
+          <div
+            data-testid="family-packet-share-consent"
+            className="grid gap-2 rounded-control border border-ink/15 bg-paper p-3"
+          >
+            <label htmlFor={consentId} className="flex min-h-12 min-w-0 items-start gap-2 text-sm leading-6">
+              <input
+                id={consentId}
+                type="checkbox"
+                checked={consented}
+                onChange={(event) => setConsented(event.target.checked)}
+                className={`mt-1 ${CONTROL_FOCUS}`}
+              />
+              <span className="min-w-0 break-words">{tFamily(language, "packetShareConsent")}</span>
+            </label>
+            {consented ? null : (
+              <p className="break-words text-xs text-ink/65">
+                {tFamily(language, "resourceShareConsentRequired")}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={!consented}
+                data-testid="family-packet-share"
+                onClick={() => {
+                  void sharePacket();
+                }}
+                className={BTN_SECONDARY}
+              >
+                {tFamily(language, "packetShare")}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {/* One live region for every outcome, success and failure alike: a
+            blocked clipboard used to be a tap that did nothing and said nothing. */}
+        <p
+          role="status"
+          aria-live="polite"
+          data-testid="family-packet-receipt"
+          className="min-h-12 break-words text-sm font-semibold text-care"
         >
-          {tFamily(language, "packetPrint")}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            void copyPacket();
-          }}
-          className={BTN_SECONDARY}
-        >
-          {tFamily(language, "packetCopy")}
-        </button>
-        <p aria-live="polite" className="min-h-12 self-center break-words text-sm font-semibold text-care">
-          {copied ? tFamily(language, "packetCopied") : ""}
+          {receipt === null ? "" : tFamily(language, receipt)}
         </p>
       </div>
 

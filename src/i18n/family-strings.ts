@@ -346,6 +346,16 @@ export type FamilyStringKey =
   | "packetPrint"
   | "packetCopy"
   | "packetCopied"
+  | "packetCopyFailed"
+  | "packetSave"
+  | "packetSaved"
+  | "packetSaveFailed"
+  | "packetFileName"
+  | "packetShare"
+  | "packetShareConsent"
+  | "packetShareReceipt"
+  | "packetShareCopiedReceipt"
+  | "packetShareUnavailable"
   | "stepPlanCta"
   | "stepStatusPlanned"
   | "stepStatusTried"
@@ -834,6 +844,19 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     packetPrint: "Print",
     packetCopy: "Copy as text",
     packetCopied: "Copied.",
+    packetCopyFailed:
+      "This phone would not let us copy. The packet is on screen to read from, and Print and Save a copy still work.",
+    packetSave: "Save a copy",
+    packetSaved: "Saved to this device as a text file.",
+    packetSaveFailed: "This phone would not save a file. Print it or copy it as text instead.",
+    packetFileName: "visit-packet",
+    packetShare: "Share this packet",
+    packetShareConsent:
+      "I understand this text includes my child's information and leaves this app when I share it.",
+    packetShareReceipt: "Shared: the packet text, including your child's information.",
+    packetShareCopiedReceipt: "Copied: the packet text, including your child's information.",
+    packetShareUnavailable:
+      "This phone would not open a share sheet or copy the text. Save a copy or print it instead.",
     stepPlanCta: "I'll do this",
     stepStatusPlanned: "Planned",
     stepStatusTried: "Tried",
@@ -1324,6 +1347,19 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     packetPrepTitle: "Prepararse para la visita",
     packetBringPacket: "Lleva este paquete — son tus notas en tus palabras.",
     packetPickTitle: "Elige preguntas para llevar",
+    packetCopyFailed:
+      "Este teléfono no nos dejó copiar. El paquete está en la pantalla para leerlo, y Imprimir y Guardar una copia siguen funcionando.",
+    packetSave: "Guardar una copia",
+    packetSaved: "Guardado en este dispositivo como archivo de texto.",
+    packetSaveFailed: "Este teléfono no pudo guardar un archivo. Imprímelo o cópialo como texto.",
+    packetFileName: "paquete-de-visita",
+    packetShare: "Compartir este paquete",
+    packetShareConsent:
+      "Entiendo que este texto incluye información de mi hijo o hija y sale de esta aplicación cuando lo comparto.",
+    packetShareReceipt: "Compartido: el texto del paquete, con la información de tu hijo o hija.",
+    packetShareCopiedReceipt: "Copiado: el texto del paquete, con la información de tu hijo o hija.",
+    packetShareUnavailable:
+      "Este teléfono no abrió una hoja para compartir ni copió el texto. Guarda una copia o imprímelo.",
     packetPrint: "Imprimir",
     packetCopy: "Copiar como texto",
     packetCopied: "Copiado.",

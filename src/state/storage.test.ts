@@ -804,6 +804,56 @@ describe("storage", () => {
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
+  // F3c. The reset still happens — a state we cannot trust must not drive the
+  // app — but the family's record is no longer destroyed on the way out.
+  describe("the recovery stash", () => {
+    const RECOVERY_KEY = `${STORAGE_KEY}.recovery`;
+
+    it("keeps the raw payload, and warns, when a save cannot be validated", () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const doomed = JSON.stringify({
+        patient: { id: "patient-1", name: "Jordan", preferredName: "Jordan" },
+        carePlan: { id: "plan-1", patientId: "patient-1", condition: "hypertension" },
+        medications: "not-an-array",
+        readings: [],
+        tasks: [],
+        contextItems: [],
+        extractedFacts: [],
+        aiMessages: [],
+        auditEvents: []
+      });
+      window.localStorage.setItem(STORAGE_KEY, doomed);
+
+      expect(loadStoredState()).toEqual(brentState);
+      expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
+      expect(window.localStorage.getItem(RECOVERY_KEY)).toBe(doomed);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining(RECOVERY_KEY));
+      warn.mockRestore();
+    });
+
+    it("keeps an unparseable payload too", () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      window.localStorage.setItem(STORAGE_KEY, "{not json");
+
+      expect(loadStoredState()).toEqual(brentState);
+      expect(window.localStorage.getItem(RECOVERY_KEY)).toBe("{not json");
+      warn.mockRestore();
+    });
+
+    // A stash is still the family's record, so "clear my data" takes it too.
+    it("goes when the caregiver clears their data", () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      window.localStorage.setItem(STORAGE_KEY, "{not json");
+      loadStoredState();
+      expect(window.localStorage.getItem(RECOVERY_KEY)).not.toBeNull();
+
+      clearStoredState();
+
+      expect(window.localStorage.getItem(RECOVERY_KEY)).toBeNull();
+      warn.mockRestore();
+    });
+  });
+
   it("falls back to the retinopathy demo state when localStorage.getItem throws", () => {
     const getItemSpy = vi.spyOn(window.localStorage, "getItem").mockImplementation(() => {
       throw new Error("Storage unavailable");
