@@ -9,6 +9,7 @@ import type { AppState, DevNeedDomain, FamilyNavigatorState } from "@/domain/typ
 import { healthReducer } from "@/state/store";
 import { openAllFamilyFolds, showFamilySurface } from "@/test/family-folds";
 import { FamilyExperience } from "@/components/family-experience";
+import { ladderSurfaceForAnchor } from "@/components/ladder-shell";
 
 const { push, requestFamilyInterview, requestFamilyRecommendations } = vi.hoisted(() => ({
   push: vi.fn(),
@@ -307,7 +308,11 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     expect(screen.getByText(/No diagnosticamos/i)).toBeVisible();
   });
 
-  it("keeps every rendered back-to-top link pointed at the Ladder experience", () => {
+  // F8.1. Both back-to-top links pointed at #family-experience, which the anchor
+  // map owns for Home — so tapping "Back to top" at the foot of the Programs
+  // library or the Journal silently switched the caregiver to a different tab.
+  // Each now points at the top of the surface it is on.
+  it("keeps every back-to-top link on the surface it lives on", () => {
     render(
       <FamilyExperience
         state={withFamily({
@@ -329,12 +334,17 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     );
 
     // Characterization mutation: a stale hash strands a family instead of
-    // returning them to the common page origin.
-    // The link lives on the Programs surface; this test is about where it points.
+    // returning them to the top of what they were reading.
     const links = screen.getAllByRole("link", { name: "Back to top", hidden: true });
     expect(links.length).toBeGreaterThan(0);
     for (const link of links) {
-      expect(link).toHaveAttribute("href", "#family-experience");
+      const href = link.getAttribute("href") ?? "";
+      expect(href).not.toBe("#family-experience");
+      // The target exists, and it belongs to the surface the link is on.
+      const targetId = href.slice(1);
+      expect(document.getElementById(targetId)).not.toBeNull();
+      const linkSurface = link.closest("[data-ladder-panel]")?.getAttribute("data-ladder-panel");
+      expect(ladderSurfaceForAnchor(href)).toBe(linkSurface);
     }
   });
 
@@ -1101,6 +1111,50 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     expect(orderedCards.at(-1)).toHaveAttribute("data-resource-id", "michelle_p_waiver");
   });
 
+  // F8.5. The dedupe window was "ever", so a genuine second share of the same
+  // program months later was silently never recorded. It is per label per day.
+  it("records a share again on a later day, and still only once today", async () => {
+    const user = userEvent.setup();
+    const family: FamilyNavigatorState = {
+      ...schoolAgeFamilyState,
+      activeDomains: ["waivers_financial"]
+    };
+    const lastMonth = {
+      id: "audit-old-share",
+      patientId: brentState.patient.id,
+      action: "shared" as const,
+      label: "Shared family resource: Michelle P. Waiver",
+      createdAt: "2026-06-01T12:00:00.000Z"
+    };
+    render(
+      <ReducerHarness
+        initialState={{ ...withFamily(family), auditEvents: [...brentState.auditEvents, lastMonth] }}
+      />
+    );
+
+    await goToSurface(user, /Programs/);
+    openAllFamilyFolds();
+    const michelle = screen
+      .getByTestId("matched-family-resources")
+      .querySelector('[data-resource-id="michelle_p_waiver"]') as HTMLElement;
+    await user.click(within(michelle).getByTestId("family-resource-share-open"));
+    await user.click(within(michelle).getByRole("checkbox"));
+    await user.click(within(michelle).getByRole("button", { name: /Share.*Michelle P/i }));
+
+    await waitFor(() => {
+      const shares = (
+        JSON.parse(screen.getByTestId("audit-events").textContent || "[]") as Array<{
+          action: string;
+          label: string;
+          createdAt: string;
+        }>
+      ).filter(({ action, label }) => action === "shared" && label.includes("Michelle P."));
+      // Last month's line survives and today's is written beside it.
+      expect(shares).toHaveLength(2);
+      expect(new Set(shares.map(({ createdAt }) => createdAt.slice(0, 10))).size).toBe(2);
+    });
+  });
+
   it("keeps enrolled CHILD visible at the end of a capped multi-domain list and suppresses its urgency", () => {
     const family: FamilyNavigatorState = {
       ...schoolAgeFamilyState,
@@ -1457,6 +1511,170 @@ describe("one ask at a time", () => {
     expect(openQuestionCount()).toBeLessThanOrEqual(1);
     await screen.findByRole("heading", { name: "Have you applied for any state programs yet?" });
     expect(openQuestionCount()).toBe(1);
+
+    // F7a. This is the state the header used to lie about: the step section is
+    // gated on the thread as well as on the step, and the rung computation was
+    // never told about the thread — so it offered "See how it went", pointing at
+    // #family-followup, a section this render does not contain.
+    expect(screen.queryByTestId("family-followup")).not.toBeInTheDocument();
+    const rung = screen.queryByTestId("family-next-rung");
+    // Either the header stands down, or whatever it points at is on the page.
+    // Before F7a it did neither: it offered "See how it went" at #family-followup.
+    if (rung) {
+      const target = (rung.getAttribute("href") ?? "").slice(1);
+      expect(target).not.toBe("family-followup");
+      expect(document.getElementById(target), `rung target #${target}`).not.toBeNull();
+    }
+  });
+});
+
+// F7b / F7c / F8. The clock, the cap, and the batch of small defects the audit
+// verified one by one.
+describe("clock truth and the small-defect batch", () => {
+  const toddler = (overrides: Partial<FamilyNavigatorState> = {}): FamilyNavigatorState => ({
+    ...eighteenMonthFamilyState(new Date()),
+    activeDomains: ["early_intervention", "therapies", "waivers_financial", "parent_support"],
+    ...overrides
+  });
+
+  // F7b: the clock rung links #family-resources because the countdown lives on
+  // the First Steps card. Nothing kept that card inside the displayed eight.
+  it("keeps the First Steps card on the page the clock rung points at", () => {
+    render(<FamilyExperience state={withFamily(toddler())} dispatch={vi.fn()} passcode="" />);
+
+    showFamilySurface("Programs");
+    openAllFamilyFolds();
+    const shown = screen
+      .getAllByTestId("family-resource-card")
+      .map((card) => card.getAttribute("data-resource-id") ?? "");
+    expect(shown.length).toBeGreaterThan(0);
+    expect(shown.some((id) => id.startsWith("first_steps"))).toBe(true);
+  });
+
+  // F7c: past the cutoff the clock returns null, and the family used to lose the
+  // one dated thing on their page with no word about where the route continues.
+  it("hands off to the school route once the First Steps window has closed", () => {
+    const pastCutoff: FamilyNavigatorState = {
+      ...schoolAgeFamilyState,
+      profile: { ...schoolAgeFamilyState.profile!, birthYear: 2022, birthMonth: 1 },
+      activeDomains: ["early_intervention"]
+    };
+    render(<FamilyExperience state={withFamily(pastCutoff)} dispatch={vi.fn()} passcode="" />);
+
+    const handoff = screen.getByTestId("family-clock-handoff");
+    expect(handoff).toHaveTextContent(/First Steps window has closed/);
+    expect(handoff).toHaveTextContent(/preschool special-education evaluation/);
+    expect(screen.getByTestId("family-clock-handoff-link")).toHaveAttribute("href", expect.stringContaining("http"));
+  });
+
+  it("says nothing about a closed window to a family still inside it", () => {
+    render(<FamilyExperience state={withFamily(toddler())} dispatch={vi.fn()} passcode="" />);
+
+    expect(screen.queryByTestId("family-clock-handoff")).not.toBeInTheDocument();
+  });
+
+  // F8.6: the section shows eight; the retrieval usually found more.
+  it("names what the eight-card cap left out", () => {
+    render(<FamilyExperience state={withFamily(toddler())} dispatch={vi.fn()} passcode="" />);
+
+    showFamilySurface("Programs");
+    openAllFamilyFolds();
+    const cap = screen.queryByTestId("family-resources-cap");
+    const shown = screen.getAllByTestId("family-resource-card").length;
+    expect(cap).not.toBeNull();
+    expect(cap).toHaveTextContent(`Showing ${shown} of `);
+    expect(cap).toHaveTextContent(/of \d+ places we found\./);
+  });
+
+  // F8.7: Notes unlocks on a profile while the journal needs facts.
+  it("names the emptiness on a Notes tab with a profile but no notes", () => {
+    render(
+      <FamilyExperience
+        state={withFamily({ ...schoolAgeFamilyState, facts: [], interviews: [] })}
+        dispatch={vi.fn()}
+        passcode=""
+      />
+    );
+
+    showFamilySurface("Notes");
+    openAllFamilyFolds();
+    const empty = screen.getByTestId("family-notes-empty");
+    expect(empty).toHaveTextContent("Nothing written down yet");
+    // The exits stay: an empty packet still carries the child's basics.
+    expect(screen.getByRole("button", { name: "Print" })).toBeInTheDocument();
+    expect(screen.queryByTestId("family-journal")).not.toBeInTheDocument();
+  });
+
+  it("drops the empty-notes copy as soon as there is a note", () => {
+    render(
+      <FamilyExperience
+        state={withFamily({
+          ...schoolAgeFamilyState,
+          facts: [
+            {
+              id: "fact-1",
+              label: "Grade",
+              value: "fourth grade",
+              status: "patient_reported",
+              sourceSnippet: "fourth grade"
+            }
+          ]
+        })}
+        dispatch={vi.fn()}
+        passcode=""
+      />
+    );
+
+    showFamilySurface("Notes");
+    expect(screen.queryByTestId("family-notes-empty")).not.toBeInTheDocument();
+    expect(screen.getByTestId("family-journal")).toBeInTheDocument();
+  });
+
+  // F8.4: both composers fall back to the on-device reader in silence.
+  it("says when an answer was read on the device instead of by the assistant", async () => {
+    const user = userEvent.setup();
+    render(<ReducerHarness initialState={withFamily(describedFamily)} />);
+
+    await submitDescription(user);
+    await screen.findByTestId("family-heard-strip");
+    openAllFamilyFolds();
+
+    expect(screen.getByTestId("family-extraction-on-device")).toHaveTextContent(
+      /read this on your phone, not with the online assistant/
+    );
+  });
+
+  // F8.3: "Not sure" is recorded, raises no flag, and prints no packet line.
+  it("records a not-sure probe answer without raising a flag", async () => {
+    const user = userEvent.setup();
+    render(
+      <ReducerHarness
+        initialState={withFamily({
+          ...schoolAgeFamilyState,
+          interviews: [
+            {
+              id: "old",
+              rawText: "an old note",
+              source: "typed",
+              createdAt: "2026-01-01T12:00:00.000Z",
+              extraction: "mock",
+              kind: "note"
+            }
+          ]
+        })}
+      />
+    );
+
+    const checkin = await screen.findByTestId("family-checkin");
+    await user.click(within(checkin).getByRole("button", { name: "Nothing new" }));
+    await user.click(within(checkin).getByRole("button", { name: "Not sure" }));
+
+    const family = JSON.parse(
+      screen.getByTestId("family-state").textContent || "null"
+    ) as FamilyNavigatorState;
+    expect(family.probeAnswers?.map(({ answer }) => answer)).toEqual(["unsure"]);
+    expect(family.flags).toHaveLength(0);
+    expect(screen.queryByTestId("family-clinic-now-card")).not.toBeInTheDocument();
   });
 });
 

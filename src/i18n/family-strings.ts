@@ -371,6 +371,12 @@ export type FamilyStringKey =
   | "clockFirstStepsRangeOpen"
   | "factRegressionLabel"
   | "factRegressionValue"
+  | "extractionOnDevice"
+  | "programsCapped"
+  | "notesEmptyTitle"
+  | "notesEmptyBody"
+  | "clockHandoff"
+  | "clockHandoffLink"
   | "icsCheckinFileName"
   | "icsCheckinSummary"
   | "icsCheckinDescription"
@@ -891,6 +897,15 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     followupThanks: "Noted — it's in your packet's services section when it counts.",
     factRegressionLabel: "Change you noticed",
     factRegressionValue: "Possible loss of skills — from your words",
+    extractionOnDevice:
+      "We read this on your phone, not with the online assistant. Same words, simpler reading — check anything that looks off.",
+    programsCapped: "Showing {shown} of {count} places we found.",
+    notesEmptyTitle: "Nothing written down yet",
+    notesEmptyBody:
+      "Notes are what the visit packet is made of. Add the first thing you have noticed about {name} and it will show up here.",
+    clockHandoff:
+      "The First Steps window has closed for {name} — it stops taking new referrals 45 days before the third birthday. The route now is the school district: ask in writing for a preschool special-education evaluation.",
+    clockHandoffLink: "See what the school district owes you",
     icsCheckinFileName: "ladder-check-in",
     icsCheckinSummary: "Ladder check-in — how is {name} doing?",
     icsCheckinDescription:
@@ -1421,6 +1436,15 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     followupThanks: "Anotado — aparecerá en la sección de servicios de tu paquete cuando cuente.",
     factRegressionLabel: "Cambio que notaste",
     factRegressionValue: "Posible pérdida de habilidades — según tus palabras",
+    extractionOnDevice:
+      "Esto lo leímos en tu teléfono, no con el asistente en línea. Las mismas palabras, una lectura más sencilla — revisa cualquier cosa que se vea mal.",
+    programsCapped: "Mostrando {shown} de {count} lugares que encontramos.",
+    notesEmptyTitle: "Todavía no hay nada anotado",
+    notesEmptyBody:
+      "Las notas son de lo que se hace el paquete de la visita. Agrega lo primero que hayas notado sobre {name} y aparecerá aquí.",
+    clockHandoff:
+      "La ventana de First Steps se cerró para {name} — deja de aceptar referencias nuevas 45 días antes del tercer cumpleaños. Ahora la ruta es el distrito escolar: pide por escrito una evaluación de educación especial preescolar.",
+    clockHandoffLink: "Mira lo que te debe el distrito escolar",
     icsCheckinFileName: "chequeo-ladder",
     icsCheckinSummary: "Chequeo de Ladder — ¿cómo va {name}?",
     icsCheckinDescription:

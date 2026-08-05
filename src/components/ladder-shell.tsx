@@ -156,7 +156,10 @@ export function LadderShell({
           data-testid="ladder-tabs"
           // Sticky, not fixed, and a wrapping grid: at 200% zoom this reflows
           // to two rows instead of clipping or forcing a horizontal scroll.
-          className="sticky bottom-0 grid grid-cols-[repeat(auto-fit,minmax(84px,1fr))] gap-1 border-t border-care/15 bg-white px-2 pb-3 pt-1.5"
+          // F8.8: pb-3 plus the home-indicator inset, so the last row of
+          // targets is not sitting under the iPhone gesture bar.
+          style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+          className="sticky bottom-0 grid grid-cols-[repeat(auto-fit,minmax(84px,1fr))] gap-1 border-t border-care/15 bg-white px-2 pt-1.5"
         >
           {visible.map((candidate) => {
             const Icon = SURFACE_ICONS[candidate];
@@ -190,7 +193,12 @@ export function LadderShell({
 
       {/* The way back to the rest of the app. The four tabs are Ladder's own
           nav, so this is a quiet exit rather than a fifth destination. */}
-      <p className="ladder-shell__exit mx-auto w-full max-w-2xl px-4 pb-6 pt-3">
+      {/* The bar is sticky, so it overlays the end of the scroll: this link
+          would otherwise sit exactly underneath it (F8.8). */}
+      <p
+        style={{ paddingBottom: showTabs ? "calc(5rem + env(safe-area-inset-bottom))" : undefined }}
+        className="ladder-shell__exit mx-auto w-full max-w-2xl px-4 pb-6 pt-3"
+      >
         <Link
           href="/menu"
           className={`inline-flex min-h-12 items-center text-sm font-semibold text-ink/70 underline underline-offset-4 ${CONTROL_FOCUS}`}
@@ -214,10 +222,12 @@ const ANCHOR_SURFACES: Readonly<Record<string, LadderSurface>> = {
   "family-followup": "home",
   "family-clinic-now": "home",
   "family-timeline": "home",
+  "family-timeline-title": "home",
   "family-resources": "programs",
   "family-resources-title": "programs",
   "family-guides": "programs",
   "family-journal": "notes",
+  "family-journal-title": "notes",
   "family-visit-packet": "notes",
   "family-appt-title": "visit"
 };

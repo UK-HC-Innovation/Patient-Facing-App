@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { FamilyNavigatorState } from "./types";
 import { eighteenMonthFamilyState, schoolAgeFamilyState } from "./family-fixtures";
 import {
   CHECKIN_DUE_DAYS,
@@ -444,5 +445,41 @@ describe("monthsOnList", () => {
   it("returns 0 inside the first month and never goes negative", () => {
     expect(monthsOnList("2026-07-01T00:00:00.000Z", NOW)).toBe(0);
     expect(monthsOnList("2026-09-01T00:00:00.000Z", NOW)).toBe(0);
+  });
+});
+
+// F7a. The invariant this module states — "a rung only fires when the section
+// that owns it is on the page" — was not enforced for the step rung: the page
+// gates that section on the thread as well, and the rung computation was never
+// told about the thread.
+describe("the step rung yields to an open thread", () => {
+  const now = new Date("2026-07-17T12:00:00.000Z");
+  const stale: FamilyNavigatorState = {
+    ...schoolAgeFamilyState,
+    steps: [
+      {
+        id: "step-1",
+        resourceId: "michelle_p_waiver",
+        domain: "waivers_financial",
+        status: "planned",
+        plannedAt: "2026-06-01T12:00:00.000Z",
+        updatedAt: "2026-06-01T12:00:00.000Z"
+      }
+    ]
+  };
+
+  // checkinOpen: false keeps the monthly check-in — which outranks the step —
+  // out of the way, so this is a clean read of the step rung alone.
+  it("offers the step when the section is on the page", () => {
+    expect(nextFamilyRung(stale, now, { checkinOpen: false })).toEqual({
+      kind: "step",
+      resourceId: "michelle_p_waiver"
+    });
+  });
+
+  it("stands down while the thread owns the ask", () => {
+    expect(nextFamilyRung(stale, now, { checkinOpen: false, threadActive: true }).kind).not.toBe(
+      "step"
+    );
   });
 });

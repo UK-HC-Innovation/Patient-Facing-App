@@ -2,6 +2,7 @@
 
 import React from "react";
 import clsx from "clsx";
+import { CONTROL_FOCUS } from "@/components/family-theme";
 import type { Language } from "@/i18n/strings";
 
 // Labels are proper names, so they stay untranslated and self-describing in
@@ -44,8 +45,11 @@ export function LanguageToggle({
             lang={option.value}
             aria-pressed={language === option.value}
             onClick={() => onChange(option.value)}
+            // F8.2: this is the one control on every surface, including the
+            // crisis state, and it had no visible focus ring in either variant.
             className={clsx(
               "min-h-12 min-w-[48px] px-3 text-sm",
+              CONTROL_FOCUS,
               language === option.value
                 ? "bg-care font-bold text-white"
                 : "bg-white font-semibold text-care"
@@ -69,6 +73,7 @@ export function LanguageToggle({
             lang={option.value}
             className={clsx(
               "min-h-12 rounded-control border px-4 py-2 text-sm font-semibold",
+              CONTROL_FOCUS,
               language === option.value
                 ? "border-care bg-calm text-care"
                 : "border-ink/10 bg-white text-ink/70 hover:border-care"

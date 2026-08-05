@@ -3,6 +3,7 @@ import {
   CLOCK_WARNING_WEEKS,
   firstStepsClock,
   firstStepsWeeksLeft,
+  firstStepsWindowClosed,
   hasEnrolledFirstSteps
 } from "./family-clocks";
 import { eighteenMonthFamilyState, schoolAgeFamilyState } from "./family-fixtures";
@@ -204,5 +205,59 @@ describe("hasEnrolledFirstSteps", () => {
     };
     expect(firstStepsClock(legacy.profile, NOW, false)).not.toBeNull();
     expect(firstStepsClock(legacy.profile, NOW, hasEnrolledFirstSteps(legacy))).toBeNull();
+  });
+});
+
+// F7c. Past the cutoff the clock returns null and the family used to lose the
+// one dated thing on their page with no word about where the route goes next.
+describe("firstStepsWindowClosed", () => {
+  const now = new Date("2026-07-17T12:00:00.000Z");
+
+  function profile(overrides: Partial<FamilyProfile> = {}): FamilyProfile {
+    return {
+      birthYear: 2023,
+      birthMonth: 1,
+      schoolStage: "not_school_age",
+      county: "Scott",
+      diagnoses: [],
+      ...overrides
+    };
+  }
+
+  it("is true once the 45-day cutoff has passed", () => {
+    // Born 2023-01 → third birthday 2026-01-01, cutoff 45 days before that.
+    expect(firstStepsWindowClosed(profile(), now, false)).toBe(true);
+    expect(firstStepsClock(profile(), now, false)).toBeNull();
+  });
+
+  it("is false while the window is still open", () => {
+    expect(firstStepsWindowClosed(profile({ birthYear: 2025, birthMonth: 1 }), now, false)).toBe(false);
+  });
+
+  // Enrollment retires the countdown because the family made the deadline —
+  // there is nothing to hand off.
+  it("is false for a family already in First Steps", () => {
+    expect(firstStepsWindowClosed(profile(), now, true)).toBe(false);
+  });
+
+  // A year-only profile assumes the LATEST possible birthday here, the mirror of
+  // the earliest-birthday assumption the countdown uses: the window is closed
+  // only once it is closed on every birthday it could have been.
+  it("waits for the last possible birthday when only the year is known", () => {
+    // Born 2022, month unknown: even a December birthday turned 3 before the
+    // cutoff, so the window is closed on every reading.
+    expect(firstStepsWindowClosed(profile({ birthYear: 2022, birthMonth: undefined }), now, false)).toBe(
+      true
+    );
+    // Born 2023, month unknown: a December baby is still inside the window, so
+    // the handoff would be premature for anyone in that year.
+    expect(firstStepsWindowClosed(profile({ birthYear: 2023, birthMonth: undefined }), now, false)).toBe(
+      false
+    );
+  });
+
+  // For a school-age child the school route is simply where they already are.
+  it("stops claiming a handoff years after the fact", () => {
+    expect(firstStepsWindowClosed(profile({ birthYear: 2017, birthMonth: 5 }), now, false)).toBe(false);
   });
 });

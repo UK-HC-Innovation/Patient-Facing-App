@@ -33,7 +33,7 @@ export type FamilyCheckinProps = {
   resuming: boolean;
   /** Opens the standing interview box for a `checkin` note. */
   onOpenNote: () => void;
-  onProbeAnswer: (answer: "no" | "yes") => void;
+  onProbeAnswer: (answer: "no" | "yes" | "unsure") => void;
   onPulse: (score: FamilyPulse["score"]) => void;
   onSkip: () => void;
 };
@@ -103,6 +103,16 @@ export function FamilyCheckin({
   function answerProbe(answer: "no" | "yes"): void {
     onPartChange("pulse");
     onProbeAnswer(answer);
+  }
+
+  // F8.3. "Not sure" used to swap in the CDC examples and record nothing, so a
+  // Skip after it reset the 30-day clock with no signal kept. It is an answer:
+  // it is recorded, it raises no flag and prints no packet line, and the card
+  // stays on the probe so a caregiver who reads the examples can still say yes
+  // or no.
+  function answerUnsure(): void {
+    setShowingExamples(true);
+    onProbeAnswer("unsure");
   }
 
   function recordPulse(score: FamilyPulse["score"]): void {
@@ -179,7 +189,7 @@ export function FamilyCheckin({
             {showingExamples ? null : (
               <button
                 type="button"
-                onClick={() => setShowingExamples(true)}
+                onClick={answerUnsure}
                 className={ANSWER_BUTTON}
               >
                 {tFamily(language, "checkinProbeUnsure")}

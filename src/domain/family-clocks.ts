@@ -66,6 +66,37 @@ export function firstStepsClock(
   };
 }
 
+/**
+ * F7c. Past the cutoff, `firstStepsClock` returns null and the family silently
+ * lost the one dated thing on their page — no line, no explanation, and no word
+ * about where the route continues. This says when that has happened, so the page
+ * can hand off to the school route instead of just going quiet.
+ *
+ * True only while the handoff is still the live question: not for a family who
+ * enrolled (they made the deadline), not before the cutoff, and not for a
+ * school-age child years past it, for whom the school route is simply where they
+ * already are.
+ */
+export function firstStepsWindowClosed(
+  profile: FamilyProfile,
+  now: Date,
+  enrolled: boolean
+): boolean {
+  if (enrolled) return false;
+  if (Number.isNaN(now.valueOf())) return false;
+  const months = childAgeMonths(profile, now);
+  if (months !== null && months >= 72) return false;
+  const thirdBirthdayYear = profile.birthYear + 3;
+  // Year-only profiles assume the LATEST possible birthday here, the mirror of
+  // the earliest-birthday assumption above: the window is only closed once it is
+  // closed on every birthday it could have been.
+  const cutoff =
+    months === null
+      ? Date.UTC(thirdBirthdayYear, 11, 31) - CUTOFF_LEAD_MS
+      : Date.UTC(thirdBirthdayYear, (profile.birthMonth ?? 1) - 1, 1) - CUTOFF_LEAD_MS;
+  return cutoff <= now.valueOf();
+}
+
 /** Weeks to the cutoff when we can honestly count them, and nothing when we cannot. */
 export function firstStepsWeeksLeft(clock: FirstStepsClock | null): number | null {
   return clock?.kind === "dated" ? clock.weeksLeft : null;

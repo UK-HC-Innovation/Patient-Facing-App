@@ -53,6 +53,7 @@ import type {
   ExtractedFact,
   FamilyAppointment,
   FamilyAppointmentBarrier,
+  FamilyCheckinProbeAnswer,
   FamilyFact,
   FamilyInterview,
   FamilyNavigatorState,
@@ -141,6 +142,7 @@ export type HealthAction =
   | { type: "recordFamilySafetyEvent"; event: FamilySafetyEvent }
   | { type: "acknowledgeFamilySafetyEvent"; eventId: string; at: string }
   | { type: "raiseFamilyRegressionFlag"; source: "probe" | "text"; at: string; interviewId?: string }
+  | { type: "recordFamilyCheckinProbe"; answer: FamilyCheckinProbeAnswer["answer"]; at: string }
   | { type: "acknowledgeFamilyRegressionFlag"; flagId: string; at: string }
   | {
       type: "setFamilyRecommendations";
@@ -1259,6 +1261,23 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
     // The clinic-now tier. One open flag at a time: the probe and the text
     // lexicon describe the same worry, and a family should be asked to call the
     // clinic once, not once per sentence.
+    // F8.3. Every probe answer is kept, including "not sure" — which used to be
+    // the one tap in the check-in that left no trace. It raises no flag and
+    // prints no packet line; it is a record that the question was asked and
+    // honestly answered.
+    case "recordFamilyCheckinProbe": {
+      const family = state.family;
+      if (!family || !isExactIsoTimestamp(action.at)) {
+        return state;
+      }
+      return {
+        ...state,
+        family: {
+          ...family,
+          probeAnswers: [...(family.probeAnswers ?? []), { at: action.at, answer: action.answer }]
+        }
+      };
+    }
     case "raiseFamilyRegressionFlag": {
       const family = state.family ?? emptyFamilyState(null);
       if (

@@ -18,6 +18,7 @@ import type {
   ExtractedFact,
   FamilyAppointment,
   FamilyAppointmentBarrier,
+  FamilyCheckinProbeAnswer,
   FamilyEvidenceStatus,
   FamilyFact,
   FamilyFlag,
@@ -1040,6 +1041,14 @@ function isFamilyPulse(value: unknown): value is FamilyPulse {
   );
 }
 
+function isFamilyCheckinProbeAnswer(value: unknown): value is FamilyCheckinProbeAnswer {
+  return (
+    isObject(value) &&
+    isExactIsoTimestamp(value.at) &&
+    (value.answer === "no" || value.answer === "yes" || value.answer === "unsure")
+  );
+}
+
 function isFamilyFlag(value: unknown): value is FamilyFlag {
   return (
     isObject(value) &&
@@ -1153,6 +1162,8 @@ function isFamilyNavigatorState(value: unknown): value is FamilyNavigatorState {
     (value.steps === undefined || isArrayOfObjects(value.steps, isFamilyResourceStep)) &&
     (value.pulses === undefined || isArrayOfObjects(value.pulses, isFamilyPulse)) &&
     (value.flags === undefined || isArrayOfObjects(value.flags, isFamilyFlag)) &&
+    (value.probeAnswers === undefined ||
+      isArrayOfObjects(value.probeAnswers, isFamilyCheckinProbeAnswer)) &&
     (value.soonerList === undefined ||
       value.soonerList === null ||
       isFamilySoonerList(value.soonerList)) &&
@@ -1208,6 +1219,9 @@ function sanitizeFamilyNavigatorState(value: unknown): FamilyNavigatorState | nu
     alreadyEnrolled: uniqueStrings(value.alreadyEnrolled.filter((entry): entry is string => typeof entry === "string")),
     steps: Array.isArray(value.steps) ? uniqueById(value.steps.filter(isFamilyResourceStep)) : [],
     pulses: Array.isArray(value.pulses) ? value.pulses.filter(isFamilyPulse) : [],
+    probeAnswers: Array.isArray(value.probeAnswers)
+      ? value.probeAnswers.filter(isFamilyCheckinProbeAnswer)
+      : [],
     flags: Array.isArray(value.flags) ? uniqueById(value.flags.filter(isFamilyFlag)) : [],
     soonerList: isFamilySoonerList(value.soonerList) ? value.soonerList : null,
     packetQuestionIds: Array.isArray(value.packetQuestionIds)

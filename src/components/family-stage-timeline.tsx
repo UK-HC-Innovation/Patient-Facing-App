@@ -185,7 +185,9 @@ export function FamilyStageTimeline({
           </div>
           <p className="mt-4 border-t border-ink/10 pt-3">
             <a
-              href="#family-experience"
+              /* F8.1: #family-experience is the anchor map's Home target, so
+                 this pointed off the surface the timeline lives on. */
+              href="#family-timeline-title"
               className={`inline-flex min-h-12 min-w-0 items-center text-sm font-semibold text-ink/70 underline underline-offset-4 ${CONTROL_FOCUS}`}
             >
               {tFamily(language, "backToTop")}

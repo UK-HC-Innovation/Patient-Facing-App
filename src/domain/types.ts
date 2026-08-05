@@ -488,6 +488,17 @@ export type FamilyResourceStep = {
 export type FamilyPulse = { at: string; score: 1 | 2 | 3 | 4 | 5 };
 
 // The clinic-now tier: informational, acknowledge-to-dismiss, never a crisis lock.
+/**
+ * F8.3. The skill-loss probe's third answer. "Not sure" used to record nothing
+ * at all — it swapped in the CDC examples, and a Skip after it stamped a touch
+ * that reset the 30-day clock with no signal kept. A "no" was also unrecorded.
+ * Optional so every save written before it hydrates unchanged.
+ */
+export type FamilyCheckinProbeAnswer = {
+  at: string;
+  answer: "no" | "yes" | "unsure";
+};
+
 export type FamilyFlag = {
   id: string;
   type: "regression";
@@ -535,6 +546,8 @@ export type FamilyNavigatorState = {
   pulses: FamilyPulse[];
   flags: FamilyFlag[];
   soonerList: FamilySoonerList | null;
+  /** Every answer to the monthly check-in's skill-loss probe, including "not sure". */
+  probeAnswers?: FamilyCheckinProbeAnswer[];
   /** Starter-question ids picked for the visit packet. */
   packetQuestionIds: string[];
   /**

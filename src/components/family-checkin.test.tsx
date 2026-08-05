@@ -92,14 +92,19 @@ describe("FamilyCheckin", () => {
   });
 
   // "Not sure" is not an answer — it is a request for examples, cited.
-  it("shows the cited examples for Not sure without answering the probe", async () => {
+  // F8.3: "Not sure" is an answer now. It is recorded, it raises no flag, and
+  // the card stays on the probe so a caregiver who reads the CDC examples can
+  // still say yes or no — which is what the examples are for.
+  it("records Not sure, keeps the probe open, and shows the cited examples", async () => {
     const user = userEvent.setup();
     const { props } = renderCheckin();
 
     await user.click(screen.getByRole("button", { name: "Nothing new" }));
     await user.click(screen.getByRole("button", { name: "Not sure" }));
 
-    expect(props.onProbeAnswer).not.toHaveBeenCalled();
+    expect(props.onProbeAnswer).toHaveBeenCalledExactlyOnceWith("unsure");
+    // Still on the probe: the examples are there to be read and then answered.
+    expect(screen.getByTestId("family-checkin")).toHaveAttribute("data-checkin-part", "probe");
     expect(screen.getByTestId("family-checkin-probe-examples")).toBeVisible();
     expect(
       screen.getByText(

@@ -1991,7 +1991,9 @@ describe("P4 assessment storage", () => {
 
     const loaded = loadStoredState();
     expect(loaded.patient).toEqual(demoState.patient);
-    expect(loaded.family).toEqual(family);
+    // probeAnswers is additive and hydrates to []; the point of this case is
+    // that the family slice survives a malformed assessment event intact.
+    expect(loaded.family).toEqual({ probeAnswers: [], ...family });
     expect(loaded.assessmentEvents.map(({ id }) => id)).toEqual(["posi-valid"]);
   });
 });

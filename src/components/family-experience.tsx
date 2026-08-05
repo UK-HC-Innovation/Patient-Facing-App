@@ -10,6 +10,7 @@ import React, {
 import { FamilyAppointmentCard } from "@/components/family-appointment-card";
 import { FamilyCheckin, type CheckinPart } from "@/components/family-checkin";
 import { FamilyCheckinReminder } from "@/components/family-checkin-reminder";
+import { FamilyClockHandoff } from "@/components/family-clock-handoff";
 import { FamilyClockNotice, familyClockLine } from "@/components/family-clock-notice";
 import { FamilyGlossSurface } from "@/components/family-gloss";
 import {
@@ -51,7 +52,7 @@ import {
 } from "@/domain/family-safety";
 import type { FamilyDiagnosisBackdateMonths } from "@/domain/family-stages";
 import { resolveFamilyClinicNowTarget } from "@/domain/family-clinic-now";
-import { firstStepsClock, hasEnrolledFirstSteps } from "@/domain/family-clocks";
+import { firstStepsClock, firstStepsWindowClosed, hasEnrolledFirstSteps } from "@/domain/family-clocks";
 import { matchFamilyGuides } from "@/domain/family-guides";
 import { answerableStaleStep, checkInDue } from "@/domain/family-journey";
 import {
@@ -493,6 +494,25 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     rankedSet
   ]);
 
+  // One reading per render, so every First Steps card in the list counts down to
+  // the same dated cutoff. Declared above the interlude because the inline cards
+  // read it during that eagerly-evaluated JSX.
+  const followupNow = new Date();
+  const clock = family?.profile
+    ? firstStepsClock(family.profile, followupNow, hasEnrolledFirstSteps(family))
+    : null;
+  // F7b. The clock rung links #family-resources because the countdown lives on
+  // the First Steps card — but the section shows the model-ranked top eight, and
+  // nothing kept that card inside the cut. A caregiver could tap "17 weeks left
+  // to start First Steps" and land on a list with no First Steps card on it.
+  const pinFirstSteps =
+    clock !== null && (family?.activeDomains.includes("early_intervention") ?? false);
+  // F7c: the clock did not just stop showing — the window actually closed.
+  const clockWindowClosed =
+    family?.profile !== undefined &&
+    family?.profile !== null &&
+    firstStepsWindowClosed(family.profile, followupNow, hasEnrolledFirstSteps(family));
+
   // What actually renders. A valid ranking reorders and annotates the matched set;
   // with no ranking (screen-only, stale, or every item dropped by the lint) the
   // deterministic order stands unchanged.
@@ -535,11 +555,31 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
       .filter(({ match }) => enrolled.has(match.resource.id))
       .slice(0, MAX_DISPLAY_RESOURCES);
     const unenrolledSlots = MAX_DISPLAY_RESOURCES - enrolledItems.length;
+    const unenrolled = ordered.filter(({ match }) => !enrolled.has(match.resource.id));
+    // F7b: pin first, then fill by rank. Ranking still decides which First Steps
+    // entry leads (the county POE outranks the statewide line) and the order of
+    // everything else — the pin only guarantees the card the clock points at is
+    // one of the eight.
+    const pinned =
+      pinFirstSteps && !unenrolled.slice(0, unenrolledSlots).some(({ match }) => isFirstStepsResource(match.resource.id))
+        ? unenrolled.filter(({ match }) => isFirstStepsResource(match.resource.id)).slice(0, 1)
+        : [];
+    const pinnedIds = new Set(pinned.map(({ match }) => match.resource.id));
     return [
-      ...ordered.filter(({ match }) => !enrolled.has(match.resource.id)).slice(0, unenrolledSlots),
+      ...pinned,
+      ...unenrolled
+        .filter(({ match }) => !pinnedIds.has(match.resource.id))
+        .slice(0, Math.max(0, unenrolledSlots - pinned.length)),
       ...enrolledItems
     ];
-  }, [family?.alreadyEnrolled, matchResult.isFallback, matchResult.resources, rankCandidates, rankedSet]);
+  }, [
+    family?.alreadyEnrolled,
+    matchResult.isFallback,
+    matchResult.resources,
+    pinFirstSteps,
+    rankCandidates,
+    rankedSet
+  ]);
 
   const nearbyTherapeuticRecreation = useMemo(() => {
     if (!family?.profile || family.activeDomains.length === 0) {
@@ -673,8 +713,17 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     // The same resource can be on screen twice — once in the thread, once in the
     // library — and each card keeps its own consent checkbox. One share is one
     // audit line either way.
+    // F8.5. The same card can be on screen twice (thread and library) and each
+    // keeps its own consent, so one share is one audit line — but "ever" was
+    // the wrong window: a genuine second share months later was silently never
+    // recorded. Deduped per label per day.
     const label = `Shared family resource: ${resource.name}`;
-    if (state.auditEvents.some((event) => event.label === label)) {
+    const today = new Date().toISOString().slice(0, 10);
+    if (
+      state.auditEvents.some(
+        (event) => event.label === label && event.createdAt.slice(0, 10) === today
+      )
+    ) {
       return;
     }
     dispatch({ type: "addAuditEvent", event: recordAuditEvent(state.patient.id, "shared", label) });
@@ -716,10 +765,14 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     openComposer("checkin");
   }
 
-  function answerCheckinProbe(answer: "no" | "yes"): void {
+  function answerCheckinProbe(answer: "no" | "yes" | "unsure"): void {
     setCheckinStarted(true);
+    const at = new Date().toISOString();
+    // Every answer is kept, including "not sure" — the one tap in the check-in
+    // that used to leave no trace at all (F8.3).
+    dispatch({ type: "recordFamilyCheckinProbe", answer, at });
     if (answer === "yes") {
-      dispatch({ type: "raiseFamilyRegressionFlag", source: "probe", at: new Date().toISOString() });
+      dispatch({ type: "raiseFamilyRegressionFlag", source: "probe", at });
     }
   }
 
@@ -787,13 +840,6 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     !family.profile &&
     (family.interviews.length > 0 || family.activeDomains.length > 0);
 
-  // One reading per render, so every First Steps card in the list counts down to
-  // the same dated cutoff. Declared above the interlude because the inline cards
-  // read it during that eagerly-evaluated JSX.
-  const followupNow = new Date();
-  const clock = family?.profile
-    ? firstStepsClock(family.profile, followupNow, hasEnrolledFirstSteps(family))
-    : null;
   // The child's own name wherever the copy addresses them, with the language's
   // stand-in when the caregiver has not given one.
   const childName =
@@ -972,6 +1018,18 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
             <p className="break-words text-sm leading-6 text-ink/70">
               {tFamily(language, "stripTrustLine")}
             </p>
+            {/* F8.4. Both composers catch the API error and fall through to the
+                on-device reader with no notice at all, so a caregiver could not
+                tell a model's reading from a regex's. Quiet, non-blocking, and
+                true in the zero-key demo as well as after a failure. */}
+            {latestInterview?.extraction === "mock" ? (
+              <p
+                data-testid="family-extraction-on-device"
+                className="break-words text-sm leading-6 text-ink/70"
+              >
+                {tFamily(language, "extractionOnDevice")}
+              </p>
+            ) : null}
           </div>
         </details>
       </section>
@@ -1182,6 +1240,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
           language={language}
           now={followupNow}
           checkinOpen={checkinVisible}
+          threadActive={threadActive}
           returning={returning}
           programsCount={hasPrograms ? librarySize : undefined}
         />
@@ -1231,6 +1290,12 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
           withHeadline
           onAddBirthMonth={addBirthMonth}
         />
+      ) : null}
+
+      {/* F7c: and when the countdown ends, the page says where the route goes
+          instead of going quiet. */}
+      {clock === null && clockWindowClosed ? (
+        <FamilyClockHandoff language={language} childName={childName} />
       ) : null}
 
       <section className={CARD_SECTION} aria-labelledby="family-interview-title">
@@ -1561,9 +1626,24 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
                   </div>
                 </section>
               ) : (
-                <div data-testid="matched-family-resources" className="mt-4 grid gap-3">
-                  {displayResources.map((item) => resourceCard(item, "matched"))}
-                </div>
+                <>
+                  {/* F8.6. The section shows eight; the retrieval often found
+                      more, and the list gave no sign of it. */}
+                  {matchResult.resources.length > displayResources.length ? (
+                    <p
+                      data-testid="family-resources-cap"
+                      className="mt-3 break-words text-sm text-ink/70"
+                    >
+                      {tFamily(language, "programsCapped", {
+                        shown: displayResources.length,
+                        count: matchResult.resources.length
+                      })}
+                    </p>
+                  ) : null}
+                  <div data-testid="matched-family-resources" className="mt-4 grid gap-3">
+                    {displayResources.map((item) => resourceCard(item, "matched"))}
+                  </div>
+                </>
               )}
               {guides.length > 0 ? (
                 <section
@@ -1626,7 +1706,10 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
               ) : null}
               <p className="mt-5 border-t border-ink/10 pt-3">
                 <a
-                  href="#family-experience"
+                  /* F8.1: the anchor map sends #family-experience to Home, so
+                     this link silently switched tabs. It points at the top of
+                     the surface it is on. */
+                  href="#family-resources-title"
                   className={`inline-flex min-h-12 min-w-0 items-center text-sm font-semibold text-ink/70 underline underline-offset-4 ${CONTROL_FOCUS}`}
                 >
                   {tFamily(language, "backToTop")}
@@ -1672,6 +1755,21 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
 
   const notesPanel = (
     <>
+      {/* F8.7. Notes unlocks on a profile while the journal needs facts, so a
+          profile-only family met a near-empty tab with a live Print button and
+          no explanation. The exits stay — an empty packet still carries the
+          child's basics — but the emptiness is named. */}
+      {family?.profile && family.facts.length === 0 ? (
+        <section data-testid="family-notes-empty" className={CARD_SECTION_PAPER}>
+          <h2 className="break-words text-lg font-semibold">
+            {tFamily(language, "notesEmptyTitle")}
+          </h2>
+          <p className="mt-1 break-words leading-relaxed text-ink/80">
+            {tFamily(language, "notesEmptyBody", { name: childName })}
+          </p>
+        </section>
+      ) : null}
+
       {family && family.facts.length > 0 ? (
         <FamilyJournal
           family={family}

@@ -152,6 +152,15 @@ export type FamilyRung =
 export type FamilyRungView = {
   /** True while the check-in card is mounted and owns the page's one ask. */
   checkinOpen?: boolean;
+  /**
+   * True while a conversation is underway in the thread. The step section is
+   * additionally gated on this — one ask at a time — and the gate stays on
+   * through `status === "complete"`, so after any note submission the step rung
+   * was pointing at #family-followup, a section that is not on the page. F7a:
+   * the rung computation now receives the same input the render does, which is
+   * what the invariant above has always claimed.
+   */
+  threadActive?: boolean;
 };
 
 /**
@@ -217,7 +226,7 @@ export function nextFamilyRung(
     return { kind: "checkin" };
   }
 
-  const staleStep = answerableStaleStep(family.steps, now);
+  const staleStep = view.threadActive === true ? undefined : answerableStaleStep(family.steps, now);
   if (staleStep !== undefined) {
     return { kind: "step", resourceId: staleStep.resourceId };
   }

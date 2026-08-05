@@ -194,7 +194,9 @@ export function FamilyJournal({
       </p>
       <p className="mt-3 border-t border-ink/10 pt-3">
         <a
-          href="#family-experience"
+          /* F8.1: #family-experience is mapped to Home, so this link used to
+             switch tabs out from under the reader. It stays on Notes. */
+          href="#family-journal-title"
           className={`inline-flex min-h-12 min-w-0 items-center text-sm font-semibold text-ink/70 underline underline-offset-4 ${CONTROL_FOCUS}`}
         >
           {tFamily(language, "backToTop")}

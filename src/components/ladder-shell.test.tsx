@@ -187,6 +187,31 @@ describe("LadderShell", () => {
     expect(screen.getByTestId("ladder-crisis-layer")).toBeVisible();
   });
 
+  // F8.2. The language control is on every surface, including the crisis state,
+  // and neither variant had a visible focus ring.
+  it("gives the language control a focus ring in the header variant", () => {
+    render(<Harness />);
+
+    const group = within(screen.getByRole("banner")).getByRole("group", {
+      name: "Language / Idioma"
+    });
+    for (const button of within(group).getAllByRole("button")) {
+      expect(button.className).toContain("focus-visible:outline");
+    }
+  });
+
+  // F8.8. The bar is sticky, so it overlays the end of the scroll; on an iPhone
+  // its last row also sat under the home indicator.
+  it("pads the sticky bar and the exit link clear of the home indicator", () => {
+    render(<Harness />);
+
+    expect(screen.getByTestId("ladder-tabs").getAttribute("style")).toContain(
+      "env(safe-area-inset-bottom)"
+    );
+    const exit = screen.getByRole("link", { name: "All my health" }).closest("p");
+    expect(exit?.getAttribute("style")).toContain("env(safe-area-inset-bottom)");
+  });
+
   it("offers a way back to the rest of the app", () => {
     render(<Harness />);
     expect(screen.getByRole("link", { name: "All my health" })).toHaveAttribute("href", "/menu");

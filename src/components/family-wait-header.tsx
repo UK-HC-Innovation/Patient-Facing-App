@@ -71,6 +71,8 @@ export type FamilyWaitHeaderProps = {
    * that first answer stamps a touch and the month of silence is over.
    */
   checkinOpen?: boolean;
+  /** True while the thread is carrying a conversation, which hides the step ask. */
+  threadActive?: boolean;
   /**
    * True when the caregiver arrived with history. A return visit opens on what
    * changed and what is due — never on interview framing, which is what the
@@ -92,10 +94,11 @@ export function FamilyWaitHeader({
   language,
   now = new Date(),
   checkinOpen,
+  threadActive,
   returning = false,
   programsCount
 }: FamilyWaitHeaderProps) {
-  const rung = nextFamilyRung(family, now, { checkinOpen });
+  const rung = nextFamilyRung(family, now, { checkinOpen, threadActive });
   const label = rungLabel(rung, language);
   const referral = family.referral;
   // Elapsed time only. A predicted seen-by date is the one number we will not invent.
