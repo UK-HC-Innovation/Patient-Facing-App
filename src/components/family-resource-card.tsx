@@ -148,6 +148,7 @@ export function FamilyResourceCard({
   const titleId = `${instanceId}-title`;
   const consentId = `${instanceId}-share-consent`;
   const [consented, setConsented] = useState(false);
+  const [shareBlocked, setShareBlocked] = useState(false);
   const [shareOutcome, setShareOutcome] = useState<FamilyShareOutcome | null>(null);
   const [saveRequested, setSaveRequested] = useState(false);
   // Two-tap share: the consent row does not exist until someone asks to share.
@@ -197,7 +198,11 @@ export function FamilyResourceCard({
   }
 
   async function share(): Promise<void> {
-    if (!consented || sharedRef.current) return;
+    if (!consented) {
+      setShareBlocked(true);
+      return;
+    }
+    if (sharedRef.current) return;
     sharedRef.current = true;
     const outcome = await shareFamilyResource({ name: resource.name, url: resource.sourceUrl });
     setShareOutcome(outcome);
@@ -581,20 +586,26 @@ export function FamilyResourceCard({
                 type="checkbox"
                 checked={consented}
                 aria-label={`${tFamily(language, "resourceShareConsent")} ${resource.name}`}
-                onChange={(event) => setConsented(event.target.checked)}
+                onChange={(event) => {
+                  const checked = event.target.checked;
+                  setConsented(checked);
+                  if (checked) setShareBlocked(false);
+                }}
                 className={CONTROL_FOCUS}
               />
               <span className="min-w-0 break-words">{tFamily(language, "resourceShareConsent")}</span>
             </label>
-            {!consented ? (
-              <p className="text-xs text-ink/65">{tFamily(language, "resourceShareConsentRequired")}</p>
+            {shareBlocked ? (
+              <p role="alert" className="text-sm font-medium text-pulse">
+                {tFamily(language, "resourceShareConsentRequired")}
+              </p>
             ) : null}
             <button
               type="button"
-              disabled={!consented}
+              data-blocked={!consented ? "true" : undefined}
               aria-label={`${tFamily(language, "resourceShare")}: ${resource.name}`}
               onClick={() => void share()}
-              className={BTN_QUIET}
+              className={`${BTN_QUIET} ${!consented ? "opacity-50" : ""}`}
             >
               <Share2 aria-hidden="true" className="h-4 w-4 shrink-0" />
               {tFamily(language, "resourceShare")}

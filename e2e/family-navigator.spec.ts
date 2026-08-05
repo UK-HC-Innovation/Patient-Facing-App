@@ -1310,9 +1310,16 @@ test("phone fit: compact answers, expand in place, two-tap share, folded referen
   await lead.getByTestId("family-resource-share-open").click();
   const consent = lead.getByRole("checkbox", { name: /I agree to share this resource now/i });
   await expect(consent).toBeFocused();
-  await expect(lead.getByRole("button", { name: /^Share/i })).toBeDisabled();
+  const share = lead.getByRole("button", { name: /^Share/i });
+  await expect(share).toBeEnabled();
+  await expect(share).toHaveAttribute("data-blocked", "true");
+  await share.click();
+  await expect(lead.getByRole("alert")).toContainText(
+    "Check the consent box first — sharing needs your OK each time."
+  );
   await consent.check();
-  await lead.getByRole("button", { name: /^Share/i }).click();
+  await expect(share).not.toHaveAttribute("data-blocked");
+  await share.click();
   await expect(
     lead.getByText(/(Sent|Link copied): the program's name and link. Nothing about /)
   ).toBeVisible();

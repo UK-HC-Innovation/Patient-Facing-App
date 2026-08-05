@@ -492,6 +492,11 @@ export type FamilyStringKey =
   | "homeDoorNotesMetaOne"
   | "homeDoorNotesMetaNone"
   | "homeTrustLine"
+  | "notesEmptyCta"
+  | "visitTabNoticeTitle"
+  | "visitTabNoticeBody"
+  | "visitTabNoticeOpen"
+  | "visitTabNoticeDismiss"
   | "clockFirstStepsDated"
   | "clockFirstStepsRange"
   | "clockHeadline"
@@ -756,7 +761,7 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     resourceSaved: "Saved",
     resourceShare: "Share",
     resourceShareConsent: "I agree to share this resource now.",
-    resourceShareConsentRequired: "Check the consent box before sharing.",
+    resourceShareConsentRequired: "Check the consent box first — sharing needs your OK each time.",
     resourceOpenSource: "See their official page",
     resourceMore: "More about this",
     resourceLess: "Show less",
@@ -900,9 +905,9 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     extractionOnDevice:
       "We read this on your phone, not with the online assistant. Same words, simpler reading — check anything that looks off.",
     programsCapped: "Showing {shown} of {count} places we found.",
-    notesEmptyTitle: "Nothing written down yet",
+    notesEmptyTitle: "No notes yet",
     notesEmptyBody:
-      "Notes are what the visit packet is made of. Add the first thing you have noticed about {name} and it will show up here.",
+      "The first one takes about 10 seconds — your words, with a date, kept on this phone.",
     clockHandoff:
       "The First Steps window has closed for {name} — it stops taking new referrals 45 days before the third birthday. The route now is the school district: ask in writing for a preschool special-education evaluation.",
     clockHandoffLink: "See what the school district owes you",
@@ -1033,6 +1038,12 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     homeDoorNotesMetaNone: "nothing in yet",
     homeTrustLine:
       "Your notes stay on this phone. We can't predict the exact evaluation date — here's how to make the wait count.",
+    notesEmptyCta: "Add the first note",
+    visitTabNoticeTitle: "We added a Visit tab",
+    visitTabNoticeBody:
+      "You said {name} is on the list at {clinic}. We added a Visit tab to walk that wait with you.",
+    visitTabNoticeOpen: "See it",
+    visitTabNoticeDismiss: "Not now",
     clockFirstStepsDated:
       "About {weeks} weeks left to start First Steps — referrals close {date}. After the cutoff, the school system takes over referrals.",
     clockFirstStepsRange:
@@ -1295,7 +1306,7 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     resourceSaved: "Guardado",
     resourceShare: "Compartir",
     resourceShareConsent: "Acepto compartir este recurso ahora.",
-    resourceShareConsentRequired: "Marca la casilla de consentimiento antes de compartir.",
+    resourceShareConsentRequired: "Marca primero la casilla — necesitamos tu permiso cada vez que compartas.",
     resourceOpenSource: "Ver su página oficial",
     resourceMore: "Más sobre esto",
     resourceLess: "Mostrar menos",
@@ -1439,9 +1450,9 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     extractionOnDevice:
       "Esto lo leímos en tu teléfono, no con el asistente en línea. Las mismas palabras, una lectura más sencilla — revisa cualquier cosa que se vea mal.",
     programsCapped: "Mostrando {shown} de {count} lugares que encontramos.",
-    notesEmptyTitle: "Todavía no hay nada anotado",
+    notesEmptyTitle: "Todavía no hay notas",
     notesEmptyBody:
-      "Las notas son de lo que se hace el paquete de la visita. Agrega lo primero que hayas notado sobre {name} y aparecerá aquí.",
+      "La primera toma unos 10 segundos — tus palabras, con fecha, guardadas en este teléfono.",
     clockHandoff:
       "La ventana de First Steps se cerró para {name} — deja de aceptar referencias nuevas 45 días antes del tercer cumpleaños. Ahora la ruta es el distrito escolar: pide por escrito una evaluación de educación especial preescolar.",
     clockHandoffLink: "Mira lo que te debe el distrito escolar",
@@ -1560,17 +1571,17 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     tabsLabel: "Secciones de Ladder",
     shellExit: "Toda mi salud",
     shellHeaderSubtitle: "Cuéntanos sobre tu hijo o hija y sus necesidades",
-    homeReturnTitle: "Qué bueno verte otra vez. Esto es lo que te espera.",
+    homeReturnTitle: "Hola de nuevo. Esto es lo que hay pendiente.",
     homeLastNote: "Última nota: {date} · {ago}",
     agoToday: "hoy",
     agoDays: "hace {count} días",
     agoDaysOne: "ayer",
     agoMonths: "hace unos {count} meses",
-    agoMonthsOne: "hace como un mes",
+    agoMonthsOne: "hace un mes",
     homeChipOnListSince: "En la lista desde {month}",
-    homeQueuedNext: "1 cosa más después de esto: una pregunta rápida sobre el paso de {name} que planeaste.",
-    homeComposerCta: "Agrega una nota — escribe o habla",
-    homeComposerCtaNamed: "Agrega una nota sobre {name} — escribe o habla",
+    homeQueuedNext: "Después de esto queda 1 cosa: una pregunta corta sobre el paso de {name} que planeaste.",
+    homeComposerCta: "Agregar una nota — escribe o habla",
+    homeComposerCtaNamed: "Agregar una nota sobre {name} — escribe o habla",
     homeDoorProgramsMeta: "{count} encontrados",
     homeDoorProgramsMetaOne: "{count} encontrado",
     homeDoorVisitMeta: "en la lista",
@@ -1578,7 +1589,13 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     homeDoorNotesMetaOne: "{count} nota dentro",
     homeDoorNotesMetaNone: "todavía nada dentro",
     homeTrustLine:
-      "Tus notas se quedan en este teléfono. No podemos predecir la fecha exacta de la evaluación — aquí verás cómo aprovechar la espera.",
+      "Tus notas se quedan en este teléfono. No podemos predecir la fecha exacta de la evaluación — aquí te ayudamos a aprovechar la espera.",
+    notesEmptyCta: "Agregar la primera nota",
+    visitTabNoticeTitle: "Agregamos una pestaña Cita",
+    visitTabNoticeBody:
+      "Dijiste que {name} está en la lista de {clinic}. Agregamos una pestaña Cita para acompañarte durante la espera.",
+    visitTabNoticeOpen: "Verla",
+    visitTabNoticeDismiss: "Ahora no",
     clockFirstStepsDated:
       "Quedan unas {weeks} semanas para empezar First Steps — los referidos cierran el {date}. Después del corte, el sistema escolar se encarga de los referidos.",
     clockFirstStepsRange:

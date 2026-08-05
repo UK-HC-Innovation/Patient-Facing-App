@@ -175,9 +175,15 @@ describe("FamilyResourceCard", () => {
     });
     expect(consent).toHaveFocus();
     const shareButton = screen.getByRole("button", { name: /Share.*Michelle P/i });
-    expect(shareButton).toBeDisabled();
-    await user.click(consent);
     expect(shareButton).toBeEnabled();
+    expect(shareButton).toHaveAttribute("data-blocked", "true");
+    await user.click(shareButton);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Check the consent box first — sharing needs your OK each time."
+    );
+    expect(share).not.toHaveBeenCalled();
+    await user.click(consent);
+    expect(shareButton).not.toHaveAttribute("data-blocked");
     await user.dblClick(shareButton);
 
     // P6: something actually leaves the phone, and it is exactly the two things
@@ -300,7 +306,9 @@ describe("FamilyResourceCard", () => {
     const checkboxes = screen.getAllByRole("checkbox", { name: /I agree to share this resource now.*Michelle P/i });
     expect(checkboxes).toHaveLength(2);
     expect(checkboxes[0].id).not.toBe(checkboxes[1].id);
-    expect(within(checkboxes[0].closest("article")!).getByRole("button", { name: /Share.*Michelle P/i })).toBeDisabled();
+    expect(
+      within(checkboxes[0].closest("article")!).getByRole("button", { name: /Share.*Michelle P/i })
+    ).toHaveAttribute("data-blocked", "true");
   });
 
   it("offers the commit CTA only until a step exists, then shows that step's status and month", () => {

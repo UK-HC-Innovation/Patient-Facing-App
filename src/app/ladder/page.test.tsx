@@ -400,7 +400,8 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
 
   // The bar is the only way between surfaces, so it can never name fewer than
   // the surfaces that exist — nor offer one that does not.
-  it("shows a tab for every surface this family has, and no others", () => {
+  it("shows a tab for every surface this family has, and no others", async () => {
+    const user = userEvent.setup();
     const { unmount } = render(
       <FamilyExperience state={withFamily(schoolAgeFamilyState)} dispatch={vi.fn()} passcode="" />
     );
@@ -425,6 +426,30 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
       "Notes",
       "Visit"
     ]);
+    const visitNotice = await screen.findByTestId("family-visit-tab-notice");
+    expect(visitNotice).toHaveTextContent(
+      "You said Riley is on the list at UK Developmental Pediatrics."
+    );
+    await user.click(within(visitNotice).getByRole("button", { name: "See it" }));
+    expect(screen.getByRole("tab", { name: "Visit" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByTestId("family-visit-tab-notice")).not.toBeInTheDocument();
+  });
+
+  it("announces a newly added Visit tab before leaving Home", async () => {
+    const user = userEvent.setup();
+    render(<ReducerHarness initialState={withFamily(schoolAgeFamilyState)} />);
+
+    await user.click(
+      within(screen.getByTestId("family-referral-demo")).getByRole("button", {
+        name: "Show me (demo)"
+      })
+    );
+
+    expect(screen.getByRole("tab", { name: "Home" })).toHaveAttribute("aria-selected", "true");
+    const notice = await screen.findByTestId("family-visit-tab-notice");
+    expect(notice).toBeVisible();
+    await user.click(within(notice).getByRole("button", { name: "See it" }));
+    expect(screen.getByRole("tab", { name: "Visit" })).toHaveAttribute("aria-selected", "true");
   });
 
   // F1b. The redesign rendered all four panels always while the bar rendered
@@ -452,7 +477,7 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
   // Stronger than "does not steal focus": a return visit does not reopen last
   // session's verification card at all. Home opens on what changed and what is
   // due, and the composer that produced the strip is one tap away (P3).
-  it("does not replay an earlier visit's verification card", () => {
+  it("does not replay an earlier visit's verification card after storage hydrates", () => {
     const persistedFamily: FamilyNavigatorState = {
       ...schoolAgeFamilyState,
       interviews: [
@@ -477,7 +502,11 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
       ]
     };
 
-    render(<FamilyExperience state={withFamily(persistedFamily)} dispatch={vi.fn()} passcode="" />);
+    const dispatch = vi.fn();
+    const { rerender } = render(
+      <FamilyExperience state={withFamily(schoolAgeFamilyState)} dispatch={dispatch} passcode="" />
+    );
+    rerender(<FamilyExperience state={withFamily(persistedFamily)} dispatch={dispatch} passcode="" />);
 
     expect(screen.queryByTestId("family-heard-strip")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Welcome back/i })).toBeVisible();
@@ -1097,7 +1126,8 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     // answers, and only then does the audit line get written.
     await user.click(within(michelle).getByTestId("family-resource-share-open"));
     const share = within(michelle).getByRole("button", { name: /Share.*Michelle P/i });
-    expect(share).toBeDisabled();
+    expect(share).toBeEnabled();
+    expect(share).toHaveAttribute("data-blocked", "true");
     await user.click(within(michelle).getByRole("checkbox"));
     await user.click(share);
     await waitFor(() => {
@@ -1599,7 +1629,11 @@ describe("clock truth and the small-defect batch", () => {
     showFamilySurface("Notes");
     openAllFamilyFolds();
     const empty = screen.getByTestId("family-notes-empty");
-    expect(empty).toHaveTextContent("Nothing written down yet");
+    expect(empty).toHaveTextContent("No notes yet");
+    expect(empty).toHaveTextContent(
+      "The first one takes about 10 seconds — your words, with a date, kept on this phone."
+    );
+    expect(within(empty).getByRole("button", { name: "Add the first note" })).toBeVisible();
     // The exits stay: an empty packet still carries the child's basics.
     expect(screen.getByRole("button", { name: "Print" })).toBeInTheDocument();
     expect(screen.queryByTestId("family-journal")).not.toBeInTheDocument();

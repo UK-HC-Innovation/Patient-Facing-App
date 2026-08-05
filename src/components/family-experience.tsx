@@ -339,6 +339,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   // Which of the four surfaces is showing. Every panel stays mounted, so a tab
   // is a change of view, never a loss of what the caregiver had open.
   const [surface, setSurface] = useState<LadderSurface>("home");
+  const [visitNoticeOpen, setVisitNoticeOpen] = useState(false);
   // The composer collapses to a one-tap row on a return visit; opening it is
   // what the front-door CTA and the check-in's "Add a note" both do.
   const [composerOpen, setComposerOpen] = useState(false);
@@ -372,6 +373,36 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
       document.documentElement.lang = previousLanguage;
     };
   }, [language]);
+
+  useEffect(() => {
+    const referral = family?.referral;
+    if (!referral) {
+      setVisitNoticeOpen(false);
+      return;
+    }
+    const key = `ladder-visit-notice:${state.patient.id}:${referral.referredAt}`;
+    try {
+      setVisitNoticeOpen(window.localStorage.getItem(key) !== "seen");
+    } catch {
+      // Storage can be unavailable in a private or locked-down browser. The
+      // notice remains useful for this visit and dismissal still works in memory.
+      setVisitNoticeOpen(true);
+    }
+  }, [family?.referral, state.patient.id]);
+
+  function dismissVisitNotice(): void {
+    const referral = family?.referral;
+    setVisitNoticeOpen(false);
+    if (!referral) return;
+    try {
+      window.localStorage.setItem(
+        `ladder-visit-notice:${state.patient.id}:${referral.referredAt}`,
+        "seen"
+      );
+    } catch {
+      // Dismissal still holds for this mounted session when storage is blocked.
+    }
+  }
 
   useEffect(() => {
     if (pendingReviewFocusRef.current && latestInterviewId) {
@@ -787,7 +818,8 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   }
 
   // The demo's way onto a waitlist, and with it the Visit surface — which does
-  // not exist for a family with no referral.
+  // not exist for a family with no referral. Stay on Home so the one-time
+  // notice can explain the new tab; its "See it" action performs the switch.
   function seedReferral(): void {
     const now = new Date();
     dispatch({
@@ -795,7 +827,6 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
       referral: { clinic: FAMILY_APPOINTMENT_CLINIC, referredAt: now.toISOString() }
     });
     dispatch({ type: "offerFamilyAppointment", appointment: createFamilyAppointmentOffer(now) });
-    setSurface("visit");
   }
 
   // Everything the caregiver has already typed, so the basics turns can skip
@@ -1156,19 +1187,13 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   const followupResource = followupStep ? getFamilyResourceById(followupStep.resourceId) : undefined;
 
   /**
-   * Did the caregiver arrive with history? A return visit opens on what changed
-   * and what is due; the first session stays one continuous thread (P3).
-   *
-   * Latched on the first render that has stored state to read — which is not the
-   * first render, because storage is loaded in an effect — and never latched
-   * from a note written in this session: submitting the very first description
-   * would otherwise flip Home into return framing halfway through the thread.
+   * Did the caregiver arrive with history? Storage hydrates after the first
+   * client render, so this follows the current family record instead of
+   * latching the empty demo state that rendered before hydration. The session
+   * ref keeps the first answer from turning its own first-run thread into a
+   * return visit halfway through.
    */
-  const returningRef = useRef<boolean | null>(null);
-  if (returningRef.current === null && !wroteThisSessionRef.current && family !== null) {
-    returningRef.current = family.interviews.length > 0;
-  }
-  const returning = returningRef.current === true;
+  const returning = !wroteThisSessionRef.current && (family?.interviews.length ?? 0) > 0;
   // On a return visit the composer is one tap away rather than open — but it is
   // the same box, and nothing else on any surface can write.
   const composerCollapsed = returning && family?.profile != null && !composerOpen;
@@ -1244,6 +1269,39 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
           returning={returning}
           programsCount={hasPrograms ? librarySize : undefined}
         />
+      ) : null}
+
+      {visitNoticeOpen && family?.referral ? (
+        <section
+          data-testid="family-visit-tab-notice"
+          role="status"
+          className="rounded-control border border-care/30 bg-calm/60 p-4"
+        >
+          <h2 className="text-lg font-semibold text-care">
+            {tFamily(language, "visitTabNoticeTitle")}
+          </h2>
+          <p className="mt-1 break-words leading-relaxed text-ink/85">
+            {tFamily(language, "visitTabNoticeBody", {
+              name: childName,
+              clinic: family.referral.clinic
+            })}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                dismissVisitNotice();
+                setSurface("visit");
+              }}
+              className={BTN_PRIMARY}
+            >
+              {tFamily(language, "visitTabNoticeOpen")}
+            </button>
+            <button type="button" onClick={dismissVisitNotice} className={BTN_SECONDARY}>
+              {tFamily(language, "visitTabNoticeDismiss")}
+            </button>
+          </div>
+        </section>
       ) : null}
 
       {family && checkinVisible ? (
@@ -1767,6 +1825,15 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
           <p className="mt-1 break-words leading-relaxed text-ink/80">
             {tFamily(language, "notesEmptyBody", { name: childName })}
           </p>
+          <button
+            type="button"
+            data-testid="family-notes-add"
+            onClick={() => openComposer("note")}
+            className={`mt-4 inline-flex items-center gap-2 ${BTN_PRIMARY}`}
+          >
+            <Mic aria-hidden="true" className="h-5 w-5 shrink-0" />
+            {tFamily(language, "notesEmptyCta")}
+          </button>
         </section>
       ) : null}
 
@@ -1783,7 +1850,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
       ) : null}
 
       {/* Same composer, reached from the surface that keeps its output. */}
-      {family?.profile ? (
+      {family?.profile && family.facts.length > 0 ? (
         <p>
           <button
             type="button"

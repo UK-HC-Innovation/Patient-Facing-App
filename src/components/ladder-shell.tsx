@@ -159,7 +159,7 @@ export function LadderShell({
           // F8.8: pb-3 plus the home-indicator inset, so the last row of
           // targets is not sitting under the iPhone gesture bar.
           style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
-          className="sticky bottom-0 grid grid-cols-[repeat(auto-fit,minmax(84px,1fr))] gap-1 border-t border-care/15 bg-white px-2 pt-1.5"
+          className="sticky bottom-0 grid grid-cols-[repeat(auto-fit,minmax(80px,1fr))] gap-1 border-t border-care/15 bg-white px-2 pt-1.5"
         >
           {visible.map((candidate) => {
             const Icon = SURFACE_ICONS[candidate];

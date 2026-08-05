@@ -301,7 +301,12 @@ describe("FamilyVisitPacket", () => {
 
     await user.click(screen.getByTestId("family-packet-share-open"));
     const shareButton = screen.getByTestId("family-packet-share");
-    expect(shareButton).toBeDisabled();
+    expect(shareButton).toBeEnabled();
+    expect(shareButton).toHaveAttribute("data-blocked", "true");
+    await user.click(shareButton);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Check the consent box first — sharing needs your OK each time."
+    );
     expect(share).not.toHaveBeenCalled();
 
     await user.click(

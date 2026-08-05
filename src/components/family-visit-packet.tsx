@@ -90,6 +90,7 @@ export function FamilyVisitPacket({
   const [receipt, setReceipt] = useState<PacketReceipt | null>(null);
   const [sharing, setSharing] = useState(false);
   const [consented, setConsented] = useState(false);
+  const [shareBlocked, setShareBlocked] = useState(false);
   const summary = useMemo(
     () => buildFamilyVisitSummary(family, language, now),
     [family, language, now]
@@ -162,9 +163,14 @@ export function FamilyVisitPacket({
    * calling it "a summary" (FR-7).
    */
   async function sharePacket(): Promise<void> {
+    if (!consented) {
+      setShareBlocked(true);
+      return;
+    }
     const outcome = await shareFamilyPacketText({ title, text: summary });
     setSharing(false);
     setConsented(false);
+    setShareBlocked(false);
     if (outcome === "cancelled") return;
     if (outcome === "unavailable") {
       setReceipt("packetShareUnavailable");
@@ -230,25 +236,29 @@ export function FamilyVisitPacket({
                 id={consentId}
                 type="checkbox"
                 checked={consented}
-                onChange={(event) => setConsented(event.target.checked)}
+                onChange={(event) => {
+                  const checked = event.target.checked;
+                  setConsented(checked);
+                  if (checked) setShareBlocked(false);
+                }}
                 className={`mt-1 ${CONTROL_FOCUS}`}
               />
               <span className="min-w-0 break-words">{tFamily(language, "packetShareConsent")}</span>
             </label>
-            {consented ? null : (
-              <p className="break-words text-xs text-ink/65">
+            {shareBlocked ? (
+              <p role="alert" className="break-words text-sm font-medium text-pulse">
                 {tFamily(language, "resourceShareConsentRequired")}
               </p>
-            )}
+            ) : null}
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                disabled={!consented}
+                data-blocked={!consented ? "true" : undefined}
                 data-testid="family-packet-share"
                 onClick={() => {
                   void sharePacket();
                 }}
-                className={BTN_SECONDARY}
+                className={`${BTN_SECONDARY} ${!consented ? "opacity-50" : ""}`}
               >
                 {tFamily(language, "packetShare")}
               </button>
