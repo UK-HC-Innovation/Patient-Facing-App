@@ -2,7 +2,7 @@
 
 > A three-agent audit (2026-08-05) of the Ladder found that months of shipped work is invisible — production still serves the pre-spec-18 front door with the deleted demo banner — and that the uncommitted tab redesign broke the one artifact a clinician ever sees (the visit packet prints blank). Behind those: three safety-copy defects (a no-referral family told to call a hardcoded Lexington clinic with no phone number right after reading "possible loss of skills"; a crisis banner that pins above every surface forever because the code contradicts its own comment; no way to retract a false "Possible loss of skills" line from the clinician packet), a family record that dies with the browser and has no working export, no mechanism of any kind that brings a family back for the monthly check-in, a 52-entry catalog whose freshness nothing enforces (30 phone numbers trace to a 12/2025 PDF), and a Spanish experience whose chrome is at 475/475 parity while every card a family acts on is English with the "this is in English" notice rendered on one surface of four. This spec fixes all of it in eight phases and ends with a verified production deploy. It is written to be executed end-to-end by an implementing agent in a fresh session.
 
-**Status:** Spec authored 2026-08-05 from the full-app audit (three parallel read-only surveys: docs/backlog, UX surfaces, domain/data/safety — key claims re-verified in code by hand). Extends specs 09 (Family Navigator), 13 (waitlist companion), 18 (resources-first), 19 (phone fit). **Delivers the item spec 19 F4a named as "the next spec"** (a `rejected` status on `FamilyFact`), **decides spec 13 Open Question 6** (notification reuse: yes, in-app + `.ics`, honestly labeled), and **closes spec 18 Open Question 7** (suite-wide e2e stub of `/api/family/recommend`). Ground truth verified against `master` at `76ce8fa` **plus the uncommitted tab-redesign working tree** (see Ground Truth). Not yet implemented.
+**Status:** ✅ **Implemented and deployed 2026-08-05** at `c4dc316` (production `dpl_91tQiN2j5A1KN85gdqdN583aGZmo`, 13 commits, `de51809..c4dc316`). P0–P7 all landed; see [Implementation Notes](#implementation-notes-2026-08-05--what-the-build-measured-and-corrected). Spec authored 2026-08-05 from the full-app audit (three parallel read-only surveys: docs/backlog, UX surfaces, domain/data/safety — key claims re-verified in code by hand). Extends specs 09 (Family Navigator), 13 (waitlist companion), 18 (resources-first), 19 (phone fit). **Delivered the item spec 19 F4a named as "the next spec"** (a `rejected` status on `FamilyFact`), **decided spec 13 Open Question 6** (notification reuse: yes, in-app + `.ics`, honestly labeled), and **closed spec 18 Open Question 7** (suite-wide e2e stub of `/api/family/recommend`). Ground truth was verified against `master` at `76ce8fa` **plus the uncommitted tab-redesign working tree** (see Ground Truth).
 
 ## Problem & Rationale
 
@@ -207,6 +207,142 @@ New print e2e; `ladder-shell.test.tsx` (first-run ARIA); `family-clinic-now-card
 5. Verify live: `/ladder` serves the resources-first front door with the redesign, no "concept demo" banner; `/family?lang=es` 308-redirects preserving query; spot-check `/`, `/screening`, `/today`, `/checkin`, `/support`, `/food`; print preview of the packet shows the packet alone.
 6. Append one line to `docs/ops/DEPLOYS.jsonl` matching the existing schema (`at`, `sha`, `target`, `url`, `deploymentId`, `commitsShipped`, `commitRange`, `verified[]`, `gates{}`, `note`).
 7. Update this spec's **Status** line to Implemented with date and SHA, and add an Implementation Notes section in the house style (what the build measured and corrected — including anything found that this spec got wrong).
+
+## Implementation Notes (2026-08-05) — what the build measured and corrected
+
+Written in the house style: what was measured, and everything this spec got
+wrong.
+
+### Things the spec claimed that turned out to be false
+
+1. **`sw.js` did not hardcode `/today`.** Ground Truth says the service worker's
+   `notificationclick` "defaults to `/today`". It reads
+   `event.notification.data?.url || "/today"` — `/today` is the *fallback*, and
+   the handler already honours whatever a notification names. F4b therefore
+   needed no service-worker change at all; the new check-in notification simply
+   carries `data: { url: "/ladder" }`. One less file touched than the spec
+   budgeted.
+2. **`acute_medical_emergency` is a rule id, not a domain.** F6e calls it "the
+   new `acute_medical_emergency` domain". It is a rule inside the existing
+   `acute_danger` domain (`crisis-red-flags.ts`), added by spec 17. No new domain
+   was added and none was needed; the Spanish pass targeted the rule.
+3. **"English lags Spanish" is now out of date in one direction and was never
+   true in the other.** The 2026-08-04 English report's finding #2 listed four
+   areas where Spanish detected disclosures English missed, and spec 17 fixed the
+   English side. Running the mirror pass found the *Spanish* side missing the
+   same four plus one more: a named abuser had no Spanish path at all (7/7
+   missed) and `acute_medical_emergency`'s signal list was English-only (8/8
+   missed). Neither language was ahead; each had been hardened where its own pass
+   had looked.
+4. **The catalog is not 52 entries for freshness purposes, it is 66.** Ground
+   Truth counts 52 `family-resources` entries. The freshness budget and the
+   verification pass cover all three catalogs — 52 + 8 guides + 6 SDoH = 66
+   entries across 44 unique source URLs, because the POE PDF is shared by 16 of
+   them and two SDoH entries are re-exported into the family catalog.
+5. **F3a cannot deliver the success criterion it states.** "Cancelled print
+   leaves no 'Printed' audit event" is not achievable in a browser: `afterprint`
+   fires when the dialog is *dismissed*, printed or not, and no engine exposes a
+   "paper came out" signal. Moving the audit event off the click and onto
+   `afterprint` narrows the false receipt from "the button was tapped" to "the
+   print flow ran to completion" — a real improvement, and not the one the spec
+   promised. Stated in the code where it lives rather than quietly implemented as
+   if it worked.
+
+### Things the spec was right about, and worse than it said
+
+6. **The first-run ARIA defect was four panels, not three.** Ground Truth says
+   three tabpanels reference ids that do not exist on first run. Through the
+   whole first session `showTabs` is false and the bar is not rendered *at all*,
+   so the fourth — Home's own panel — dangled too. The fix has two halves: panels
+   exist only for surfaces that have a tab, and a panel is only a `tabpanel`
+   while the bar is on the page. Verified on live production: zero tabpanels and
+   zero dangling `aria-labelledby` on a fresh load.
+7. **The clinic-now card's fallback was worse than "names the wrong clinic".**
+   It named the demo clinic *and* carried no number, so the instruction was "call
+   a place you have never heard of", with no way to call it. The First Steps
+   branch now carries a real, tappable, catalog-verbatim number — which makes the
+   29 POE phone numbers, all traced to a single 12/2025 PDF, load-bearing for the
+   first time. They are §1 of the owner checklist for that reason.
+8. **Three back-to-top links, not two.** F8.1 names Programs and the Journal. The
+   stage timeline had the same `#family-experience` href and the same silent
+   tab-switch; the test that enforces the invariant found it.
+
+### Measurements
+
+- **Catalog re-verification (F5b).** 66 entries, 44 unique URLs, all reachable:
+  **0 dead, 0 moved**, 2 blocked to scripts (`ssi_children` on ssa.gov,
+  `dsack` — both browser-loadable), 39 content-confirmed and bumped to
+  2026-08-05, 20 reachable but not machine-confirmable (PDFs and JS-rendered
+  pages) whose dates did **not** move. The freshness test passes because the
+  catalog was re-verified, not because the budget was widened — which is the
+  success criterion, and it was checked by running the test against the old
+  dates first.
+- **Spanish adversarial pass (F6e).** 55 candidates against the real detector:
+  43 disclosures, 12 traps. **37 disclosures broke it; 0 traps did.** 34 fixed
+  and folded in with all 12 traps; corpus 248 → 294; gate PASS, recall 1.00,
+  false positives 0. Three caregiver-collapse candidates are deliberately not
+  fixed and are named with reasons in
+  `docs/qa/2026-08-05-spanish-crisis-adversarial.md` — firing on them needs a
+  collapse-only path, which turns "ya no puedo más con el papeleo de la lista de
+  espera" into a crisis interstitial.
+- **The corpus paid for itself inside the hour.** The first version of the new
+  escape-from-a-named-place rule had no subject constraint and fired on
+  `trap_es_missing_dog`, a trap a *previous* pass had added for exactly that
+  mistake. The gate caught it before the commit.
+- **Print isolation (F1a, FR-9).** The new Playwright spec was run against the
+  old CSS rule first and fails on it (`boundingBox()` null — the packet is inside
+  a `display: none` panel), then passes against the new one. The full rule set is
+  confirmed present in the live production CSSOM.
+- **Gates at ship.** lint clean; 2994 unit tests passing, 1 skipped; build clean;
+  crisis gate PASS; Playwright 87 passed / 1 skipped across both projects, with
+  only the two known coach specs failing (`dr-screening`, `home-health` — spec 19
+  note 8, verified unchanged and untouched).
+
+### Design decisions the spec left open
+
+9. **`rejected` is one-way in the UI.** The spec asks for "a 'This is wrong'
+   control, distinct from the packet checkbox" and a "marked wrong" chip. The
+   packet checkbox stays the reversible curation control; rejection is a
+   correction of the record, taken on one tap, with the family's words and quote
+   still on the page. Un-rejecting would have to restore a prior status the fact
+   no longer carries, and guessing that status is the kind of invention this spec
+   exists to remove.
+10. **Facts were never a matching input.** F2c says a rejected fact is "excluded
+    from matching/ranking inputs". Retrieval is profile + active domains +
+    already-enrolled + the raw interview text; facts do not reach it. The
+    exclusion is applied everywhere facts *are* consumed downstream — the packet,
+    the regression flag's packet line, and the packet-notes count on the front
+    door — and `activeFamilyFacts` exists so the next consumer inherits it.
+11. **The step rung stands down rather than re-targeting.** F7a says the rung
+    computation should receive the same visibility inputs the page uses. With
+    `threadActive` true the step section is not rendered, so the honest rung is
+    no rung — the header goes quiet and the thread owns the ask, which is the
+    one-ask-at-a-time rule the page already follows.
+12. **`STALE_ACCEPTED` entries expire.** The spec asks for "an explicit dated
+    allowlist with a reason string each". Each entry carries a review-by date and
+    the test fails when that date passes, so the allowlist cannot quietly become
+    the permanent answer to a decaying catalog. Both current entries are dated
+    2026-10-01.
+
+### Still open after this ship
+
+- The **owner checklist** in `docs/ops/catalog-verification/2026-08-05.md` is
+  human work this spec deliberately did not do: 41 phone numbers (29 of them from
+  one 12/2025 PDF and now load-bearing for the clinic-now card), three
+  `humanVerify` procedural entries, the SSI/STABLE/Sibling-Support trio plus
+  `dsack`, and the two volatile Michelle P. figures.
+- **`.ics` files have not been opened in a real calendar app**, and the PWA
+  install has not been done on a real phone. Both are on the standing spec 12
+  hardware pass. The files are byte-verified against RFC 5545 shape by unit test
+  (CRLF, folding at 75 octets, TEXT escaping, `VALARM` trigger) and the manifest
+  is confirmed served with the right `start_url`, but a calendar app's parser is
+  not a test suite.
+- **The freshness test is now armed.** The two SDoH entries dated 2026-07-04 age
+  out around 2026-08-18 and the POE block around 2026-08-31. That is the
+  mechanism working, not a defect — but it is the first thing that will break
+  `npm run check` with no code change, and it is worth knowing before it does.
+- The **Wave 4 12-persona rerun** remains the recommended next QA program, and it
+  doubles as acceptance validation for everything above.
 
 ## Success Criteria
 
