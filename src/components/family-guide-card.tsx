@@ -4,6 +4,7 @@ import { ExternalLink } from "lucide-react";
 import React, { useId } from "react";
 import type { FamilyGuide } from "@/domain/family-guides";
 import { familyResourcePhones, familyResourceTel } from "@/domain/family-resource-contact";
+import { sourceContentLang } from "@/components/family-source-language-notice";
 import { CONTROL_FOCUS, NOTICE_INFO } from "@/components/family-theme";
 import { tFamily } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
@@ -22,6 +23,7 @@ export type FamilyGuideCardProps = {
 export function FamilyGuideCard({ guide, language }: FamilyGuideCardProps) {
   const titleId = `${useId()}-title`;
   const [guidePhone] = familyResourcePhones(guide.contact ?? "");
+  const sourceLang = sourceContentLang(language);
 
   return (
     <article
@@ -30,12 +32,16 @@ export function FamilyGuideCard({ guide, language }: FamilyGuideCardProps) {
       data-guide-id={guide.id}
       className="min-w-0 rounded-control border border-ink/10 bg-white p-4"
     >
-      <h4 id={titleId} className="min-w-0 break-words font-semibold">
+      {/* F6b. Guide content is English in both languages (a named non-goal),
+          so it says so while the page around it is Spanish. */}
+      <h4 id={titleId} lang={sourceLang} className="min-w-0 break-words font-semibold">
         {guide.title}
       </h4>
-      <p className="mt-1 break-words leading-relaxed text-ink/80">{guide.plainSummary}</p>
+      <p lang={sourceLang} className="mt-1 break-words leading-relaxed text-ink/80">
+        {guide.plainSummary}
+      </p>
 
-      <ul className="mt-3 grid list-disc gap-1 pl-5 leading-relaxed">
+      <ul lang={sourceLang} className="mt-3 grid list-disc gap-1 pl-5 leading-relaxed">
         {guide.steps.map((step) => (
           <li key={step} className="min-w-0 break-words">
             {step}
@@ -58,7 +64,7 @@ export function FamilyGuideCard({ guide, language }: FamilyGuideCardProps) {
       ) : null}
 
       <p data-testid="family-guide-source" className="mt-3 break-words text-sm text-ink/70">
-        {tFamily(language, "resourceSource")}: {guide.sourceName} ·{" "}
+        {tFamily(language, "resourceSource")}: <span lang={sourceLang}>{guide.sourceName} </span>·{" "}
         {tFamily(language, "resourceVerified", { date: guide.verifiedAt })}
       </p>
 

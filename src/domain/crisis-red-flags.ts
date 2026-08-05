@@ -117,11 +117,35 @@ const SPANISH_REPORTED_SELF_HARM_SIGNALS: readonly RegExp[] = [
   /\b(?:ya\s+)?no\s+quiere(?:n)?\s+(?:vivir\b(?!\s+(?:en|con)\b)|seguir\s+viviendo\b)/u,
   /\b(?:piensa|esta\s+pensando)\s+(?:en\s+)?(?:matarse|suicidarse|suisidarse|quitarse\s+la\s+vida|(?:acabar|terminar)\s+con\s+su\s+vida(?!\s+escolar\b))\b/u,
   /\bva\s+a\s+(?:matarse|suicidarse|suisidarse|quitarse\s+la\s+vida)\b/u,
-  /\b(?:amenaza|amenazo|amenazan|intento|trato)\s+(?:con\s+|de\s+)?(?:matarse|suicidarse|suisidarse|quitarse\s+la\s+vida)\b/u
+  /\b(?:amenaza|amenazo|amenazan|intento|trato)\s+(?:con\s+|de\s+)?(?:matarse|suicidarse|suisidarse|quitarse\s+la\s+vida)\b/u,
+  // ---------------------------------------------------------------------------
+  // Spec 20 F6e — the Spanish adversarial pass (2026-08-05). Every pattern below
+  // is passive or indirect ideation: a caregiver quoting what their child said,
+  // in words that carry no verb from the explicit list above. The 2026-08-04
+  // English pass added the mirror of several of these on the English side; the
+  // Spanish side never got them. Each was executed against the trap corpus in
+  // the same run — "se quiere morir de risa" and the rest still stay quiet.
+  // ---------------------------------------------------------------------------
+  // "todos estarían mejor sin él", "estaría mejor sin estar aquí" — the most
+  // common passive-ideation phrasing there is, and it named nothing before.
+  /\bestarian?\s+mejor\s+sin\s+(?:mi\b|el\b|ella\b|nosotros\b|estar\s+aqui\b)/u,
+  // "ojalá no despertara mañana" — the reported form of an existing first-person rule.
+  /\bojala\s+no\s+(?:despertara|despierte|amanezca)\b/u,
+  // "quiere desaparecer para siempre" — bounded by the permanence, so "quiero
+  // desaparecer un rato" (exhaustion, not ideation) is untouched.
+  /\bquiere\s+desaparecer\s+(?:para\s+siempre|de\s+este\s+mundo|definitivamente)\b/u,
+  /\bse\s+quiere\s+ir\s+de\s+este\s+mundo\b/u,
+  /\b(?:ya\s+)?no\s+quiere\s+estar\s+viv[oa]\b/u,
+  /\bhabla\s+de\s+(?:matarse|suicidarse|quitarse\s+la\s+vida|morirse)\b/u,
+  // Method-seeking, which reads as curiosity and is not.
+  /\bcuantas\s+(?:pastillas|pildoras)\b[^.?!]{0,40}\b(?:serian|son|bastarian|alcanzarian)\b/u
 ];
 
 const SPANISH_SELF_INJURY_SIGNALS: readonly RegExp[] = [
-  /\b(?:amenaza|amenazo|amenazan|intento|trato)\s+(?:con\s+|de\s+)?(?:cortarse|hacerse\s+dano|lastimarse)\b/u,
+  /\b(?:amenaza|amenazo|amenazan|intento|trato|habla)\s+(?:con\s+|de\s+)?(?:cortarse|hacerse\s+dano|lastimarse)\b/u,
+  // Spec 20 F6e: the perfect progressive was the only tense missing here, and it
+  // is how a caregiver actually reports weeks of cutting.
+  /\bse\s+ha\s+estado\s+(?:cortando\b(?!\s+(?:(?:el\s+)?(?:pelo|cabello)|las?\s+(?:puntas|unas)))|haciendo(?:se)?\s+dano|lastimando)\b/u,
   /\bse\s+(?:esta|estaba)\s+(?:cortando\b(?!\s+(?:(?:el\s+)?(?:pelo|cabello)|las?\s+(?:puntas|unas)))|haciendo(?:se)?\s+dano|lastimando)\b/u,
   /\b(?:esta|sigue|continua|ha\s+estado)\s+(?:cortandose\b(?!\s+(?:(?:el\s+)?(?:pelo|cabello)|las?\s+(?:puntas|unas)))|haciendose\s+dano|lastimandose)\b/u,
   /\bse\s+(?:corta\s+(?:los\s+brazos|las\s+piernas|la\s+piel)|hace\s+dano)\b/u,
@@ -167,7 +191,7 @@ function isSpanishOngoingSelfInjury(input: string): boolean {
 const SPANISH_ELOPEMENT =
   "(?:se\\s+(?:escapo|fugo)(?:\\s+de\\s+casa)?|salio(?:\\s+de\\s+(?:la\\s+)?casa)?|se\\s+perdio|se\\s+fue\\s+de\\s+casa|desaparecio)";
 const SPANISH_NOT_RETURNED =
-  "(?:(?:todavia|aun)\\s+)?(?:no\\s+(?:(?:lo|la)\\s+)?(?:encontramos|encuentro|encuentran|podemos\\s+encontrar|puedo\\s+encontrar|aparece|regreso)|no\\s+ha\\s+vuelto|sigue\\s+(?:desaparecid[oa]|sin\\s+aparecer))";
+  "(?:(?:todavia|aun)\\s+)?(?:no\\s+(?:(?:lo|la)\\s+)?(?:encontramos|encuentro|encuentran|podemos\\s+encontrar|puedo\\s+encontrar|aparece|regreso)|no\\s+ha\\s+vuelto|sigue\\s+(?:desaparecid[oa]|sin\\s+aparecer)|(?:no\\s+se|nadie\\s+sabe|no\\s+sabemos)\\s+donde\\s+esta)";
 const SPANISH_CHILD_LED_MISSING = new RegExp(
   `\\b${SPANISH_CHILD_WITH_AGE}\\b\\s+${SPANISH_ELOPEMENT}[^.?!]{0,96}${SPANISH_NOT_RETURNED}`,
   "u"
@@ -181,11 +205,23 @@ const SPANISH_NAMED_CHILD_MISSING = new RegExp(
   "u"
 );
 const SPANISH_CURRENTLY_MISSING = new RegExp(
-  `\\b${SPANISH_CHILD_WITH_AGE}\\b(?:\\s+(?:esta|sigue)\\s+(?:desaparecid[oa]|sin\\s+aparecer)|\\s+lleva\\s+(?:horas|dias|toda\\s+la\\s+noche)\\s+desaparecid[oa])\\b|\\b(?:todavia\\s+|aun\\s+)?no\\s+(?:encuentro|encontramos|puedo\\s+encontrar|podemos\\s+encontrar)\\s+a\\s+${SPANISH_CHILD}\\b|\\bno\\s+se\\s+donde\\s+esta\\s+${SPANISH_CHILD}\\s+desde\\s+(?:anoche|ayer|esta\\s+manana)\\b`,
+  `\\b${SPANISH_CHILD_WITH_AGE}\\b(?:\\s+(?:esta|sigue)\\s+(?:desaparecid[oa]|sin\\s+aparecer)|\\s+lleva\\s+(?:(?:horas|dias|toda\\s+la\\s+(?:noche|tarde|manana)|todo\\s+el\\s+dia)\\s+desaparecid[oa]|desaparecid[oa]\\s+(?:horas|dias|toda\\s+la\\s+(?:noche|tarde|manana)|todo\\s+el\\s+dia)))\\b|\\b(?:todavia\\s+|aun\\s+)?no\\s+(?:encuentro|encontramos|puedo\\s+encontrar|podemos\\s+encontrar)\\s+a\\s+${SPANISH_CHILD}\\b|\\bno\\s+se\\s+donde\\s+esta\\s+${SPANISH_CHILD}\\s+(?:ahora\\s+mismo|en\\s+este\\s+momento|desde\\s+(?:anoche|ayer|esta\\s+manana))\\b`,
   "u"
 );
 const SPANISH_CHILD_MISSING_BEFORE_ELOPEMENT = new RegExp(
   `\\b(?:todavia\\s+|aun\\s+)?no\\s+(?:encuentro|encontramos|puedo\\s+encontrar|podemos\\s+encontrar)\\s+a\\s+${SPANISH_CHILD}\\b[^.?!]{0,96}${SPANISH_ELOPEMENT}`,
+  "u"
+);
+// Spec 20 F6e. "Se escapo de la escuela y nadie sabe donde esta" names no
+// child noun at all, so every pattern above missed it. Escape *from a named
+// place*, still missing, is tight enough to stand on its own.
+// The subject-free version of this pattern flagged a missing dog, which is
+// exactly the trap the corpus already carried. A clause that names an animal
+// is not a missing child.
+const SPANISH_MISSING_ANIMAL =
+  /\b(?:perr[oa]s?|perrit[oa]s?|gat[oa]s?|gatit[oa]s?|mascotas?|conejos?|hamsters?|pajaros?|animal(?:es)?)\b/u;
+const SPANISH_ESCAPED_FROM_PLACE = new RegExp(
+  `\\bse\\s+(?:escapo|fugo|salio)\\s+de\\s+(?:la\\s+escuela|la\\s+casa|casa|la\\s+guarderia|el\\s+colegio|la\\s+terapia)[^.?!]{0,96}${SPANISH_NOT_RETURNED}`,
   "u"
 );
 const SPANISH_RETURNED_CHILD =
@@ -210,6 +246,9 @@ function isSpanishMissingChild(input: string): boolean {
     SPANISH_REVERSED_CHILD_MISSING.test(normalized) ||
     SPANISH_CURRENTLY_MISSING.test(normalized) ||
     SPANISH_CHILD_MISSING_BEFORE_ELOPEMENT.test(normalized) ||
+    spanishClauses(input).some(
+      (clause) => SPANISH_ESCAPED_FROM_PLACE.test(clause) && !SPANISH_MISSING_ANIMAL.test(clause)
+    ) ||
     SPANISH_NAMED_CHILD_MISSING.test(normalizeSpanishPreservingCase(input))
   );
 }
@@ -241,7 +280,19 @@ const SPANISH_ABUSE_SIGNALS: readonly RegExp[] = [
     `\\b(?:el|la)\\s+(?:novio|novia|pareja)\\s+de\\s+${SPANISH_CHILD}\\s+(?:lo|la)\\s+esta\\s+(?:golpeando|lastimando|maltratando)\\b`,
     "u"
   ),
-  new RegExp(`\\b${SPANISH_CHILD}\\b[^.?!]{0,32}(?:lo|la)\\s+estan\\s+abusando\\b`, "u")
+  new RegExp(`\\b${SPANISH_CHILD}\\b[^.?!]{0,32}(?:lo|la)\\s+estan\\s+abusando\\b`, "u"),
+  // ---------------------------------------------------------------------------
+  // Spec 20 F6e. A named abuser, in the roles a caregiver actually names. The
+  // existing patterns wanted the child noun adjacent to the harm verb, so
+  // "el entrenador de mi hijo le hizo daño" and "la niñera le dejó moretones"
+  // both fell through — the same gap the 2026-08-04 pass fixed on the English
+  // side. A role alone is never a signal: a harm verb has to be acting.
+  // ---------------------------------------------------------------------------
+  new RegExp(
+    `\\b(?:el|la|su|mi|un|una)\\s+(?:entrenador[a]?|maestr[oa]|profesor[a]?|ninera|nana|cuidador[a]?|ti[oa]|abuel[oa]|padrastro|madrastra|vecin[oa]|pareja|novi[oa]|papa|mama|padre|madre|adult[oa])\\b[^.?!]{0,48}(?:le\\s+peg\\w+|le\\s+hizo\\s+dano|le\\s+hace\\s+dano|le\\s+dejo\\s+moretones|(?:lo|la)\\s+(?:golpe\\w+|lastim\\w+|maltrat\\w+|toco)|abuso\\s+de\\s+(?:el|ella|mi\\s+hij[oa]))\\b`,
+    "u"
+  ),
+  new RegExp(`\\b(?:un|una)\\s+adult[oa]\\s+abuso\\s+de\\s+(?:el|ella|${SPANISH_CHILD})\\b`, "u")
 ];
 const SPANISH_ABUSE_DENIALS: readonly RegExp[] = [
   /\bno\s+es\s+cierto\s+que\b/u,
@@ -272,10 +323,14 @@ function isSpanishChildHarmDisclosure(input: string): boolean {
   );
 }
 
+// Spec 20 F6e widened the *first* half only. The two-condition gate below is
+// deliberate — a collapse phrase alone fires on "ya no puedo mas con el papeleo
+// de la lista de espera", which is the most ordinary sentence in this app — so
+// these additions are phrasings of the same two conditions, not a relaxation.
 const SPANISH_CAREGIVER_COLLAPSE =
-  /\b(?:(?:ya\s+)?no\s+puedo\s+(?:hacer\s+esto(?:\s+mas)?|seguir(?:\s+asi)?|mas(?:\s+con\s+esto)?|con\s+esto)|no\s+aguanto\s+mas(?:\s+con\s+esto)?|ya\s+no\s+doy\s+mas)\b/u;
+  /\b(?:(?:ya\s+)?no\s+puedo\s+(?:hacer\s+esto(?:\s+(?:mas|ni\s+un\s+dia\s+mas))?|seguir(?:\s+asi)?|mas(?:\s+con\s+(?:todo\s+)?esto)?|con\s+esto)|no\s+aguanto\s+mas(?:\s+con\s+esto)?|(?:ya\s+)?no\s+doy\s+mas|estoy\s+al\s+limite)\b/u;
 const SPANISH_GIVING_UP =
-  /\b(?:(?:me\s+)?quiero\s+rendir(?:me)?|quiero\s+darme\s+por\s+vencid[oa]|me\s+rindo|voy\s+a\s+rendirme|quiero\s+abandonar\s+todo)\b/u;
+  /\b(?:(?:me\s+)?quiero\s+rendir(?:me)?|quiero\s+darme\s+por\s+vencid[oa]|me\s+(?:rindo|rendi)|voy\s+a\s+rendirme|quiero\s+abandonar\s+todo|me\s+(?:voy\s+a\s+quebrar|estoy\s+(?:quebrando|derrumbando))|tengo\s+miedo\s+de\s+lo\s+que\s+(?:pueda|podria)\s+hacer)\b/u;
 const SPANISH_GIVING_UP_DENIALS: readonly RegExp[] = [
   /\b(?:no|nunca|jamas|tampoco)\s+(?:me\s+)?quiero\s+rendir(?:me)?\b/u,
   /\bno\s+quiero\s+darme\s+por\s+vencid[oa]\b/u,
@@ -545,8 +600,31 @@ const ACUTE_MEDICAL_SIGNALS: readonly RegExp[] = [
   /\bpassed\s+out\b[^.?!]{0,48}\b(?:can'?t\s+get\s+\w+\s+to\s+respond|unresponsive|won'?t\s+wake|still\s+out)\b/i
 ];
 
+// Spec 20 F6e. ACUTE_MEDICAL_SIGNALS is English only, so every Spanish phrasing
+// of an unresponsive, seizing, or not-breathing child fell straight through —
+// eight for eight in the 2026-08-05 adversarial run. These are the least
+// ambiguous sentences in the whole corpus, and they were the widest gap in it.
+const SPANISH_ACUTE_MEDICAL_SIGNALS: readonly RegExp[] = [
+  // "no responde los mensajes" is a teenager, not an emergency, so the bare verb
+  // needs to not be taking an object.
+  /\bno\s+responde\b(?!\s+(?:los|las|el|la|mis|sus|a\s+los|mensajes|llamadas)\b)/u,
+  /\bno\s+(?:reacciona|responde\s+a\s+nada)\b/u,
+  /\bno\s+(?:puedo|podemos|logro|logramos)\s+despertar(?:lo|la)?\b/u,
+  /\bsigue\s+sin\s+despertar\b/u,
+  /\b(?:esta\s+teniendo|tiene|le\s+dio|le\s+esta\s+dando)\s+(?:una\s+)?convulsi(?:on|ones)\b/u,
+  /\b(?:esta|quedo|se\s+quedo)\s+inconsciente\b/u,
+  /\bse\s+le\s+cierra\s+la\s+garganta\b|\banafila/u,
+  /\bno\s+(?:esta\s+respirando|puede\s+respirar)\b/u,
+  /\bdolor\s+en\s+el\s+pecho\b[^.?!]{0,48}\b(?:brazo|mandibula)\b/u,
+  /\bse\s+desmayo\b[^.?!]{0,48}\b(?:no\s+reacciona|no\s+responde|sigue\s+sin\s+despertar|inconsciente)\b/u
+];
+
+function isSpanishAcuteMedical(input: string): boolean {
+  return matchesAny(normalizeSpanish(input), SPANISH_ACUTE_MEDICAL_SIGNALS);
+}
+
 function isAcuteMedical(input: string): boolean {
-  return matchesAny(input, ACUTE_MEDICAL_SIGNALS);
+  return matchesAny(input, ACUTE_MEDICAL_SIGNALS) || isSpanishAcuteMedical(input);
 }
 
 // ---------------------------------------------------------------------------
@@ -639,7 +717,9 @@ const SPANISH_HARM_TO_OTHERS_SIGNALS: readonly RegExp[] = [
   new RegExp(`\\b(?:cruel|violent[oa]|agresiv[oa])\\s+con\\s+(?:los|las|el|la|su|mi)?\\s*${SPANISH_ANIMAL}\\b`, "u"),
   new RegExp(`\\bhace\\s+dano\\s+a\\s+(?:los|las|el|la|su|mi)?\\s*${SPANISH_ANIMAL}\\b`, "u"),
   /\b(?:lastim\w+|golpe\w+|atac\w+|muerde|mordio)\s+a\s+(?:otr[oa]s?\s+)?(?:nin[oa]s?|companer[oa]s?|estudiantes?|su\s+herman[oa]|su\s+maestr[oa])\b/u,
-  /\bamenaz\w+\s+con\s+(?:matar|lastimar|herir|golpear)\s+a\s+(?!si\s+mism)/u
+  /\bamenaz\w+\s+con\s+(?:matar|lastimar|herir|golpear)\s+a\s+(?!si\s+mism)/u,
+  // Spec 20 F6e: a stated plan reads the same as a threat and had no rule.
+  /\bva\s+a\s+(?:matar|lastimar|herir|golpear)\s+a\s+(?!si\s+mism)/u
 ];
 const SPANISH_HARM_TO_OTHERS_DENIALS: readonly RegExp[] = [
   /\b(?:no|nunca|jamas|tampoco)\b/u,

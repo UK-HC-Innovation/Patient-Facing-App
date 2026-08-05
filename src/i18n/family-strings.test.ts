@@ -199,6 +199,26 @@ describe("familyStrings", () => {
     expect(Object.keys(familyStrings.en)).toEqual(expect.arrayContaining(TASK_7_REQUIRED_KEYS));
   });
 
+  // F6c. The key sets were type-enforced and counted; the *placeholders* inside
+  // them were not, so a translation that dropped {weeks} or renamed {clinic}
+  // would ship a sentence with a hole in it — or a literal "{clinic}" — and
+  // every existing test would stay green.
+  it("keeps the same placeholders in both languages, for every key", () => {
+    const placeholders = (template: string): string[] =>
+      [...template.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
+
+    const mismatches: string[] = [];
+    for (const key of Object.keys(familyStrings.en) as (keyof typeof familyStrings.en)[]) {
+      const english = placeholders(familyStrings.en[key]);
+      const spanish = placeholders(familyStrings.es[key]);
+      if (english.join(",") !== spanish.join(",")) {
+        mismatches.push(`${key}: en {${english.join(", ")}} vs es {${spanish.join(", ")}}`);
+      }
+    }
+
+    expect(mismatches).toEqual([]);
+  });
+
   it("marks Spanish as a draft pending native review", () => {
     expect(familyStrings.es.spanishReviewNotice).toMatch(/borrador/i);
     expect(familyStrings.es.spanishReviewNotice).toMatch(/revise.*hablante nativ/i);

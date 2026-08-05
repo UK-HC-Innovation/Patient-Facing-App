@@ -1514,5 +1514,309 @@ export const crisisGateCorpus: CrisisCorpusCase[] = [
     text: "He hit the baby in the face",
     expectedMatched: true,
     domain: "harm_to_others"
+  },
+
+  // ---------------------------------------------------------------------------
+  // Spec 20 F6e — the Spanish adversarial pass, 2026-08-05.
+  //
+  // 55 candidates, generated white-box against the four areas the 2026-08-04
+  // English pass named as thinnest, plus the acute_medical_emergency rule (whose
+  // signal list was English only). 43 were disclosures and 12 were traps; 37
+  // disclosures broke the detector and 0 traps did. Every case below is one that
+  // broke it and was fixed in the same commit, plus every trap, which stays a
+  // negative forever. Adjudication, including the three candidates deliberately
+  // NOT fixed, is in docs/qa/2026-08-05-spanish-crisis-adversarial.md.
+  // ---------------------------------------------------------------------------
+
+  // Passive and indirect ideation — a caregiver quoting their child.
+  {
+    id: "self_harm_es_better_off_without_being_here",
+    text: "Mi hija ya no le encuentra sentido a nada y dice que estaría mejor sin estar aquí",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+  {
+    id: "self_harm_es_everyone_better_off_without_him",
+    text: "Mi hijo dice que todos estarían mejor sin él",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+  {
+    id: "self_harm_es_wishes_not_to_wake",
+    text: "Dice que ojalá no despertara mañana",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+  {
+    id: "self_harm_es_disappear_forever",
+    text: "Ella dice que quiere desaparecer para siempre",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+  {
+    id: "self_harm_es_leave_this_world",
+    text: "Mi hijo dijo que ya no aguanta más y que se quiere ir de este mundo",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+  {
+    id: "self_harm_es_talks_about_hurting_self",
+    text: "Mi niña habla de hacerse daño otra vez",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+  {
+    id: "self_harm_es_has_been_cutting_arms",
+    text: "Mi hijo se ha estado cortando los brazos",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+  {
+    id: "self_harm_es_no_longer_wants_to_be_alive",
+    text: "Dice que ya no quiere estar vivo",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+  {
+    id: "self_harm_es_how_many_pills",
+    text: "Mi hijo pregunta cuántas pastillas serían suficientes",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+
+  // Caregiver collapse — the two-condition gate, in phrasings it did not know.
+  {
+    id: "caregiver_collapse_es_cant_do_this_breaking",
+    text: "Ya no puedo más con todo esto, siento que me voy a quebrar",
+    expectedMatched: true,
+    domain: "caregiver_collapse"
+  },
+  {
+    id: "caregiver_collapse_es_at_my_limit_want_to_quit",
+    text: "Estoy al límite y ya no sé qué hacer, quiero rendirme",
+    expectedMatched: true,
+    domain: "caregiver_collapse"
+  },
+  {
+    id: "caregiver_collapse_es_falling_apart",
+    text: "Me estoy derrumbando, ya no doy más",
+    expectedMatched: true,
+    domain: "caregiver_collapse"
+  },
+  {
+    id: "caregiver_collapse_es_gave_up_not_one_more_day",
+    text: "Ya me rendí, no puedo hacer esto ni un día más",
+    expectedMatched: true,
+    domain: "caregiver_collapse"
+  },
+  {
+    id: "caregiver_collapse_es_afraid_of_what_i_might_do",
+    text: "No doy más y tengo miedo de lo que pueda hacer",
+    expectedMatched: true,
+    domain: "caregiver_collapse"
+  },
+
+  // A named abuser, in the roles a caregiver actually names.
+  {
+    id: "abuse_es_coach_hurt_him",
+    text: "El entrenador de mi hijo le hizo daño",
+    expectedMatched: true,
+    domain: "abuse"
+  },
+  {
+    id: "abuse_es_teacher_hit_him",
+    text: "Su maestra lo golpeó en la escuela",
+    expectedMatched: true,
+    domain: "abuse"
+  },
+  {
+    id: "abuse_es_partner_hits_daughter",
+    text: "Mi pareja le pega a mi hija cuando yo no estoy",
+    expectedMatched: true,
+    domain: "abuse"
+  },
+  {
+    id: "abuse_es_uncle_touched_him",
+    text: "El tío lo tocó de manera inapropiada",
+    expectedMatched: true,
+    domain: "abuse"
+  },
+  {
+    id: "abuse_es_sitter_left_bruises",
+    text: "La niñera le dejó moretones en los brazos",
+    expectedMatched: true,
+    domain: "abuse"
+  },
+  {
+    id: "abuse_es_father_hurts_him_on_visits",
+    text: "El papá de mi hijo lo lastima cuando lo visita",
+    expectedMatched: true,
+    domain: "abuse"
+  },
+  {
+    id: "abuse_es_an_adult_abused_him",
+    text: "Mi hijastro dice que un adulto abusó de él",
+    expectedMatched: true,
+    domain: "abuse"
+  },
+
+  // A child who is missing right now, without the elopement verb the rules wanted.
+  {
+    id: "acute_es_left_house_dont_know_where",
+    text: "Mi hija se salió de la casa y no sé dónde está",
+    expectedMatched: true,
+    domain: "acute_danger"
+  },
+  {
+    id: "acute_es_ran_from_school_nobody_knows",
+    text: "Se escapó de la escuela y nadie sabe dónde está",
+    expectedMatched: true,
+    domain: "acute_danger"
+  },
+  {
+    id: "acute_es_missing_all_afternoon",
+    text: "Mi hijo lleva desaparecido toda la tarde",
+    expectedMatched: true,
+    domain: "acute_danger"
+  },
+  {
+    id: "acute_es_dont_know_where_right_now",
+    text: "No sé dónde está mi hija ahora mismo, salió corriendo",
+    expectedMatched: true,
+    domain: "acute_danger"
+  },
+
+  // Acute medical — the widest gap in the run: eight for eight, because
+  // ACUTE_MEDICAL_SIGNALS was English only.
+  {
+    id: "acute_es_not_responding_pale",
+    text: "Mi hijo no responde y está muy pálido",
+    expectedMatched: true,
+    domain: "acute_danger"
+  },
+  {
+    id: "acute_es_cannot_wake_her",
+    text: "No puedo despertar a mi hija",
+    expectedMatched: true,
+    domain: "acute_danger"
+  },
+  {
+    id: "acute_es_seizure_right_now",
+    text: "Está teniendo una convulsión ahora mismo",
+    expectedMatched: true,
+    domain: "acute_danger"
+  },
+  {
+    id: "acute_es_fainted_unresponsive",
+    text: "Se desmayó y no reacciona",
+    expectedMatched: true,
+    domain: "acute_danger"
+  },
+  {
+    id: "acute_es_throat_closing",
+    text: "No está respirando bien, se le cierra la garganta",
+    expectedMatched: true,
+    domain: "acute_danger"
+  },
+  {
+    id: "acute_es_unconscious",
+    text: "Mi hijo está inconsciente",
+    expectedMatched: true,
+    domain: "acute_danger"
+  },
+  {
+    id: "acute_es_chest_pain_down_arm",
+    text: "Tiene un dolor en el pecho que le baja por el brazo izquierdo",
+    expectedMatched: true,
+    domain: "acute_danger"
+  },
+  {
+    id: "acute_es_seizure_still_not_waking",
+    text: "Le dio una convulsión y sigue sin despertar",
+    expectedMatched: true,
+    domain: "acute_danger"
+  },
+
+  // A stated plan reads the same as a threat.
+  {
+    id: "harm_to_others_es_going_to_kill_someone_at_school",
+    text: "Dice que va a matar a alguien en la escuela",
+    expectedMatched: true,
+    domain: "harm_to_others"
+  },
+
+  // Traps. Every one of these stayed quiet through the whole pass and has to
+  // keep staying quiet: the zero-false-positive assertion is absolute (FR-5).
+  {
+    id: "trap_es_cannot_see_meter_numbers",
+    text: "No puedo ver los números del medidor sin mis lentes",
+    expectedMatched: false,
+    domain: "vision"
+  },
+  {
+    id: "trap_es_does_not_want_to_go_to_school",
+    text: "Mi hijo ya no quiere ir a la escuela",
+    expectedMatched: false,
+    domain: "self_harm"
+  },
+  {
+    id: "trap_es_fed_up_with_waitlist_paperwork",
+    text: "Ya no puedo más con el papeleo de la lista de espera",
+    expectedMatched: false,
+    domain: "caregiver_collapse"
+  },
+  {
+    id: "trap_es_stopped_saying_more_at_dinner",
+    text: "Mi hija dejó de decir más en la cena",
+    expectedMatched: false,
+    domain: "logistics"
+  },
+  {
+    id: "trap_es_cannot_find_the_form",
+    text: "No encuentro el formulario de First Steps que me mandaron",
+    expectedMatched: false,
+    domain: "acute_danger"
+  },
+  {
+    id: "trap_es_teacher_helped_with_iep",
+    text: "El maestro me ayudó mucho con el IEP",
+    expectedMatched: false,
+    domain: "abuse"
+  },
+  {
+    id: "trap_es_missed_the_appointment",
+    text: "Se me perdió la cita del especialista, la quiero mover",
+    expectedMatched: false,
+    domain: "logistics"
+  },
+  {
+    id: "trap_es_scraped_knee_at_the_park",
+    text: "Mi hijo se cayó en el parque y se raspó la rodilla",
+    expectedMatched: false,
+    domain: "acute_danger"
+  },
+  {
+    id: "trap_es_eye_no_longer_hurts",
+    text: "Ya no le duele el ojo, las gotas funcionaron",
+    expectedMatched: false,
+    domain: "vision"
+  },
+  {
+    id: "trap_es_dying_of_laughter",
+    text: "Mi hija se quiere morir de risa con ese video",
+    expectedMatched: false,
+    domain: "self_harm"
+  },
+  {
+    id: "trap_es_cannot_stand_the_heat",
+    text: "No aguanto más este calor de agosto",
+    expectedMatched: false,
+    domain: "caregiver_collapse"
+  },
+  {
+    id: "trap_es_not_answering_friends_messages",
+    text: "Mi hijo no responde los mensajes de sus amigos últimamente",
+    expectedMatched: false,
+    domain: "acute_danger"
   }
 ];

@@ -25,6 +25,7 @@ import {
 } from "@/components/family-theme";
 import { FamilyGloss, familyGlossTermsIn } from "@/components/family-gloss";
 import { shareFamilyResource, type FamilyShareOutcome } from "@/components/family-share";
+import { sourceContentLang } from "@/components/family-source-language-notice";
 import { tFamily, type FamilyStringKey } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
 
@@ -176,6 +177,9 @@ export function FamilyResourceCard({
     compact ? undefined : resource.actNow
   );
   const shareChild = childName ?? tFamily(language, "heardStripChildFallback");
+  // F6b: catalog text is English in both languages, so mark it as English while
+  // the surrounding page is Spanish.
+  const sourceLang = sourceContentLang(language);
 
   useEffect(() => {
     if (sharing) consentRef.current?.focus();
@@ -323,7 +327,11 @@ export function FamilyResourceCard({
       className="min-w-0 rounded-control border border-ink/10 bg-white p-4"
     >
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-        <h3 id={titleId} className="min-w-0 break-words text-lg font-semibold">
+        {/* F6b. Catalog content is English in both languages (a named
+            non-goal), so while the app is in Spanish these nodes say so —
+            otherwise a Spanish screen-reader voice reads "Michelle P. Waiver"
+            with Spanish phonetics. */}
+        <h3 id={titleId} lang={sourceLang} className="min-w-0 break-words text-lg font-semibold">
           {resource.name}
         </h3>
         <div className="flex flex-wrap items-center gap-2">
@@ -373,13 +381,13 @@ export function FamilyResourceCard({
         </blockquote>
       ) : null}
       {summaryInDetails ? null : (
-        <p className="mt-2 break-words leading-relaxed text-ink/80">{resource.summary}</p>
+        <p lang={sourceLang} className="mt-2 break-words leading-relaxed text-ink/80">{resource.summary}</p>
       )}
 
       {!isEnrolled && resource.actNow && !actNowInDetails && !compact ? (
         <div className={`mt-3 ${NOTICE_DEADLINE}`}>
           <h4 className="text-sm font-semibold text-pulse">{tFamily(language, "resourceActNow")}</h4>
-          <p className="mt-1 break-words text-sm leading-6">{resource.actNow}</p>
+          <p lang={sourceLang} className="mt-1 break-words text-sm leading-6">{resource.actNow}</p>
           {/* F5d. These lines carry the sharpest dated claims on any card — a
               waiting-list count, a price, an eligibility band — and their
               "Checked on" date used to live one fold in. A claim and its date
@@ -511,18 +519,18 @@ export function FamilyResourceCard({
             {summaryInDetails ? (
               <div>
                 <dt className="font-semibold">{tFamily(language, "resourceAbout")}</dt>
-                <dd className="break-words text-ink/75">{resource.summary}</dd>
+                <dd lang={sourceLang} className="break-words text-ink/75">{resource.summary}</dd>
               </div>
             ) : null}
             {!isEnrolled && resource.actNow && actNowInDetails ? (
               <div>
                 <dt className="font-semibold">{tFamily(language, "resourceActNow")}</dt>
-                <dd className="break-words text-ink/75">{resource.actNow}</dd>
+                <dd lang={sourceLang} className="break-words text-ink/75">{resource.actNow}</dd>
               </div>
             ) : null}
             <div>
               <dt className="font-semibold">{tFamily(language, "resourceContact")}</dt>
-              <dd className="break-words text-ink/75">{resource.contact}</dd>
+              <dd lang={sourceLang} className="break-words text-ink/75">{resource.contact}</dd>
             </div>
             <div>
               <dt className="font-semibold">{tFamily(language, "resourceAgeBand")}</dt>
@@ -534,8 +542,14 @@ export function FamilyResourceCard({
             </div>
             <div>
               <dt className="font-semibold">{tFamily(language, "resourceSource")}</dt>
-              <dd className="break-words text-ink/75">
-                {resource.sourceName} · {tFamily(language, "resourceVerified", { date: resource.verifiedAt })}
+              {/* `lang` on the row, and the translated half marked back: the
+                  source name is the organization's own English name, the
+                  "Checked on" line is ours. */}
+              <dd lang={sourceLang} className="break-words text-ink/75">
+                {resource.sourceName} ·{" "}
+                <span lang={language}>
+                  {tFamily(language, "resourceVerified", { date: resource.verifiedAt })}
+                </span>
               </dd>
             </div>
           </dl>

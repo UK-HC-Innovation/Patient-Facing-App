@@ -586,9 +586,19 @@ test(`Safety phrase raises the banner in-thread and never reaches the network: $
   await expect(page.getByRole("region", { name: "Here is what we heard" })).toBeVisible();
   expect(familyApiRequests).toBe(0);
 
+  // Spec 20 F2b: acknowledgement stands the banner down. It used to stay on
+  // screen — and, because safetyEvents persist, above the header of every
+  // surface on every future visit. Nothing is withdrawn but the presentation:
+  // the event stays in the record and the page keeps helping (FR-2).
   await banner.getByRole("button", { name: /I've seen this/i }).click();
-  await expect(banner.getByRole("button", { name: /I've seen this/i })).toHaveCount(0);
-  await expect(banner).toBeVisible();
+  await expect(page.getByTestId("family-crisis-banner")).toHaveCount(0);
+  await expect(page.getByTestId("ladder-crisis-layer")).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Here is what we heard" })).toBeVisible();
+  await expect(page).toHaveURL(/\/ladder$/);
+
+  // And it does not come back on a reload, which is the whole defect.
+  await page.reload();
+  await expect(page.getByTestId("family-crisis-banner")).toHaveCount(0);
 });
 
 test("Spanish mobile mock path is substantive, language-correct, and horizontally contained", async ({

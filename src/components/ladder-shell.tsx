@@ -129,6 +129,20 @@ export function LadderShell({
               header of every surface, including first run and the crisis state. */}
           <LanguageToggle language={language} onChange={onLanguageChange} variant="segmented" />
         </div>
+        {/* F6d. The draft-translation caveat used to live in one branch of the
+            composer, so a returning Spanish reader — whose composer is collapsed
+            — never saw it. It belongs next to the control that turns Spanish on,
+            on every surface, on entry. The segmented variant has no room to
+            carry it itself; the header does. */}
+        {language === "es" ? (
+          <p
+            data-testid="ladder-spanish-review-notice"
+            lang="es"
+            className="mx-auto max-w-2xl px-4 pb-3 text-sm leading-6 text-ink/70"
+          >
+            {tFamily(language, "spanishReviewNotice")}
+          </p>
+        ) : null}
       </header>
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-5">

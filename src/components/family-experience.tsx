@@ -32,6 +32,7 @@ import {
 } from "@/components/family-orientation-interview";
 import { FamilyProfileForm } from "@/components/family-profile-form";
 import { FamilyResourceCard } from "@/components/family-resource-card";
+import { FamilySourceLanguageNotice } from "@/components/family-source-language-notice";
 import { FamilyStageTimeline } from "@/components/family-stage-timeline";
 import { FamilyVisitPacket } from "@/components/family-visit-packet";
 import { FamilyWaitHeader } from "@/components/family-wait-header";
@@ -103,8 +104,7 @@ import {
   CARD_SUBDUED,
   CONTROL_FOCUS,
   DEMO_BLOCK,
-  H2_SECTION,
-  NOTICE_INFO
+  H2_SECTION
 } from "@/components/family-theme";
 import { tFamily, type FamilyStringKey } from "@/i18n/family-strings";
 import type { HealthAction } from "@/state/store";
@@ -1044,6 +1044,10 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
             data-testid="thread-family-resources"
             className="grid gap-3"
           >
+            {/* F6a. These are the first cards a Spanish reader meets, and until
+                now the only surface that said "this is in English" was the
+                Programs library, two taps away. */}
+            <FamilySourceLanguageNotice language={language} testId="thread-source-language-notice" />
             {threadResources.map((item) => resourceCard(item, "thread", "compact"))}
             <p>
               <a
@@ -1255,12 +1259,11 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
         <h2 id="family-interview-title" tabIndex={-1} className="text-xl font-semibold scroll-mt-4">
           {tFamily(language, "interviewTitle")}
         </h2>
+        {/* The draft-translation caveat that used to sit here now lives in the
+            shell header, next to the language control and on every surface —
+            here it was invisible to a returning reader whose composer is
+            collapsed, and saying it twice on one screen is noise (F6d). */}
         <p className="mt-2 leading-relaxed text-ink/90">{tFamily(language, "interviewIntro")}</p>
-        {language === "es" ? (
-          <p className={`mt-3 text-sm font-medium ${NOTICE_INFO}`}>
-            {tFamily(language, "spanishReviewNotice")}
-          </p>
-        ) : null}
         <div className="mt-4">
           <FamilyOrientationInterview
             key="family-orientation"
@@ -1514,11 +1517,12 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
               {rankedSet?.extraction === "live" ? null : (
                 <p className="mt-1 leading-relaxed text-ink/80">{tFamily(language, "resourcesIntro")}</p>
               )}
-              {language === "es" ? (
-                <p className={`mt-2 text-sm text-ink/80 ${NOTICE_INFO}`}>
-                  {tFamily(language, "resourceSourceLanguageNotice")}
-                </p>
-              ) : null}
+              <div className="mt-2">
+                <FamilySourceLanguageNotice
+                  language={language}
+                  testId="library-source-language-notice"
+                />
+              </div>
               {matchResult.isFallback ? (
                 <section
                   aria-label={tFamily(language, "emptyFallbackTitle")}
@@ -1527,6 +1531,12 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
                   <h3 className="font-semibold">{tFamily(language, "emptyFallbackTitle")}</h3>
                   <p className="mt-1 leading-relaxed">{tFamily(language, "emptyFallbackBody")}</p>
                   <p className="mt-1 leading-relaxed">{tFamily(language, "emptyNavigatorHonesty")}</p>
+                  <div className="mt-3">
+                    <FamilySourceLanguageNotice
+                      language={language}
+                      testId="fallback-source-language-notice"
+                    />
+                  </div>
                   <div data-testid="matched-family-resources" className="mt-4 grid gap-3">
                     {matchResult.resources.map(({ resource, domain }) => (
                       <FamilyResourceCard
@@ -1565,6 +1575,12 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
                 >
                   <h3 className="text-lg font-semibold">{tFamily(language, "guidesTitle")}</h3>
                   <p className="mt-1 leading-relaxed text-ink/80">{tFamily(language, "guidesIntro")}</p>
+                  <div className="mt-2">
+                    <FamilySourceLanguageNotice
+                      language={language}
+                      testId="guides-source-language-notice"
+                    />
+                  </div>
                   <div className="mt-3 grid gap-3">
                     {guides.map((guide) => (
                       <FamilyGuideCard key={guide.id} guide={guide} language={language} />

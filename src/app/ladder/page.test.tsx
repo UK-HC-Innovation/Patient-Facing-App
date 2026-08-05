@@ -1184,12 +1184,75 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     expect(within(review).getByText(/Mencionaste la escuela/)).toBeVisible();
     await goToSurface(user, /Programas/);
     openAllFamilyFolds();
-    expect(screen.getByText(/vienen directo de las organizaciones.*en inglés/i)).toBeVisible();
+    expect(screen.getByTestId("library-source-language-notice")).toBeVisible();
     expect(
       within(screen.getByTestId("matched-family-resources")).getByRole("heading", {
         name: "Scott County Schools Exceptional Child Services"
       })
     ).toBeVisible();
+  });
+
+  // F6a/F6b/F6d. Chrome was at exact 475/475 parity while every card a family
+  // acts on was English — and the one notice that said so rendered on one
+  // surface out of four.
+  it("tells a Spanish reader where the English is, on every surface that has any", async () => {
+    const user = userEvent.setup();
+    render(
+      <ReducerHarness
+        initialState={withFamily(
+          { ...schoolAgeFamilyState, interviewDraft: SAMPLE_CAREGIVER_TEXT_ES },
+          "es"
+        )}
+      />
+    );
+
+    // F6d: the draft-translation caveat is in the shell header, so it is there
+    // on entry and on every surface — not buried in one branch of the composer.
+    expect(screen.getByTestId("ladder-spanish-review-notice")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /Buscar ayuda/i }));
+    await screen.findByRole("heading", { name: /Esto fue lo que entendimos/i });
+
+    // The thread's answer cards: the first English a Spanish reader meets.
+    const threadNotice = screen.getByTestId("thread-source-language-notice");
+    expect(threadNotice).toBeVisible();
+    expect(threadNotice).toHaveTextContent(/vienen directo de las organizaciones/i);
+
+    await goToSurface(user, /Programas/);
+    openAllFamilyFolds();
+    expect(screen.getByTestId("library-source-language-notice")).toBeVisible();
+    expect(screen.getByTestId("guides-source-language-notice")).toBeVisible();
+
+    // F6b: the English nodes say they are English, so a Spanish screen-reader
+    // voice switches for them and back for the chrome around them.
+    const card = within(screen.getByTestId("matched-family-resources")).getAllByTestId(
+      "family-resource-card"
+    )[0];
+    expect(card.querySelector("h3")).toHaveAttribute("lang", "en");
+    expect(card.querySelector("h3")?.textContent).toBe(
+      "Scott County Schools Exceptional Child Services"
+    );
+    const guide = within(screen.getByTestId("family-guides")).getAllByTestId("family-guide-card")[0];
+    expect(guide.querySelector("h4")).toHaveAttribute("lang", "en");
+    expect(guide.querySelector("ul")).toHaveAttribute("lang", "en");
+  });
+
+  it("says none of that to an English reader", async () => {
+    const user = userEvent.setup();
+    render(<ReducerHarness initialState={withFamily(describedFamily)} />);
+
+    expect(screen.queryByTestId("ladder-spanish-review-notice")).not.toBeInTheDocument();
+    await submitDescription(user);
+    await screen.findByTestId("family-heard-strip");
+    expect(screen.queryByTestId("thread-source-language-notice")).not.toBeInTheDocument();
+
+    await goToSurface(user, /Programs/);
+    openAllFamilyFolds();
+    expect(screen.queryByTestId("library-source-language-notice")).not.toBeInTheDocument();
+    const card = within(screen.getByTestId("matched-family-resources")).getAllByTestId(
+      "family-resource-card"
+    )[0];
+    expect(card.querySelector("h3")).not.toHaveAttribute("lang");
   });
 
   it("shows the safety banner without taking the resources away", async () => {
