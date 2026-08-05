@@ -1228,6 +1228,55 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     );
   });
 
+  // F2b. "Stays until acknowledged" was the comment; the code read the latest
+  // event with no acknowledged filter, and safetyEvents persist — so one
+  // disclosure pinned the 988/911 banner above the header of every surface on
+  // every future visit. Acknowledgement de-escalates presentation only: the
+  // event stays in the record and the crisis routes stay on the page (FR-2).
+  it("stands the crisis banner down after acknowledgement and raises it again on a new disclosure", async () => {
+    const user = userEvent.setup();
+    const acknowledgedFamily: FamilyNavigatorState = {
+      ...schoolAgeFamilyState,
+      activeDomains: ["school_iep"],
+      safetyEvents: [
+        {
+          id: "safety-old",
+          tier: "crisis",
+          domain: "self_harm",
+          createdAt: "2026-06-01T12:00:00.000Z",
+          acknowledgedAt: "2026-06-01T12:05:00.000Z"
+        }
+      ]
+    };
+
+    render(<ReducerHarness initialState={withFamily(acknowledgedFamily)} />);
+
+    // (a) A returning family carrying only acknowledged events sees no banner —
+    // on any surface.
+    expect(screen.queryByTestId("family-crisis-banner")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("ladder-crisis-layer")).not.toBeInTheDocument();
+    showFamilySurface("Programs");
+    expect(screen.queryByTestId("family-crisis-banner")).not.toBeInTheDocument();
+    showFamilySurface("Notes");
+    expect(screen.queryByTestId("family-crisis-banner")).not.toBeInTheDocument();
+    showFamilySurface("Home");
+
+    // (c) A new disclosure is a new pending event, and the banner returns.
+    const interview = screen.getByLabelText("What would you like help with?");
+    await user.clear(interview);
+    await user.type(interview, "honestly she's been saying she wants to die");
+    await submitDescription(user);
+    const banner = await screen.findByTestId("family-crisis-banner");
+    expect(within(banner).getByRole("link", { name: /Call 988/i })).toHaveAttribute("href", "tel:988");
+
+    // (b) Acknowledging it puts it away without a reload — and keeps both events.
+    await user.click(within(banner).getByRole("button", { name: "I've seen this — continue" }));
+    expect(screen.queryByTestId("family-crisis-banner")).not.toBeInTheDocument();
+    const family = JSON.parse(screen.getByTestId("family-state").textContent || "null") as FamilyNavigatorState;
+    expect(family.safetyEvents).toHaveLength(2);
+    expect(family.safetyEvents.every(({ acknowledgedAt }) => typeof acknowledgedAt === "string")).toBe(true);
+  });
+
   it("keeps the thread and resources alive when a follow-up answer discloses a crisis", async () => {
     const user = userEvent.setup();
     render(<ReducerHarness initialState={withFamily(describedFamily)} />);

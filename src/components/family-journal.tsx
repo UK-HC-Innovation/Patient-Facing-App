@@ -85,9 +85,16 @@ export type FamilyJournalProps = {
   language: Language;
   onConfirm: (factId: string) => void;
   onToggleInclude: (factId: string, include: boolean) => void;
+  onReject: (factId: string) => void;
 };
 
-export function FamilyJournal({ family, language, onConfirm, onToggleInclude }: FamilyJournalProps) {
+export function FamilyJournal({
+  family,
+  language,
+  onConfirm,
+  onToggleInclude,
+  onReject
+}: FamilyJournalProps) {
   const groups = useMemo(() => buildJournalGroups(family, language), [family, language]);
   const [nudgeShownFor, setNudgeShownFor] = useState<number | null>(null);
   const noteCount = family.interviews.filter(({ kind }) => kind === "note").length;
@@ -161,6 +168,7 @@ export function FamilyJournal({ family, language, onConfirm, onToggleInclude }: 
                   included: fact.includeInSummary !== false,
                   onToggle: (include) => onToggleInclude(fact.id, include)
                 }}
+                onReject={onReject}
               />
             ))}
           </ul>

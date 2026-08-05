@@ -4,7 +4,11 @@ import {
   familyResourcePhones,
   familyResourceTel
 } from "./family-resource-contact";
-import { FAMILY_RESOURCE_CATALOG, getFamilyResourceById } from "./family-resources";
+import { firstStepsPoeForCounty, resolveFamilyClinicNowTarget } from "./family-clinic-now";
+import { eighteenMonthFamilyState } from "./family-fixtures";
+import { FAMILY_RESOURCE_CATALOG, KY_COUNTIES, getFamilyResourceById } from "./family-resources";
+
+const NOW = new Date("2026-07-17T12:00:00.000Z");
 
 describe("familyResourcePhones", () => {
   it("reads the numbers a catalog line actually lists, in order", () => {
@@ -96,5 +100,50 @@ describe("familyResourceFaceAction", () => {
         expect(resource.contact).toContain(action.number);
       }
     }
+  });
+});
+
+// FR-1. The clinic-now card is the sharpest place a number can appear — it fires
+// right after "possible loss of skills" — so it joins the same provenance sweep
+// the resource cards are under: every digit it renders traces to a catalog
+// contact line verbatim, for every county First Steps serves.
+describe("clinic-now numbers come from the catalog", () => {
+  it("renders a First Steps number that is in that county's own contact line", () => {
+    for (const county of KY_COUNTIES) {
+      const target = resolveFamilyClinicNowTarget(
+        {
+          ...eighteenMonthFamilyState(NOW),
+          referral: null,
+          activeDomains: ["early_intervention"],
+          profile: { ...eighteenMonthFamilyState(NOW).profile!, county }
+        },
+        NOW
+      );
+
+      expect(target.kind).toBe("first_steps");
+      if (target.kind !== "first_steps") continue;
+      const poe = firstStepsPoeForCounty(county);
+      expect(poe).toBeDefined();
+      expect(target.number).toBeDefined();
+      expect(poe!.contact).toContain(target.number);
+      expect(target.tel).toBe(familyResourceTel(target.number!));
+    }
+  });
+
+  it("renders no number at all on the branches that have none to render", () => {
+    const generic = resolveFamilyClinicNowTarget(null, NOW);
+    expect(generic).toEqual({ kind: "generic" });
+
+    const referral = resolveFamilyClinicNowTarget(
+      {
+        ...eighteenMonthFamilyState(NOW),
+        referral: { clinic: "A Clinic The Catalog Has Never Heard Of", referredAt: NOW.toISOString() }
+      },
+      NOW
+    );
+    expect(referral).toEqual({
+      kind: "referral",
+      clinic: "A Clinic The Catalog Has Never Heard Of"
+    });
   });
 });

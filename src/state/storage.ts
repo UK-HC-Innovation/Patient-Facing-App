@@ -848,7 +848,14 @@ function isFamilyInterview(value: unknown): value is Omit<FamilyInterview, "kind
 }
 
 function isFamilyEvidenceStatus(value: unknown): value is FamilyEvidenceStatus {
-  return value === "patient_reported" || value === "inferred" || value === "confirmed";
+  return (
+    value === "patient_reported" ||
+    value === "inferred" ||
+    value === "confirmed" ||
+    // Additive: saves written before "you misheard me" existed carry one of the
+    // three above and hydrate unchanged.
+    value === "rejected"
+  );
 }
 
 function isFamilyFact(value: unknown): value is FamilyFact {
@@ -1017,6 +1024,7 @@ function isFamilyFlag(value: unknown): value is FamilyFlag {
     value.type === "regression" &&
     (value.source === "probe" || value.source === "text") &&
     isExactIsoTimestamp(value.raisedAt) &&
+    (value.interviewId === undefined || typeof value.interviewId === "string") &&
     (value.acknowledgedAt === undefined ||
       (isExactIsoTimestamp(value.acknowledgedAt) &&
         new Date(value.acknowledgedAt).valueOf() >= new Date(value.raisedAt).valueOf()))

@@ -3,6 +3,7 @@
 import { ChevronRight } from "lucide-react";
 import React from "react";
 import { activeFamilyAppointment, formatFamilySlot } from "@/domain/family-appointments";
+import { activeFamilyFacts } from "@/domain/family-facts";
 import { monthsOnList, nextFamilyRung, type FamilyRung } from "@/domain/family-journey";
 import type { FamilyNavigatorState } from "@/domain/types";
 import { CONTROL_FOCUS } from "@/components/family-theme";
@@ -122,7 +123,9 @@ export function FamilyWaitHeader({
     : null;
   const lastInterview = family.interviews.at(-1);
   // Absent means included: what the packet would print if it were opened now.
-  const packetNotes = family.facts.filter(({ includeInSummary }) => includeInSummary !== false).length;
+  const packetNotes = activeFamilyFacts(family.facts).filter(
+    ({ includeInSummary }) => includeInSummary !== false
+  ).length;
 
   // One labelled row per surface that exists, each with the count that makes it
   // worth a tap. The hrefs stay in-page anchors so a folded section still opens

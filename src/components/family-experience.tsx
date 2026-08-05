@@ -48,6 +48,7 @@ import {
   type FamilySafetyScreen
 } from "@/domain/family-safety";
 import type { FamilyDiagnosisBackdateMonths } from "@/domain/family-stages";
+import { resolveFamilyClinicNowTarget } from "@/domain/family-clinic-now";
 import { firstStepsClock, hasEnrolledFirstSteps } from "@/domain/family-clocks";
 import { matchFamilyGuides } from "@/domain/family-guides";
 import { answerableStaleStep, checkInDue } from "@/domain/family-journey";
@@ -314,7 +315,6 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   const [reviewDetails, setReviewDetails] = useState<ReviewDetails | null>(null);
   const safetyEvents = family?.safetyEvents ?? [];
   const pendingSafetyEvent = pendingFamilySafetyEvent(safetyEvents);
-  const latestSafetyEvent = safetyEvents[safetyEvents.length - 1];
   const [needsScreenOpen, setNeedsScreenOpen] = useState(false);
   // Drives the strip's disclosure. Held here rather than left to the native
   // <details> so the profile editor inside it can be mounted only while open.
@@ -641,7 +641,9 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
         language
       )
     ) {
-      dispatch({ type: "raiseFamilyRegressionFlag", source: "text", at: createdAt });
+      // The interview is carried so the caregiver can retract the sentence that
+      // raised the flag — and with it the packet's "possible loss of skills" line.
+      dispatch({ type: "raiseFamilyRegressionFlag", source: "text", at: createdAt, interviewId });
     }
   }
 
@@ -974,12 +976,16 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
       </section>
     ) : null;
 
-  // The banner leads the interlude and stays until acknowledged, but nothing
-  // below it is withheld — safety words first, help still on the page.
-  const safetyTurn = latestSafetyEvent ? (
+  // F2b. The banner leads until the caregiver acknowledges it, then stands down:
+  // the event stays in the record for the audit trail, the crisis routes stay on
+  // the page, and only the presentation de-escalates. It was reading the *latest*
+  // event with no acknowledged filter, so one disclosure pinned the 988/911
+  // banner above every surface on every future visit. A new disclosure produces a
+  // new pending event and raises it again.
+  const safetyTurn = pendingSafetyEvent ? (
     <FamilyCrisisBanner
-      key={latestSafetyEvent.id}
-      event={latestSafetyEvent}
+      key={pendingSafetyEvent.id}
+      event={pendingSafetyEvent}
       language={language}
       onAcknowledge={acknowledgeSafety}
     />
@@ -993,7 +999,8 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
       key={openFlag.id}
       flag={openFlag}
       language={language}
-      clinic={family?.referral?.clinic ?? FAMILY_APPOINTMENT_CLINIC}
+      // Resolved from the family's own record — never the demo clinic (F2a).
+      target={resolveFamilyClinicNowTarget(family, followupNow)}
       onAcknowledge={acknowledgeClinicNow}
     />
   ) : null;
@@ -1650,6 +1657,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
           onToggleInclude={(factId, include) =>
             dispatch({ type: "setFamilyFactInclusion", factId, include })
           }
+          onReject={(factId) => dispatch({ type: "rejectFamilyFact", factId })}
         />
       ) : null}
 

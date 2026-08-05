@@ -706,6 +706,72 @@ describe("storage", () => {
     expect(loaded.family?.checkinTouchedAt).toBe("2026-07-05T00:00:00.000Z");
   });
 
+  // F2c. Additive schema change: the new status and the flag→interview link both
+  // survive a round trip, and a save written before either existed hydrates
+  // unchanged rather than being dropped.
+  it("round-trips a rejected fact and a flag's interview link, and accepts saves without them", () => {
+    saveStoredState({
+      ...demoState,
+      family: {
+        ...validFamily,
+        interviews: [
+          {
+            id: "interview-june",
+            rawText: "He stopped saying more at dinner.",
+            source: "typed",
+            createdAt: "2026-06-20T12:00:00.000Z",
+            extraction: "mock",
+            kind: "note"
+          }
+        ],
+        facts: [
+          {
+            id: "fact-rejected",
+            interviewId: "interview-june",
+            label: "Change you noticed",
+            value: "Possible loss of skills — from your words",
+            status: "rejected",
+            sourceSnippet: "He stopped saying more at dinner."
+          },
+          {
+            id: "fact-kept",
+            interviewId: "interview-june",
+            label: "Grade",
+            value: "second grade",
+            status: "patient_reported",
+            sourceSnippet: "second grade"
+          }
+        ],
+        flags: [
+          {
+            id: "flag-linked",
+            type: "regression",
+            source: "text",
+            raisedAt: "2026-06-20T12:00:00.000Z",
+            interviewId: "interview-june"
+          },
+          {
+            id: "flag-legacy",
+            type: "regression",
+            source: "probe",
+            raisedAt: "2026-05-20T12:00:00.000Z"
+          }
+        ]
+      }
+    });
+
+    const loaded = loadStoredState();
+
+    expect(loaded.family?.facts.map(({ id, status }) => [id, status])).toEqual([
+      ["fact-rejected", "rejected"],
+      ["fact-kept", "patient_reported"]
+    ]);
+    expect(loaded.family?.flags.map(({ id, interviewId }) => [id, interviewId])).toEqual([
+      ["flag-linked", "interview-june"],
+      ["flag-legacy", undefined]
+    ]);
+  });
+
   it("starts a fresh browser on the retinopathy-due demo state", () => {
     const loaded = loadStoredState();
 

@@ -1038,6 +1038,42 @@ describe("healthReducer", () => {
     expect(reincluded.family?.facts[0].includeInSummary).toBe(true);
   });
 
+  // F2c. "You misheard me" is a status, not a deletion (FR-3).
+  it("marks a fact wrong without deleting the family's words", () => {
+    const facts: FamilyFact[] = [
+      {
+        id: "fact-a",
+        interviewId: "interview-1",
+        label: "Change you noticed",
+        value: "Possible loss of skills — from your words",
+        status: "patient_reported",
+        sourceSnippet: "He stopped saying more at dinner."
+      }
+    ];
+    const seeded: AppState = { ...demoState, family: { ...schoolAgeFamilyState, facts } };
+
+    const rejected = healthReducer(seeded, { type: "rejectFamilyFact", factId: "fact-a" });
+
+    expect(rejected.family?.facts).toHaveLength(1);
+    expect(rejected.family?.facts[0]).toMatchObject({
+      id: "fact-a",
+      status: "rejected",
+      value: "Possible loss of skills — from your words",
+      sourceSnippet: "He stopped saying more at dinner."
+    });
+    expect(rejected.auditEvents.map(({ label }) => label)).toContain(
+      "Family fact marked wrong by caregiver"
+    );
+
+    // Idempotent: a second tap is not a second audit line.
+    expect(healthReducer(rejected, { type: "rejectFamilyFact", factId: "fact-a" })).toBe(rejected);
+    expect(healthReducer(seeded, { type: "rejectFamilyFact", factId: "nope" })).toBe(seeded);
+    expect(
+      healthReducer({ ...demoState, family: null }, { type: "rejectFamilyFact", factId: "fact-a" })
+        .family
+    ).toBeNull();
+  });
+
   it("ignores a packet-inclusion toggle for an unknown fact", () => {
     const seeded: AppState = { ...demoState, family: schoolAgeFamilyState };
 

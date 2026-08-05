@@ -1,3 +1,4 @@
+import { isFamilyFlagWithdrawn } from "./family-facts";
 import { getFamilyResourceById } from "./family-resources";
 import { isFamilyReportedNeed } from "./family-screen";
 import type {
@@ -137,9 +138,12 @@ export function buildFamilyVisitSummary(
   }
 
   // "Our guess" facts stay in the journal but never print: the packet is
-  // testimony, not inference.
+  // testimony, not inference. Neither does anything the caregiver has marked
+  // wrong — that is them saying we misheard them, and the packet is what they
+  // said (F2c).
   const included = family.facts.filter(
-    (fact) => fact.includeInSummary !== false && fact.status !== "inferred"
+    (fact) =>
+      fact.includeInSummary !== false && fact.status !== "inferred" && fact.status !== "rejected"
   );
   // Everything in quotation marks below is a caregiver sentence, verbatim. A fact
   // with no interview behind it came from the yes/no screen, where the "source"
@@ -157,10 +161,14 @@ export function buildFamilyVisitSummary(
   }
 
   // Every flag belongs in the packet, acknowledged or not — the clinic wants the
-  // history, not just what is still blinking on the phone.
-  if (family.flags.length > 0) {
+  // history, not just what is still blinking on the phone. Except one a
+  // caregiver has retracted: when every sentence behind it has been marked
+  // wrong, "Possible loss of skills" was our reading of words they say we
+  // misheard, and it comes out of the printed sheet (F2c).
+  const standingFlags = family.flags.filter((flag) => !isFamilyFlagWithdrawn(flag, family.facts));
+  if (standingFlags.length > 0) {
     lines.push("", t("packetFlagsHeading"));
-    for (const flag of family.flags) {
+    for (const flag of standingFlags) {
       lines.push(`- ${t("packetFlagRegression", { month: isoMonthLabel(flag.raisedAt, language) })}`);
     }
   }

@@ -136,10 +136,11 @@ export type HealthAction =
   | { type: "addFamilyInterview"; interview: FamilyInterview; facts: FamilyFact[]; domains: FamilyNavigatorState["activeDomains"] }
   | { type: "confirmFamilyFact"; factId: string }
   | { type: "setFamilyFactInclusion"; factId: string; include: boolean }
+  | { type: "rejectFamilyFact"; factId: string }
   | { type: "toggleFamilyPacketQuestion"; questionId: string }
   | { type: "recordFamilySafetyEvent"; event: FamilySafetyEvent }
   | { type: "acknowledgeFamilySafetyEvent"; eventId: string; at: string }
-  | { type: "raiseFamilyRegressionFlag"; source: "probe" | "text"; at: string }
+  | { type: "raiseFamilyRegressionFlag"; source: "probe" | "text"; at: string; interviewId?: string }
   | { type: "acknowledgeFamilyRegressionFlag"; flagId: string; at: string }
   | {
       type: "setFamilyRecommendations";
@@ -1172,6 +1173,28 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
           )
         }
       };
+    // "You misheard me" — a correction of the record, not a curation choice, and
+    // not a deletion: the fact keeps its words, its quote, and its place in the
+    // journal, and only stops counting as something the family said (FR-3).
+    case "rejectFamilyFact": {
+      const target = state.family?.facts.find(({ id }) => id === action.factId);
+      if (!state.family || !target || target.status === "rejected") {
+        return state;
+      }
+      return {
+        ...state,
+        family: {
+          ...state.family,
+          facts: state.family.facts.map((fact) =>
+            fact.id === action.factId ? { ...fact, status: "rejected" } : fact
+          )
+        },
+        auditEvents: [
+          ...state.auditEvents,
+          recordAuditEvent(state.patient.id, "updated", "Family fact marked wrong by caregiver")
+        ]
+      };
+    }
     // Only catalog ids reach storage: the picker offers a fixed list, so anything
     // else is a stale save or a bad payload and is dropped rather than printed.
     case "toggleFamilyPacketQuestion": {
@@ -1250,7 +1273,14 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
           ...family,
           flags: [
             ...family.flags,
-            { id: crypto.randomUUID(), type: "regression", source: action.source, raisedAt: action.at }
+            {
+              id: crypto.randomUUID(),
+              type: "regression",
+              source: action.source,
+              raisedAt: action.at,
+              // Kept so a caregiver can retract the sentence that raised it.
+              ...(action.interviewId === undefined ? {} : { interviewId: action.interviewId })
+            }
           ]
         },
         auditEvents: [

@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
+import type { FamilyClinicNowTarget } from "@/domain/family-clinic-now";
 import type { FamilyFlag } from "@/domain/types";
 import { FamilyClinicNowCard } from "./family-clinic-now-card";
 
@@ -12,11 +13,16 @@ const flag: FamilyFlag = {
   raisedAt: "2026-07-17T12:00:00.000Z"
 };
 
+const referralTarget: FamilyClinicNowTarget = {
+  kind: "referral",
+  clinic: "UK Developmental Pediatrics"
+};
+
 function renderCard(overrides: Partial<React.ComponentProps<typeof FamilyClinicNowCard>> = {}) {
   const props: React.ComponentProps<typeof FamilyClinicNowCard> = {
     flag,
     language: "en",
-    clinic: "UK Developmental Pediatrics",
+    target: referralTarget,
     onAcknowledge: vi.fn(),
     ...overrides
   };
@@ -76,5 +82,83 @@ describe("FamilyClinicNowCard", () => {
       )
     ).toBeVisible();
     expect(screen.getByTestId("family-clinic-now-card")).toHaveAttribute("data-flag-source", "probe");
+  });
+
+  // F2a. The referral branch names a real relationship; the catalog's UK entry
+  // carries no dialable line, so this card carries no number rather than one it
+  // made up.
+  it("renders no call button when the catalog has no number for the clinic", () => {
+    renderCard();
+
+    expect(screen.queryByTestId("family-clinic-now-call")).toBeNull();
+    expect(screen.getByTestId("family-clinic-now-card")).toHaveAttribute(
+      "data-clinic-now-target",
+      "referral"
+    );
+  });
+
+  it("offers the clinic's number as a tappable link when the catalog has one", () => {
+    renderCard({
+      target: { kind: "referral", clinic: "Cardinal Hill", number: "859-254-5701", tel: "tel:8592545701" }
+    });
+
+    const call = screen.getByTestId("family-clinic-now-call");
+    expect(call).toHaveAttribute("href", "tel:8592545701");
+    expect(call).toHaveTextContent("Call 859-254-5701");
+  });
+
+  // No referral, but a First Steps clock is running: their county's point of
+  // entry, with the catalog's number.
+  it("routes a no-referral family on the First Steps clock to their county POE", () => {
+    renderCard({
+      target: {
+        kind: "first_steps",
+        office: "Big Sandy",
+        number: "606-886-4417",
+        tel: "tel:6068864417"
+      }
+    });
+
+    expect(
+      screen.getByText(
+        "Losing skills is worth reporting now — not waiting for the visit. Call Big Sandy — the First Steps point of entry for your county. It can matter for how soon your child is seen."
+      )
+    ).toBeVisible();
+    expect(screen.getByTestId("family-clinic-now-call")).toHaveAttribute("href", "tel:6068864417");
+    expect(screen.getByTestId("family-clinic-now-card")).toHaveAttribute(
+      "data-clinic-now-target",
+      "first_steps"
+    );
+  });
+
+  // Nothing we can name honestly. The previously untested fallback path used to
+  // print the hardcoded demo clinic here.
+  it("names no clinic at all when the family has no relationship we know of", () => {
+    renderCard({ target: { kind: "generic" } });
+
+    expect(
+      screen.getByText(
+        "Losing skills is worth reporting now — not waiting for the visit. Call your child's doctor or clinic. It can matter for how soon your child is seen."
+      )
+    ).toBeVisible();
+    expect(screen.queryByText(/UK Developmental Pediatrics/)).toBeNull();
+    expect(screen.queryByTestId("family-clinic-now-call")).toBeNull();
+  });
+
+  it("renders the Spanish generic and First Steps branches", () => {
+    const { unmount } = renderCard({ language: "es", target: { kind: "generic" } });
+    expect(
+      screen.getByText(
+        "Perder habilidades vale la pena reportarlo ahora — sin esperar la visita. Llama al doctor o a la clínica de tu hijo o hija. Puede influir en qué tan pronto atienden a tu hijo o hija."
+      )
+    ).toBeVisible();
+    unmount();
+
+    renderCard({ language: "es", target: { kind: "first_steps", office: "Big Sandy" } });
+    expect(
+      screen.getByText(
+        "Perder habilidades vale la pena reportarlo ahora — sin esperar la visita. Llama a Big Sandy — el punto de entrada de First Steps para tu condado. Puede influir en qué tan pronto atienden a tu hijo o hija."
+      )
+    ).toBeVisible();
   });
 });

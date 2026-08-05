@@ -361,8 +361,13 @@ export type FamilyStringKey =
   | "clockFirstStepsRangeOpen"
   | "factRegressionLabel"
   | "factRegressionValue"
+  | "factMarkWrong"
+  | "factMarkWrongHint"
+  | "factMarkedWrong"
   | "clinicNowTitle"
   | "clinicNowBody"
+  | "clinicNowBodyFirstSteps"
+  | "clinicNowBodyGeneric"
   | "clinicNowAck"
   | "checkinTitle"
   | "checkinNoteInvite"
@@ -843,9 +848,17 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     followupThanks: "Noted — it's in your packet's services section when it counts.",
     factRegressionLabel: "Change you noticed",
     factRegressionValue: "Possible loss of skills — from your words",
+    factMarkWrong: "This is wrong",
+    factMarkWrongHint:
+      "Keeps your own words in your notes and stops us treating this as something you told us. It leaves the visit packet.",
+    factMarkedWrong: "Marked wrong",
     clinicNowTitle: "Worth telling the clinic now",
     clinicNowBody:
       "Losing skills is worth reporting now — not waiting for the visit. Call {clinic}. It can matter for how soon your child is seen.",
+    clinicNowBodyFirstSteps:
+      "Losing skills is worth reporting now — not waiting for the visit. Call {office} — the First Steps point of entry for your county. It can matter for how soon your child is seen.",
+    clinicNowBodyGeneric:
+      "Losing skills is worth reporting now — not waiting for the visit. Call your child's doctor or clinic. It can matter for how soon your child is seen.",
     clinicNowAck: "I've noted this",
     checkinTitle: "Monthly check-in",
     checkinNoteInvite: "It's been about a month. Anything new or different with {name}?",
@@ -1328,9 +1341,17 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     followupThanks: "Anotado — aparecerá en la sección de servicios de tu paquete cuando cuente.",
     factRegressionLabel: "Cambio que notaste",
     factRegressionValue: "Posible pérdida de habilidades — según tus palabras",
+    factMarkWrong: "Esto no es correcto",
+    factMarkWrongHint:
+      "Guarda tus propias palabras en tus notas y deja de tratar esto como algo que nos dijiste. Sale del paquete de la visita.",
+    factMarkedWrong: "Marcado como incorrecto",
     clinicNowTitle: "Vale la pena avisar a la clínica ahora",
     clinicNowBody:
       "Perder habilidades vale la pena reportarlo ahora — sin esperar la visita. Llama a {clinic}. Puede influir en qué tan pronto atienden a tu hijo o hija.",
+    clinicNowBodyFirstSteps:
+      "Perder habilidades vale la pena reportarlo ahora — sin esperar la visita. Llama a {office} — el punto de entrada de First Steps para tu condado. Puede influir en qué tan pronto atienden a tu hijo o hija.",
+    clinicNowBodyGeneric:
+      "Perder habilidades vale la pena reportarlo ahora — sin esperar la visita. Llama al doctor o a la clínica de tu hijo o hija. Puede influir en qué tan pronto atienden a tu hijo o hija.",
     clinicNowAck: "Lo tengo anotado",
     checkinTitle: "Chequeo mensual",
     checkinNoteInvite: "Ha pasado como un mes. ¿Algo nuevo o diferente con {name}?",

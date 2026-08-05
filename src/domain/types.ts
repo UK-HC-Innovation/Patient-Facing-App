@@ -369,7 +369,15 @@ export type FamilyInterview = {
   kind: "orientation" | "note" | "checkin";
 };
 
-export type FamilyEvidenceStatus = Extract<EvidenceStatus, "patient_reported" | "inferred" | "confirmed">;
+/**
+ * "rejected" is the caregiver saying "you misheard me" — a different act from
+ * unticking the packet checkbox, which says "don't send this". It is family-only
+ * and additive: a fact saved before it existed hydrates unchanged, and nothing
+ * about it deletes the family's words (FR-3).
+ */
+export type FamilyEvidenceStatus =
+  | Extract<EvidenceStatus, "patient_reported" | "inferred" | "confirmed">
+  | "rejected";
 
 export type FamilyFact = {
   id: string;
@@ -486,6 +494,13 @@ export type FamilyFlag = {
   source: "probe" | "text";
   raisedAt: string;
   acknowledgedAt?: string;
+  /**
+   * The submission whose words raised it, when words did. Rejecting every fact
+   * that submission produced withdraws the packet line this flag prints — the
+   * caregiver's only way back out of "possible loss of skills". Absent on probe
+   * flags (nobody wrote anything) and on flags saved before this existed.
+   */
+  interviewId?: string;
 };
 
 export type FamilySoonerConstraint =

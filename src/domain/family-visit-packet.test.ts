@@ -280,6 +280,65 @@ describe("buildFamilyVisitSummary", () => {
     );
   });
 
+  // F2c. The packet's sharpest line, and until now the only caregiver
+  // affordance was acknowledging the card — the sentence printed forever.
+  describe("a retracted regression", () => {
+    const regressionFact = fact("fact-regression", {
+      interviewId: "interview-june",
+      label: "Change you noticed",
+      value: "Possible loss of skills — from your words",
+      sourceSnippet: "He stopped saying more at dinner."
+    });
+    const spoken: FamilyNavigatorState = {
+      ...schoolAgeFamilyState,
+      interviews: [interview("interview-june", "2026-06-20T12:00:00.000Z")],
+      facts: [regressionFact],
+      flags: [
+        {
+          id: "flag-1",
+          type: "regression",
+          source: "text",
+          raisedAt: "2026-06-20T12:00:00.000Z",
+          interviewId: "interview-june"
+        }
+      ]
+    };
+
+    it("prints while the family stands behind the sentence", () => {
+      const summary = buildFamilyVisitSummary(spoken, "en", NOW);
+
+      expect(summary).toContain("Changes we're flagging");
+      expect(summary).toContain("Possible loss of skills, noticed June 2026");
+    });
+
+    it("withdraws the line, and the sentence, once the family marks it wrong", () => {
+      const summary = buildFamilyVisitSummary(
+        { ...spoken, facts: [{ ...regressionFact, status: "rejected" }] },
+        "en",
+        NOW
+      );
+
+      expect(summary).not.toContain("Changes we're flagging");
+      expect(summary).not.toContain("Possible loss of skills");
+      expect(summary).not.toContain("He stopped saying more at dinner.");
+    });
+
+    // The flag itself is history. A probe tap is not something we misheard.
+    it("keeps a probe flag standing — there is no sentence to retract", () => {
+      const summary = buildFamilyVisitSummary(
+        {
+          ...spoken,
+          facts: [{ ...regressionFact, status: "rejected" }],
+          flags: [{ ...spoken.flags[0], source: "probe", interviewId: undefined }]
+        },
+        "en",
+        NOW
+      );
+
+      expect(summary).toContain("Possible loss of skills, noticed June 2026");
+    });
+  });
+
   it("skips every empty section rather than printing a bare heading", () => {
     const summary = buildFamilyVisitSummary(schoolAgeFamilyState, "en", NOW);
 

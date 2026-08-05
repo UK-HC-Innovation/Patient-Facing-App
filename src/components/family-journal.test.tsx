@@ -54,6 +54,7 @@ describe("FamilyJournal", () => {
         language="en"
         onConfirm={vi.fn()}
         onToggleInclude={vi.fn()}
+        onReject={vi.fn()}
       />
     );
 
@@ -77,6 +78,7 @@ describe("FamilyJournal", () => {
         language="en"
         onConfirm={vi.fn()}
         onToggleInclude={vi.fn()}
+        onReject={vi.fn()}
       />
     );
 
@@ -100,6 +102,7 @@ describe("FamilyJournal", () => {
         language="en"
         onConfirm={vi.fn()}
         onToggleInclude={vi.fn()}
+        onReject={vi.fn()}
       />
     );
 
@@ -122,6 +125,7 @@ describe("FamilyJournal", () => {
         language="en"
         onConfirm={vi.fn()}
         onToggleInclude={vi.fn()}
+        onReject={vi.fn()}
       />
     );
 
@@ -137,6 +141,7 @@ describe("FamilyJournal", () => {
         language="en"
         onConfirm={vi.fn()}
         onToggleInclude={onToggleInclude}
+        onReject={vi.fn()}
       />
     );
 
@@ -162,6 +167,7 @@ describe("FamilyJournal", () => {
         language="en"
         onConfirm={vi.fn()}
         onToggleInclude={onToggleInclude}
+        onReject={vi.fn()}
       />
     );
 
@@ -175,6 +181,54 @@ describe("FamilyJournal", () => {
     expect(screen.getByLabelText("Include in visit packet: Grade")).not.toBeChecked();
   });
 
+  // F2c. Two different sentences a caregiver might mean, and until now only one
+  // control: "don't send this" (the packet checkbox) and "you misheard me".
+  it("offers 'this is wrong' as a separate act from leaving a fact out of the packet", async () => {
+    const user = userEvent.setup();
+    const onReject = vi.fn();
+    const onToggleInclude = vi.fn();
+    const { rerender } = render(
+      <FamilyJournal
+        family={familyState()}
+        language="en"
+        onConfirm={vi.fn()}
+        onToggleInclude={onToggleInclude}
+        onReject={onReject}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "This is wrong: Grade" }));
+    expect(onReject).toHaveBeenCalledWith("fact-june");
+    expect(onToggleInclude).not.toHaveBeenCalled();
+
+    rerender(
+      <FamilyJournal
+        family={familyState({
+          facts: [
+            fact("fact-june", "interview-june", { label: "Grade", status: "rejected" }),
+            fact("fact-july", "interview-july")
+          ]
+        })}
+        language="en"
+        onConfirm={vi.fn()}
+        onToggleInclude={onToggleInclude}
+        onReject={onReject}
+      />
+    );
+
+    // The words stay on the page, wearing the badge — append-only (FR-3).
+    // Months are newest-first, so June's row is found by its own fact, not by
+    // position.
+    const row = screen
+      .getByRole("button", { name: /Yes.*Grade/i })
+      .closest('[data-testid="family-fact-row"]') as HTMLElement;
+    expect(row).toHaveAttribute("data-fact-status", "rejected");
+    expect(within(row).getByTestId("family-fact-rejected-chip")).toHaveTextContent("Marked wrong");
+    expect(within(row).getAllByText("reading is hard")[0]).toBeVisible();
+    expect(within(row).queryByTestId("family-fact-reject")).toBeNull();
+    expect(within(row).getByRole("button", { name: /Yes.*Grade/i })).toBeDisabled();
+  });
+
   it("always states where the notes actually live", () => {
     render(
       <FamilyJournal
@@ -182,6 +236,7 @@ describe("FamilyJournal", () => {
         language="en"
         onConfirm={vi.fn()}
         onToggleInclude={vi.fn()}
+        onReject={vi.fn()}
       />
     );
 
@@ -203,6 +258,7 @@ describe("FamilyJournal", () => {
         language="en"
         onConfirm={vi.fn()}
         onToggleInclude={vi.fn()}
+        onReject={vi.fn()}
       />
     );
 
@@ -226,6 +282,7 @@ describe("FamilyJournal", () => {
         language="en"
         onConfirm={vi.fn()}
         onToggleInclude={vi.fn()}
+        onReject={vi.fn()}
       />
     );
 
@@ -239,6 +296,7 @@ describe("FamilyJournal", () => {
         language="es"
         onConfirm={vi.fn()}
         onToggleInclude={vi.fn()}
+        onReject={vi.fn()}
       />
     );
 
@@ -300,6 +358,7 @@ describe("FamilyJournal across a month boundary", () => {
         language="en"
         onConfirm={vi.fn()}
         onToggleInclude={vi.fn()}
+        onReject={vi.fn()}
       />
     );
 
@@ -324,6 +383,7 @@ describe("FamilyJournal checklist", () => {
         language="en"
         onConfirm={onConfirm}
         onToggleInclude={vi.fn()}
+        onReject={vi.fn()}
       />
     );
 
@@ -353,6 +413,7 @@ describe("FamilyJournal checklist", () => {
         language="en"
         onConfirm={vi.fn()}
         onToggleInclude={vi.fn()}
+        onReject={vi.fn()}
       />
     );
 
@@ -368,6 +429,7 @@ describe("FamilyJournal checklist", () => {
         language="en"
         onConfirm={vi.fn()}
         onToggleInclude={vi.fn()}
+        onReject={vi.fn()}
       />
     );
     expect(screen.getByRole("button", { name: /Yes, that is right/ })).toHaveAttribute(
