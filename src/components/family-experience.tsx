@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { FamilyAppointmentCard } from "@/components/family-appointment-card";
 import { FamilyCheckin, type CheckinPart } from "@/components/family-checkin";
+import { FamilyCheckinReminder } from "@/components/family-checkin-reminder";
 import { FamilyClockNotice, familyClockLine } from "@/components/family-clock-notice";
 import { FamilyGlossSurface } from "@/components/family-gloss";
 import {
@@ -1194,6 +1195,12 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
           onPulse={recordCheckinPulse}
           onSkip={skipCheckin}
         />
+      ) : null}
+
+      {/* The only thing in Ladder that ever brings a family back. Placed on the
+          front door because it is about the visit after this one. */}
+      {family?.profile ? (
+        <FamilyCheckinReminder family={family} language={language} now={followupNow} />
       ) : null}
 
       {family?.profile && !checkinVisible ? (

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useId, useMemo, useState } from "react";
+import { downloadTextFile } from "@/components/family-download";
 import { FamilyFoldSection } from "@/components/family-fold-section";
 import { shareFamilyPacketText } from "@/components/family-share";
 import {
@@ -147,21 +148,12 @@ export function FamilyVisitPacket({
    * (FR-8).
    */
   function savePacket(): void {
-    try {
-      const blob = new Blob([summary], { type: "text/plain;charset=utf-8" });
-      const href = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = href;
-      link.download = `${tFamily(language, "packetFileName")}.txt`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(href);
-      setReceipt("packetSaved");
-      onExport("saved");
-    } catch {
+    if (!downloadTextFile(`${tFamily(language, "packetFileName")}.txt`, summary)) {
       setReceipt("packetSaveFailed");
+      return;
     }
+    setReceipt("packetSaved");
+    onExport("saved");
   }
 
   /**

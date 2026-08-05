@@ -1,0 +1,19 @@
+{
+  "name": "Ladder",
+  "short_name": "Ladder",
+  "description": "Kentucky family navigator: what to do while you wait for a developmental evaluation.",
+  "id": "/ladder",
+  "start_url": "/ladder",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f6f8fc",
+  "theme_color": "#0033a0",
+  "icons": [
+    {
+      "src": "/ladder-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

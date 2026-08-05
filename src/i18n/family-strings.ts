@@ -371,6 +371,26 @@ export type FamilyStringKey =
   | "clockFirstStepsRangeOpen"
   | "factRegressionLabel"
   | "factRegressionValue"
+  | "icsCheckinFileName"
+  | "icsCheckinSummary"
+  | "icsCheckinDescription"
+  | "icsVisitFileName"
+  | "icsVisitSummary"
+  | "icsVisitDescription"
+  | "icsVisitAlarm"
+  | "remindTitle"
+  | "remindNextLine"
+  | "remindCalendar"
+  | "remindCalendarWhy"
+  | "remindCalendarSaved"
+  | "remindCalendarFailed"
+  | "remindInApp"
+  | "remindInAppOn"
+  | "remindInAppLimit"
+  | "remindInAppBlocked"
+  | "remindInAppUnsupported"
+  | "remindNotificationTitle"
+  | "remindNotificationBody"
   | "factMarkWrong"
   | "factMarkWrongHint"
   | "factMarkedWrong"
@@ -871,6 +891,30 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     followupThanks: "Noted — it's in your packet's services section when it counts.",
     factRegressionLabel: "Change you noticed",
     factRegressionValue: "Possible loss of skills — from your words",
+    icsCheckinFileName: "ladder-check-in",
+    icsCheckinSummary: "Ladder check-in — how is {name} doing?",
+    icsCheckinDescription:
+      "About a month since your last note in Ladder. Open Ladder and add anything new or different.",
+    icsVisitFileName: "ladder-visit",
+    icsVisitSummary: "Evaluation visit — {clinic}",
+    icsVisitDescription:
+      "Bring your Ladder visit packet. Ladder set this reminder for 3 days before as well.",
+    icsVisitAlarm: "Your visit at {clinic} is in 3 days. Print or save your packet.",
+    remindTitle: "A way back",
+    remindNextLine: "Your next check-in is around {date}.",
+    remindCalendar: "Add to your calendar",
+    remindCalendarWhy:
+      "This is the reminder that works with Ladder closed — it goes in the calendar app you already use.",
+    remindCalendarSaved: "Calendar file saved. Open it to add the reminder.",
+    remindCalendarFailed: "This phone would not save a calendar file. Write the date down instead.",
+    remindInApp: "Also remind me in the app",
+    remindInAppOn: "In-app reminders are on.",
+    remindInAppLimit:
+      "Honest limit: this can only tell you while Ladder is open on this phone. There is no reminder that reaches a closed app — the calendar file is the one that does.",
+    remindInAppBlocked: "This phone has notifications turned off for Ladder. The calendar file still works.",
+    remindInAppUnsupported: "This phone cannot show app notifications. The calendar file still works.",
+    remindNotificationTitle: "Ladder check-in",
+    remindNotificationBody: "It's been about a month. Anything new or different?",
     factMarkWrong: "This is wrong",
     factMarkWrongHint:
       "Keeps your own words in your notes and stops us treating this as something you told us. It leaves the visit packet.",
@@ -1377,6 +1421,33 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     followupThanks: "Anotado — aparecerá en la sección de servicios de tu paquete cuando cuente.",
     factRegressionLabel: "Cambio que notaste",
     factRegressionValue: "Posible pérdida de habilidades — según tus palabras",
+    icsCheckinFileName: "chequeo-ladder",
+    icsCheckinSummary: "Chequeo de Ladder — ¿cómo va {name}?",
+    icsCheckinDescription:
+      "Ha pasado como un mes desde tu última nota en Ladder. Abre Ladder y agrega algo nuevo o diferente.",
+    icsVisitFileName: "visita-ladder",
+    icsVisitSummary: "Visita de evaluación — {clinic}",
+    icsVisitDescription:
+      "Lleva tu paquete de la visita de Ladder. Ladder también puso un recordatorio 3 días antes.",
+    icsVisitAlarm: "Tu visita en {clinic} es en 3 días. Imprime o guarda tu paquete.",
+    remindTitle: "Una forma de volver",
+    remindNextLine: "Tu próximo chequeo es alrededor del {date}.",
+    remindCalendar: "Agregar a tu calendario",
+    remindCalendarWhy:
+      "Este es el recordatorio que funciona con Ladder cerrado — se guarda en la aplicación de calendario que ya usas.",
+    remindCalendarSaved: "Archivo de calendario guardado. Ábrelo para agregar el recordatorio.",
+    remindCalendarFailed:
+      "Este teléfono no pudo guardar un archivo de calendario. Mejor anota la fecha.",
+    remindInApp: "También recuérdame en la aplicación",
+    remindInAppOn: "Los recordatorios en la aplicación están activados.",
+    remindInAppLimit:
+      "Límite honesto: esto solo puede avisarte mientras Ladder esté abierto en este teléfono. No existe un recordatorio que llegue a una aplicación cerrada — el archivo de calendario sí lo hace.",
+    remindInAppBlocked:
+      "Este teléfono tiene las notificaciones desactivadas para Ladder. El archivo de calendario sigue funcionando.",
+    remindInAppUnsupported:
+      "Este teléfono no puede mostrar notificaciones de la aplicación. El archivo de calendario sigue funcionando.",
+    remindNotificationTitle: "Chequeo de Ladder",
+    remindNotificationBody: "Ha pasado como un mes. ¿Algo nuevo o diferente?",
     factMarkWrong: "Esto no es correcto",
     factMarkWrongHint:
       "Guarda tus propias palabras en tus notas y deja de tratar esto como algo que nos dijiste. Sale del paquete de la visita.",

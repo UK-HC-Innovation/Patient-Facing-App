@@ -196,6 +196,7 @@ const ANCHOR_SURFACES: Readonly<Record<string, LadderSurface>> = {
   "family-experience": "home",
   "family-interview-title": "home",
   "family-checkin": "home",
+  "family-remind": "home",
   "family-followup": "home",
   "family-clinic-now": "home",
   "family-timeline": "home",
