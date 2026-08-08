@@ -52,6 +52,12 @@ export type FamilyInterviewProps = {
   profile: FamilyProfile;
   draft: string;
   passcode?: string;
+  /**
+   * F1a. Whether this turn may use the network at all. Defaults to false so a
+   * caller that forgets to thread it keeps the words on the device rather than
+   * silently sending them — the safe direction for a missing prop.
+   */
+  liveAllowed?: boolean;
   language: Language;
   /** Overrides the opening prompt once the box is collecting journal notes. */
   placeholder?: string;
@@ -109,6 +115,7 @@ export function FamilyInterview({
   profile,
   draft,
   passcode,
+  liveAllowed = false,
   language,
   placeholder,
   onDraftChange,
@@ -374,7 +381,12 @@ export function FamilyInterview({
       pending = true;
       setSubmitting(true);
       let live: FamilyInterviewResult | null = null;
-      if (!safety) {
+      // F1a. Two independent holds on the network, and the second one is new:
+      // a safety turn never leaves the device, and neither does an ordinary turn
+      // until the caregiver has been told what the online helper sends and said
+      // yes. The route's own `unconfigured`/`locked` answers arrive after the
+      // body does, so this is the only gate that actually keeps words at home.
+      if (!safety && liveAllowed) {
         try {
           live = await requestFamilyInterview({
             text: snapshot.rawText,

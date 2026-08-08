@@ -264,7 +264,10 @@ describe("Ladder semantic contrast", () => {
       <FamilyOrientationInterview
         profile={schoolAgeFamilyState.profile!}
         draft={SAMPLE_CAREGIVER_TEXT}
-        passcode=""
+        passcode="secret"
+        // The mocked provider result is what drives the sign-off this test is
+        // measuring, so it stands in for a consented session (F1a).
+        liveAllowed
         language="en"
         onDraftChange={vi.fn()}
         onInterviewExtracted={vi.fn()}
@@ -297,7 +300,7 @@ describe("Ladder semantic contrast", () => {
     expectAaContrast(screen.getByTestId("family-heard"));
     expectAaContrast(within(strip).getByText(/Check or change this/i));
     await user.click(within(strip).getByText(/Check or change this/i));
-    expectAaContrast(within(strip).getByText(/Nothing here is saved anywhere but this device/i));
+    expectAaContrast(within(strip).getByText(/stored in this browser, on this device/i));
     expectAaContrast(screen.getByText("Optional — answering sharpens the list."));
   });
 });

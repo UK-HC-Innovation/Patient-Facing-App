@@ -77,6 +77,9 @@ function renderOrientation(overrides: Partial<React.ComponentProps<typeof Family
     profile: schoolAgeFamilyState.profile!,
     draft: SAMPLE_CAREGIVER_TEXT,
     passcode: "secret",
+    // F1a. See family-interview.test.tsx — a consented session, so these keep
+    // testing the live path rather than the gate.
+    liveAllowed: true,
     language: "en",
     onDraftChange: vi.fn(),
     onInterviewExtracted: vi.fn(),

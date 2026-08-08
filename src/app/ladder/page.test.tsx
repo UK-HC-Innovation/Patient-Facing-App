@@ -125,11 +125,26 @@ const f07Family: FamilyNavigatorState = {
   recommendations: null
 };
 
-function ReducerHarness({ initialState = withFamily(null) }: { initialState?: AppState }) {
+function ReducerHarness({
+  initialState = withFamily(null),
+  // F1a. The harness stands in for a caregiver who has already accepted the
+  // online-helper disclosure, so these journeys keep exercising the live path.
+  // The gate's own behaviour lives in family-network-silence.test.tsx, which
+  // deliberately does not mock the provider module.
+  aiConsent = "granted" as const
+}: {
+  initialState?: AppState;
+  aiConsent?: "unset" | "granted" | "declined";
+}) {
   const [state, dispatch] = useReducer(healthReducer, initialState);
   return (
     <>
-      <FamilyExperience state={state} dispatch={dispatch} passcode="demo-passcode" />
+      <FamilyExperience
+        state={state}
+        dispatch={dispatch}
+        passcode="demo-passcode"
+        initialAiConsent={aiConsent}
+      />
       <output data-testid="family-state">{JSON.stringify(state.family)}</output>
       <output data-testid="adult-facts">{JSON.stringify(state.extractedFacts)}</output>
       <output data-testid="audit-events">{JSON.stringify(state.auditEvents)}</output>
@@ -206,7 +221,7 @@ describe("the heard strip", { timeout: 20_000 }, () => {
     expect(within(disclosure).getByRole("heading", { name: "Why we are showing this" })).toBeVisible();
     expect(within(disclosure).getByTestId("family-heard-strip-editor")).toBeVisible();
     expect(
-      within(disclosure).getByText(/Nothing here is saved anywhere but this device/i)
+      within(disclosure).getByText(/stored in this browser, on this device/i)
     ).toBeVisible();
   });
 

@@ -54,6 +54,8 @@ export type FamilyOrientationInterviewProps = {
   profile: FamilyProfile;
   draft: string;
   passcode?: string;
+  /** F1a. See FamilyInterviewProps.liveAllowed — same gate, same safe default. */
+  liveAllowed?: boolean;
   language: Language;
   voiceEntryContext?: VoiceEntryContext;
   /** Rendered between the transcript and the current follow-up turn — the tool's own replies. */
@@ -140,6 +142,7 @@ export function FamilyOrientationInterview({
   profile,
   draft,
   passcode,
+  liveAllowed = false,
   language,
   voiceEntryContext,
   interlude,
@@ -247,7 +250,10 @@ export function FamilyOrientationInterview({
 
     try {
       let live: FamilyInterviewResult | null = null;
-      if (!safety) {
+      // F1a. This composer re-sends the whole conversation every round, so an
+      // ungated round here leaks every earlier turn as well — the gate matters
+      // more on this path, not less.
+      if (!safety && liveAllowed) {
         try {
           live = await requestFamilyInterview({
             text: liveTranscript,
@@ -319,6 +325,7 @@ export function FamilyOrientationInterview({
           profile={profile}
           draft={draft}
           passcode={passcode}
+          liveAllowed={liveAllowed}
           language={language}
           placeholder={completePlaceholder}
           onDraftChange={onDraftChange}

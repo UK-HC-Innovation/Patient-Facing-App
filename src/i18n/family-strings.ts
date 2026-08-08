@@ -372,6 +372,17 @@ export type FamilyStringKey =
   | "factRegressionLabel"
   | "factRegressionValue"
   | "extractionOnDevice"
+  | "aiConsentTitle"
+  | "aiConsentBody"
+  | "aiConsentAccept"
+  | "aiConsentDecline"
+  | "aiConsentDeclinedNotice"
+  | "aiUseNoneTitle"
+  | "aiUseNoneBody"
+  | "aiUseOnDeviceTitle"
+  | "aiUseOnDeviceBody"
+  | "aiUseOnlineTitle"
+  | "aiUseOnlineBody"
   | "programsCapped"
   | "notesEmptyTitle"
   | "notesEmptyBody"
@@ -904,6 +915,22 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     factRegressionValue: "Possible loss of skills — from your words",
     extractionOnDevice:
       "We read this on your phone, not with the online assistant. Same words, simpler reading — check anything that looks off.",
+    aiConsentTitle: "Want the online helper to read this too?",
+    aiConsentBody:
+      "We read what you wrote here on your device, and nothing has been sent anywhere. The online helper is an AI service run by OpenAI. If you turn it on, the words you type and the child details you entered are sent there to sort topics and put program options in order. It never contacts a clinic and no one reviews what you send. Your answer lasts until you close Ladder.",
+    aiConsentAccept: "Use the online helper",
+    aiConsentDecline: "Keep everything on this device",
+    aiConsentDeclinedNotice:
+      "Staying on this device. Nothing you write is sent anywhere, and the programs below are matched here on your phone.",
+    aiUseNoneTitle: "Nothing has been sent anywhere",
+    aiUseNoneBody:
+      "You have not written anything yet. When you do, it is read on this device unless you turn on the online helper.",
+    aiUseOnDeviceTitle: "Read on this device",
+    aiUseOnDeviceBody:
+      "Everything you have written was read here on your phone. No words and no child details have been sent to any AI service.",
+    aiUseOnlineTitle: "Sent to the online helper",
+    aiUseOnlineBody:
+      "You turned on the online helper, so the words you wrote and the child details you entered were sent to OpenAI to sort topics and order options. Turning it off stops any further sending; it cannot take back what was already sent.",
     programsCapped: "Showing {shown} of {count} places we found.",
     notesEmptyTitle: "No notes yet",
     notesEmptyBody:
@@ -996,7 +1023,8 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     heardStripChildFallback: "your child",
     stripDisclosureSummary: "Check or change this",
     stripGuessesChip: "Check our guesses",
-    stripTrustLine: "Nothing here is saved anywhere but this device, and you can change any of it.",
+    stripTrustLine:
+      "Your record is stored in this browser, on this device. Nothing is sent anywhere unless you turn on the online helper — and you can change any of it.",
     stripExtractedNote: "We read these from your words — check them.",
     threadResourcesTitle: "First places to try",
     seeAllResources: "See all {count} places below",
@@ -1037,7 +1065,7 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     homeDoorNotesMetaOne: "{count} note in",
     homeDoorNotesMetaNone: "nothing in yet",
     homeTrustLine:
-      "Your notes stay on this phone. We can't predict the exact evaluation date — here's how to make the wait count.",
+      "Your notes are stored in this browser, on this device, and nothing is sent anywhere unless you turn on the online helper. We can't predict the exact evaluation date — here are steps you can choose while you wait.",
     notesEmptyCta: "Add the first note",
     visitTabNoticeTitle: "We added a Visit tab",
     visitTabNoticeBody:
@@ -1449,6 +1477,22 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     factRegressionValue: "Posible pérdida de habilidades — según tus palabras",
     extractionOnDevice:
       "Esto lo leímos en tu teléfono, no con el asistente en línea. Las mismas palabras, una lectura más sencilla — revisa cualquier cosa que se vea mal.",
+    aiConsentTitle: "¿Quieres que el asistente en línea también lea esto?",
+    aiConsentBody:
+      "Leímos lo que escribiste aquí en tu dispositivo, y no se ha enviado nada a ninguna parte. El asistente en línea es un servicio de inteligencia artificial de OpenAI. Si lo activas, las palabras que escribes y los datos del niño o la niña que ingresaste se envían allí para ordenar los temas y las opciones de programas. Nunca se comunica con una clínica y nadie revisa lo que envías. Tu respuesta dura hasta que cierres Ladder.",
+    aiConsentAccept: "Usar el asistente en línea",
+    aiConsentDecline: "Mantener todo en este dispositivo",
+    aiConsentDeclinedNotice:
+      "Todo se queda en este dispositivo. Nada de lo que escribes se envía a ninguna parte, y los programas de abajo se emparejan aquí en tu teléfono.",
+    aiUseNoneTitle: "No se ha enviado nada a ninguna parte",
+    aiUseNoneBody:
+      "Todavía no has escrito nada. Cuando lo hagas, se lee en este dispositivo a menos que actives el asistente en línea.",
+    aiUseOnDeviceTitle: "Leído en este dispositivo",
+    aiUseOnDeviceBody:
+      "Todo lo que has escrito se leyó aquí en tu teléfono. No se han enviado palabras ni datos del niño o la niña a ningún servicio de inteligencia artificial.",
+    aiUseOnlineTitle: "Enviado al asistente en línea",
+    aiUseOnlineBody:
+      "Activaste el asistente en línea, así que las palabras que escribiste y los datos del niño o la niña que ingresaste se enviaron a OpenAI para ordenar los temas y las opciones. Desactivarlo detiene cualquier envío futuro; no puede recuperar lo que ya se envió.",
     programsCapped: "Mostrando {shown} de {count} lugares que encontramos.",
     notesEmptyTitle: "Todavía no hay notas",
     notesEmptyBody:
@@ -1548,7 +1592,8 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     heardStripChildFallback: "tu hijo o hija",
     stripDisclosureSummary: "Revisa o cambia esto",
     stripGuessesChip: "Revisa nuestras suposiciones",
-    stripTrustLine: "Nada de esto se guarda fuera de este dispositivo, y puedes cambiar lo que quieras.",
+    stripTrustLine:
+      "Tu registro se guarda en este navegador, en este dispositivo. No se envía nada a ninguna parte a menos que actives el asistente en línea — y puedes cambiar lo que quieras.",
     stripExtractedNote: "Esto lo leímos de tus palabras — revísalo.",
     threadResourcesTitle: "Primeros lugares para intentar",
     seeAllResources: "Ver los {count} lugares de abajo",
@@ -1589,7 +1634,7 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     homeDoorNotesMetaOne: "{count} nota dentro",
     homeDoorNotesMetaNone: "todavía nada dentro",
     homeTrustLine:
-      "Tus notas se quedan en este teléfono. No podemos predecir la fecha exacta de la evaluación — aquí te ayudamos a aprovechar la espera.",
+      "Tus notas se guardan en este navegador, en este dispositivo, y no se envía nada a ninguna parte a menos que actives el asistente en línea. No podemos predecir la fecha exacta de la evaluación — aquí tienes pasos que puedes elegir mientras esperas.",
     notesEmptyCta: "Agregar la primera nota",
     visitTabNoticeTitle: "Agregamos una pestaña Cita",
     visitTabNoticeBody:

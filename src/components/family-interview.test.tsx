@@ -77,6 +77,10 @@ function renderInterview(overrides: Partial<React.ComponentProps<typeof FamilyIn
     profile: schoolAgeFamilyState.profile!,
     draft: SAMPLE_CAREGIVER_TEXT,
     passcode: "secret",
+    // F1a. These cases exercise the live path, so they stand in for a caregiver
+    // who accepted the online-helper disclosure. The gate itself is covered by
+    // family-ai-consent.test.ts and family-network-silence.test.tsx.
+    liveAllowed: true,
     language: "en",
     onDraftChange: vi.fn(),
     onExtracted: vi.fn(),
@@ -566,6 +570,7 @@ describe("FamilyInterview", { timeout: 20_000 }, () => {
     const onExtracted = vi.fn();
     const baseProps = {
       passcode: "secret",
+      liveAllowed: true,
       language: "en" as const,
       onDraftChange,
       onExtracted
@@ -620,6 +625,7 @@ describe("FamilyInterview", { timeout: 20_000 }, () => {
     const baseProps = {
       draft,
       passcode: "secret",
+      liveAllowed: true,
       language: "en" as const,
       onDraftChange: vi.fn(),
       onExtracted

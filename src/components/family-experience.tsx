@@ -7,6 +7,7 @@ import React, {
   useState,
   type Dispatch
 } from "react";
+import { FamilyAiConsentCard } from "@/components/family-ai-consent-card";
 import { FamilyAppointmentCard } from "@/components/family-appointment-card";
 import { FamilyCheckin, type CheckinPart } from "@/components/family-checkin";
 import { FamilyCheckinReminder } from "@/components/family-checkin-reminder";
@@ -44,6 +45,12 @@ import {
   FAMILY_APPOINTMENT_CLINIC,
   type FamilyAppointmentCountdownDays
 } from "@/domain/family-appointments";
+import {
+  canSendFamilyTextOffDevice,
+  familyAiUseMode,
+  shouldOfferFamilyAiChoice,
+  type FamilyAiConsent
+} from "@/domain/family-ai-consent";
 import {
   createFamilySafetyEvent,
   domainsAfterSafety,
@@ -114,11 +121,31 @@ export type FamilyExperienceProps = {
   state: AppState;
   dispatch: Dispatch<HealthAction>;
   passcode?: string;
+  /**
+   * F1b test seam. Production never passes this — `/ladder` mounts the default
+   * "unset", which sends nothing until the caregiver answers the disclosure. It
+   * exists so a test can start from an already-consented session without driving
+   * the two-turn interaction, and it defaults to the private direction so
+   * forgetting it can only ever under-send.
+   */
+  initialAiConsent?: FamilyAiConsent;
 };
 
 type ReviewDetails = {
   domains: SanitizedFamilyInterviewResult["domains"];
 };
+
+const AI_USE_TITLE_KEYS = {
+  none: "aiUseNoneTitle",
+  on_device: "aiUseOnDeviceTitle",
+  online: "aiUseOnlineTitle"
+} as const satisfies Record<string, FamilyStringKey>;
+
+const AI_USE_BODY_KEYS = {
+  none: "aiUseNoneBody",
+  on_device: "aiUseOnDeviceBody",
+  online: "aiUseOnlineBody"
+} as const satisfies Record<string, FamilyStringKey>;
 
 const DOMAIN_KEYS: Record<DevNeedDomain, FamilyStringKey> = {
   early_intervention: "domainEarlyIntervention",
@@ -311,7 +338,12 @@ function FamilyBasicsTurns({
   );
 }
 
-export function FamilyExperience({ state, dispatch, passcode }: FamilyExperienceProps) {
+export function FamilyExperience({
+  state,
+  dispatch,
+  passcode,
+  initialAiConsent = "unset"
+}: FamilyExperienceProps) {
   const language = state.patient.language;
   const family = state.family;
   const [reviewDetails, setReviewDetails] = useState<ReviewDetails | null>(null);
@@ -324,6 +356,19 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   // Reported up by the thread so the page's other asks can stand down for the
   // rest of the visit once a conversation is underway.
   const [threadActive, setThreadActive] = useState(false);
+  // F1b. Session-scoped on purpose: never persisted, so a shared phone does not
+  // inherit the last caregiver's answer and no storage migration can revive it.
+  // "unset" is the resting state, and the resting state sends nothing.
+  const [aiConsent, setAiConsent] = useState<FamilyAiConsent>(initialAiConsent);
+  // Recomputed every render rather than memoised: `passcode` arrives a tick after
+  // mount (the ladder page reads ?k= in an effect), so anything that latches on
+  // its first value would pin the gate shut and look like it was working.
+  const liveAllowed = canSendFamilyTextOffDevice({ passcode, consent: aiConsent });
+  const offerAiChoice = shouldOfferFamilyAiChoice({ passcode, consent: aiConsent });
+  const aiUseMode = familyAiUseMode({
+    liveSends: (family?.interviews ?? []).filter(({ extraction }) => extraction === "live").length,
+    turnsTaken: family?.interviews.length ?? 0
+  });
   const [basicsToggled, setBasicsToggled] = useState<boolean | null>(null);
   const [followupAnswered, setFollowupAnswered] = useState(false);
   // The check-in's own parts stamp touches, which would close the card halfway
@@ -452,6 +497,30 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     // never leaves the device.
     if (!family?.profile || !latestInterview || rankedSet || rankCandidates.length === 0) return;
     if (pendingSafetyEvent !== undefined) return;
+    // F1a/F1e. This is an effect, not a submit handler: a returning visitor with
+    // a stored interview and no stored ranking would POST their narrative on page
+    // load, with no action of their own. Gating only the composers would have
+    // left this path wide open, and the caregiver would never have seen the ask.
+    if (!liveAllowed) {
+      dispatch({
+        type: "setFamilyRecommendations",
+        recommendations: rankFamilyResourcesMock(
+          rankCandidates,
+          family.activeDomains,
+          latestInterview.rawText,
+          language,
+          latestInterview.id
+        ),
+        context: {
+          interviewId: latestInterview.id,
+          activeDomains: [...family.activeDomains],
+          profile: family.profile,
+          candidateIds: rankCandidates.map(({ resource }) => resource.id),
+          language
+        }
+      });
+      return;
+    }
 
     let cancelled = false;
     const profile = family.profile;
@@ -519,6 +588,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
     family?.profile,
     language,
     latestInterview,
+    liveAllowed,
     passcode,
     pendingSafetyEvent,
     rankCandidates,
@@ -1061,6 +1131,18 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
                 {tFamily(language, "extractionOnDevice")}
               </p>
             ) : null}
+            {/* F1d. Generated from the record, not asserted: `aiUseMode` counts
+                the interviews whose extraction actually completed live. The old
+                Privacy line derived "AI data use: not active" from the live-voice
+                transport probe, which knew nothing about this surface at all. */}
+            <p
+              data-testid="family-ai-use"
+              data-ai-use-mode={aiUseMode}
+              className="break-words text-sm leading-6 text-ink/70"
+            >
+              <span className="font-semibold">{tFamily(language, AI_USE_TITLE_KEYS[aiUseMode])}</span>{" "}
+              {tFamily(language, AI_USE_BODY_KEYS[aiUseMode])}
+            </p>
           </div>
         </details>
       </section>
@@ -1108,10 +1190,38 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
   // The safety banner and the clinic-now card have left the thread: they are
   // layer 0 now, above the header of whatever surface is open, so switching tabs
   // cannot put them below anything (1i).
+  // F1b. Offered only once a turn has been answered, and never over a crisis
+  // banner: a caregiver reading 988 numbers is not being asked to make a data
+  // choice. Declining is remembered for the session, so this asks at most once.
+  const aiConsentTurn =
+    offerAiChoice && reviewTurn !== null && pendingSafetyEvent === undefined ? (
+      <FamilyAiConsentCard
+        language={language}
+        onAccept={() => setAiConsent("granted")}
+        onDecline={() => setAiConsent("declined")}
+      />
+    ) : null;
+
+  const aiDeclinedNotice =
+    aiConsent === "declined" && reviewTurn !== null ? (
+      <p
+        data-testid="family-ai-declined"
+        className="break-words text-sm leading-6 text-ink/70"
+      >
+        {tFamily(language, "aiConsentDeclinedNotice")}
+      </p>
+    ) : null;
+
   const interlude =
-    reviewTurn || needsBasics || threadResources.length > 0 || showFallbackInThread ? (
+    reviewTurn ||
+    needsBasics ||
+    threadResources.length > 0 ||
+    showFallbackInThread ||
+    aiConsentTurn ? (
       <>
         {reviewTurn}
+        {aiConsentTurn}
+        {aiDeclinedNotice}
         {needsBasics ? (
           <FamilyBasicsTurns
             language={language}
@@ -1393,6 +1503,7 @@ export function FamilyExperience({ state, dispatch, passcode }: FamilyExperience
             profile={family?.profile ?? EMPTY_FAMILY_INTERVIEW_PROFILE}
             draft={family?.interviewDraft ?? ""}
             passcode={passcode}
+            liveAllowed={liveAllowed}
             language={language}
             voiceEntryContext={{ patientId: state.patient.id, dispatch }}
             interlude={interlude}
