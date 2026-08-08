@@ -50,6 +50,15 @@ export function pendingFamilySafetyEvent(events: FamilySafetyEvent[]): FamilySaf
  * What the active domains become after a turn that tripped a safety rule.
  * Disclosing a crisis is not a retraction of the family's needs, and a family
  * with no identified need still needs a person — never an empty page.
+ *
+ * F2b considered dropping the `parent_support` floor, because the review found
+ * a child-safety disclosure being filed under an ordinary resource category.
+ * Dropping it dead-ends: with no domains, retrieval returns nothing at all, and
+ * the `missing_child_banner` vignette went to zero resources — answering a
+ * caregiver's hardest message with a blank page. The floor stays, and the real
+ * fix lands where the harm was: the crisis turn no longer renders a "what we
+ * heard" interpretation, makes no facts, and is never written to the record
+ * (see `recordFamilySafetyTurn` and F2b in family-experience).
  */
 export function domainsAfterSafety(
   extracted: DevNeedDomain[],

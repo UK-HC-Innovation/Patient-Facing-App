@@ -1379,7 +1379,7 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     expect(family.safetyEvents).toHaveLength(1);
     expect(family.safetyEvents[0].acknowledgedAt).toBeUndefined();
 
-    await user.click(within(banner).getByRole("button", { name: "I've seen this — continue" }));
+    await user.click(within(banner).getByRole("button", { name: "I understand — return to Ladder" }));
     const acknowledged = JSON.parse(
       screen.getByTestId("family-state").textContent || "null"
     ) as FamilyNavigatorState;
@@ -1432,7 +1432,7 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     expect(within(banner).getByRole("link", { name: /Call 988/i })).toHaveAttribute("href", "tel:988");
 
     // (b) Acknowledging it puts it away without a reload — and keeps both events.
-    await user.click(within(banner).getByRole("button", { name: "I've seen this — continue" }));
+    await user.click(within(banner).getByRole("button", { name: "I understand — return to Ladder" }));
     expect(screen.queryByTestId("family-crisis-banner")).not.toBeInTheDocument();
     const family = JSON.parse(screen.getByTestId("family-state").textContent || "null") as FamilyNavigatorState;
     expect(family.safetyEvents).toHaveLength(2);

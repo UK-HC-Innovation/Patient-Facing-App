@@ -61,6 +61,14 @@ export type LadderShellProps = {
    * folded and never below other content.
    */
   crisis?: ReactNode;
+  /**
+   * F2c. The way back to 988/911 after the banner has been acknowledged. Once a
+   * caregiver has disclosed once, this rides in the header on every surface —
+   * acknowledging used to take every urgent route off the page with nothing
+   * saying they could be got back. Absent until there is something to reopen, so
+   * a family who has never disclosed is not followed around by a crisis control.
+   */
+  urgentHelp?: ReactNode;
   /** Which tabs exist. Visit only appears when a referral fits this child. */
   surfaces: readonly LadderSurface[];
   surface: LadderSurface;
@@ -78,6 +86,7 @@ export function LadderShell({
   onLanguageChange,
   subtitle,
   crisis,
+  urgentHelp,
   surfaces,
   surface,
   onSurfaceChange,
@@ -126,8 +135,12 @@ export function LadderShell({
             <p className="min-w-0 break-words text-xs text-ink/65">{subtitle}</p>
           </div>
           {/* P4: the language control is chrome, not a setting. It is in the
-              header of every surface, including first run and the crisis state. */}
-          <LanguageToggle language={language} onChange={onLanguageChange} variant="segmented" />
+              header of every surface, including first run and the crisis state.
+              F2c puts the urgent-help route beside it for the same reason. */}
+          <div className="flex min-w-0 items-center gap-2">
+            {urgentHelp}
+            <LanguageToggle language={language} onChange={onLanguageChange} variant="segmented" />
+          </div>
         </div>
         {/* F6d. The draft-translation caveat used to live in one branch of the
             composer, so a returning Spanish reader — whose composer is collapsed

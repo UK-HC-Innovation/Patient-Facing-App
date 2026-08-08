@@ -135,6 +135,7 @@ export type HealthAction =
   | { type: "setFamilyInterviewDraft"; draft: string }
   | { type: "submitFamilyScreen"; answers: FamilyScreenAnswer[]; facts: FamilyFact[] }
   | { type: "addFamilyInterview"; interview: FamilyInterview; facts: FamilyFact[]; domains: FamilyNavigatorState["activeDomains"] }
+  | { type: "recordFamilySafetyTurn"; domains: FamilyNavigatorState["activeDomains"] }
   | { type: "confirmFamilyFact"; factId: string }
   | { type: "setFamilyFactInclusion"; factId: string; include: boolean }
   | { type: "rejectFamilyFact"; factId: string }
@@ -1142,6 +1143,27 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
           facts: [...family.facts, ...newFacts],
           // A new interview invalidates any ranking built from the old one.
           recommendations: null,
+          latestInterviewDomains,
+          activeDomains: mergeFamilyDomains(family.screenAnswers, latestInterviewDomains)
+        }
+      };
+    }
+    // F2b. A crisis turn routes, but it is never recorded. The words are not
+    // kept, no facts are made from them, and nothing from the turn can reach the
+    // Journal, the Notes tab, or the printable packet a clinician reads — which
+    // is what `addFamilyInterview` was quietly doing with "my son says he wants
+    // to die". Only the routing signal survives, so a disclosure that also names
+    // a school or speech concern still reaches the right programs.
+    case "recordFamilySafetyTurn": {
+      const family = state.family ?? emptyFamilyState(null);
+      const latestInterviewDomains = [
+        ...new Set([...family.latestInterviewDomains, ...action.domains])
+      ];
+      return {
+        ...state,
+        family: {
+          ...family,
+          interviewDraft: "",
           latestInterviewDomains,
           activeDomains: mergeFamilyDomains(family.screenAnswers, latestInterviewDomains)
         }

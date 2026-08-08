@@ -22,6 +22,7 @@ import {
 } from "@/components/ladder-shell";
 import { FamilyClinicNowCard } from "@/components/family-clinic-now-card";
 import { FamilyCrisisBanner } from "@/components/family-crisis-banner";
+import { FamilyUrgentHelpControl } from "@/components/family-urgent-help-control";
 import { FamilyFactCard } from "@/components/family-fact-card";
 import { FamilyFoldSection, useFamilyFoldAnchors } from "@/components/family-fold-section";
 import { FamilyGuideCard } from "@/components/family-guide-card";
@@ -729,6 +730,36 @@ export function FamilyExperience({
     meta: FamilyInterviewSubmissionMeta,
     { round, newText }: { round: number; newText: string }
   ): void {
+    // F2b. A crisis turn routes, but it is not recorded and it is not presented
+    // as an interpretation. Before this, the disclosure ran the whole pipeline:
+    // facts were made from it, the raw words were persisted (so they sat in the
+    // Journal on a shared phone and printed in the clinician packet), the
+    // regression scanner read the same sentence, and `parent_support` was
+    // injected — filing "my son says he wants to die" as an ordinary resource
+    // category, which is the dismissiveness the review named.
+    //
+    // Routing deliberately survives. Spec 11's motivating case (the Breathitt
+    // vignette: school exclusion plus harm to an animal) trips safety AND must
+    // still reach school-discipline help; suppressing everything would answer a
+    // caregiver's hardest message with nothing at all.
+    if (safetyTurnRef.current) {
+      safetyTurnRef.current = false;
+      interviewKindRef.current = null;
+      setReviewDetails(null);
+      dispatch({
+        type: "recordFamilySafetyTurn",
+        // Routing keeps its existing floor: whatever this turn named, else what
+        // was already established, else caregiver support — because retrieval
+        // with no domains returns nothing, and a blank page is not an answer to
+        // a crisis. What changed is that none of this is presented back as an
+        // interpretation, and none of it is written down.
+        domains: domainsAfterSafety(
+          result.domains.map(({ domain }) => domain),
+          family?.activeDomains ?? []
+        )
+      });
+      return;
+    }
     pendingReviewFocusRef.current = round === 0;
     wroteThisSessionRef.current = true;
     const interviewId = crypto.randomUUID();
@@ -742,8 +773,6 @@ export function FamilyExperience({
       sourceSnippet: fact.sourceSnippet
     }));
     const extractedDomains = result.domains.map(({ domain }) => domain);
-    const wasSafetyTurn = safetyTurnRef.current;
-    safetyTurnRef.current = false;
     // A follow-up round continues the conversation it belongs to, so it files
     // under that conversation's kind: the orientation's rounds stay orientation
     // and never inflate the journal's note count, and a check-in's rounds stay
@@ -753,9 +782,6 @@ export function FamilyExperience({
       (round > 0 ? latestInterview?.kind : undefined) ??
       ((family?.interviews.length ?? 0) === 0 ? "orientation" : "note");
     interviewKindRef.current = null;
-    const domains = wasSafetyTurn
-      ? domainsAfterSafety(extractedDomains, family?.activeDomains ?? [])
-      : extractedDomains;
 
     setReviewDetails({ domains: result.domains });
     dispatch({
@@ -769,7 +795,7 @@ export function FamilyExperience({
         kind
       },
       facts,
-      domains
+      domains: extractedDomains
     });
     // Loss of an acquired skill is a "call the clinic" signal, not a crisis. The
     // reducer keeps it to one open flag, so a note that says it twice asks once.
@@ -2012,6 +2038,12 @@ export function FamilyExperience({
             {clinicNowTurn}
           </div>
         ) : null
+      }
+      // F2c. Present once this family has ever disclosed — including on later
+      // visits, since the events persist. Acknowledging the banner stands the
+      // presentation down; it no longer takes the phone numbers with it.
+      urgentHelp={
+        safetyEvents.length > 0 ? <FamilyUrgentHelpControl language={language} /> : undefined
       }
       surfaces={surfaces}
       surface={activeSurface}

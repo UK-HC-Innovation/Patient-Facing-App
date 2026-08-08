@@ -383,6 +383,17 @@ export type FamilyStringKey =
   | "aiUseOnDeviceBody"
   | "aiUseOnlineTitle"
   | "aiUseOnlineBody"
+  | "safetyHeading"
+  | "safetyCrisis"
+  | "safetyAbuse"
+  | "safetyHarmToOthers"
+  | "safetySocial"
+  | "safetyEmergency"
+  | "safetySteps"
+  | "safetyNoInterpretation"
+  | "safetyAcknowledge"
+  | "safetyReopen"
+  | "safetyReopenHint"
   | "programsCapped"
   | "notesEmptyTitle"
   | "notesEmptyBody"
@@ -931,6 +942,32 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     aiUseOnlineTitle: "Sent to the online helper",
     aiUseOnlineBody:
       "You turned on the online helper, so the words you wrote and the child details you entered were sent to OpenAI to sort topics and order options. Turning it off stops any further sending; it cannot take back what was already sent.",
+    // F2a. Ladder's own safety words. These used to be the coach's, which are
+    // written to an adult describing their own crisis — so a parent reporting
+    // that their child wants to die was asked whether *they* felt unsafe and
+    // told to put things they might hurt themselves with out of reach. The
+    // detector returns a domain, never a subject: it cannot tell whether the
+    // child or the caregiver is the person at risk. So these are written to be
+    // read correctly either way rather than guessing, and each one keeps every
+    // action the coach copy offered (988 voice, 988 text, 911).
+    safetyHeading: "Someone may need urgent help",
+    safetyCrisis:
+      "Someone in your home may need urgent help right now — whether that is your child or you. Call or text 988 to reach the Suicide & Crisis Lifeline: it is free, confidential, open every hour of every day, and it helps caregivers worried about a child as well as people in crisis themselves. If anyone is in immediate danger, call 911. Ladder cannot watch for this or contact anyone for you.",
+    safetyAbuse:
+      "A person trained in child safety should be involved right now. If anyone is in immediate danger, call 911. You can also call or text 988, and your child's pediatrician can help you decide what to do next. Ladder cannot make a report or contact anyone for you.",
+    safetyHarmToOthers:
+      "Keeping everyone safe comes first. If anyone is in immediate danger, call 911 now. If you are worried your child may hurt someone or an animal, you can go to the nearest emergency department, and you can call or text 988 — they also help people who are worried about someone else. Please tell your child's pediatrician what is happening.",
+    safetySocial:
+      "It sounds like your family may be without something you need today, like food or medicine. If this is an emergency, call 911. You can also dial 211 any time to reach someone who can help with food, housing, or utility support right now.",
+    safetyEmergency:
+      "If this may be a medical emergency, call 911 now, or go to the nearest emergency department. Ladder cannot contact anyone for you.",
+    safetySteps:
+      "While you are reaching someone: stay with the person who is struggling if you can, and move anything they could use to hurt themselves out of reach, including medicines and firearms. Tell one other adult you trust what is happening, so you are not carrying this alone.",
+    safetyNoInterpretation:
+      "We are not sorting this message into topics or adding it to your notes. The contacts above are the next step.",
+    safetyAcknowledge: "I understand — return to Ladder",
+    safetyReopen: "Urgent help",
+    safetyReopenHint: "You can reopen these contacts any time.",
     programsCapped: "Showing {shown} of {count} places we found.",
     notesEmptyTitle: "No notes yet",
     notesEmptyBody:
@@ -1493,6 +1530,24 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     aiUseOnlineTitle: "Enviado al asistente en línea",
     aiUseOnlineBody:
       "Activaste el asistente en línea, así que las palabras que escribiste y los datos del niño o la niña que ingresaste se enviaron a OpenAI para ordenar los temas y las opciones. Desactivarlo detiene cualquier envío futuro; no puede recuperar lo que ya se envió.",
+    safetyHeading: "Alguien puede necesitar ayuda urgente",
+    safetyCrisis:
+      "Alguien en tu casa puede necesitar ayuda urgente ahora mismo — ya sea tu hijo o hija, o tú. Llama o envía un mensaje de texto al 988 para comunicarte con la Línea de Crisis y Suicidio: es gratis, confidencial, está disponible a toda hora todos los días, y ayuda tanto a quienes cuidan a un niño o niña que les preocupa como a quienes están en crisis. Si alguien está en peligro inmediato, llama al 911. Ladder no puede vigilar esto ni comunicarse con nadie por ti.",
+    safetyAbuse:
+      "Una persona capacitada en la seguridad de menores debe participar ahora mismo. Si alguien está en peligro inmediato, llama al 911. También puedes llamar o enviar un mensaje de texto al 988, y el pediatra de tu hijo o hija puede ayudarte a decidir qué hacer. Ladder no puede hacer un reporte ni comunicarse con nadie por ti.",
+    safetyHarmToOthers:
+      "La seguridad de todos es lo primero. Si alguien está en peligro inmediato, llama al 911 ahora. Si te preocupa que tu hijo o hija pueda lastimar a alguien o a un animal, puedes ir a la sala de emergencias más cercana, y también puedes llamar o enviar un mensaje de texto al 988 — también ayudan a quienes están preocupados por otra persona. Por favor, cuéntale al pediatra de tu hijo o hija lo que está pasando.",
+    safetySocial:
+      "Parece que hoy tu familia podría estar sin algo que necesita, como comida o medicina. Si esto es una emergencia, llama al 911. También puedes llamar al 211 en cualquier momento para comunicarte con alguien que pueda ayudarte con comida, vivienda o servicios ahora mismo.",
+    safetyEmergency:
+      "Si esto puede ser una emergencia médica, llama al 911 ahora, o ve a la sala de emergencias más cercana. Ladder no puede comunicarse con nadie por ti.",
+    safetySteps:
+      "Mientras logras comunicarte con alguien: quédate con la persona que está sufriendo si puedes, y aleja cualquier cosa que pueda usar para lastimarse, incluidos los medicamentos y las armas de fuego. Dile a otro adulto de confianza lo que está pasando, para que no cargues con esto a solas.",
+    safetyNoInterpretation:
+      "No estamos clasificando este mensaje en temas ni agregándolo a tus notas. Los contactos de arriba son el siguiente paso.",
+    safetyAcknowledge: "Entiendo — volver a Ladder",
+    safetyReopen: "Ayuda urgente",
+    safetyReopenHint: "Puedes volver a abrir estos contactos cuando quieras.",
     programsCapped: "Mostrando {shown} de {count} lugares que encontramos.",
     notesEmptyTitle: "Todavía no hay notas",
     notesEmptyBody:
