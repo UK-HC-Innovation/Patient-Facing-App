@@ -750,6 +750,23 @@ export function FamilyExperience({
       safetyTurnRef.current = false;
       interviewKindRef.current = null;
       setReviewDetails(null);
+      // The basics are logistics, not the disclosure. They normally come from
+      // the stored interview text, which this turn deliberately does not keep —
+      // so they are read here and applied directly. Without this, a caregiver
+      // who names their county inside their hardest message is asked for it
+      // again immediately afterwards, and matching has no county to work with.
+      if (family && !family.profile) {
+        const hints = extractFamilyBasics(meta.rawText, new Date(), language);
+        const county = hints.county?.value;
+        const birthYear = hints.birthYear?.value;
+        const schoolStage =
+          county !== undefined && birthYear !== undefined
+            ? resolveSchoolStage(hints, birthYear, new Date())
+            : null;
+        if (county !== undefined && birthYear !== undefined && schoolStage !== null) {
+          saveProfile({ county, birthYear, schoolStage, diagnoses: [] }, "extracted");
+        }
+      }
       dispatch({
         type: "recordFamilySafetyTurn",
         // Routing keeps its existing floor: whatever this turn named, else what

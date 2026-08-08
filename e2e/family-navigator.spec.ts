@@ -272,18 +272,20 @@ test(`golden path works on ordinary caregiver wording: ${PARENT_DESCRIPTION}`, a
   await interview.fill(PARENT_DESCRIPTION);
   await page.getByRole("button", { name: "Find help" }).click();
 
-  expect(capturedRequests).toHaveLength(1);
-  expect(capturedRequests[0].method).toBe("POST");
-  expect(new URL(capturedRequests[0].url).search).toBe("");
-  expect(capturedRequests[0].body).toMatchObject({
-    text: PARENT_DESCRIPTION,
-    passcode: "demo-passcode",
-    language: "en"
-  });
+  // F1a. The first turn is read on this device and nothing leaves the page —
+  // the passcode says the online helper is available, not that it may be used.
+  expect(capturedRequests).toHaveLength(0);
+
+  // F1b. The choice is offered holding the answer, not standing in front of it.
+  const aiConsent = page.getByTestId("family-ai-consent");
+  await expect(aiConsent).toBeVisible();
+  await expect(aiConsent).toContainText(/sent there to sort topics/i);
 
   const review = page.getByRole("region", { name: "Here is what we heard" });
   await expect(review).toBeVisible();
   await expect(review).toBeFocused();
+  await page.getByTestId("family-ai-consent-accept").click();
+  await expect(page.getByTestId("family-ai-consent")).toHaveCount(0);
   // The verification is one line now, and the wall of fact cards is one tap in.
   await expect(review.getByTestId("family-heard")).toContainText("Scott County");
   await openHeardDisclosure(review);
@@ -294,7 +296,7 @@ test(`golden path works on ordinary caregiver wording: ${PARENT_DESCRIPTION}`, a
   await expect(diagnosisFact).toBeVisible();
   await expect(diagnosisFact.getByRole("paragraph").filter({ hasText: /^dyslexia$/i })).toBeVisible();
   const schoolConcern = review.getByRole("article", { name: "About school and learning" });
-  await expect(schoolConcern).toContainText("School and learning may need support");
+  await expect(schoolConcern).toContainText("You wrote about school and learning");
   // The quote must be the caregiver's own sentence, which is what earns "From your words".
   await expect(schoolConcern).toContainText("My son is in second grade and reading is really hard for him.");
   await expect(schoolConcern).toContainText("From your words");
@@ -581,20 +583,23 @@ test(`Safety phrase raises the banner in-thread and never reaches the network: $
   await expect(banner.getByRole("link", { name: /Call 911/ })).toHaveAttribute("href", "tel:911");
   // The navigator stays put and keeps helping instead of redirecting away.
   await expect(page).toHaveURL(/\/ladder$/);
-  // The strip labels itself with the same heading, which now sits inside its
-  // collapsed disclosure — the region is the on-screen proof it survived.
-  await expect(page.getByRole("region", { name: "Here is what we heard" })).toBeVisible();
+  // F2b: the disclosure is not interpreted. There is no "here is what we heard"
+  // recap for this turn, and the banner says so rather than leaving the
+  // caregiver to wonder where their message went.
+  await expect(page.getByRole("region", { name: "Here is what we heard" })).toHaveCount(0);
+  await expect(banner.getByTestId("family-safety-no-interpretation")).toBeVisible();
   expect(familyApiRequests).toBe(0);
 
   // Spec 20 F2b: acknowledgement stands the banner down. It used to stay on
   // screen — and, because safetyEvents persist, above the header of every
   // surface on every future visit. Nothing is withdrawn but the presentation:
   // the event stays in the record and the page keeps helping (FR-2).
-  await banner.getByRole("button", { name: /I've seen this/i }).click();
+  await banner.getByRole("button", { name: /I understand — return to Ladder/i }).click();
   await expect(page.getByTestId("family-crisis-banner")).toHaveCount(0);
   await expect(page.getByTestId("ladder-crisis-layer")).toHaveCount(0);
-  await expect(page.getByRole("region", { name: "Here is what we heard" })).toBeVisible();
   await expect(page).toHaveURL(/\/ladder$/);
+  // F2c: standing the banner down no longer takes 988/911 with it.
+  await expect(page.getByTestId("family-urgent-help-control")).toBeVisible();
 
   // And it does not come back on a reload, which is the whole defect.
   await page.reload();
@@ -623,12 +628,11 @@ test("Spanish mobile mock path is substantive, language-correct, and horizontall
   await interview.fill(SPANISH_PARENT_DESCRIPTION);
   await page.getByRole("button", { name: "Buscar ayuda" }).click();
 
-  expect(capturedRequests).toHaveLength(1);
-  expect(capturedRequests[0].method).toBe("POST");
-  expect(capturedRequests[0].body).toMatchObject({
-    text: SPANISH_PARENT_DESCRIPTION,
-    language: "es"
-  });
+  // F1a. This journey opens /ladder with no passcode, so there is no online
+  // helper to offer and nothing is ever sent — the deterministic reader carries
+  // the whole Spanish path, which is what the assertions below are checking.
+  expect(capturedRequests).toHaveLength(0);
+  await expect(page.getByTestId("family-ai-consent")).toHaveCount(0);
   const review = page.getByRole("region", { name: "Esto fue lo que entendimos" });
   await expect(review).toBeVisible();
   await expect(review.getByTestId("family-heard")).toContainText("condado de Scott");
@@ -692,11 +696,11 @@ test(`Spanish safety raises the banner without any family API request: ${SPANISH
 
   const banner = page.getByTestId("family-crisis-banner");
   await expect(banner).toBeVisible();
-  await expect(banner.getByText(/mereces apoyo real de una persona/i)).toBeVisible();
+  await expect(banner.getByText(/ya sea tu hijo o hija, o tú/i)).toBeVisible();
   await expect(banner.locator('a[href="tel:988"]')).toBeVisible();
   await expect(banner.locator('a[href="sms:988"]')).toBeVisible();
   await expect(banner.locator('a[href="tel:911"]')).toBeVisible();
-  await expect(banner.getByRole("button", { name: /Ya lo vi.*continuar/i })).toBeVisible();
+  await expect(banner.getByRole("button", { name: /Entiendo — volver a Ladder/i })).toBeVisible();
   await expect(page).toHaveURL(/\/ladder$/);
   expect(familyApiRequests).toBe(0);
 });
@@ -722,15 +726,16 @@ test("the Breathitt case leads with school procedure and keeps the banner in-thr
   await expect(banner).toBeVisible();
   await expect(banner).toHaveAttribute("data-safety-domain", "harm_to_others");
   await expect(banner.getByText(/emergency department/i)).toBeVisible();
-  await banner.getByRole("button", { name: /I've seen this/i }).click();
+  await banner.getByRole("button", { name: /I understand — return to Ladder/i }).click();
 
   // Basics came out of the caregiver's own words — applied on sight, with no
   // confirm card and no turns, and marked as read-not-stated until someone checks.
   await expect(page.getByTestId("family-basics-prefill")).toHaveCount(0);
   await expect(page.getByTestId("family-basics-turns")).toHaveCount(0);
-  const strip = page.getByTestId("family-heard-strip");
-  await expect(strip.getByTestId("family-heard")).toContainText("Breathitt County");
-  await expect(strip.getByTestId("family-heard-guess-chip")).toBeVisible();
+  // F2b: this turn tripped the safety gate, so there is no recap strip — but the
+  // basics it named are still applied, because a county is logistics rather than
+  // part of the disclosure and matching below needs it.
+  await expect(page.getByTestId("family-heard-strip")).toHaveCount(0);
   await expect
     .poll(() =>
       page.evaluate((key) => {
@@ -887,7 +892,7 @@ test("ladder companion: notes accrue, check-in watches, packet prints", async ({
   const packet = page.getByTestId("family-visit-packet-body");
   await expect(packet).toContainText("Questions we want to ask");
   await expect(packet).toContainText("Who coordinates the next steps?");
-  await expect(packet).toContainText("Changes we're flagging");
+  await expect(packet).toContainText("Changes you may want to discuss");
   await expect(packet).toContainText(REGRESSION_NOTE);
   await expect(packet).toContainText("not a medical record");
 });
@@ -1124,7 +1129,7 @@ test("resources-first: one paragraph brings help before any question, with zero 
   await expect(strip).toBeVisible();
   await expect(strip).toBeFocused();
   await expect(strip.getByTestId("family-heard")).toHaveText(
-    /^Sounds like: Scott County · your child, about 3 years old · .+\.$/
+    /^From what you wrote: Scott County · your child, about 3 years old · .+\.$/
   );
   expect(await strip.locator("details").evaluate((node: HTMLDetailsElement) => node.open)).toBe(false);
   // Read from the description, not stated — so the strip says so.
@@ -1262,15 +1267,16 @@ test("phone fit: compact answers, expand in place, two-tap share, folded referen
   await page.getByRole("button", { name: "Find help" }).click();
 
   // 1. The whole page fits on a phone. Measured on this viewport: 16.5 screens
-  //    before spec 19, 4.9 after — the guard is set where a regression of the
-  //    duplication, the always-on card furniture, or the folds would trip it.
+  //    before spec 19, 4.9 locally and 6.19 with the GitHub runner's font
+  //    metrics after — the guard still catches duplicated or always-open cards
+  //    without treating platform-specific text wrapping as a regression.
   const thread = page.getByTestId("thread-family-resources");
   const threadCards = thread.locator("[data-family-resource-card]");
   await expect(threadCards).toHaveCount(3);
   const screens = await page.evaluate(
     () => document.documentElement.scrollHeight / window.innerHeight
   );
-  expect(screens).toBeLessThan(6);
+  expect(screens).toBeLessThan(6.5);
 
   // The answer itself is short and near the top: three compact cards, the first
   // of them inside the second screen rather than three screens down.
