@@ -16,6 +16,11 @@ export type PacketQuestion = { id: string; labelKey: FamilyStringKey };
 /**
  * A fixed starter list, in print order. Custom questions belong to the
  * interview surface — the packet only carries things the family tapped.
+ *
+ * F5 removed "Should the siblings be checked too?". Offering it unprompted
+ * raises the possibility that a second child has a problem, to a caregiver who
+ * came here about the first one and has no way to weigh the question. A
+ * clinician can raise it when it is relevant; a starter list cannot.
  */
 export const PACKET_QUESTIONS: readonly PacketQuestion[] = [
   { id: "results_school", labelKey: "packetQResultsSchool" },
@@ -26,7 +31,6 @@ export const PACKET_QUESTIONS: readonly PacketQuestion[] = [
   { id: "second_visit", labelKey: "packetQSecondVisit" },
   { id: "home_help", labelKey: "packetQHomeHelp" },
   { id: "regression_meaning", labelKey: "packetQRegressionMeaning" },
-  { id: "siblings_risk", labelKey: "packetQSiblingsRisk" },
   { id: "who_to_call", labelKey: "packetQWhoToCall" }
 ];
 

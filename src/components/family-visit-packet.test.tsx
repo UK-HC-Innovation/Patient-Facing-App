@@ -372,12 +372,12 @@ describe("FamilyVisitPacket", () => {
     });
 
     expect(screen.queryByText("What we noticed, over time")).toBeNull();
-    expect(screen.queryByText("Changes we're flagging")).toBeNull();
+    expect(screen.queryByText("Changes you may want to discuss")).toBeNull();
     expect(screen.queryByText("Services already in motion")).toBeNull();
     expect(screen.queryByText("Questions we want to ask")).toBeNull();
     expect(screen.queryByText("We may need help with transportation.")).toBeNull();
     // The picker still offers every starter question, picked or not.
-    expect(screen.getAllByRole("checkbox")).toHaveLength(10);
+    expect(screen.getAllByRole("checkbox")).toHaveLength(9);
     expect(
       screen.getByText(/Written from our own notes in Ladder · printed 7\/17\/2026/)
     ).toBeVisible();

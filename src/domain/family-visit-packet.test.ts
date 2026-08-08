@@ -128,10 +128,14 @@ const fatFamily: FamilyNavigatorState = {
 };
 
 describe("PACKET_QUESTIONS", () => {
-  it("is a fixed list of ten uniquely-identified starter questions", () => {
-    expect(PACKET_QUESTIONS).toHaveLength(10);
-    expect(new Set(PACKET_QUESTIONS.map(({ id }) => id)).size).toBe(10);
-    expect(new Set(PACKET_QUESTIONS.map(({ labelKey }) => labelKey)).size).toBe(10);
+  // F5 dropped "Should the siblings be checked too?" from the starter list:
+  // offering it unprompted raises the possibility that a second child has a
+  // problem, to a caregiver who came about the first one.
+  it("is a fixed list of nine uniquely-identified starter questions", () => {
+    expect(PACKET_QUESTIONS).toHaveLength(9);
+    expect(PACKET_QUESTIONS.map(({ id }) => id)).not.toContain("siblings_risk");
+    expect(new Set(PACKET_QUESTIONS.map(({ id }) => id)).size).toBe(9);
+    expect(new Set(PACKET_QUESTIONS.map(({ labelKey }) => labelKey)).size).toBe(9);
   });
 });
 
@@ -219,7 +223,7 @@ describe("buildFamilyVisitSummary", () => {
     expect(summary).toContain("Our visit packet");
     expect(summary).toContain("Riley · born 2017 · Scott");
     expect(summary).toContain("- Dyslexia (2026-05)");
-    expect(summary).toContain("Changes we're flagging");
+    expect(summary).toContain("Changes you may want to discuss");
     expect(summary).toContain("Possible loss of skills, noticed June 2026");
     expect(summary).toContain("Services already in motion");
     expect(summary).toContain("- Kentucky First Steps — in touch (June 2026)");
@@ -230,7 +234,7 @@ describe("buildFamilyVisitSummary", () => {
     expect(summary).toContain("- What do the results mean for school?");
     expect(summary).toContain("- Who do we call with questions after today?");
     expect(summary).toContain("We may need help with transportation.");
-    expect(summary).toContain("Written from our own notes in Ladder · printed 7/17/2026 · not a medical record.");
+    expect(summary).toContain("Written from our own notes in Ladder · printed 7/17/2026 · not a medical record. A clinician has not reviewed this packet.");
   });
 
   // The clinician reads this sheet. Basics the app read out of a description and
@@ -271,7 +275,7 @@ describe("buildFamilyVisitSummary", () => {
   it("hides unpicked starter questions", () => {
     const summary = buildFamilyVisitSummary(fatFamily, "en", NOW);
 
-    expect(summary).not.toContain("Which therapy should start first?");
+    expect(summary).not.toContain("What options should we consider, and why?");
   });
 
   it("builds the identical string from identical state", () => {
@@ -307,7 +311,7 @@ describe("buildFamilyVisitSummary", () => {
     it("prints while the family stands behind the sentence", () => {
       const summary = buildFamilyVisitSummary(spoken, "en", NOW);
 
-      expect(summary).toContain("Changes we're flagging");
+      expect(summary).toContain("Changes you may want to discuss");
       expect(summary).toContain("Possible loss of skills, noticed June 2026");
     });
 
@@ -318,7 +322,7 @@ describe("buildFamilyVisitSummary", () => {
         NOW
       );
 
-      expect(summary).not.toContain("Changes we're flagging");
+      expect(summary).not.toContain("Changes you may want to discuss");
       expect(summary).not.toContain("Possible loss of skills");
       expect(summary).not.toContain("He stopped saying more at dinner.");
     });
@@ -345,11 +349,11 @@ describe("buildFamilyVisitSummary", () => {
     expect(summary).toContain("Our visit packet");
     expect(summary).toContain("Riley · born 2017 · Scott");
     expect(summary).not.toContain("What we noticed, over time");
-    expect(summary).not.toContain("Changes we're flagging");
+    expect(summary).not.toContain("Changes you may want to discuss");
     expect(summary).not.toContain("Services already in motion");
     expect(summary).not.toContain("Questions we want to ask");
     expect(summary).not.toContain("We may need help with transportation.");
-    expect(summary).toContain("not a medical record.");
+    expect(summary).toContain("not a medical record. A clinician has not reviewed this packet.");
   });
 
   it("skips the services heading when no in-motion step resolves to a catalog entry", () => {
@@ -380,11 +384,11 @@ describe("buildFamilyVisitSummary", () => {
 
     expect(summary).toContain("Nuestro paquete para la visita");
     expect(summary).toContain("Lo que notamos, con el tiempo");
-    expect(summary).toContain("Cambios que señalamos");
+    expect(summary).toContain("Cambios que quizás quieras comentar");
     expect(summary).toContain("Servicios ya en marcha");
     expect(summary).toContain("Preguntas que queremos hacer");
     expect(summary).toContain("Podríamos necesitar ayuda con el transporte.");
-    expect(summary).toContain("no es un expediente médico.");
+    expect(summary).toContain("no es un expediente médico. Ningún profesional clínico ha revisado este paquete.");
     // The family's own words are never translated.
     expect(summary).toContain('"reading is really hard for him"');
   });

@@ -43,7 +43,11 @@ export function FamilyNeedsScreen({ language, initialAnswers, onSubmit }: Family
   );
   const [saved, setSaved] = useState(false);
   const statusRef = useRef<HTMLParagraphElement>(null);
-  const isComplete = FAMILY_SCREEN_QUESTIONS.every(({ id }) => responses[id] !== undefined);
+  // F4a. "All of these are optional" sat above a submit button that stayed
+  // disabled until all eight were answered — the contradiction landed hardest on
+  // exactly the caregiver this shorter path was built for. Any number of answers
+  // now goes through, including none; unanswered questions simply say nothing.
+  const answered = FAMILY_SCREEN_QUESTIONS.filter(({ id }) => responses[id] !== undefined);
 
   useEffect(() => {
     if (saved) {
@@ -53,8 +57,7 @@ export function FamilyNeedsScreen({ language, initialAnswers, onSubmit }: Family
 
   function submit(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    if (!isComplete) return;
-    const answers = FAMILY_SCREEN_QUESTIONS.map(({ id, domain }) => ({
+    const answers = answered.map(({ id, domain }) => ({
       questionId: id,
       domain,
       response: responses[id]!
@@ -106,8 +109,7 @@ export function FamilyNeedsScreen({ language, initialAnswers, onSubmit }: Family
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="submit"
-            disabled={!isComplete}
-            className={`min-h-12 min-w-0 break-words rounded-control bg-care px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 ${CONTROL_FOCUS}`}
+            className={`min-h-12 min-w-0 break-words rounded-control bg-care px-4 py-2 font-semibold text-white ${CONTROL_FOCUS}`}
           >
             {tFamily(language, "screenSubmit")}
           </button>

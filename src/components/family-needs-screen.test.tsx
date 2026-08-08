@@ -48,15 +48,37 @@ describe("FamilyNeedsScreen", () => {
     expect(screen.getByRole("status")).toHaveFocus();
   });
 
-  it("requires an explicit response to every question", async () => {
+  // F4a. This used to assert the opposite: the button stayed disabled until all
+  // eight were answered, under copy that called them optional. The shorter path
+  // exists for a caregiver who is running out of patience, and it was the one
+  // place that demanded everything.
+  it("submits with a partial set of answers, keeping only what was actually answered", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
     render(<FamilyNeedsScreen language="en" initialAnswers={[]} onSubmit={onSubmit} />);
 
-    expect(screen.getByRole("button", { name: "See what can help" })).toBeDisabled();
-    for (const group of screen.getAllByRole("group")) {
-      await user.click(within(group).getByRole("radio", { name: "Prefer not to answer" }));
-    }
-    expect(screen.getByRole("button", { name: "See what can help" })).toBeEnabled();
+    const submit = screen.getByRole("button", { name: "See what can help" });
+    expect(submit).toBeEnabled();
+
+    const [first] = screen.getAllByRole("group");
+    await user.click(within(first).getByRole("radio", { name: "Yes" }));
+    await user.click(submit);
+
+    const [answers, facts] = onSubmit.mock.calls[0];
+    expect(answers).toHaveLength(1);
+    expect(answers[0].response).toBe("yes");
+    // An unanswered question contributes nothing rather than a silent "no".
+    expect(facts).toHaveLength(1);
+  });
+
+  it("submits with no answers at all rather than trapping the caregiver", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(<FamilyNeedsScreen language="en" initialAnswers={[]} onSubmit={onSubmit} />);
+
+    await user.click(screen.getByRole("button", { name: "See what can help" }));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit.mock.calls[0][0]).toEqual([]);
   });
 });

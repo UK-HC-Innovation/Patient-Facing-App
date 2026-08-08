@@ -180,7 +180,7 @@ describe("the heard strip", { timeout: 20_000 }, () => {
 
     // Riley, born 2017, Scott County, school need.
     const sentence = screen.getByTestId("family-heard").textContent ?? "";
-    expect(sentence).toMatch(/^Sounds like: /);
+    expect(sentence).toMatch(/^From what you wrote: /);
     expect(sentence).toContain("Scott County");
     expect(sentence).toContain("Riley, about");
     expect(sentence).toContain("School and IEP");
@@ -923,7 +923,7 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     expect(cards[0]).toHaveAttribute("data-resource-id", "idea_school_discipline");
     expect(within(cards[0]).getByTestId("family-resource-why")).toHaveTextContent(/ten days/);
     expect(within(cards[0]).getByTestId("family-resource-quote")).toHaveTextContent("kicked out of school");
-    expect(within(cards[0]).getByTestId("family-resource-urgency")).toHaveTextContent("Worth doing now");
+    expect(within(cards[0]).getByTestId("family-resource-urgency")).toHaveTextContent("Time-sensitive: age rule");
     // The card's own facts still come from the catalog, never from the model.
     expect(within(cards[0]).getByRole("heading", { name: "IDEA school discipline protections" })).toBeVisible();
   });
@@ -2382,7 +2382,7 @@ describe("the return front door", { timeout: 20_000 }, () => {
         id: "fact-1",
         interviewId: "last-visit",
         label: "About talking",
-        value: "Talking and language may need support",
+        value: "You wrote about talking and language",
         status: "patient_reported",
         sourceSnippet: "barely talks"
       }

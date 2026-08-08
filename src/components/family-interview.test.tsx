@@ -187,7 +187,7 @@ describe("FamilyInterview", { timeout: 20_000 }, () => {
         },
         {
           label: "About school and learning",
-          value: "School and learning may need support",
+          value: "You wrote about school and learning",
           sourceSnippet: "reading is really hard for him"
         }
       ],
@@ -215,7 +215,7 @@ describe("FamilyInterview", { timeout: 20_000 }, () => {
       },
       {
         label: "About school and learning",
-        value: "School and learning may need support",
+        value: "You wrote about school and learning",
         sourceSnippet:
           "My son is in second grade and reading is really hard for him."
       }
@@ -518,7 +518,7 @@ describe("FamilyInterview", { timeout: 20_000 }, () => {
             },
             {
               label: "About school and learning",
-              value: "School and learning may need support",
+              value: "You wrote about school and learning",
               sourceSnippet: rawText
             }
           ],
@@ -599,7 +599,7 @@ describe("FamilyInterview", { timeout: 20_000 }, () => {
           { label: "Grade", value: "grade 4", sourceSnippet: "grade 4" },
           {
             label: "About school and learning",
-            value: "School and learning may need support",
+            value: "You wrote about school and learning",
             sourceSnippet: draftB
           }
         ],
@@ -1111,7 +1111,7 @@ describe("live result reconciliation", () => {
     expect(sanitized.facts).toEqual([
       {
         label: "Sobre la escuela y el aprendizaje",
-        value: "La escuela y el aprendizaje podrían necesitar apoyo",
+        value: "Escribiste sobre la escuela y el aprendizaje",
         sourceSnippet:
           "Este mes la maestra dice que las transiciones siguen siendo difíciles"
       }

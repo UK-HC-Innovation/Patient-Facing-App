@@ -2259,7 +2259,7 @@ describe("deterministic family interview extraction", () => {
       },
       {
         label: "About school and learning",
-        value: "School and learning may need support",
+        value: "You wrote about school and learning",
         sourceSnippet: "My son is in second grade and reading is really hard for him."
       }
     ]);
@@ -2298,7 +2298,7 @@ describe("deterministic family interview extraction", () => {
       },
       {
         label: "Sobre la escuela y el aprendizaje",
-        value: "La escuela y el aprendizaje podrían necesitar apoyo",
+        value: "Escribiste sobre la escuela y el aprendizaje",
         sourceSnippet: "Mi hijo está en segundo grado y le cuesta mucho leer."
       }
     ]);
@@ -2536,7 +2536,7 @@ describe("deterministic family interview extraction", () => {
       },
       {
         label: "About school and learning",
-        value: "School and learning may need support",
+        value: "You wrote about school and learning",
         sourceSnippet: "My daughter is in 4th grade."
       }
     ]);
@@ -2553,7 +2553,7 @@ describe("deterministic family interview extraction", () => {
       },
       {
         label: "About school and learning",
-        value: "School and learning may need support",
+        value: "You wrote about school and learning",
         sourceSnippet: "Riley is in grade 4."
       }
     ]);
