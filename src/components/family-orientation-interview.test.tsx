@@ -158,7 +158,8 @@ describe("FamilyOrientationInterview", () => {
     expect(onInterviewExtracted.mock.calls[1][1]).toEqual({
       extraction: "live",
       source: "typed",
-      rawText: familyOnlyTranscript
+      rawText: familyOnlyTranscript,
+      containsSafetyDisclosure: false
     });
     // The cumulative transcript is what gets re-extracted; the round context
     // carries only the words just written, so per-sentence checks fire once.

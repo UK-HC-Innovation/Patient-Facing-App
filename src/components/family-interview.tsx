@@ -46,6 +46,17 @@ export type FamilyInterviewSubmissionMeta = {
   extraction: "live" | "mock";
   source: "typed" | "voice" | "mixed";
   rawText: string;
+  /**
+   * F2b. Whether `rawText` — which on the orientation path is the whole
+   * conversation so far, not just this turn — contains a safety disclosure.
+   *
+   * Suppressing only the turn that trips the gate is not enough: the next
+   * ordinary answer re-files the cumulative transcript, so a disclosure that was
+   * correctly withheld on its own turn came back one round later and landed in
+   * the Journal and the printable packet. Once a thread contains a disclosure,
+   * none of that thread's text is written down.
+   */
+  containsSafetyDisclosure: boolean;
 };
 
 export type FamilyInterviewProps = {
@@ -421,7 +432,8 @@ export function FamilyInterview({
           {
             extraction,
             source: snapshot.source,
-            rawText: snapshot.rawText
+            rawText: snapshot.rawText,
+            containsSafetyDisclosure: safety !== null
           }
         );
       }

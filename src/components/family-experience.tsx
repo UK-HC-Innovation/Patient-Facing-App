@@ -746,7 +746,12 @@ export function FamilyExperience({
     // vignette: school exclusion plus harm to an animal) trips safety AND must
     // still reach school-discipline help; suppressing everything would answer a
     // caregiver's hardest message with nothing at all.
-    if (safetyTurnRef.current) {
+    // `safetyTurnRef` catches the turn that trips the gate; `containsSafetyDisclosure`
+    // catches every later turn whose cumulative transcript still carries it. Only
+    // the first was here originally, and the next ordinary answer re-filed the
+    // whole conversation — putting the suppressed disclosure into the Journal and
+    // the printable packet one round after it was correctly withheld.
+    if (safetyTurnRef.current || meta.containsSafetyDisclosure) {
       safetyTurnRef.current = false;
       interviewKindRef.current = null;
       setReviewDetails(null);

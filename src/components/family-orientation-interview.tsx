@@ -290,7 +290,11 @@ export function FamilyOrientationInterview({
         {
           extraction,
           source: combinedSource([thread.openingSource, ...answeredRounds.map(({ source }) => source)]),
-          rawText: caregiverTranscript
+          rawText: caregiverTranscript,
+          // Screened over the whole transcript, not just `answer`: this is the
+          // text about to be filed, and an earlier round's disclosure is still
+          // in it even when this round is perfectly ordinary.
+          containsSafetyDisclosure: screenFamilySafety(caregiverTranscript) !== null
         },
         { round, newText: answer }
       );

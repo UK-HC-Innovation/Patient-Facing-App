@@ -1439,6 +1439,47 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     expect(family.safetyEvents.every(({ acknowledgedAt }) => typeof acknowledgedAt === "string")).toBe(true);
   });
 
+  it("never lets a suppressed crisis answer return to the record on a later clean round", async () => {
+    // The orientation composer re-files the CUMULATIVE caregiver transcript
+    // every round. A disclosure suppressed on its own turn can therefore be
+    // written to the record by the next ordinary answer — into the Journal, and
+    // into the packet a clinician prints. That is the exact leak F2b exists to
+    // close, one round later than the obvious case.
+    const user = userEvent.setup();
+    render(<ReducerHarness initialState={withFamily(describedFamily)} />);
+
+    await submitDescription(user);
+    await screen.findByRole("heading", { name: "What has the school offered so far?" });
+
+    const crisisText = "she keeps saying she wants to die";
+    await user.type(screen.getByRole("textbox", { name: "Or type a short answer" }), crisisText);
+    await user.click(screen.getByRole("button", { name: "Add answer" }));
+    await screen.findByTestId("family-crisis-banner");
+
+    const afterCrisis = JSON.parse(
+      screen.getByTestId("family-state").textContent || "null"
+    ) as FamilyNavigatorState;
+    expect(JSON.stringify(afterCrisis)).not.toContain("wants to die");
+
+    // Now answer whatever the thread asks next, as an ordinary caregiver would.
+    const nextAnswer = screen.queryByRole("textbox", { name: "Or type a short answer" });
+    if (nextAnswer) {
+      await user.type(nextAnswer, "we have not heard back from the school yet");
+      await user.click(screen.getByRole("button", { name: "Add answer" }));
+      await waitFor(() => {
+        const state = JSON.parse(
+          screen.getByTestId("family-state").textContent || "null"
+        ) as FamilyNavigatorState;
+        expect(state.interviews.length).toBeGreaterThan(0);
+      });
+    }
+
+    const family = JSON.parse(
+      screen.getByTestId("family-state").textContent || "null"
+    ) as FamilyNavigatorState;
+    expect(JSON.stringify(family)).not.toContain("wants to die");
+  });
+
   it("keeps the thread and resources alive when a follow-up answer discloses a crisis", async () => {
     const user = userEvent.setup();
     render(<ReducerHarness initialState={withFamily(describedFamily)} />);

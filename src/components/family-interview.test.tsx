@@ -114,7 +114,7 @@ describe("FamilyInterview", { timeout: 20_000 }, () => {
       "parent_support"
     ]);
     expect(onExtracted.mock.calls[0].slice(1)).toEqual([
-      { extraction: "mock", source: "typed", rawText: SAMPLE_CAREGIVER_TEXT }
+      { extraction: "mock", source: "typed", rawText: SAMPLE_CAREGIVER_TEXT, containsSafetyDisclosure: false }
     ]);
   });
 
@@ -127,7 +127,8 @@ describe("FamilyInterview", { timeout: 20_000 }, () => {
       expect(onExtracted).toHaveBeenCalledWith(expect.any(Object), {
         extraction: "mock",
         source: "typed",
-        rawText: SAMPLE_CAREGIVER_TEXT
+        rawText: SAMPLE_CAREGIVER_TEXT,
+        containsSafetyDisclosure: false
       })
     );
 
@@ -149,7 +150,7 @@ describe("FamilyInterview", { timeout: 20_000 }, () => {
     await waitFor(() => expect(onExtracted).toHaveBeenCalledTimes(2));
     expect(onExtracted.mock.calls[1]).toEqual([
       { facts: [], domains: [{ domain: "school_iep" }], followUps: [] },
-      { extraction: "live", source: "typed", rawText: neutralText }
+      { extraction: "live", source: "typed", rawText: neutralText, containsSafetyDisclosure: false }
     ]);
   });
 
@@ -427,7 +428,8 @@ describe("FamilyInterview", { timeout: 20_000 }, () => {
       expect(onExtracted).toHaveBeenCalledWith(expect.any(Object), {
         extraction: "mock",
         source: expectedSource,
-        rawText: draft ? `${draft} ${transcript}` : transcript
+        rawText: draft ? `${draft} ${transcript}` : transcript,
+        containsSafetyDisclosure: false
       })
     );
   });
@@ -531,7 +533,7 @@ describe("FamilyInterview", { timeout: 20_000 }, () => {
           ],
           followUps: []
         },
-        { extraction: "live", source: "mixed", rawText }
+        { extraction: "live", source: "mixed", rawText, containsSafetyDisclosure: false }
       )
     );
     expect(requestFamilyInterview).toHaveBeenCalledTimes(1);
@@ -555,7 +557,8 @@ describe("FamilyInterview", { timeout: 20_000 }, () => {
     expect(onExtracted).toHaveBeenCalledWith(expect.any(Object), {
       extraction: "mock",
       source: "typed",
-      rawText: SAMPLE_CAREGIVER_TEXT
+      rawText: SAMPLE_CAREGIVER_TEXT,
+      containsSafetyDisclosure: false
     });
   });
 
@@ -611,7 +614,7 @@ describe("FamilyInterview", { timeout: 20_000 }, () => {
           }
         ]
       },
-      { extraction: "mock", source: "typed", rawText: draftB }
+      { extraction: "mock", source: "typed", rawText: draftB, containsSafetyDisclosure: false }
     ]);
   });
 
