@@ -2,7 +2,7 @@
 
 > An external family-experience review (2026-08-06, full transcript in the review record) walked every Ladder surface in both languages with synthetic crisis wording and returned three release blockers. Two of the three are confirmed in code: **the privacy promise is materially false** ("Nothing here is saved anywhere but this device" while every routine free-text turn POSTs the caregiver's narrative and the full child profile off-device to `/api/family/interview`), and **the crisis pathway speaks adult-directed coach copy to a parent reporting a child in danger** — by explicit design comment, "the family surface never authors its own crisis words." The third (simulation controls inside the family experience) is confirmed but collides with a standing owner decision that the demo apparatus *is* the demo; this spec resolves that with a build flag rather than deletion. A fourth confirmed defect rides along: the eight quick questions say "all of these are optional" above a submit button that is `disabled` until all eight are answered. This spec fixes what the review got right, records what it got wrong, and files its specialist-review demands where they belong — as demo→pilot gates, not code.
 
-**Status:** ✅ **Implemented 2026-08-08** (P0–P6, five commits `ee953cd..`). Not deployed. `npm run check` green (3027 unit tests), crisis gate 334/334 with a dated report at `docs/ops/red-team-results/2026-08-08-crisis-gate.md`, full Playwright suite 93 passed across both projects. See [Implementation Notes](#implementation-notes-2026-08-08) for the three places the build corrected the spec. Authored 2026-08-06 from the external review, after independent code verification of every claim acted on here. Ground truth verified against `master` (`fdafa7d`) plus the uncommitted working tree. Extends specs 09 (Family Navigator), 11 (crisis inline + keep working), 13 (waitlist companion), 18 (resources-first), 19 (phone fit), 20 (hardening). Amends spec 20's non-goal on demo apparatus (kept, but flag-gated) and spec 09/11's crisis-copy reuse rule (the family surface now authors its own crisis words).
+**Status:** ✅ **Implemented 2026-08-08** (P0–P6, eight commits `ee953cd..545cf31`, the last three closing defects an adversarial pass found in the implementation itself). Not deployed. `npm run check` green (3027 unit tests), crisis gate 334/334 with a dated report at `docs/ops/red-team-results/2026-08-08-crisis-gate.md`, full Playwright suite 93 passed across both projects. See [Implementation Notes](#implementation-notes-2026-08-08) for the three places the build corrected the spec. Authored 2026-08-06 from the external review, after independent code verification of every claim acted on here. Ground truth verified against `master` (`fdafa7d`) plus the uncommitted working tree. Extends specs 09 (Family Navigator), 11 (crisis inline + keep working), 13 (waitlist companion), 18 (resources-first), 19 (phone fit), 20 (hardening). Amends spec 20's non-goal on demo apparatus (kept, but flag-gated) and spec 09/11's crisis-copy reuse rule (the family surface now authors its own crisis words).
 
 ## Problem & Rationale
 
@@ -223,3 +223,34 @@ this spec, and both pass with the AI env cleared. Because the route's passcode
 check is skipped entirely when `DEMO_PASSCODE` is unset, that configuration also
 means the F1a client gate is the only thing standing between caregiver text and
 OpenAI. Verifying it was the point.
+
+## Adversarial review of the implementation (2026-08-08)
+
+Four attackers went at the shipped code and 25 adjudications ran over their
+claims. Eight survived; all eight were fixed in `65beeef`, `3456743`, `545cf31`.
+Two were blockers, and the sharpest was the twin of a bug that had already been
+fixed on one side and not the other: the crisis-turn record was suppressed but
+the crisis-turn *send* was not, so an ordinary reply after a disclosure POSTed
+the cumulative transcript — crisis sentence included — to the model. The
+guarantee it broke ("the tripping text is never sent anywhere") predates this
+spec by four specs. Both gates now screen the whole transcript.
+
+Two findings are worth carrying forward as their own work rather than as bugs:
+
+**Dictation is a third data path, and the copy does not cover it.** The
+composer's microphone uses the browser's `SpeechRecognition`, which in Chrome
+streams audio to Google — outside the F1a gate entirely, and under copy that
+says nothing is sent unless the online helper is on. Nothing in Ladder discloses
+it. This is pre-existing (spec 12), but spec 22's copy made it a contradiction
+rather than merely an omission. It needs a voice-specific disclosure and a
+decision about whether dictation belongs in the family posture at all.
+
+**Consent cannot be withdrawn.** F1b is one-way for the session: a caregiver who
+accepts and then regrets it can only close the tab. The copy now says exactly
+that instead of implying a control that does not exist, but the honest fix is a
+visible off switch.
+
+Two claims were rejected on adjudication and should not be re-filed: the
+zero-answer needs-screen submit returning the general set is the specified F4a
+behaviour, not a dead end; and `safetyTurnRef` being set without being consumed
+is unreachable given where the length guard sits.
