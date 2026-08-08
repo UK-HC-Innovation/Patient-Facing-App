@@ -132,8 +132,25 @@ describe("Ladder network silence", { timeout: 20_000 }, () => {
     // The recommend call is an effect, not a submit handler: a returning visitor
     // with a stored interview and no stored ranking used to POST on page load,
     // with no action of their own and no chance to be asked.
+    // The fixture alone is not enough, and this test used to prove nothing
+    // because of it: schoolAgeFamilyState carries no interviews and no active
+    // domains, so the ranking effect dies at its first guard and never reaches
+    // the gate. A mutation test confirmed it — deleting the entire gate left the
+    // whole suite green. The state below is the one that actually reaches it.
     const returning: FamilyNavigatorState = {
       ...schoolAgeFamilyState,
+      activeDomains: ["school_iep"],
+      latestInterviewDomains: ["school_iep"],
+      interviews: [
+        {
+          id: "interview-returning",
+          rawText: SAMPLE_CAREGIVER_TEXT,
+          source: "typed",
+          createdAt: "2026-07-01T12:00:00.000Z",
+          extraction: "mock",
+          kind: "orientation"
+        }
+      ],
       recommendations: null
     };
     render(

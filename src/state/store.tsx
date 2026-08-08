@@ -1164,6 +1164,12 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
         family: {
           ...family,
           interviewDraft: "",
+          // Same reason `addFamilyInterview` does it: a ranking built from the
+          // old domains is stale the moment the domains change. This turn mints
+          // no interview, so the stored set would otherwise still match on
+          // `interviewId` and keep displaying — and the routing this action
+          // exists to preserve would never reach the screen.
+          recommendations: null,
           latestInterviewDomains,
           activeDomains: mergeFamilyDomains(family.screenAnswers, latestInterviewDomains)
         }
