@@ -85,7 +85,15 @@ export function FamilyCrisisBanner({ event, language, onAcknowledge }: FamilyCri
       <p data-testid="family-safety-no-interpretation" className="mt-3 break-words text-sm leading-6 text-ink/80">
         {tFamily(language, "safetyNoInterpretation")}
       </p>
-      <p className="mt-2 break-words text-sm leading-6 text-ink/80">{tFamily(language, "safetySteps")}</p>
+      {/* Means restriction belongs to a self-harm disclosure and nowhere else.
+          It was printing under every domain, so a family who said they had no
+          food was told to lock up medicines, and a medical emergency got advice
+          about firearms. Both read as not having been listened to. */}
+      {safetyCopyKey(event) === "safetyCrisis" ? (
+        <p data-testid="family-safety-steps" className="mt-2 break-words text-sm leading-6 text-ink/80">
+          {tFamily(language, "safetySteps")}
+        </p>
+      ) : null}
       {!acknowledged ? (
         <>
           <button

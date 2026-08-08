@@ -362,6 +362,9 @@ export function FamilyExperience({
   // inherit the last caregiver's answer and no storage migration can revive it.
   // "unset" is the resting state, and the resting state sends nothing.
   const [aiConsent, setAiConsent] = useState<FamilyAiConsent>(initialAiConsent);
+  // Every request this session actually put on the wire, counted whatever the
+  // server answered. See the note by `aiUseMode`.
+  const [liveSendCount, setLiveSendCount] = useState(0);
   // Recomputed every render rather than memoised: `passcode` arrives a tick after
   // mount (the ladder page reads ?k= in an effect), so anything that latches on
   // its first value would pin the gate shut and look like it was working.
@@ -370,8 +373,16 @@ export function FamilyExperience({
   const simEnabled = ladderSimEnabled();
   const liveAllowed = canSendFamilyTextOffDevice({ passcode, consent: aiConsent });
   const offerAiChoice = shouldOfferFamilyAiChoice({ passcode, consent: aiConsent });
+  // Counted from attempts, not successes. `extraction` records whether a live
+  // result came back, which is a different question from whether the words left
+  // the device: a POST the server answered `locked` or `unconfigured` records
+  // "mock" even though the body was already sent. Saying "nothing has been sent"
+  // on the strength of that would be the same class of false claim this spec
+  // exists to remove, so the disclosure counts sends the client actually made.
   const aiUseMode = familyAiUseMode({
-    liveSends: (family?.interviews ?? []).filter(({ extraction }) => extraction === "live").length,
+    liveSends:
+      liveSendCount +
+      (family?.interviews ?? []).filter(({ extraction }) => extraction === "live").length,
     turnsTaken: family?.interviews.length ?? 0
   });
   const [basicsToggled, setBasicsToggled] = useState<boolean | null>(null);
@@ -542,6 +553,7 @@ export function FamilyExperience({
     };
 
     void (async () => {
+      setLiveSendCount((count) => count + 1);
       const live = await requestFamilyRecommendations({
         text: rawText,
         profile,
@@ -1410,7 +1422,12 @@ export function FamilyExperience({
   // never gets an appointment companion (1h).
   const hasPrograms = !!family?.profile && family.activeDomains.length > 0;
   const hasNotes = !!family && (family.profile !== null || family.facts.length > 0);
-  const hasVisit = !!family?.profile && family.referral !== null;
+  // F3a. The referral, the slot picker, and the booking are all simulated —
+  // nothing in the app can create a real one. So with the simulation off the
+  // Visit surface does not exist at all, even for a record that already carries
+  // a referral from a demo session: an interface that appears to hold a booked
+  // evaluation is the single most consequential thing a family could believe.
+  const hasVisit = simEnabled && !!family?.profile && family.referral !== null;
   const surfaces: LadderSurface[] = [
     "home",
     ...(hasPrograms ? (["programs"] as const) : []),
@@ -1564,7 +1581,7 @@ export function FamilyExperience({
           data-testid="family-service-status-door"
           className="mt-2 break-words text-sm leading-6 text-ink/70"
         >
-          {tFamily(language, "serviceStatusLine")}
+          {tFamily(language, "serviceStatusShort")}
         </p>
         <div className="mt-4">
           <FamilyOrientationInterview
@@ -1573,6 +1590,7 @@ export function FamilyExperience({
             draft={family?.interviewDraft ?? ""}
             passcode={passcode}
             liveAllowed={liveAllowed}
+            onLiveSend={() => setLiveSendCount((count) => count + 1)}
             language={language}
             voiceEntryContext={{ patientId: state.patient.id, dispatch }}
             interlude={interlude}
@@ -1720,7 +1738,7 @@ export function FamilyExperience({
 
   const visitPanel = (
     <>
-      {family?.profile && family.referral !== null ? (
+      {simEnabled && family?.profile && family.referral !== null ? (
         <FamilyAppointmentCard
           family={family}
           language={language}

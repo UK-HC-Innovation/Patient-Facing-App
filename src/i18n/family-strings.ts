@@ -395,6 +395,7 @@ export type FamilyStringKey =
   | "safetyReopen"
   | "safetyReopenHint"
   | "serviceStatusLine"
+  | "serviceStatusShort"
   | "programsCapped"
   | "notesEmptyTitle"
   | "notesEmptyBody"
@@ -929,7 +930,7 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
       "We read this on your phone, not with the online assistant. Same words, simpler reading — check anything that looks off.",
     aiConsentTitle: "Want the online helper to read this too?",
     aiConsentBody:
-      "We read what you wrote here on your device, and nothing has been sent anywhere. The online helper is an AI service run by OpenAI. If you turn it on, the words you type and the child details you entered are sent there to sort topics and put program options in order. It never contacts a clinic and no one reviews what you send. Your answer lasts until you close Ladder.",
+      "We read what you wrote here on your device, and nothing has been sent anywhere. The online helper is an AI service run by OpenAI. If you turn it on, the words you type and the child details you entered are sent there to sort topics and put program options in order. It never contacts a clinic, and no clinician sees what you send. OpenAI may review requests for safety and abuse monitoring. Your answer lasts until you close Ladder.",
     aiConsentAccept: "Use the online helper",
     aiConsentDecline: "Keep everything on this device",
     aiConsentDeclinedNotice:
@@ -942,7 +943,7 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
       "Everything you have written was read here on your phone. No words and no child details have been sent to any AI service.",
     aiUseOnlineTitle: "Sent to the online helper",
     aiUseOnlineBody:
-      "You turned on the online helper, so the words you wrote and the child details you entered were sent to OpenAI to sort topics and order options. Turning it off stops any further sending; it cannot take back what was already sent.",
+      "You turned on the online helper, so the words you wrote and the child details you entered were sent to OpenAI to sort topics and order options. Closing Ladder ends this choice; nothing can take back what was already sent.",
     // F2a. Ladder's own safety words. These used to be the coach's, which are
     // written to an adult describing their own crisis — so a parent reporting
     // that their child wants to die was asked whether *they* felt unsafe and
@@ -973,8 +974,12 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     // is deciding whether to trust it: beside the privacy line, and at the front
     // door. Both are true in either posture — the simulation changes what is on
     // screen, never what the app can actually do.
+    // The door gets the short form: spec 19 measured the first real card into the
+    // second viewport at 375x812, and the full sentence pushed it past that. The
+    // complete statement still renders beside the privacy line.
+    serviceStatusShort: "Ladder is not connected to a clinic — it shows Kentucky contacts you can call yourself.",
     serviceStatusLine:
-      "Ladder does not contact any clinic, make referrals, book appointments, or watch these notes. It organizes what you notice and shows Kentucky contacts you can call yourself.",
+      "Ladder does not contact any clinic, make referrals, book appointments, or send anyone an alert. No person sees these notes unless you share them yourself. It organizes what you notice and shows Kentucky contacts you can call yourself.",
     programsCapped: "Showing {shown} of {count} places we found.",
     notesEmptyTitle: "No notes yet",
     notesEmptyBody:
@@ -1523,7 +1528,7 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
       "Esto lo leímos en tu teléfono, no con el asistente en línea. Las mismas palabras, una lectura más sencilla — revisa cualquier cosa que se vea mal.",
     aiConsentTitle: "¿Quieres que el asistente en línea también lea esto?",
     aiConsentBody:
-      "Leímos lo que escribiste aquí en tu dispositivo, y no se ha enviado nada a ninguna parte. El asistente en línea es un servicio de inteligencia artificial de OpenAI. Si lo activas, las palabras que escribes y los datos del niño o la niña que ingresaste se envían allí para ordenar los temas y las opciones de programas. Nunca se comunica con una clínica y nadie revisa lo que envías. Tu respuesta dura hasta que cierres Ladder.",
+      "Leímos lo que escribiste aquí en tu dispositivo, y no se ha enviado nada a ninguna parte. El asistente en línea es un servicio de inteligencia artificial de OpenAI. Si lo activas, las palabras que escribes y los datos del niño o la niña que ingresaste se envían allí para ordenar los temas y las opciones de programas. Nunca se comunica con una clínica, y ningún profesional clínico ve lo que envías. OpenAI puede revisar las solicitudes para seguridad y control de abuso. Tu respuesta dura hasta que cierres Ladder.",
     aiConsentAccept: "Usar el asistente en línea",
     aiConsentDecline: "Mantener todo en este dispositivo",
     aiConsentDeclinedNotice:
@@ -1536,7 +1541,7 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
       "Todo lo que has escrito se leyó aquí en tu teléfono. No se han enviado palabras ni datos del niño o la niña a ningún servicio de inteligencia artificial.",
     aiUseOnlineTitle: "Enviado al asistente en línea",
     aiUseOnlineBody:
-      "Activaste el asistente en línea, así que las palabras que escribiste y los datos del niño o la niña que ingresaste se enviaron a OpenAI para ordenar los temas y las opciones. Desactivarlo detiene cualquier envío futuro; no puede recuperar lo que ya se envió.",
+      "Activaste el asistente en línea, así que las palabras que escribiste y los datos del niño o la niña que ingresaste se enviaron a OpenAI para ordenar los temas y las opciones. Cerrar Ladder termina esta elección; nada puede recuperar lo que ya se envió.",
     safetyHeading: "Alguien puede necesitar ayuda urgente",
     safetyCrisis:
       "Alguien en tu casa puede necesitar ayuda urgente ahora mismo — ya sea tu hijo o hija, o tú. Llama o envía un mensaje de texto al 988 para comunicarte con la Línea de Crisis y Suicidio: es gratis, confidencial, está disponible a toda hora todos los días, y ayuda tanto a quienes cuidan a un niño o niña que les preocupa como a quienes están en crisis. Si alguien está en peligro inmediato, llama al 911. Ladder no puede vigilar esto ni comunicarse con nadie por ti.",
@@ -1555,8 +1560,9 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     safetyAcknowledge: "Entiendo — volver a Ladder",
     safetyReopen: "Ayuda urgente",
     safetyReopenHint: "Puedes volver a abrir estos contactos cuando quieras.",
+    serviceStatusShort: "Ladder no está conectado con una clínica — te muestra contactos de Kentucky a los que puedes llamar tú mismo.",
     serviceStatusLine:
-      "Ladder no se comunica con ninguna clínica, no hace referencias, no reserva citas ni vigila estas notas. Organiza lo que observas y te muestra contactos de Kentucky a los que puedes llamar tú mismo.",
+      "Ladder no se comunica con ninguna clínica, no hace referencias, no reserva citas ni le avisa a nadie. Ninguna persona ve estas notas a menos que tú las compartas. Organiza lo que observas y te muestra contactos de Kentucky a los que puedes llamar tú mismo.",
     programsCapped: "Mostrando {shown} de {count} lugares que encontramos.",
     notesEmptyTitle: "Todavía no hay notas",
     notesEmptyBody:

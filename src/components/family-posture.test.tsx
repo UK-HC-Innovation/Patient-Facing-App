@@ -59,11 +59,29 @@ describe("the family posture (NEXT_PUBLIC_LADDER_SIM off)", () => {
     expect(screen.queryByRole("button", { name: /demo/i })).toBeNull();
   });
 
+  it("does not offer a Visit surface even when the record already carries a referral", () => {
+    vi.stubEnv("NEXT_PUBLIC_LADDER_SIM", "0");
+    const withReferral: FamilyNavigatorState = {
+      ...schoolAgeFamilyState,
+      referral: {
+        clinic: "UK Developmental Pediatrics",
+        referredAt: "2026-07-01T12:00:00.000Z"
+      } as FamilyNavigatorState["referral"]
+    };
+    render(<Harness initialState={withFamily(withReferral)} />);
+
+    // The referral, the slot picker and the booking are all simulated; nothing
+    // in the app can make a real one. An interface that appears to hold a booked
+    // evaluation is the most consequential thing a family could wrongly believe.
+    expect(screen.queryByRole("tab", { name: /visit/i })).toBeNull();
+    expect(screen.queryByTestId("family-appointment-card")).toBeNull();
+  });
+
   it("still says plainly what Ladder does not do", () => {
     vi.stubEnv("NEXT_PUBLIC_LADDER_SIM", "0");
     render(<Harness initialState={withFamily(schoolAgeFamilyState)} />);
 
-    expect(screen.getAllByText(/does not contact any clinic/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/not connected to a clinic|does not contact any clinic/i).length).toBeGreaterThan(0);
   });
 });
 

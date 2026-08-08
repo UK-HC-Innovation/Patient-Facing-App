@@ -75,6 +75,8 @@ export type FamilyInterviewProps = {
   onDraftChange: (draft: string) => void;
   onExtracted: (result: SanitizedFamilyInterviewResult, meta: FamilyInterviewSubmissionMeta) => void;
   onSafetyEscalation?: (screen: FamilySafetyScreen) => void;
+  /** Fired immediately before a request leaves the device, whatever the reply. */
+  onLiveSend?: () => void;
 };
 
 function speechRecognitionConstructor(): (new () => SpeechRecognitionLike) | null {
@@ -131,7 +133,8 @@ export function FamilyInterview({
   placeholder,
   onDraftChange,
   onExtracted,
-  onSafetyEscalation
+  onSafetyEscalation,
+  onLiveSend
 }: FamilyInterviewProps) {
   const copy = {
     label: tFamily(language, "interviewLabel"),
@@ -398,6 +401,7 @@ export function FamilyInterview({
       // yes. The route's own `unconfigured`/`locked` answers arrive after the
       // body does, so this is the only gate that actually keeps words at home.
       if (!safety && liveAllowed) {
+        onLiveSend?.();
         try {
           live = await requestFamilyInterview({
             text: snapshot.rawText,

@@ -1480,6 +1480,37 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     expect(JSON.stringify(family)).not.toContain("wants to die");
   });
 
+  it("never re-sends a suppressed crisis answer off-device on a later clean round", async () => {
+    // The network twin of the record leak above, and the sharper one: the
+    // composer sends the CUMULATIVE transcript, so an ordinary reply after a
+    // disclosure would have POSTed the crisis sentence to the model — breaking
+    // the oldest guarantee this surface makes ("the tripping text is never sent
+    // anywhere"), one round after the gate correctly held.
+    const user = userEvent.setup();
+    render(<ReducerHarness initialState={withFamily(describedFamily)} />);
+
+    await submitDescription(user);
+    await screen.findByRole("heading", { name: "What has the school offered so far?" });
+    requestFamilyInterview.mockClear();
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Or type a short answer" }),
+      "she keeps saying she wants to die"
+    );
+    await user.click(screen.getByRole("button", { name: "Add answer" }));
+    await screen.findByTestId("family-crisis-banner");
+    expect(requestFamilyInterview).not.toHaveBeenCalled();
+
+    const nextAnswer = screen.queryByRole("textbox", { name: "Or type a short answer" });
+    if (nextAnswer) {
+      await user.type(nextAnswer, "the school has not called us back");
+      await user.click(screen.getByRole("button", { name: "Add answer" }));
+    }
+
+    // Nothing at all left the device once the thread carried a disclosure.
+    expect(requestFamilyInterview).not.toHaveBeenCalled();
+  });
+
   it("keeps the thread and resources alive when a follow-up answer discloses a crisis", async () => {
     const user = userEvent.setup();
     render(<ReducerHarness initialState={withFamily(describedFamily)} />);

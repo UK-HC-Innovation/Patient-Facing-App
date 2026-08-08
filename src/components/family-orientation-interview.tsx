@@ -56,6 +56,8 @@ export type FamilyOrientationInterviewProps = {
   passcode?: string;
   /** F1a. See FamilyInterviewProps.liveAllowed — same gate, same safe default. */
   liveAllowed?: boolean;
+  /** Fired immediately before a request leaves the device, whatever the reply. */
+  onLiveSend?: () => void;
   language: Language;
   voiceEntryContext?: VoiceEntryContext;
   /** Rendered between the transcript and the current follow-up turn — the tool's own replies. */
@@ -143,6 +145,7 @@ export function FamilyOrientationInterview({
   draft,
   passcode,
   liveAllowed = false,
+  onLiveSend,
   language,
   voiceEntryContext,
   interlude,
@@ -248,12 +251,21 @@ export function FamilyOrientationInterview({
     } as const;
     setThread({ ...thread, rounds: answeredRounds, status: "submitting" });
 
+    // Screened over the whole conversation, not just this answer. `safety` above
+    // decides whether to raise a banner for what was *just* written; this decides
+    // what may be sent and filed, and the thing about to be sent is the cumulative
+    // transcript. Screening only the new answer meant a caregiver's disclosure was
+    // correctly withheld on its own turn and then POSTed off-device by the next
+    // ordinary reply — breaking the oldest guarantee this surface makes.
+    const transcriptDiscloses = safety !== null || screenFamilySafety(caregiverTranscript) !== null;
+
     try {
       let live: FamilyInterviewResult | null = null;
       // F1a. This composer re-sends the whole conversation every round, so an
       // ungated round here leaks every earlier turn as well — the gate matters
       // more on this path, not less.
-      if (!safety && liveAllowed) {
+      if (!transcriptDiscloses && liveAllowed) {
+        onLiveSend?.();
         try {
           live = await requestFamilyInterview({
             text: liveTranscript,
@@ -291,10 +303,7 @@ export function FamilyOrientationInterview({
           extraction,
           source: combinedSource([thread.openingSource, ...answeredRounds.map(({ source }) => source)]),
           rawText: caregiverTranscript,
-          // Screened over the whole transcript, not just `answer`: this is the
-          // text about to be filed, and an earlier round's disclosure is still
-          // in it even when this round is perfectly ordinary.
-          containsSafetyDisclosure: screenFamilySafety(caregiverTranscript) !== null
+          containsSafetyDisclosure: transcriptDiscloses
         },
         { round, newText: answer }
       );
@@ -330,6 +339,7 @@ export function FamilyOrientationInterview({
           draft={draft}
           passcode={passcode}
           liveAllowed={liveAllowed}
+          onLiveSend={onLiveSend}
           language={language}
           placeholder={completePlaceholder}
           onDraftChange={onDraftChange}
