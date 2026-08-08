@@ -394,6 +394,7 @@ export type FamilyStringKey =
   | "safetyAcknowledge"
   | "safetyReopen"
   | "safetyReopenHint"
+  | "serviceStatusLine"
   | "programsCapped"
   | "notesEmptyTitle"
   | "notesEmptyBody"
@@ -616,7 +617,7 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     domainDiagnosisEducation: "Understanding evaluation options",
     domainRecreation: "Inclusive recreation",
     interviewTitle: "Tell us about your child and their needs",
-    interviewIntro: "Tell us what you have noticed about how your child talks, learns, moves, or acts — and what you have already tried. We use your own words to find help. We do not diagnose.",
+    interviewIntro: "Tell us what you have noticed about how your child talks, learns, moves, or acts — and what you have already tried. We use your own words to find help. Ladder cannot diagnose, decide whether your child qualifies for a program, tell you the result of a screening, monitor your child, or send a referral for you.",
     interviewLabel: "What would you like help with?",
     interviewPlaceholder: "For example: My son is 3 and barely talking. The doctor said wait and see, but I'm worried.",
     interviewMicStart: "Start speaking",
@@ -968,6 +969,12 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     safetyAcknowledge: "I understand — return to Ladder",
     safetyReopen: "Urgent help",
     safetyReopenHint: "You can reopen these contacts any time.",
+    // F3b/F3c. What Ladder is, and what it is not, in the two places a caregiver
+    // is deciding whether to trust it: beside the privacy line, and at the front
+    // door. Both are true in either posture — the simulation changes what is on
+    // screen, never what the app can actually do.
+    serviceStatusLine:
+      "Ladder does not contact any clinic, make referrals, book appointments, or watch these notes. It organizes what you notice and shows Kentucky contacts you can call yourself.",
     programsCapped: "Showing {shown} of {count} places we found.",
     notesEmptyTitle: "No notes yet",
     notesEmptyBody:
@@ -1207,7 +1214,7 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     domainDiagnosisEducation: "Entender las opciones de evaluación",
     domainRecreation: "Recreación inclusiva",
     interviewTitle: "Cuéntanos sobre tu hijo o hija y sus necesidades",
-    interviewIntro: "Cuéntanos qué has notado sobre cómo habla, aprende, se mueve o se comporta tu hijo o hija, y qué ya intentaste. Usamos tus propias palabras para buscar ayuda. No diagnosticamos.",
+    interviewIntro: "Cuéntanos qué has notado sobre cómo habla, aprende, se mueve o se comporta tu hijo o hija, y qué ya intentaste. Usamos tus propias palabras para buscar ayuda. Ladder no puede diagnosticar, decidir si tu hijo o hija califica para un programa, darte el resultado de una prueba, vigilar a tu hijo o hija, ni enviar una referencia por ti.",
     interviewLabel: "¿Con qué te gustaría recibir ayuda?",
     interviewPlaceholder: "Por ejemplo: Mi hijo tiene 3 años y casi no habla. El doctor dijo que esperáramos, pero estoy preocupada.",
     interviewMicStart: "Empezar a hablar",
@@ -1548,6 +1555,8 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     safetyAcknowledge: "Entiendo — volver a Ladder",
     safetyReopen: "Ayuda urgente",
     safetyReopenHint: "Puedes volver a abrir estos contactos cuando quieras.",
+    serviceStatusLine:
+      "Ladder no se comunica con ninguna clínica, no hace referencias, no reserva citas ni vigila estas notas. Organiza lo que observas y te muestra contactos de Kentucky a los que puedes llamar tú mismo.",
     programsCapped: "Mostrando {shown} de {count} lugares que encontramos.",
     notesEmptyTitle: "Todavía no hay notas",
     notesEmptyBody:

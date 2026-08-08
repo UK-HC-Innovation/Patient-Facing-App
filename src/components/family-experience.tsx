@@ -46,6 +46,7 @@ import {
   FAMILY_APPOINTMENT_CLINIC,
   type FamilyAppointmentCountdownDays
 } from "@/domain/family-appointments";
+import { ladderSimEnabled } from "@/domain/ladder-sim";
 import {
   canSendFamilyTextOffDevice,
   familyAiUseMode,
@@ -364,6 +365,9 @@ export function FamilyExperience({
   // Recomputed every render rather than memoised: `passcode` arrives a tick after
   // mount (the ladder page reads ?k= in an effect), so anything that latches on
   // its first value would pin the gate shut and look like it was working.
+  // F3a. One switch for the whole simulation, read once per render so every
+  // affordance answers to the same posture and none can drift on its own.
+  const simEnabled = ladderSimEnabled();
   const liveAllowed = canSendFamilyTextOffDevice({ passcode, consent: aiConsent });
   const offerAiChoice = shouldOfferFamilyAiChoice({ passcode, consent: aiConsent });
   const aiUseMode = familyAiUseMode({
@@ -1145,6 +1149,13 @@ export function FamilyExperience({
             <p className="break-words text-sm leading-6 text-ink/70">
               {tFamily(language, "stripTrustLine")}
             </p>
+            {/* F3b. What Ladder does not do, next to what it does with your
+                words — the two questions a caregiver is weighing at the same
+                moment. True in both postures: the simulation changes what is on
+                screen, never what the app can actually reach. */}
+            <p data-testid="family-service-status" className="break-words text-sm leading-6 text-ink/70">
+              {tFamily(language, "serviceStatusLine")}
+            </p>
             {/* F8.4. Both composers catch the API error and fall through to the
                 on-device reader with no notice at all, so a caregiver could not
                 tell a model's reading from a regex's. Quiet, non-blocking, and
@@ -1460,7 +1471,7 @@ export function FamilyExperience({
         <FamilyCheckinReminder family={family} language={language} now={followupNow} />
       ) : null}
 
-      {family?.profile && !checkinVisible ? (
+      {simEnabled && family?.profile && !checkinVisible ? (
         <section data-testid="family-checkin-demo" className={DEMO_BLOCK}>
           <button
             type="button"
@@ -1510,7 +1521,7 @@ export function FamilyExperience({
               {tFamily(language, "homeComposerCtaNamed", { name: childName })}
             </button>
             <p className="mt-2 break-words text-sm leading-6 text-ink/70">
-              {tFamily(language, "homeTrustLine")}
+              {tFamily(language, "homeTrustLine")} {tFamily(language, "serviceStatusLine")}
             </p>
           </>
         ) : (
@@ -1523,6 +1534,16 @@ export function FamilyExperience({
             here it was invisible to a returning reader whose composer is
             collapsed, and saying it twice on one screen is noise (F6d). */}
         <p className="mt-2 leading-relaxed text-ink/90">{tFamily(language, "interviewIntro")}</p>
+        {/* F3b. On the front door, before the caregiver types anything: what
+            Ladder is not. The simulation can make this app look operational —
+            a waitlist, a date picker — and this is the sentence that has to be
+            true in both postures. */}
+        <p
+          data-testid="family-service-status-door"
+          className="mt-2 break-words text-sm leading-6 text-ink/70"
+        >
+          {tFamily(language, "serviceStatusLine")}
+        </p>
         <div className="mt-4">
           <FamilyOrientationInterview
             key="family-orientation"
@@ -1645,7 +1666,7 @@ export function FamilyExperience({
 
       {/* The demo's way onto a waitlist. It lives here rather than on the Visit
           surface because that surface does not exist until a referral does. */}
-      {family?.profile && family.referral === null ? (
+      {simEnabled && family?.profile && family.referral === null ? (
         <section data-testid="family-referral-demo" className={DEMO_BLOCK}>
           <p className="break-words text-sm leading-6 text-ink/75">
             {tFamily(language, "apptJoinDemoBody")}

@@ -10,6 +10,7 @@ import {
   type FamilyAppointmentCountdownDays
 } from "@/domain/family-appointments";
 import { buildFamilyAppointmentIcs } from "@/domain/family-ics";
+import { ladderSimEnabled } from "@/domain/ladder-sim";
 import type {
   FamilyAppointment,
   FamilyAppointmentBarrier,
@@ -388,7 +389,7 @@ export function FamilyAppointmentCard({
             "overdue"
           )
         ) : null}
-        {active.scheduledFor !== undefined && active.barriersAsked && !reminder && !overdue ? (
+        {ladderSimEnabled() && active.scheduledFor !== undefined && active.barriersAsked && !reminder && !overdue ? (
           <div className={DEMO_BLOCK}>
             <button
               type="button"

@@ -4,7 +4,7 @@ import { familyStrings, tFamily, type FamilyStringKey } from "./family-strings";
 // Spec 09's acceptance list, minus "demoBadge" and "intro": the standing
 // top-of-page demo banner and the "What this tool can and cannot do"
 // disclosure it partly duplicated were both removed at the owner's request.
-// `interviewIntro`'s "We do not diagnose" and `resourcesIntro`'s eligibility
+// `interviewIntro`'s boundary set and `resourcesIntro`'s eligibility
 // caveat carry the remaining honesty content and are asserted where they live.
 const TASK_7_REQUIRED_KEYS = [
   "pageTitle",
@@ -243,8 +243,14 @@ describe("familyStrings", () => {
     expect(tFamily("en", "interviewCount", { count: 42, max: 5000 })).toBe("42 of 5000 characters");
     // The standing demo banner and its "what this tool can and cannot do"
     // disclosure are gone; these are the lines now carrying that honesty.
-    expect(familyStrings.en.interviewIntro).toMatch(/we do not diagnose/i);
-    expect(familyStrings.es.interviewIntro).toMatch(/no diagnosticamos/i);
+    // F3c widened this from "We do not diagnose" to the full set of things
+    // Ladder cannot do — the review found the shorter line left a caregiver
+    // asking "if it does not diagnose, what does it decide?".
+    expect(familyStrings.en.interviewIntro).toMatch(/ladder cannot diagnose/i);
+    expect(familyStrings.en.interviewIntro).toMatch(/qualifies for a program/i);
+    expect(familyStrings.en.interviewIntro).toMatch(/monitor your child/i);
+    expect(familyStrings.es.interviewIntro).toMatch(/ladder no puede diagnosticar/i);
+    expect(familyStrings.es.interviewIntro).toMatch(/califica para un programa/i);
     expect(familyStrings.en.resourcesIntro).toMatch(/program's own page/i);
     expect(familyStrings.en.timelineDemoControlIntro).toMatch(/does not change the clock on your device/i);
   });

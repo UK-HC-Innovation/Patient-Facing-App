@@ -315,12 +315,12 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     const { unmount } = render(
       <FamilyExperience state={withFamily(schoolAgeFamilyState, "en")} dispatch={vi.fn()} passcode="" />
     );
-    expect(screen.getByText(/We do not diagnose/i)).toBeVisible();
+    expect(screen.getByText(/Ladder cannot diagnose, decide whether your child qualifies/i)).toBeVisible();
     expect(screen.queryByText("What this tool can and cannot do")).not.toBeInTheDocument();
 
     unmount();
     render(<FamilyExperience state={withFamily(schoolAgeFamilyState, "es")} dispatch={vi.fn()} passcode="" />);
-    expect(screen.getByText(/No diagnosticamos/i)).toBeVisible();
+    expect(screen.getByText(/Ladder no puede diagnosticar, decidir si tu hijo/i)).toBeVisible();
   });
 
   // F8.1. Both back-to-top links pointed at #family-experience, which the anchor
@@ -2338,7 +2338,7 @@ describe("phone fit", { timeout: 20_000 }, () => {
     // The honesty they carried is not gone — these lines say it plainly, always
     // visible, without a tap.
     await openComposer(user);
-    expect(screen.getByText(/We do not diagnose/i)).toBeVisible();
+    expect(screen.getByText(/Ladder cannot diagnose, decide whether your child qualifies/i)).toBeVisible();
     expect(screen.getByText(/This demo pretends/i)).toBeVisible();
   });
 

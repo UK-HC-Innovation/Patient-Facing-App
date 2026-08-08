@@ -6,6 +6,7 @@ import {
   type FamilyDiagnosisBackdateMonths,
   type FamilyStage
 } from "@/domain/family-stages";
+import { ladderSimEnabled } from "@/domain/ladder-sim";
 import type { FamilyNavigatorState } from "@/domain/types";
 import {
   CARD_SUBDUED,
@@ -107,7 +108,7 @@ export function FamilyStageTimeline({
               {tFamily(language, "timelineYearOnlyNotice")}
             </p>
           ) : null}
-          {family.profile.diagnoses.length > 0 && onBackdateDiagnoses ? (
+          {ladderSimEnabled() && family.profile.diagnoses.length > 0 && onBackdateDiagnoses ? (
             <div className={`mt-4 ${DEMO_BLOCK}`}>
               <button
                 type="button"
