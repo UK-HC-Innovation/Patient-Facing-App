@@ -72,6 +72,60 @@ export function familyTouches(family: FamilyNavigatorState, since: Date): number
 }
 
 /**
+ * The bounded form used by point-in-time cohort reporting. `familyTouches`
+ * intentionally remains the open-ended selector used by the caregiver UI;
+ * impact snapshots also need to ignore fixture mistakes or clock-skewed events
+ * that fall after their visible "as of" timestamp.
+ */
+export function familyTouchesInWindow(
+  family: FamilyNavigatorState,
+  since: Date,
+  through: Date
+): number {
+  if (
+    Number.isNaN(since.valueOf()) ||
+    Number.isNaN(through.valueOf()) ||
+    since.valueOf() > through.valueOf()
+  ) {
+    return 0;
+  }
+  return familyTouchTimestamps(family).filter((stamp) => {
+    const at = new Date(stamp).valueOf();
+    return at >= since.valueOf() && at <= through.valueOf();
+  }).length;
+}
+
+export type FamilyEngagement = {
+  lastTouchAt: string | null;
+  touchesInLast30Days: number;
+};
+
+/**
+ * Spec 13's dashboard seam: one small summary over the same dated records that
+ * already drive check-in due-ness and the next-rung UI. No tracking request or
+ * second analytics store is involved.
+ */
+export function familyEngagement(family: FamilyNavigatorState, now: Date): FamilyEngagement {
+  if (Number.isNaN(now.valueOf())) {
+    return { lastTouchAt: null, touchesInLast30Days: 0 };
+  }
+  const since = new Date(now.valueOf() - CHECKIN_DUE_DAYS * DAY_MS);
+  const lastTouchAt = familyTouchTimestamps(family)
+    .filter((stamp) => new Date(stamp).valueOf() <= now.valueOf())
+    .reduce<string | null>(
+      (latest, candidate) =>
+        latest === null || new Date(candidate).valueOf() > new Date(latest).valueOf()
+          ? candidate
+          : latest,
+      null
+    );
+  return {
+    lastTouchAt,
+    touchesInLast30Days: familyTouchesInWindow(family, since, now)
+  };
+}
+
+/**
  * A family that has never touched anything is not nagged — orientation is the
  * first touch, and a brand-new family just had it.
  */

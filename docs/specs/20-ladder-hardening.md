@@ -4,6 +4,8 @@
 
 **Status:** ✅ **Implemented and deployed 2026-08-05** at `c4dc316` (production `dpl_91tQiN2j5A1KN85gdqdN583aGZmo`, 13 commits, `de51809..c4dc316`). P0–P7 all landed; see [Implementation Notes](#implementation-notes-2026-08-05--what-the-build-measured-and-corrected). Spec authored 2026-08-05 from the full-app audit (three parallel read-only surveys: docs/backlog, UX surfaces, domain/data/safety — key claims re-verified in code by hand). Extends specs 09 (Family Navigator), 13 (waitlist companion), 18 (resources-first), 19 (phone fit). **Delivered the item spec 19 F4a named as "the next spec"** (a `rejected` status on `FamilyFact`), **decided spec 13 Open Question 6** (notification reuse: yes, in-app + `.ics`, honestly labeled), and **closed spec 18 Open Question 7** (suite-wide e2e stub of `/api/family/recommend`). Ground truth was verified against `master` at `76ce8fa` **plus the uncommitted tab-redesign working tree** (see Ground Truth).
 
+> **2026-08-06 follow-on:** the next-feature item named here is implemented as [spec 21, Ladder Clinic Impact Dashboard](21-ladder-clinic-impact-dashboard.md): a synthetic, on-device `/ladder/impact` view with explicit denominators and empty states. It was not deployed as part of spec 21.
+
 ## Problem & Rationale
 
 Three distinct failures compound:
@@ -362,7 +364,7 @@ wrong.
 - Work directly on `master` in `C:\Patient centered`. No worktrees, no branches (owner convention). Path-scoped commits: `git commit -- <paths>`.
 - Line numbers in Ground Truth are from the audited tree — re-locate by quoted code before editing; the redesign files are currently **uncommitted**, so diff context matters until P0 lands.
 - Running Playwright collides with a running dev preview server (it clobbers `.next` — Internal Server Error / routes-manifest ENOENT afterward). Stop the preview before e2e; restarting it afterward fixes it; it is not a code bug.
-- The deploy remote situation: origin is `github.com/Tamathe/Patient-Facing-App`; never push to any RHTP remote. Deploys happen only via `vercel --prod --archive=tgz`.
+- The deploy remote situation: origin is `github.com/UK-HC-Innovation/Patient-Facing-App`; never push to any RHTP remote. Deploys happen only via `vercel --prod --archive=tgz`.
 - Honesty discipline for the writeup: record what was measured, including anything this spec claimed that turned out wrong — see spec 19's Implementation Notes for the expected tone.
 
 ## Open Questions & Risks

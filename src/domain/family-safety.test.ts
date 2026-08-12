@@ -32,20 +32,21 @@ describe("screenFamilySafety — tier mapping", () => {
   });
 
   it.each([
-    ["I suddenly cannot see out of one eye", "emergency", "vision"],
-    ["A curtain came over my vision this morning", "emergency", "vision"],
-    ["My worst headache of my life just started", "emergency", "acute_danger"],
-    ["My husband is unresponsive and his sugar is 32", "emergency", "acute_danger"],
-    ["My son ran away from home and we still can't find him", "emergency", "acute_danger"]
-  ])("routes %j to the emergency tier", (text, tier, domain) => {
+    ["I suddenly cannot see out of one eye", "emergency", "vision", undefined],
+    ["A curtain came over my vision this morning", "emergency", "vision", undefined],
+    ["My worst headache of my life just started", "emergency", "acute_danger", undefined],
+    ["My husband is unresponsive and his sugar is 32", "emergency", "acute_danger", undefined],
+    ["My son ran away from home and we still can't find him", "emergency", "acute_danger", "missing_child"]
+  ])("routes %j to the emergency tier", (text, tier, domain, guidance) => {
     const screen = screenFamilySafety(text);
 
     expect(screen).not.toBeNull();
     expect(screen?.tier).toBe(tier);
     expect(screen?.domain).toBe(domain);
+    expect(screen?.guidance).toBe(guidance);
   });
 
-  it("never returns a tier other than crisis or emergency when matched", () => {
+  it("never returns an unsupported tier when matched", () => {
     const texts = [
       "I want to kill myself",
       "I suddenly cannot see out of one eye",
@@ -56,7 +57,7 @@ describe("screenFamilySafety — tier mapping", () => {
     for (const text of texts) {
       const screen = screenFamilySafety(text);
       expect(screen?.matched).toBe(true);
-      expect(["crisis", "emergency"]).toContain(screen?.tier);
+      expect(["crisis", "emergency", "blocked"]).toContain(screen?.tier);
     }
   });
 
@@ -66,33 +67,105 @@ describe("screenFamilySafety — tier mapping", () => {
     expect(screenFamilySafety("I can't see the numbers on my glucose meter")).toBeNull();
   });
 
+  it("recognizes child breathing danger and age-modified missing-child reports", () => {
+    expect(screenFamilySafety("My child cannot breathe")).toMatchObject({
+      matched: true,
+      tier: "emergency",
+      domain: "acute_danger"
+    });
+    expect(screenFamilySafety("My 7-year-old daughter is missing")).toMatchObject({
+      matched: true,
+      tier: "emergency",
+      domain: "acute_danger",
+      guidance: "missing_child"
+    });
+  });
+
+  it("does not turn symptom denials or medication soft blocks into emergencies", () => {
+    expect(screenFamilySafety("My child has no chest pain and is breathing normally")).toBeNull();
+    expect(screenFamilySafety("No shortness of breath")).toBeNull();
+    expect(screenFamilySafety("No new confusion")).toBeNull();
+    expect(screenFamilySafety("He is not fainting")).toBeNull();
+    expect(screenFamilySafety("Should I stop taking lisinopril?")).toEqual({
+      matched: true,
+      tier: "blocked",
+      domain: "medication_change"
+    });
+  });
+
   it("does not escalate a negated disclosure", () => {
     expect(screenFamilySafety("I would never hurt myself")).toBeNull();
     expect(screenFamilySafety("nobody is hurting my child")).toBeNull();
+    expect(screenFamilySafety("I am not out of insulin and my children are not hungry")).toBeNull();
+    expect(screenFamilySafety("I won't be out of insulin")).toBeNull();
+    expect(screenFamilySafety("My insulin ran out, but the pharmacy refilled it")).toBeNull();
+    expect(screenFamilySafety("Se me acabó la insulina, pero ya la recogí")).toBeNull();
+    expect(screenFamilySafety("mi hijo no tiene hambre y no me falta insulina")).toBeNull();
   });
 
   it("falls through to the social tier for a social emergency", () => {
-    // Guards the third branch: a social emergency must still match, and must not
-    // be silently reclassified as a crisis-tier disclosure.
-    const screen = screenFamilySafety("we are getting evicted tomorrow and have nowhere to go");
-
-    if (screen !== null) {
-      expect(screen.matched).toBe(true);
-      expect(["crisis", "emergency"]).toContain(screen.tier);
-    }
+    // Guards the third branch and its two action routes: both must match without
+    // being silently reclassified as crisis-tier disclosures.
+    expect(screenFamilySafety("I have no food today")).toMatchObject({
+      matched: true,
+      tier: "emergency",
+      domain: "social",
+      guidance: "basic_needs"
+    });
+    expect(screenFamilySafety("We are out of food and my daughter is hungry")).toMatchObject({
+      matched: true,
+      tier: "emergency",
+      domain: "social",
+      guidance: "basic_needs"
+    });
+    expect(screenFamilySafety("I'm out of insulin")).toMatchObject({
+      matched: true,
+      tier: "emergency",
+      domain: "social",
+      guidance: "medication_access"
+    });
+    expect(screenFamilySafety("No hay comida hoy y me quedé sin insulina")).toMatchObject({
+      matched: true,
+      tier: "emergency",
+      domain: "social",
+      guidance: "basic_needs_and_medication_access"
+    });
+    expect(screenFamilySafety("Hoy no tenemos comida y se me acabó la insulina")).toMatchObject({
+      matched: true,
+      tier: "emergency",
+      domain: "social",
+      guidance: "basic_needs_and_medication_access"
+    });
+    expect(screenFamilySafety("No tengo comida hoy")).toMatchObject({
+      matched: true,
+      tier: "emergency",
+      domain: "social",
+      guidance: "basic_needs"
+    });
+    expect(screenFamilySafety("Mi hija tiene hambre y no tengo insulina")).toMatchObject({
+      matched: true,
+      tier: "emergency",
+      domain: "social",
+      guidance: "basic_needs_and_medication_access"
+    });
   });
 });
 
 describe("createFamilySafetyEvent", () => {
-  it("carries the screen's tier and domain and stamps an ISO time", () => {
+  it("carries the screen's route without its text and stamps an ISO time", () => {
     const now = new Date("2026-08-04T12:00:00.000Z");
-    const event = createFamilySafetyEvent({ matched: true, tier: "crisis", domain: "self_harm" }, now);
+    const event = createFamilySafetyEvent(
+      { matched: true, tier: "emergency", domain: "acute_danger", guidance: "missing_child" },
+      now
+    );
 
-    expect(event.tier).toBe("crisis");
-    expect(event.domain).toBe("self_harm");
+    expect(event.tier).toBe("emergency");
+    expect(event.domain).toBe("acute_danger");
+    expect(event.guidance).toBe("missing_child");
     expect(event.createdAt).toBe("2026-08-04T12:00:00.000Z");
     expect(event.id).toBeTruthy();
     expect(event.acknowledgedAt).toBeUndefined();
+    expect(event).not.toHaveProperty("text");
   });
 
   it("gives each event a distinct id", () => {

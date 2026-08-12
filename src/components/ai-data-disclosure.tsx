@@ -9,16 +9,25 @@ const modeKeys: Record<AiDataMode, { title: PrivacyStringKey; body: PrivacyStrin
   live_voice: { title: "liveTitle", body: "liveBody" }
 };
 
+const coachModeKeys: Record<AiDataMode, { title: PrivacyStringKey; body: PrivacyStringKey }> = {
+  checking: { title: "coachCheckingTitle", body: "coachCheckingBody" },
+  on_device: { title: "coachOnDeviceTitle", body: "coachOnDeviceBody" },
+  cloud_text: { title: "coachCloudTitle", body: "coachCloudBody" },
+  live_voice: { title: "coachLiveTitle", body: "coachLiveBody" }
+};
+
 export function AiDataDisclosure({
   mode,
   language,
-  compact = false
+  compact = false,
+  scope = "feature"
 }: {
   mode: AiDataMode;
   language: Language;
   compact?: boolean;
+  scope?: "feature" | "coach";
 }) {
-  const keys = modeKeys[mode];
+  const keys = scope === "coach" ? coachModeKeys[mode] : modeKeys[mode];
 
   return (
     <div

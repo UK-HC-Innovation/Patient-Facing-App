@@ -201,6 +201,14 @@ export type PrivacyStringKey =
   | "cloudBody"
   | "liveTitle"
   | "liveBody"
+  | "coachCheckingTitle"
+  | "coachCheckingBody"
+  | "coachOnDeviceTitle"
+  | "coachOnDeviceBody"
+  | "coachCloudTitle"
+  | "coachCloudBody"
+  | "coachLiveTitle"
+  | "coachLiveBody"
   | "transcriptStored"
   | "deleteTitle"
   | "deleteBody"
@@ -218,6 +226,18 @@ export const privacyStrings: Record<Language, Record<PrivacyStringKey, string>> 
     cloudBody: "When you use an AI feature, your question, current image, and relevant care context may be sent to OpenAI to create an answer.",
     liveTitle: "AI mode: live voice",
     liveBody: "Microphone audio, a current camera frame, and relevant food and care-plan context are sent to OpenAI while the session is active.",
+    coachCheckingTitle: "Coach connection: checking",
+    coachCheckingBody:
+      "Checking whether the Coach's online connection is available. This status does not describe Ladder text.",
+    coachOnDeviceTitle: "Coach: on-device",
+    coachOnDeviceBody:
+      "Coach microphone audio is not sent to OpenAI. Questions are answered with the local demo coach. This status does not describe Ladder text.",
+    coachCloudTitle: "Coach text: cloud mode",
+    coachCloudBody:
+      "In the Coach, a question and relevant care context may be sent to OpenAI to create an answer. This status does not describe Ladder text.",
+    coachLiveTitle: "Coach voice: live",
+    coachLiveBody:
+      "In the Coach, microphone audio and relevant care-plan context are sent to OpenAI while the session is active. This status does not describe Ladder text.",
     transcriptStored: "The final transcript and answer are added to your browser-stored demo record.",
     deleteTitle: "Delete demo data?",
     deleteBody: "This removes the saved demo record from this browser. Export first if you want to keep a copy.",
@@ -234,6 +254,18 @@ export const privacyStrings: Record<Language, Record<PrivacyStringKey, string>> 
     cloudBody: "Cuando usas una función de IA, tu pregunta, la imagen actual y el contexto de salud relevante pueden enviarse a OpenAI para crear una respuesta.",
     liveTitle: "Modo de IA: voz en vivo",
     liveBody: "El audio del micrófono, una imagen actual de la cámara y el contexto relevante de comida y del plan de salud se envían a OpenAI mientras la sesión está activa.",
+    coachCheckingTitle: "Conexión del asistente: comprobando",
+    coachCheckingBody:
+      "Estamos comprobando si la conexión en línea del asistente está disponible. Este estado no describe el texto de Ladder.",
+    coachOnDeviceTitle: "Asistente: en el dispositivo",
+    coachOnDeviceBody:
+      "El audio del micrófono del asistente no se envía a OpenAI. Las preguntas se responden con el asistente local de demostración. Este estado no describe el texto de Ladder.",
+    coachCloudTitle: "Texto del asistente: modo en la nube",
+    coachCloudBody:
+      "En el asistente, una pregunta y el contexto de salud relevante pueden enviarse a OpenAI para crear una respuesta. Este estado no describe el texto de Ladder.",
+    coachLiveTitle: "Voz del asistente: en vivo",
+    coachLiveBody:
+      "En el asistente, el audio del micrófono y el contexto relevante del plan de salud se envían a OpenAI mientras la sesión está activa. Este estado no describe el texto de Ladder.",
     transcriptStored: "La transcripción final y la respuesta se agregan a tu registro de demostración guardado en el navegador.",
     deleteTitle: "¿Eliminar los datos de demostración?",
     deleteBody: "Esto elimina de este navegador el registro de demostración guardado. Expórtalo primero si quieres conservar una copia.",

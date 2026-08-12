@@ -26,6 +26,7 @@ import {
 import { FamilyGloss, familyGlossTermsIn } from "@/components/family-gloss";
 import { shareFamilyResource, type FamilyShareOutcome } from "@/components/family-share";
 import { sourceContentLang } from "@/components/family-source-language-notice";
+import { useCatalogEntryNeedsRefresh } from "@/components/use-catalog-entry-needs-refresh";
 import { tFamily, type FamilyStringKey } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
 
@@ -181,6 +182,7 @@ export function FamilyResourceCard({
   // F6b: catalog text is English in both languages, so mark it as English while
   // the surrounding page is Spanish.
   const sourceLang = sourceContentLang(language);
+  const needsRefresh = useCatalogEntryNeedsRefresh(resource.verifiedAt);
 
   useEffect(() => {
     if (sharing) consentRef.current?.focus();
@@ -415,9 +417,12 @@ export function FamilyResourceCard({
         </p>
       ) : null}
 
-      {resource.humanVerify && !compact ? (
-        <p className={`mt-3 break-words text-sm font-medium text-ink ${NOTICE_INFO}`}>
-          {tFamily(language, "resourceHumanVerify")}
+      {needsRefresh || resource.humanVerify ? (
+        <p
+          data-testid={needsRefresh ? "family-resource-stale" : "family-resource-human-verify"}
+          className={`mt-3 break-words text-sm font-medium text-ink ${NOTICE_INFO}`}
+        >
+          {tFamily(language, needsRefresh ? "resourceFreshnessExpired" : "resourceHumanVerify")}
         </p>
       ) : null}
 

@@ -84,6 +84,19 @@ describe("family guide catalog integrity", () => {
   it("ships no unchecked seeds in this catalog", () => {
     expect(FAMILY_GUIDE_CATALOG.filter((guide) => guide.humanVerify === true)).toHaveLength(0);
   });
+
+  it("keeps the manually reviewed guide claims faithful to their source wording", () => {
+    const behavior = FAMILY_GUIDE_CATALOG.find(({ id }) => id === "medline_behavior")!;
+    const firstSteps = FAMILY_GUIDE_CATALOG.find(({ id }) => id === "firststeps_family_guide")!;
+    const autism = FAMILY_GUIDE_CATALOG.find(({ id }) => id === "cdc_autism_signs")!;
+
+    expect(behavior.steps.join(" ")).toContain("birth of a sibling, a divorce, or a death");
+    expect(firstSteps.ages).toEqual({ min: 0, max: 35 });
+    expect(autism.ages?.min).toBe(9);
+    expect(autism.steps[0]).toContain("not responding to their name");
+    expect(autism.steps[0]).toContain("few or no gestures");
+    expect(autism.steps[0]).toContain("not pointing");
+  });
 });
 
 describe("matchFamilyGuides", () => {
@@ -94,11 +107,11 @@ describe("matchFamilyGuides", () => {
   });
 
   it("honors the age band on both edges", () => {
-    // firststeps_family_guide is 0–36 months.
-    expect(matchFamilyGuides(profileAged(36), "early_intervention", NOW).map(({ id }) => id)).toEqual([
+    // First Steps serves children under age 3; this inclusive band ends at 35 months.
+    expect(matchFamilyGuides(profileAged(35), "early_intervention", NOW).map(({ id }) => id)).toEqual([
       "firststeps_family_guide"
     ]);
-    expect(matchFamilyGuides(profileAged(37), "early_intervention", NOW)).toEqual([]);
+    expect(matchFamilyGuides(profileAged(36), "early_intervention", NOW)).toEqual([]);
     // medline_speech_home is 12–72 months.
     expect(matchFamilyGuides(profileAged(11), "therapies", NOW)).toEqual([]);
     expect(matchFamilyGuides(profileAged(12), "therapies", NOW).map(({ id }) => id)).toEqual([

@@ -8,7 +8,7 @@ export function SwRegister() {
       return;
     }
 
-    void navigator.serviceWorker.register("/sw.js");
+    void navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" });
   }, []);
 
   return null;

@@ -1,4 +1,10 @@
 import { defaultDemoState } from "@/domain/fixtures";
+import { stripLadderSimulationState } from "@/domain/ladder-sim";
+import { clearAllFamilyDrafts } from "@/state/family-draft-storage";
+import {
+  decodeAppStateRecord,
+  encodeAppStateRecord
+} from "@/state/persistence-envelope";
 import { DEFAULT_DOSE_REMINDER, isDoseReminderPreference } from "@/domain/reminders";
 import type { AssessmentEvent } from "@/domain/assessment";
 import { getInstrument } from "@/domain/instruments/registry";
@@ -56,64 +62,114 @@ import type {
   TaskItem,
   AiMode
 } from "@/domain/types";
+import {
+  DEFAULT_FAMILY_RESOURCE_PREFERENCES,
+  isFamilyResourcePreferences
+} from "@/domain/family-resource-preferences";
 
 const STORAGE_KEY = "home-health-ai-ownership-state";
+const DELETION_FENCE_KEY = `${STORAGE_KEY}.deletion-fence`;
+const DOSE_REMINDER_NOTIFICATION_PREFIX = "dose-reminder-notified:";
+const FAMILY_CHECKIN_REMINDER_KEY = "ladder-checkin-reminder";
 /**
  * Single slot holding the last payload we refused to load.
  *
  * F3c. Everything a family has written lives in one localStorage key, and a
  * payload this file cannot validate — a schema drift, a half-written save, a
  * corrupted string — was simply removed, silently, and the app came back as the
- * demo with months of notes gone. The reset still happens (a state we cannot
- * trust must not drive the app), but the raw text is stashed here first with a
- * console warning, so the record is recoverable by hand instead of destroyed.
+ * demo with months of notes gone. A state we cannot trust must not drive the
+ * app, but its raw text is stashed here before deletion. If that copy fails, the
+ * primary remains in place and automatic writes stay disabled.
  * One slot, overwritten each time: this is a developer's escape hatch, not a
  * backup, and it deliberately has no UI.
  */
 const RECOVERY_KEY = `${STORAGE_KEY}.recovery`;
 
-function stashRejectedPayload(raw: string, reason: string): void {
-  safeSetItem(RECOVERY_KEY, raw);
+function stashRejectedPayload(raw: string, reason: string): boolean {
+  const stashed = safeSetItem(RECOVERY_KEY, raw);
   if (typeof console !== "undefined") {
-    console.warn(
-      `[storage] Refused a stored payload (${reason}) and reset to the demo state. ` +
-        `The raw payload is kept at "${RECOVERY_KEY}" so it can be recovered by hand.`
-    );
+    console.warn(stashed
+      ? `[storage] Refused a stored payload (${reason}). ` +
+          `The raw payload was copied to "${RECOVERY_KEY}" so it can be recovered by hand.`
+      : `[storage] Refused a stored payload (${reason}), but the recovery copy could not be written. ` +
+          `The original payload was left at "${STORAGE_KEY}" and automatic writes are disabled.`);
+  }
+  return stashed;
+}
+
+type StorageReadResult =
+  | { status: "ok"; value: string | null }
+  | { status: "unavailable" };
+
+function readStorageItem(key: string): StorageReadResult {
+  if (typeof window === "undefined") {
+    return { status: "unavailable" };
+  }
+
+  try {
+    return { status: "ok", value: window.localStorage.getItem(key) };
+  } catch {
+    return { status: "unavailable" };
   }
 }
 
 function safeGetItem(key: string): string | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    return window.localStorage.getItem(key);
-  } catch {
-    return null;
-  }
+  const result = readStorageItem(key);
+  return result.status === "ok" ? result.value : null;
 }
 
-function safeSetItem(key: string, value: string): void {
+function safeSetItem(key: string, value: string): boolean {
   if (typeof window === "undefined") {
-    return;
+    return false;
   }
 
   try {
     window.localStorage.setItem(key, value);
+    return true;
   } catch {
+    return false;
   }
 }
 
-function safeRemoveItem(key: string): void {
+function safeRemoveItem(key: string): boolean {
   if (typeof window === "undefined") {
-    return;
+    return false;
   }
 
   try {
     window.localStorage.removeItem(key);
+    return true;
   } catch {
+    return false;
   }
+}
+
+export type StoredDeletionFenceRead =
+  | { status: "ok"; value: number }
+  | { status: "unavailable" };
+
+/**
+ * A non-user-data generation that survives data deletion. Repositories capture
+ * it when they load and must see the same value immediately before a write.
+ */
+export function readStoredDeletionFence(): StoredDeletionFenceRead {
+  const read = readStorageItem(DELETION_FENCE_KEY);
+  if (read.status === "unavailable") return read;
+  if (read.value === null) return { status: "ok", value: 0 };
+
+  const value = Number(read.value);
+  return Number.isSafeInteger(value) && value >= 0
+    ? { status: "ok", value }
+    : { status: "unavailable" };
+}
+
+function advanceStoredDeletionFence(): number | null {
+  const current = readStoredDeletionFence();
+  if (current.status === "unavailable" || current.value === Number.MAX_SAFE_INTEGER) {
+    return null;
+  }
+  const next = current.value + 1;
+  return safeSetItem(DELETION_FENCE_KEY, String(next)) ? next : null;
 }
 
 function getKnownSourceIds(state: AppState): Set<string> {
@@ -664,7 +720,10 @@ function isAuditEvent(value: unknown): value is AuditEvent {
       value.action === "referral_placed" ||
       value.action === "referral_escalated" ||
       value.action === "recall_scheduled" ||
-      value.action === "referral_booked") &&
+      value.action === "referral_booked" ||
+      value.action === "voice_consent_granted" ||
+      value.action === "voice_session_started" ||
+      value.action === "family_ai_send_attempted") &&
     hasString(value, "createdAt")
   );
 }
@@ -837,8 +896,13 @@ function isFamilySafetyEvent(value: unknown): value is FamilySafetyEvent {
   return (
     isObject(value) &&
     hasString(value, "id") &&
-    (value.tier === "crisis" || value.tier === "emergency") &&
+    (value.tier === "crisis" || value.tier === "emergency" || value.tier === "blocked") &&
     hasString(value, "domain") &&
+    (value.guidance === undefined ||
+      value.guidance === "missing_child" ||
+      value.guidance === "medication_access" ||
+      value.guidance === "basic_needs" ||
+      value.guidance === "basic_needs_and_medication_access") &&
     hasString(value, "createdAt") &&
     (value.acknowledgedAt === undefined || typeof value.acknowledgedAt === "string")
   );
@@ -1157,6 +1221,8 @@ function isFamilyNavigatorState(value: unknown): value is FamilyNavigatorState {
     value.latestInterviewDomains.every(isDevNeedDomain) &&
     Array.isArray(value.activeDomains) &&
     value.activeDomains.every(isDevNeedDomain) &&
+    (value.resourcePreferences === undefined ||
+      isFamilyResourcePreferences(value.resourcePreferences)) &&
     isArrayOfObjects(value.saved, isSavedFamilyResource) &&
     isArrayOfStrings(value.alreadyEnrolled) &&
     (value.steps === undefined || isArrayOfObjects(value.steps, isFamilyResourceStep)) &&
@@ -1215,6 +1281,9 @@ function sanitizeFamilyNavigatorState(value: unknown): FamilyNavigatorState | nu
     facts: value.facts.filter(isFamilyFact),
     latestInterviewDomains: uniqueStrings(latestInterviewDomains),
     activeDomains: uniqueStrings(value.activeDomains.filter(isDevNeedDomain)),
+    resourcePreferences: isFamilyResourcePreferences(value.resourcePreferences)
+      ? value.resourcePreferences
+      : DEFAULT_FAMILY_RESOURCE_PREFERENCES,
     saved: uniqueSavedFamilyResources(value.saved.filter(isSavedFamilyResource)),
     alreadyEnrolled: uniqueStrings(value.alreadyEnrolled.filter((entry): entry is string => typeof entry === "string")),
     steps: Array.isArray(value.steps) ? uniqueById(value.steps.filter(isFamilyResourceStep)) : [],
@@ -1427,18 +1496,53 @@ function isValidAppState(value: unknown): value is AppState {
   );
 }
 
-export function loadStoredState(): AppState {
-  if (typeof window === "undefined") {
-    return defaultDemoState;
+export type StoredStateLoad = {
+  state: AppState;
+  status: "empty" | "loaded" | "migrated" | "recovered" | "unavailable" | "future_version";
+  writable: boolean;
+};
+
+function recoverRejectedState(raw: string, reason: string): StoredStateLoad {
+  if (!stashRejectedPayload(raw, reason)) {
+    return { state: defaultDemoState, status: "unavailable", writable: false };
   }
 
-  const raw = safeGetItem(STORAGE_KEY);
+  // A refused primary is deleted only after the byte-for-byte recovery copy is
+  // durable. If deletion itself is blocked, keep both copies and disable
+  // automatic writes so the original cannot be overwritten on hydration.
+  const removed = safeRemoveItem(STORAGE_KEY);
+  return { state: defaultDemoState, status: "recovered", writable: removed };
+}
+
+function encodedState(state: AppState): string {
+  const durable = stripLadderSimulationState(state);
+  return JSON.stringify(encodeAppStateRecord(durable as unknown as Record<string, unknown>));
+}
+
+export function loadStoredStateResult(): StoredStateLoad {
+  if (typeof window === "undefined") {
+    return { state: defaultDemoState, status: "unavailable", writable: false };
+  }
+
+  const read = readStorageItem(STORAGE_KEY);
+  if (read.status === "unavailable") {
+    return { state: defaultDemoState, status: "unavailable", writable: false };
+  }
+  const raw = read.value;
   if (!raw) {
-    return defaultDemoState;
+    return { state: defaultDemoState, status: "empty", writable: true };
   }
 
   try {
-    const parsed = JSON.parse(raw);
+    const decoded = decodeAppStateRecord(JSON.parse(raw) as unknown);
+    if (decoded.status === "future_version") {
+      stashRejectedPayload(raw, `unsupported storage schema ${decoded.schemaVersion}`);
+      return { state: defaultDemoState, status: "future_version", writable: false };
+    }
+    if (decoded.status === "invalid_envelope") {
+      return recoverRejectedState(raw, decoded.reason);
+    }
+    const parsed = decoded.state;
     if (isObject(parsed) && parsed.mealLog === undefined) {
       parsed.mealLog = [];
     }
@@ -1485,7 +1589,7 @@ export function loadStoredState(): AppState {
       const sanitizedReferrals = sanitizeReferrals(parsed.referrals, resultIds);
       const sanitizedRecallReminders = sanitizeRecallReminders(parsed.recallReminders);
       const sanitizedFamily = sanitizeFamilyNavigatorState(parsed.family);
-      const sanitizedState: AppState = {
+      const sanitizedState = stripLadderSimulationState({
         ...parsed,
         tasks: sanitizedTasks,
         mealLog: sanitizedMealLog,
@@ -1499,15 +1603,13 @@ export function loadStoredState(): AppState {
         referrals: sanitizedReferrals,
         recallReminders: sanitizedRecallReminders,
         family: sanitizedFamily
-      };
+      } as AppState);
 
       if (!isValidAppState(sanitizedState)) {
-        stashRejectedPayload(raw, "sanitized state still did not validate");
-        safeRemoveItem(STORAGE_KEY);
-        return defaultDemoState;
+        return recoverRejectedState(raw, "sanitized state still did not validate");
       }
 
-      if (
+      const changed =
         JSON.stringify(parsed.tasks) !== JSON.stringify(sanitizedState.tasks) ||
         JSON.stringify(parsed.mealLog) !== JSON.stringify(sanitizedState.mealLog) ||
         JSON.stringify(parsed.glucoseReadings) !== JSON.stringify(sanitizedState.glucoseReadings) ||
@@ -1519,41 +1621,116 @@ export function loadStoredState(): AppState {
         JSON.stringify(parsed.screeningResults) !== JSON.stringify(sanitizedState.screeningResults) ||
         JSON.stringify(parsed.referrals) !== JSON.stringify(sanitizedState.referrals) ||
         JSON.stringify(parsed.recallReminders) !== JSON.stringify(sanitizedState.recallReminders) ||
-        JSON.stringify(parsed.family) !== JSON.stringify(sanitizedState.family)
-      ) {
-        safeSetItem(STORAGE_KEY, JSON.stringify(sanitizedState));
+        JSON.stringify(parsed.family) !== JSON.stringify(sanitizedState.family);
+      if (decoded.status === "legacy" || changed) {
+        safeSetItem(STORAGE_KEY, encodedState(sanitizedState));
       }
 
-      return sanitizedState;
+      return {
+        state: sanitizedState,
+        status: decoded.status === "legacy" ? "migrated" : "loaded",
+        writable: true
+      };
     }
 
-    stashRejectedPayload(raw, "not a recognizable app state");
-    safeRemoveItem(STORAGE_KEY);
-    return defaultDemoState;
+    return recoverRejectedState(raw, "not a recognizable app state");
   } catch {
-    stashRejectedPayload(raw, "unparseable");
-    safeRemoveItem(STORAGE_KEY);
-    return defaultDemoState;
+    return recoverRejectedState(raw, "unparseable");
   }
 }
 
-export function saveStoredState(state: AppState): void {
+export function loadStoredState(): AppState {
+  return loadStoredStateResult().state;
+}
+
+export function saveStoredState(state: AppState, expectedDeletionFence?: number): boolean {
   if (typeof window === "undefined") {
-    return;
+    return false;
   }
 
-  safeSetItem(STORAGE_KEY, JSON.stringify(state));
+  const encoded = encodedState(state);
+  if (expectedDeletionFence !== undefined) {
+    const before = readStoredDeletionFence();
+    if (before.status === "unavailable" || before.value !== expectedDeletionFence) {
+      return false;
+    }
+  }
+  if (!safeSetItem(STORAGE_KEY, encoded)) return false;
+  if (expectedDeletionFence === undefined) return true;
+
+  // localStorage cannot provide a multi-key transaction. A post-write check
+  // closes the only damaging interleaving: another tab clearing between our
+  // generation check and state write. Deletion wins, so discard the write.
+  const after = readStoredDeletionFence();
+  if (after.status === "ok" && after.value === expectedDeletionFence) return true;
+  safeRemoveItem(STORAGE_KEY);
+  return false;
+}
+
+export type StoredStateClearResult =
+  | { status: "cleared"; failedScopes: []; deletionFence?: number }
+  | { status: "partial"; failedScopes: string[]; deletionFence?: number }
+  | { status: "unavailable"; failedScopes: ["storage"]; deletionFence?: undefined };
+
+export function clearStoredStateResult(): StoredStateClearResult {
+  if (typeof window === "undefined") {
+    return { status: "unavailable", failedScopes: ["storage"] };
+  }
+
+  const failedScopes: string[] = [];
+  // Establish the cross-tab barrier before deleting anything. A tab that
+  // loaded an older generation will refuse to write its stale snapshot back.
+  const deletionFence = advanceStoredDeletionFence();
+  if (deletionFence === null) failedScopes.push("deletion_fence");
+  if (!safeRemoveItem(STORAGE_KEY)) failedScopes.push("app_state");
+  // "Clear my data" has to mean it: a stashed payload is still the family's
+  // record, so it goes with the rest.
+  if (!safeRemoveItem(RECOVERY_KEY)) failedScopes.push("recovery");
+  if (!clearAllFamilyDrafts()) failedScopes.push("family_drafts");
+  try {
+    const auxiliaryKeys = Array.from(
+      { length: window.localStorage.length },
+      (_, index) => window.localStorage.key(index)
+    ).filter((key): key is string => key !== null);
+    for (const key of auxiliaryKeys) {
+      if (key.startsWith("ladder-visit-notice:") && !safeRemoveItem(key)) {
+        failedScopes.push("visit_notices");
+      }
+      if (key.startsWith(DOSE_REMINDER_NOTIFICATION_PREFIX) && !safeRemoveItem(key)) {
+        failedScopes.push("dose_reminder_notifications");
+      }
+    }
+    if (!safeRemoveItem(FAMILY_CHECKIN_REMINDER_KEY)) {
+      failedScopes.push("family_checkin_reminder");
+    }
+    if (!safeRemoveItem("home-health-voice-consent")) failedScopes.push("voice_consent");
+  } catch {
+    // Without enumeration, per-visit and per-medication keys cannot be proven
+    // gone. Exact singleton keys below are still removed directly.
+    failedScopes.push("visit_notices", "dose_reminder_notifications");
+    if (!safeRemoveItem(FAMILY_CHECKIN_REMINDER_KEY)) {
+      failedScopes.push("family_checkin_reminder");
+    }
+    if (!safeRemoveItem("home-health-voice-consent")) failedScopes.push("voice_consent");
+  }
+  try {
+    const voiceConsentKeys = Array.from(
+      { length: window.sessionStorage.length },
+      (_, index) => window.sessionStorage.key(index)
+    ).filter((key): key is string => key?.startsWith("home-health-voice-consent:v2:") === true);
+    for (const key of voiceConsentKeys) window.sessionStorage.removeItem(key);
+  } catch {
+    // Session storage may be unavailable; current mounted controls still reset.
+    failedScopes.push("session_voice_consent");
+  }
+  const uniqueFailures = [...new Set(failedScopes)];
+  return uniqueFailures.length === 0
+    ? { status: "cleared", failedScopes: [], deletionFence: deletionFence ?? undefined }
+    : { status: "partial", failedScopes: uniqueFailures, deletionFence: deletionFence ?? undefined };
 }
 
 export function clearStoredState(): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  safeRemoveItem(STORAGE_KEY);
-  // "Clear my data" has to mean it: a stashed payload is still the family's
-  // record, so it goes with the rest.
-  safeRemoveItem(RECOVERY_KEY);
+  clearStoredStateResult();
 }
 
 // The first-run onboarding marker lives outside AppState (its own localStorage

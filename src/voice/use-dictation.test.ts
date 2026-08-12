@@ -97,6 +97,51 @@ describe("useDictation", () => {
     expect(recognition.onend).toBeNull();
   });
 
+  it("stops and detaches recognition when hidden", () => {
+    installRecognition();
+    const onFinalTranscript = vi.fn();
+    const { result: hook } = renderHook(() => useDictation({ language: "en", onFinalTranscript }));
+    act(() => hook.current.start());
+    const recognition = MockSpeechRecognition.instances[0];
+    const lateResult = recognition.onresult;
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+
+    expect(recognition.stop).toHaveBeenCalledTimes(1);
+    expect(recognition.onresult).toBeNull();
+    act(() => lateResult?.({ results: [result("late words", true)] }));
+    expect(onFinalTranscript).not.toHaveBeenCalled();
+    visibility.mockRestore();
+  });
+
+  it("requires a fresh tap after a locale change or an enabled gate closes", () => {
+    installRecognition();
+    const onFinalTranscript = vi.fn();
+    const { result: hook, rerender } = renderHook(
+      ({ language, enabled }: { language: "en" | "es"; enabled: boolean }) =>
+        useDictation({ language, enabled, onFinalTranscript }),
+      { initialProps: { language: "en", enabled: true } }
+    );
+    act(() => hook.current.start());
+    const englishRecognition = MockSpeechRecognition.instances[0];
+
+    rerender({ language: "es", enabled: true });
+    expect(englishRecognition.stop).toHaveBeenCalledTimes(1);
+    expect(hook.current.listening).toBe(false);
+
+    act(() => hook.current.start());
+    const spanishRecognition = MockSpeechRecognition.instances[1];
+    expect(spanishRecognition.lang).toBe("es-US");
+    const lateResult = spanishRecognition.onresult;
+    rerender({ language: "es", enabled: false });
+    expect(spanishRecognition.stop).toHaveBeenCalledTimes(1);
+    act(() => lateResult?.({ results: [result("late hidden words", true)] }));
+    expect(onFinalTranscript).not.toHaveBeenCalled();
+    act(() => hook.current.start());
+    expect(MockSpeechRecognition.instances).toHaveLength(2);
+  });
+
   it("reports unsupported without creating a recognition session", () => {
     const { result: hook } = renderHook(() =>
       useDictation({ language: "en", onFinalTranscript: () => undefined })

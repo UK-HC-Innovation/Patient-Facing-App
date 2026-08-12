@@ -45,6 +45,7 @@ const TASK_7_REQUIRED_KEYS = [
   "answerDeclined",
   "interviewLabel",
   "interviewPlaceholder",
+  "interviewDictationDisclosure",
   "interviewMicStart",
   "interviewSubmit",
   "interviewWorking",
@@ -197,6 +198,13 @@ describe("familyStrings", () => {
   it("keeps English and Spanish key sets identical and Task 7 ready", () => {
     expect(Object.keys(familyStrings.es).sort()).toEqual(Object.keys(familyStrings.en).sort());
     expect(Object.keys(familyStrings.en)).toEqual(expect.arrayContaining(TASK_7_REQUIRED_KEYS));
+  });
+
+  it("provides bilingual clinician-directed medication-change guardrail copy", () => {
+    expect(tFamily("en", "safetyMedicationChange")).toMatch(/prescriber or care team/i);
+    expect(tFamily("en", "safetyMedicationChange")).not.toMatch(/911|988|urgent/i);
+    expect(tFamily("es", "safetyMedicationChange")).toMatch(/quien lo recetó|equipo de salud/i);
+    expect(tFamily("es", "safetyMedicationChange")).not.toMatch(/911|988|urgente/i);
   });
 
   // F6c. The key sets were type-enforced and counted; the *placeholders* inside

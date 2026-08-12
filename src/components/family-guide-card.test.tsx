@@ -1,5 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import React from "react";
+import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { FAMILY_GUIDE_CATALOG, type FamilyGuide } from "@/domain/family-guides";
 import { FamilyGuideCard } from "./family-guide-card";
@@ -81,5 +82,20 @@ describe("FamilyGuideCard", () => {
 
     rerender(<FamilyGuideCard guide={{ ...guide, humanVerify: true }} language="en" />);
     expect(screen.getByText("Call and check before you count on this. Details change.")).toBeVisible();
+  });
+
+  it("replaces the normal notice with a stronger warning after the check window expires", () => {
+    const guide = { ...guideById("kyspin_resources"), verifiedAt: "2020-01-01", humanVerify: true };
+    render(<FamilyGuideCard guide={guide} language="en" />);
+
+    expect(screen.getByTestId("family-guide-stale")).toHaveTextContent(/past Ladder's 45-day check window/i);
+    expect(screen.queryByText("Call and check before you count on this. Details change.")).toBeNull();
+  });
+
+  it("keeps static HTML neutral until the client takes its freshness snapshot", () => {
+    const guide = { ...guideById("kyspin_resources"), verifiedAt: "2020-01-01" };
+    const html = renderToString(<FamilyGuideCard guide={guide} language="en" />);
+
+    expect(html).not.toContain("45-day check window");
   });
 });

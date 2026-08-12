@@ -28,19 +28,19 @@ export const BTN_ROW = `min-h-12 min-w-12 shrink-0 rounded-control border border
 export const BTN_ROW_ON = `min-h-12 min-w-12 shrink-0 rounded-control border border-care bg-care px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-100 ${CONTROL_FOCUS}`;
 
 /** Standard content section: a plain white card. */
-export const CARD_SECTION = "rounded-control border border-ink/10 bg-white p-4 scroll-mt-4";
+export const CARD_SECTION = "min-w-0 rounded-control border border-ink/10 bg-white p-4 scroll-mt-4";
 
 /** Content sections that intentionally sit on the paper surface. */
-export const CARD_SECTION_PAPER = "rounded-control border border-ink/10 bg-paper p-4 scroll-mt-4";
+export const CARD_SECTION_PAPER = "min-w-0 rounded-control border border-ink/10 bg-paper p-4 scroll-mt-4";
 
 /** The page's one ask (check-in, follow-up): visibly the next thing to do. */
-export const CARD_ASK = "rounded-control border-2 border-care/50 bg-white p-4 shadow-sm scroll-mt-4";
+export const CARD_ASK = "min-w-0 rounded-control border-2 border-care/50 bg-white p-4 shadow-sm scroll-mt-4";
 
 /** Utility furniture (settings, saved list, timeline): quieter than content. */
-export const CARD_SUBDUED = "rounded-control border border-ink/10 bg-transparent p-4 scroll-mt-4";
+export const CARD_SUBDUED = "min-w-0 rounded-control border border-ink/10 bg-transparent p-4 scroll-mt-4";
 
 /** Demo scaffolding: unmistakably not care content, without hiding it. */
-export const DEMO_BLOCK = "rounded-control border border-dashed border-ink/30 bg-paper p-3";
+export const DEMO_BLOCK = "min-w-0 rounded-control border border-dashed border-ink/30 bg-paper p-3";
 
 /** Section headings by tier. */
 export const H2_SECTION = "text-lg font-semibold";

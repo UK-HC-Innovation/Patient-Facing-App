@@ -27,16 +27,10 @@ export type StaleAccepted = {
  */
 export const STALE_ACCEPTED: readonly StaleAccepted[] = [
   {
-    id: "ssi_children",
-    until: "2026-10-01",
-    reason:
-      "ssa.gov refuses non-browser requests (403). Reachability and content are a standing human check; see docs/ops/catalog-verification/2026-08-05.md."
-  },
-  {
     id: "dsack",
     until: "2026-10-01",
     reason:
-      "dsack.org returned 403 to the checker on 2026-08-05 and loads normally in a browser. Owner-checklist item."
+      "dsack.org returned 403 to the checker on 2026-08-12; a manual browser review confirmed the current program and contact pages."
   }
 ];
 
@@ -51,6 +45,20 @@ export type StaleEntry = FreshnessSubject & { ageDays: number };
 
 function ageInDays(verifiedAt: string, now: Date): number {
   return (now.valueOf() - new Date(`${verifiedAt}T00:00:00.000Z`).valueOf()) / (24 * 60 * 60 * 1000);
+}
+
+/**
+ * Runtime truth for a single card. Unlike the build gate below, this ignores
+ * allowlists and `humanVerify`: those are maintenance escape hatches, not a
+ * reason to let a caregiver mistake old evidence for current evidence. Invalid
+ * and future dates fail closed because neither can support a "checked" claim.
+ */
+export function catalogEntryNeedsRefresh(
+  subject: Pick<FreshnessSubject, "verifiedAt">,
+  now: Date = new Date()
+): boolean {
+  const ageDays = ageInDays(subject.verifiedAt, now);
+  return !Number.isFinite(ageDays) || ageDays < 0 || ageDays > FRESHNESS_BUDGET_DAYS;
 }
 
 /**

@@ -10,20 +10,55 @@ export default defineConfig({
     command: `npm run dev -- --port ${port}`,
     url: baseURL,
     reuseExistingServer: false,
-    timeout: 120000
+    timeout: 120000,
+    // Browser regression tests must never inherit a developer's live provider
+    // credentials from .env.local. Route-level live behavior is intercepted in
+    // the few tests that exercise it explicitly.
+    env: {
+      HEALTH_AI_PROVIDER: "mock",
+      HEALTH_AI_API_KEY: "",
+      SCREENING_LIVE_EXTRACT: "0"
+    }
   },
   use: {
     baseURL,
-    trace: "on-first-retry",
-    // Sharing a program falls back to copying its link when the browser has no
-    // share sheet, which is exactly what headless Chromium is.
-    permissions: ["camera", "microphone", "clipboard-read", "clipboard-write"],
-    launchOptions: {
-      args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"]
-    }
+    trace: "on-first-retry"
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile", use: { ...devices["Pixel 7"] } }
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        permissions: ["camera", "microphone", "clipboard-read", "clipboard-write"],
+        launchOptions: {
+          args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"]
+        }
+      }
+    },
+    {
+      name: "mobile",
+      use: {
+        ...devices["Pixel 7"],
+        permissions: ["camera", "microphone", "clipboard-read", "clipboard-write"],
+        launchOptions: {
+          args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"]
+        }
+      }
+    },
+    {
+      name: "firefox-smoke",
+      testMatch: "**/ladder-browser-contract.spec.ts",
+      use: { ...devices["Desktop Firefox"] }
+    },
+    {
+      name: "webkit-smoke",
+      testMatch: "**/ladder-browser-contract.spec.ts",
+      use: { ...devices["Desktop Safari"] }
+    },
+    {
+      name: "mobile-webkit-smoke",
+      testMatch: "**/ladder-browser-contract.spec.ts",
+      use: { ...devices["iPhone 13"] }
+    }
   ]
 });

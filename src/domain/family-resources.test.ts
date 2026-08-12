@@ -101,8 +101,8 @@ describe("family resource catalog integrity", () => {
     const transition = getFamilyResourceById("kde_age_three_transition");
 
     expect(transition?.sourceUrl).toBe("https://apps.legislature.ky.gov/law/kar/titles/902/030/110/");
-    expect(transition?.actNow).toContain("active IFSP");
-    expect(transition?.actNow).toContain("IEP by the third birthday");
+    expect(transition?.actNow).toContain("at least 90 days");
+    expect(transition?.actNow).toContain("no more than nine months");
   });
 
   it("publishes P&A's current source and service exclusions", () => {
@@ -117,10 +117,43 @@ describe("family resource catalog integrity", () => {
     expect(getFamilyResourceById("ssi_children")?.humanVerify).toBe(true);
     expect(getFamilyResourceById("stable_kentucky")?.humanVerify).toBe(true);
     expect(getFamilyResourceById("sibling_support_project")?.humanVerify).toBe(true);
+    // Primary sites do not establish these exact local routing fields.
+    expect(getFamilyResourceById("autism_society_bluegrass")?.humanVerify).toBe(true);
+    expect(getFamilyResourceById("central_kentucky_riding_for_hope")?.humanVerify).toBe(true);
+    expect(getFamilyResourceById("scott_county_frysc")?.humanVerify).toBe(true);
+    expect(getFamilyResourceById("feat_louisville")?.humanVerify).toBe(true);
+    expect(getFamilyResourceById("down_syndrome_louisville")?.humanVerify).toBe(true);
     // Procedural guidance ships flagged until the citations are checked by hand.
     expect(getFamilyResourceById("idea_school_discipline")?.humanVerify).toBe(true);
     expect(getFamilyResourceById("kde_evaluation_request")?.humanVerify).toBe(true);
     expect(getFamilyResourceById("fba_bip_request")?.humanVerify).toBe(true);
+  });
+
+  it("preserves the primary-source qualifications found in the manual review", () => {
+    const stable = getFamilyResourceById("stable_kentucky")!;
+    const ssi = getFamilyResourceById("ssi_children")!;
+    const lend = getFamilyResourceById("ky_lend")!;
+    const myChoice = getFamilyResourceById("my_choice_kentucky")!;
+
+    expect(stable.summary).toContain("$100,000");
+    expect(stable.summary).toContain("SSI is suspended");
+    expect(ssi.actNow).toContain("because of deeming");
+    expect(lend.summary).not.toContain("small number");
+    expect(lend.ages).toBeUndefined();
+    expect(myChoice.ages).toBeUndefined();
+  });
+
+  it("states Kentucky evaluation and IDEA discipline clocks without the former ten-day shortcuts", () => {
+    const discipline = getFamilyResourceById("idea_school_discipline")!;
+    const evaluation = getFamilyResourceById("kde_evaluation_request")!;
+    const behavior = getFamilyResourceById("fba_bip_request")!;
+
+    expect(discipline.summary).toContain("only if it forms a pattern");
+    expect(discipline.actNow).toContain("does not by itself require");
+    expect(evaluation.summary).toContain("runs from receipt of that consent");
+    expect(evaluation.actNow).toContain("written parental consent");
+    expect(behavior.sourceUrl).toContain("/BehaviorResources.aspx");
+    expect(behavior.contact).toContain("whether parental consent is required");
   });
 });
 
@@ -175,13 +208,15 @@ describe("findFamilyResources", () => {
       childAgeYears: 2.25,
       limit: 20
     });
-    const atTransitionMax = findFamilyResources({ county: "Perry", domain: "school_iep", childAgeYears: 4, limit: 20 });
+    const atTransitionMax = findFamilyResources({ county: "Perry", domain: "school_iep", childAgeYears: 2.99, limit: 20 });
+    const afterTransition = findFamilyResources({ county: "Perry", domain: "school_iep", childAgeYears: 3, limit: 20 });
 
     expect(atBirth.map((resource) => resource.id)).toContain("first_steps_kentucky_river");
-    expect(atFirstStepsMax.map((resource) => resource.id)).toContain("first_steps_kentucky_river");
+    expect(atFirstStepsMax.map((resource) => resource.id)).not.toContain("first_steps_kentucky_river");
     expect(belowTransition.map((resource) => resource.id)).not.toContain("kde_age_three_transition");
     expect(atTransitionMin.map((resource) => resource.id)).toContain("kde_age_three_transition");
     expect(atTransitionMax.map((resource) => resource.id)).toContain("kde_age_three_transition");
+    expect(afterTransition.map((resource) => resource.id)).not.toContain("kde_age_three_transition");
   });
 
   it("applies the limit after county-first sorting and handles zero", () => {
@@ -243,5 +278,20 @@ describe("family resource helpers", () => {
 
     expect(age).toBe(2.25);
     expect(resources.map((resource) => resource.id)).toContain("kde_age_three_transition");
+  });
+
+  it("treats published age ceilings as eligibility boundaries under month-precise matching", () => {
+    expect(findFamilyResources({ county: "Scott", domain: "early_intervention", childAgeYears: 2.99, limit: 20 }).map(({ id }) => id)).toContain(
+      "first_steps_bluegrass"
+    );
+    expect(findFamilyResources({ county: "Scott", domain: "early_intervention", childAgeYears: 3, limit: 20 }).map(({ id }) => id)).not.toContain(
+      "first_steps_bluegrass"
+    );
+    expect(findFamilyResources({ county: "Scott", domain: "parent_support", childAgeYears: 26.9, limit: 20 }).map(({ id }) => id)).toContain(
+      "ky_spin"
+    );
+    expect(findFamilyResources({ county: "Scott", domain: "parent_support", childAgeYears: 27, limit: 20 }).map(({ id }) => id)).not.toContain(
+      "ky_spin"
+    );
   });
 });

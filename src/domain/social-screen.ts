@@ -122,19 +122,89 @@ export function buildSocialScreenRecord(
   return { item, facts: socialAnswersToFacts(answers, item.id, language) };
 }
 
-const SOCIAL_EMERGENCY_PATTERNS = [
+const BASIC_NEEDS_EMERGENCY_PATTERNS = [
   /no food (?:today|left|right now|in the house|at all)/i,
+  /\b(?:we(?:'re| are)|i(?:'m| am)) out of food\b/i,
+  /\b(?:i|we) (?:(?:ran out of) food|(?:do not|don't) have (?:any )?food)(?: today| right now| at home| in the house)?\b/i,
   /nothing to eat/i,
-  /(?:kids?|children|child)\b[^.?!]{0,24}\bhungry/i,
-  /out of insulin/i,
-  /(?:insulin|medicine|medication)s?\b[^.?!]{0,24}\b(?:none left|ran out|all gone)/i,
-  /(?:no more|none left|ran out of)\s+(?:insulin|medicine|medication)/i
+  /(?:kids?|children|child|sons?|daughters?|bab(?:y|ies))\b[^.?!]{0,24}\bhungry/i,
+  /no (?:hay|tengo|tenemos) comida (?:hoy|ahora|en (?:la )?casa)/i,
+  /(?:hoy|ahora) no (?:hay|tengo|tenemos) comida\b/i,
+  /en (?:la )?casa no (?:hay|tengo|tenemos) comida\b/i,
+  /no queda comida (?:hoy|ahora|en (?:la )?casa)\b/i,
+  /(?:me qued[eé]|nos quedamos) sin comida(?: hoy| ahora| en (?:la )?casa)?\b/i,
+  /nada (?:para|que) comer/i,
+  /(?:mi |mis |el |la |los |las )?(?:niño|niña|niños|niñas|hijo|hija|hijos|hijas|menor|menores)\b[^.?!]{0,24}\b(?:tiene|tienen) hambre/i
 ];
+
+const MEDICATION_ACCESS_EMERGENCY_PATTERNS = [
+  /out of (?:insulin|medicine|medication)/i,
+  /(?:insulin|medicine|medication)s?\b[^.?!]{0,24}\b(?:none left|ran out|all gone)/i,
+  /(?:have|has|there (?:is|are)) no (?:insulin|medicine|medication) left/i,
+  /(?:no more|none left|ran out of)\s+(?:insulin|medicine|medication)/i,
+  /(?:me qued[eé]|nos quedamos) sin (?:(?:mi|nuestra) )?(?:la )?(?:insulina|medicina|medicamento)/i,
+  /no (?:me|nos) queda (?:insulina|medicina|medicamento)/i,
+  /(?:no (?:hay|tengo|tenemos)|(?:me|nos) falta) (?:insulina|medicina|medicamento)/i,
+  /se (?:(?:me|nos) )?(?:acab[oó]|agot[oó]) (?:la )?(?:insulina|medicina|medicamento)/i
+];
+
+export type SocialEmergencyKind =
+  | "basic_needs"
+  | "medication_access"
+  | "basic_needs_and_medication_access";
+
+function stripSocialNegations(input: string): string {
+  return input
+    // A resolved past interruption is not a current emergency. Mask the whole
+    // event-through-resolution span before the positive patterns run, while
+    // leaving any later, independent current disclosure scannable.
+    .replace(
+      /\b(?:my\s+)?(?:insulin|medicine|medication)s?\s+(?:ran out|was (?:all )?gone)\b[^.?!]{0,80}?\b(?:but|and)\b[^.?!]{0,40}?\b(?:(?:i|we)\s+(?:have\s+)?(?:refilled (?:it|them)|picked (?:it|them|more) up|got (?:more|a refill)|have (?:it|them) now)|(?:the\s+)?pharmacy\s+refilled (?:it|them))\b/gi,
+      " "
+    )
+    .replace(
+      /\b(?:i|we)\s+(?:(?:was|were)\s+out of|ran out of|had no)\s+(?:insulin|medicine|medication)\b[^.?!]{0,80}?\b(?:but|and)\b[^.?!]{0,40}?\b(?:(?:i|we)\s+(?:have\s+)?(?:refilled (?:it|them)|picked (?:it|them|more) up|got (?:more|a refill)|have (?:it|them) now)|(?:the\s+)?pharmacy\s+refilled (?:it|them))\b/gi,
+      " "
+    )
+    .replace(
+      /\b(?:se (?:(?:me|nos) )?(?:acab[oó]|agot[oó]) (?:la )?(?:insulina|medicina|medicamento)|(?:me qued[eé]|nos quedamos) sin (?:(?:mi|nuestra) )?(?:la )?(?:insulina|medicina|medicamento))\b[^.?!]{0,80}?\bpero\b[^.?!]{0,40}?\b(?:ya\s+)?(?:(?:la|lo)\s+recog[íi]|(?:la farmacia|el farmac[eé]utico)\s+(?:la|lo)\s+repuso|(?:tengo|tenemos) (?:la|lo|insulina|medicina|medicamento) ahora)(?=$|[\s,.!?])/gi,
+      " "
+    )
+    .replace(/\b(?:will not|won't)\s+(?:be\s+out of|run out of)\s+(?:food|insulin|medicine|medication)\b/gi, " ")
+    .replace(/\b(?:am|is|are)\s+not\s+going to\s+(?:be\s+out of|run out of)\s+(?:food|insulin|medicine|medication)\b/gi, " ")
+    .replace(/\b(?:not|never|no longer)\s+(?:(?:actually|currently)\s+)?(?:out of (?:food|insulin|medicine|medication)|hungry)\b/gi, " ")
+    .replace(/\b(?:isn't|aren't|wasn't|weren't)\s+(?:out of (?:insulin|medicine|medication)|hungry)\b/gi, " ")
+    .replace(/\b(?:did not|didn't|never)\s+(?:run out of (?:food|insulin|medicine|medication)|go hungry)\b/gi, " ")
+    .replace(/\b(?:no|nunca|ya no)\s+(?:tiene|tienen)\s+hambre\b/gi, " ")
+    .replace(/\bno\s+(?:me qued[eé]|nos quedamos)\s+sin\s+comida\b/gi, " ")
+    .replace(/\bno\s+(?:me|nos)\s+(?:falta|qued[eé]\s+sin)\s+(?:insulina|medicina|medicamento)\b/gi, " ")
+    .replace(/\bno\s+se\s+(?:acab[oó]|agot[oó])\s+(?:la\s+)?(?:insulina|medicina|medicamento)\b/gi, " ");
+}
+
+// The safety banner needs to distinguish a local-resource need from interrupted
+// access to medicine. Both block ordinary interpretation and network use, but
+// the right first action is different: 211 for basic needs, a prescriber or
+// pharmacist for medicine access.
+export function classifySocialEmergency(input: string): SocialEmergencyKind | null {
+  const scannable = stripSocialNegations(input);
+  const medicationAccess = MEDICATION_ACCESS_EMERGENCY_PATTERNS.some((pattern) => pattern.test(scannable));
+  const basicNeeds = BASIC_NEEDS_EMERGENCY_PATTERNS.some((pattern) => pattern.test(scannable));
+  if (medicationAccess && basicNeeds) {
+    return "basic_needs_and_medication_access";
+  }
+  if (medicationAccess) {
+    return "medication_access";
+  }
+  if (basicNeeds) {
+    return "basic_needs";
+  }
+  return null;
+}
 
 // FR-4: an acute material emergency (no food today, hungry children, out of
 // insulin) escalates the same as a medical urgency.
 export function screenSocialEmergency(input: string): boolean {
-  return SOCIAL_EMERGENCY_PATTERNS.some((pattern) => pattern.test(input));
+  return classifySocialEmergency(input) !== null;
 }
 
 export type ZCodeSuggestion = {

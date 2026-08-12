@@ -314,9 +314,11 @@ export function FamilyProfileForm({
           >
             {tFamily(language, "profileSave")}
           </button>
-          <p role="status" aria-live="polite" className="text-sm font-medium text-care">
-            {saved ? tFamily(language, "profileSaved") : ""}
-          </p>
+          {saved ? (
+            <p role="status" className="text-sm font-medium text-care">
+              {tFamily(language, "profileSaved")}
+            </p>
+          ) : null}
         </div>
     </form>
   );

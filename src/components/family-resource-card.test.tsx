@@ -372,9 +372,40 @@ describe("FamilyResourceCard", () => {
   });
 
   it("shows the manual-verification warning when the catalog requires it", () => {
-    const stable = getFamilyResourceById("stable_kentucky")!;
+    const stable = {
+      ...getFamilyResourceById("stable_kentucky")!,
+      verifiedAt: new Date().toISOString().slice(0, 10)
+    };
     renderCard({ resource: stable, domain: "future_planning" });
     expect(screen.getByText(/Call and check before you count on this/i)).toBeVisible();
+  });
+
+  it("keeps a fresh manual-verification warning on a compact card face", () => {
+    renderCard({
+      resource: {
+        ...michelle,
+        verifiedAt: new Date().toISOString().slice(0, 10),
+        humanVerify: true
+      },
+      variant: "compact"
+    });
+
+    const warning = screen.getByTestId("family-resource-human-verify");
+    expect(warning).toHaveTextContent(/Call and check before you count on this/i);
+    expect(warning.closest("details")).toBeNull();
+  });
+
+  it("keeps an expired-source warning on the face of a compact Spanish card", () => {
+    renderCard({
+      resource: { ...michelle, verifiedAt: "2020-01-01" },
+      language: "es",
+      variant: "compact"
+    });
+
+    const warning = screen.getByTestId("family-resource-stale");
+    expect(warning).toBeVisible();
+    expect(warning).toHaveTextContent(/plazo de verificación de 45 días/i);
+    expect(warning.closest("details")).toBeNull();
   });
 
   it("keeps a compact card to one sentence and its dated line, and expands in place", async () => {
@@ -510,7 +541,7 @@ describe("FamilyResourceCard", () => {
         "href",
         michelle.sourceUrl
       );
-      expect(screen.getByTestId("family-resource-call")).toHaveAttribute("href", "tel:8447845614");
+      expect(screen.getByTestId("family-resource-call")).toHaveAttribute("href", "tel:5025647700");
     });
 
     it("names the person who makes the connection rather than faking a number", () => {

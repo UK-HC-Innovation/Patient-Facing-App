@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import { UrgentHelp } from "@/components/urgent-help";
+import { FamilySafetyContacts } from "@/components/family-safety-contacts";
+import { familySafetyCopyKeys } from "@/components/family-safety-copy";
 import type { FamilySafetyEvent } from "@/domain/types";
-import { tFamily, type FamilyStringKey } from "@/i18n/family-strings";
+import { tFamily } from "@/i18n/family-strings";
 import { type Language } from "@/i18n/strings";
 
 export type FamilyCrisisBannerProps = {
@@ -22,14 +23,6 @@ export type FamilyCrisisBannerProps = {
  * reach. The detector reports a domain and never a subject, so the replacement
  * copy is household-neutral by design rather than by guess.
  */
-function safetyCopyKey(event: FamilySafetyEvent): FamilyStringKey {
-  if (event.domain === "abuse") return "safetyAbuse";
-  if (event.domain === "harm_to_others") return "safetyHarmToOthers";
-  if (event.domain === "social") return "safetySocial";
-  if (event.tier === "emergency") return "safetyEmergency";
-  return "safetyCrisis";
-}
-
 /**
  * Shown inline in the thread when a caregiver's words trip a safety rule. It does
  * not end the conversation: the navigator keeps working underneath it, because a
@@ -38,7 +31,9 @@ function safetyCopyKey(event: FamilySafetyEvent): FamilyStringKey {
  */
 export function FamilyCrisisBanner({ event, language, onAcknowledge }: FamilyCrisisBannerProps) {
   const acknowledged = event.acknowledgedAt !== undefined;
+  const blocked = event.tier === "blocked";
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const copyKeys = familySafetyCopyKeys(event);
 
   // F2d. role="alert" gets it announced, but a sighted keyboard or magnifier
   // user could still be scrolled well below it — the banner led the page and the
@@ -63,8 +58,14 @@ export function FamilyCrisisBanner({ event, language, onAcknowledge }: FamilyCri
       role="alert"
       data-testid="family-crisis-banner"
       data-safety-domain={event.domain}
+      data-safety-tier={event.tier}
+      data-safety-guidance={event.guidance}
       aria-labelledby={`family-safety-${event.id}`}
-      className="rounded-control border-2 border-l-8 border-rose-400 bg-rose-50 p-4"
+      className={
+        blocked
+          ? "rounded-control border-2 border-l-8 border-care/50 bg-care/5 p-4"
+          : "rounded-control border-2 border-l-8 border-rose-400 bg-rose-50 p-4"
+      }
     >
       <h2
         ref={headingRef}
@@ -72,14 +73,24 @@ export function FamilyCrisisBanner({ event, language, onAcknowledge }: FamilyCri
         tabIndex={-1}
         className="break-words font-bold text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care"
       >
-        {tFamily(language, "safetyHeading")}
+        {tFamily(language, blocked ? "safetyMedicationHeading" : "safetyHeading")}
       </h2>
-      <p className="mt-1 break-words font-medium leading-relaxed text-ink">
-        {tFamily(language, safetyCopyKey(event))}
-      </p>
-      <div className="mt-3">
-        <UrgentHelp language={language} summary={tFamily(language, "safetyHeading")} />
+      <div className="mt-1 grid gap-2">
+        {copyKeys.map((copyKey) => (
+          <p key={copyKey} className="break-words font-medium leading-relaxed text-ink">
+            {tFamily(language, copyKey)}
+          </p>
+        ))}
       </div>
+      {!blocked ? (
+        <div className="mt-3">
+          <FamilySafetyContacts
+            events={[event]}
+            language={language}
+            summary={tFamily(language, "safetyHeading")}
+          />
+        </div>
+      ) : null}
       {/* F2b, said out loud: the caregiver can see that this turn was not filed
           and not sorted, rather than being left to wonder where it went. */}
       <p data-testid="family-safety-no-interpretation" className="mt-3 break-words text-sm leading-6 text-ink/80">
@@ -89,7 +100,7 @@ export function FamilyCrisisBanner({ event, language, onAcknowledge }: FamilyCri
           It was printing under every domain, so a family who said they had no
           food was told to lock up medicines, and a medical emergency got advice
           about firearms. Both read as not having been listened to. */}
-      {safetyCopyKey(event) === "safetyCrisis" ? (
+      {copyKeys.includes("safetyCrisis") ? (
         <p data-testid="family-safety-steps" className="mt-2 break-words text-sm leading-6 text-ink/80">
           {tFamily(language, "safetySteps")}
         </p>
@@ -99,16 +110,18 @@ export function FamilyCrisisBanner({ event, language, onAcknowledge }: FamilyCri
           <button
             type="button"
             onClick={() => onAcknowledge(event.id)}
-            className="mt-3 min-h-12 min-w-0 break-words rounded-control bg-rose-700 px-4 py-2 font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care"
+            className={`mt-3 min-h-12 min-w-0 break-words rounded-control px-4 py-2 font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care ${blocked ? "bg-care" : "bg-rose-700"}`}
           >
             {tFamily(language, "safetyAcknowledge")}
           </button>
           {/* The old label was "I've seen this — continue", and tapping it took
               every 988/911 route off the page with nothing saying they could be
               got back. F2c adds the way back; this says so before the tap. */}
-          <p className="mt-2 break-words text-sm leading-6 text-ink/80">
-            {tFamily(language, "safetyReopenHint")}
-          </p>
+          {!blocked ? (
+            <p className="mt-2 break-words text-sm leading-6 text-ink/80">
+              {tFamily(language, "safetyReopenHint")}
+            </p>
+          ) : null}
         </>
       ) : null}
     </section>

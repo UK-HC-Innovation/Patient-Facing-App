@@ -9,6 +9,7 @@ import {
   type FamilyInterviewResult
 } from "@/domain/family-interview";
 import type { DevNeedDomain, FamilyProfile } from "@/domain/types";
+import { markVoiceConsentGranted } from "@/voice/voice-consent";
 import { FamilyInterview, sanitizeResult } from "./family-interview";
 
 const FIXED_NOW = new Date("2026-07-30T12:00:00.000Z");
@@ -76,7 +77,6 @@ function renderInterview(overrides: Partial<React.ComponentProps<typeof FamilyIn
   const props: React.ComponentProps<typeof FamilyInterview> = {
     profile: schoolAgeFamilyState.profile!,
     draft: SAMPLE_CAREGIVER_TEXT,
-    passcode: "secret",
     // F1a. These cases exercise the live path, so they stand in for a caregiver
     // who accepted the online-helper disclosure. The gate itself is covered by
     // family-ai-consent.test.ts and family-network-silence.test.tsx.
@@ -90,6 +90,10 @@ function renderInterview(overrides: Partial<React.ComponentProps<typeof FamilyIn
 }
 
 beforeEach(() => {
+  sessionStorage.clear();
+  // Most speech tests exercise the recognizer after consent. The dedicated
+  // boundary case below starts from a fresh session and proves no mic is built.
+  markVoiceConsentGranted();
   push.mockClear();
   requestFamilyInterview.mockReset();
   requestFamilyInterview.mockResolvedValue(null);
@@ -136,6 +140,10 @@ describe("FamilyInterview", { timeout: 20_000 }, () => {
     const interviewInput = screen.getByRole("textbox", {
       name: /what would you like help with/i
     });
+    // onExtracted runs just before the async submit's finally block re-enables
+    // the controlled textarea. Wait for that observable boundary before the
+    // next edit instead of racing a disabled control.
+    await waitFor(() => expect(interviewInput).toBeEnabled());
     fireEvent.change(
       interviewInput,
       { target: { value: neutralText } }
@@ -365,12 +373,73 @@ describe("FamilyInterview", { timeout: 20_000 }, () => {
     installSpeech();
     renderInterview({ draft: "", language: "es" });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Empezar a hablar" }));
+    const mic = await screen.findByRole("button", { name: "Empezar a hablar" });
+    expect(mic).toHaveAccessibleDescription(/puede procesar el audio del micrófono fuera de este dispositivo/i);
+    fireEvent.click(mic);
 
     expect(screen.getByRole("button", { name: "Terminar grabación" })).toBeVisible();
     expect(screen.getByRole("status")).toHaveTextContent(
       "Escuchando — sigue hablando. Toca Terminar grabación cuando hayas terminado."
     );
+  });
+
+  it("constructs no recognizer until the caregiver accepts the voice disclosure", async () => {
+    sessionStorage.clear();
+    installSpeech();
+    renderInterview({ draft: "" });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Start speaking" }));
+
+    expect(recognition).toBeUndefined();
+    expect(screen.getByRole("dialog", { name: "Before you use voice" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "I understand, use voice" }));
+    expect(recognition?.start).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops, detaches, and ignores late speech when the page becomes hidden", async () => {
+    installSpeech();
+    renderInterview({ draft: "" });
+    fireEvent.click(await screen.findByRole("button", { name: "Start speaking" }));
+    const activeRecognition = recognition;
+    const lateResult = activeRecognition?.onresult;
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+
+    expect(activeRecognition?.stop).toHaveBeenCalledTimes(1);
+    expect(activeRecognition?.onresult).toBeNull();
+    act(() => lateResult?.(speechResult("words after the tab was hidden")));
+    expect(screen.getByRole("textbox", { name: /what would you like help with/i })).toHaveValue("");
+    visibility.mockRestore();
+  });
+
+  it("ends the active voice session when the language or safety lock changes", async () => {
+    installSpeech();
+    const first = renderInterview({ draft: "" });
+    fireEvent.click(await screen.findByRole("button", { name: "Start speaking" }));
+    const englishRecognition = recognition;
+
+    first.rerender(<FamilyInterview {...first.props} language="es" />);
+    expect(englishRecognition?.stop).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Empezar a hablar" }));
+    const spanishRecognition = recognition;
+    const lateResult = spanishRecognition?.onresult;
+    first.rerender(<FamilyInterview {...first.props} language="es" voiceLocked />);
+    expect(spanishRecognition?.stop).toHaveBeenCalledTimes(1);
+    act(() => lateResult?.(speechResult("words from the hidden surface")));
+    expect(screen.getByRole("textbox", { name: /¿con qué te gustaría recibir ayuda/i })).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Empezar a hablar" })).toBeDisabled();
+  });
+
+  it("discloses the browser speech-service path before dictation starts", async () => {
+    installSpeech();
+    renderInterview({ draft: "" });
+
+    const mic = await screen.findByRole("button", { name: "Start speaking" });
+    expect(mic).toHaveAccessibleDescription(/may process microphone audio off this device/i);
+    expect(screen.getByText(/Type instead to keep audio out of that service/i)).toBeVisible();
+    expect(recognition).toBeUndefined();
   });
 
   it("appends repeated final speech transcripts with one space and never auto-submits", async () => {
@@ -388,6 +457,39 @@ describe("FamilyInterview", { timeout: 20_000 }, () => {
     expect(onDraftChange).toHaveBeenLastCalledWith("Existing words first final second final");
     expect(requestFamilyInterview).not.toHaveBeenCalled();
     expect(onExtracted).not.toHaveBeenCalled();
+  });
+
+  it("keeps unsaved local words when profile or language props change before the draft checkpoint", () => {
+    const staleDraft = "Words already saved";
+    const localDraft = "Words already saved plus a new unsaved sentence";
+    const profile = schoolAgeFamilyState.profile!;
+    const props = {
+      draft: staleDraft,
+      liveAllowed: true,
+      language: "en" as const,
+      onDraftChange: vi.fn(),
+      onExtracted: vi.fn()
+    };
+    const { rerender } = render(<FamilyInterview {...props} profile={profile} />);
+    const input = screen.getByRole("textbox", { name: /what would you like help with/i });
+
+    fireEvent.change(input, { target: { value: localDraft } });
+    rerender(
+      <FamilyInterview
+        {...props}
+        profile={{ ...profile, county: "Perry" }}
+      />
+    );
+    expect(input).toHaveValue(localDraft);
+
+    rerender(
+      <FamilyInterview
+        {...props}
+        language="es"
+        profile={{ ...profile, county: "Perry" }}
+      />
+    );
+    expect(input).toHaveValue(localDraft);
   });
 
   it("ignores a browser replay of the same final speech result index", async () => {
@@ -440,7 +542,7 @@ describe("FamilyInterview", { timeout: 20_000 }, () => {
     const { unmount } = renderInterview({ draft: nearCap });
     const mic = await screen.findByRole("button", { name: /start speaking|stop listening/i });
     expect(mic).toBeDisabled();
-    expect(screen.getByText("4950 of 5000 characters")).toBeInTheDocument();
+    expect(screen.getByText("4950 of 5000 characters")).not.toHaveAttribute("aria-live");
     unmount();
 
     renderInterview({ draft: "x".repeat(4940) });
@@ -537,9 +639,35 @@ describe("FamilyInterview", { timeout: 20_000 }, () => {
       )
     );
     expect(requestFamilyInterview).toHaveBeenCalledTimes(1);
-    expect(requestFamilyInterview).toHaveBeenCalledWith(expect.objectContaining({ text: rawText }));
+    expect(requestFamilyInterview).toHaveBeenCalledWith(
+      expect.objectContaining({ text: rawText }),
+      expect.objectContaining({ signal: expect.any(Object) })
+    );
     expect(onExtracted).toHaveBeenCalledTimes(1);
     expect(onDraftChange).toHaveBeenLastCalledWith(rawText);
+  });
+
+  it("accepts a pending voice result when the delayed parent draft catches up", async () => {
+    installSpeech();
+    const rawText = "Riley needs help with reading at school";
+    const pending = deferred<null>();
+    requestFamilyInterview.mockReturnValueOnce(pending.promise);
+    const onExtracted = vi.fn();
+    const { props, rerender } = renderInterview({ draft: "", onExtracted });
+
+    fireEvent.click(await screen.findByRole("button", { name: /start speaking|stop listening/i }));
+    act(() => recognition?.onresult?.(speechResult(rawText)));
+    fireEvent.click(screen.getByRole("button", { name: /find help/i }));
+    rerender(<FamilyInterview {...props} draft={rawText} />);
+
+    await act(async () => pending.resolve(null));
+    await waitFor(() => expect(onExtracted).toHaveBeenCalledTimes(1));
+    expect(onExtracted).toHaveBeenCalledWith(expect.any(Object), {
+      extraction: "mock",
+      source: "voice",
+      rawText,
+      containsSafetyDisclosure: false
+    });
   });
 
   it("guards a rapid double submit with one provider request and one callback", async () => {
@@ -572,7 +700,6 @@ describe("FamilyInterview", { timeout: 20_000 }, () => {
     const onDraftChange = vi.fn();
     const onExtracted = vi.fn();
     const baseProps = {
-      passcode: "secret",
       liveAllowed: true,
       language: "en" as const,
       onDraftChange,
@@ -627,7 +754,6 @@ describe("FamilyInterview", { timeout: 20_000 }, () => {
     const onExtracted = vi.fn();
     const baseProps = {
       draft,
-      passcode: "secret",
       liveAllowed: true,
       language: "en" as const,
       onDraftChange: vi.fn(),
@@ -636,7 +762,9 @@ describe("FamilyInterview", { timeout: 20_000 }, () => {
     const { rerender } = render(<FamilyInterview {...baseProps} profile={profileA} />);
 
     fireEvent.click(screen.getByRole("button", { name: /find help/i }));
+    const signal = requestFamilyInterview.mock.calls[0][1].signal as AbortSignal;
     rerender(<FamilyInterview {...baseProps} profile={profileB} />);
+    expect(signal.aborted).toBe(true);
     await act(async () => pending.resolve(null));
 
     await waitFor(() => expect(screen.getByRole("button", { name: /find help/i })).toBeEnabled());

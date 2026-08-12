@@ -53,7 +53,7 @@ describe("PSC-17", () => {
     ["attention", 6, 7],
     ["externalizing", 6, 7]
   ] as const)("locks the %s one-below/at cutoff", (subscale, below, at) => {
-    const ids = PSC17_SUBSCALE_IDS[subscale];
+    const ids: readonly string[] = PSC17_SUBSCALE_IDS[subscale];
     const makeResponses = (score: number) =>
       PSC17_INSTRUMENT.items.map(({ id }) => {
         const position = ids.indexOf(id);

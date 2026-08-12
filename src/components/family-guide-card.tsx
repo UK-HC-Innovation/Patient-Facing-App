@@ -5,6 +5,7 @@ import React, { useId } from "react";
 import type { FamilyGuide } from "@/domain/family-guides";
 import { familyResourcePhones, familyResourceTel } from "@/domain/family-resource-contact";
 import { sourceContentLang } from "@/components/family-source-language-notice";
+import { useCatalogEntryNeedsRefresh } from "@/components/use-catalog-entry-needs-refresh";
 import { CONTROL_FOCUS, NOTICE_INFO } from "@/components/family-theme";
 import { tFamily } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
@@ -24,6 +25,7 @@ export function FamilyGuideCard({ guide, language }: FamilyGuideCardProps) {
   const titleId = `${useId()}-title`;
   const [guidePhone] = familyResourcePhones(guide.contact ?? "");
   const sourceLang = sourceContentLang(language);
+  const needsRefresh = useCatalogEntryNeedsRefresh(guide.verifiedAt);
 
   return (
     <article
@@ -79,9 +81,12 @@ export function FamilyGuideCard({ guide, language }: FamilyGuideCardProps) {
         {tFamily(language, "resourceOpenSource")}
       </a>
 
-      {guide.humanVerify ? (
-        <p className={`mt-3 text-sm font-medium text-ink ${NOTICE_INFO}`}>
-          {tFamily(language, "resourceHumanVerify")}
+      {needsRefresh || guide.humanVerify ? (
+        <p
+          data-testid={needsRefresh ? "family-guide-stale" : "family-guide-human-verify"}
+          className={`mt-3 text-sm font-medium text-ink ${NOTICE_INFO}`}
+        >
+          {tFamily(language, needsRefresh ? "resourceFreshnessExpired" : "resourceHumanVerify")}
         </p>
       ) : null}
     </article>

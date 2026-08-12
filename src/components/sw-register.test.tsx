@@ -17,6 +17,8 @@ describe("SwRegister", () => {
 
     render(<SwRegister />);
 
-    await waitFor(() => expect(register).toHaveBeenCalledWith("/sw.js"));
+    await waitFor(() =>
+      expect(register).toHaveBeenCalledWith("/sw.js", { updateViaCache: "none" })
+    );
   });
 });

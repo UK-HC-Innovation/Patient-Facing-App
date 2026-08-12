@@ -44,8 +44,9 @@ export const sdohNeedOptions: readonly { id: SdohNeedType; label: string }[] = [
 
 const allNeeds = sdohNeedOptions.map((option) => option.id);
 
-/** The 2026-08-05 mechanical pass; see family-resources.ts for what it means. */
-const RECHECKED_AT = "2026-08-05";
+// Manual source review: the two-page Perry guide was rendered and inspected;
+// the other four current primary sources were checked for their routing facts.
+const SOURCE_RECHECKED_AT = "2026-08-12";
 
 export const KENTUCKY_SDOH_RESOURCE_CATALOG: readonly KentuckySdohResource[] = [
   {
@@ -58,7 +59,7 @@ export const KENTUCKY_SDOH_RESOURCE_CATALOG: readonly KentuckySdohResource[] = [
     contact: "Call 1-800-245-2826",
     sourceName: "Kentucky Transportation Cabinet Human Services Transportation",
     sourceUrl: "https://transportation.ky.gov/TransportationDelivery/Pages/Human-Services-Transportation.aspx",
-    verifiedAt: RECHECKED_AT,
+    verifiedAt: SOURCE_RECHECKED_AT,
     referralMode: "navigator_referral"
   },
   {
@@ -70,7 +71,7 @@ export const KENTUCKY_SDOH_RESOURCE_CATALOG: readonly KentuckySdohResource[] = [
     contact: "Ask navigator to confirm the best transportation provider for the trip",
     sourceName: "Kentucky Public Transit Association county directory",
     sourceUrl: "https://www.kypublictransit.org/transit-by-county",
-    verifiedAt: RECHECKED_AT,
+    verifiedAt: SOURCE_RECHECKED_AT,
     referralMode: "navigator_referral"
   },
   {
@@ -84,7 +85,7 @@ export const KENTUCKY_SDOH_RESOURCE_CATALOG: readonly KentuckySdohResource[] = [
     sourceName: "Perry County Resource Guide",
     sourceUrl:
       "https://kirpky.com/wp-content/uploads/2024/09/Perry-County-Resource-Guide_Aug2024_FINAL-Public-version.pdf",
-    verifiedAt: "2026-07-04",
+    verifiedAt: SOURCE_RECHECKED_AT,
     referralMode: "navigator_referral"
   },
   {
@@ -97,7 +98,7 @@ export const KENTUCKY_SDOH_RESOURCE_CATALOG: readonly KentuckySdohResource[] = [
     sourceName: "Perry County Resource Guide",
     sourceUrl:
       "https://kirpky.com/wp-content/uploads/2024/09/Perry-County-Resource-Guide_Aug2024_FINAL-Public-version.pdf",
-    verifiedAt: "2026-07-04",
+    verifiedAt: SOURCE_RECHECKED_AT,
     referralMode: "navigator_referral"
   },
   {
@@ -110,7 +111,7 @@ export const KENTUCKY_SDOH_RESOURCE_CATALOG: readonly KentuckySdohResource[] = [
     contact: "Browse kynect resources or ask a navigator to create the right referral path",
     sourceName: "Cabinet for Health and Family Services kynect resources",
     sourceUrl: "https://www.chfs.ky.gov/agencies/ohda/Pages/kynectresources.aspx",
-    verifiedAt: RECHECKED_AT,
+    verifiedAt: SOURCE_RECHECKED_AT,
     referralMode: "directory_search"
   },
   {
@@ -122,7 +123,7 @@ export const KENTUCKY_SDOH_RESOURCE_CATALOG: readonly KentuckySdohResource[] = [
     contact: "Dial 211 or text your ZIP code to 898211",
     sourceName: "Kentucky 211",
     sourceUrl: "https://kentucky211.org/",
-    verifiedAt: "2026-07-04",
+    verifiedAt: SOURCE_RECHECKED_AT,
     referralMode: "call_211"
   }
 ];

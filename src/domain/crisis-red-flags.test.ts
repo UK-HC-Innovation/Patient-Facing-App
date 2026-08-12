@@ -56,6 +56,17 @@ describe("screenCrisisRedFlags", () => {
     expect(screenCrisisRedFlags("worst headache of my life and my BP is 210 over 120").domain).toBe("acute_danger");
   });
 
+  it("detects child breathing danger and age-modified missing-child reports", () => {
+    expect(screenCrisisRedFlags("My child cannot breathe")).toMatchObject({
+      matched: true,
+      domain: "acute_danger"
+    });
+    expect(screenCrisisRedFlags("My 7-year-old daughter is missing")).toMatchObject({
+      matched: true,
+      domain: "acute_danger"
+    });
+  });
+
   it.each([
     ["my son says he wants to die", "self_harm"],
     ["honestly she's been saying she wants to die", "self_harm"],

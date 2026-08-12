@@ -34,6 +34,8 @@ export function useDictation(options: {
   language: Language;
   onFinalTranscript: (text: string) => void;
   onError?: () => void;
+  /** A hard lifecycle gate, used for safety locks and submitting states. */
+  enabled?: boolean;
 }): {
   supported: boolean;
   listening: boolean;
@@ -42,12 +44,16 @@ export function useDictation(options: {
 } {
   const callbackRef = useRef(options.onFinalTranscript);
   const errorRef = useRef(options.onError);
+  const enabledRef = useRef(options.enabled ?? true);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const generationRef = useRef(0);
   const acceptedResultsRef = useRef(new Set<string>());
   const mountedRef = useRef(true);
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(false);
+  callbackRef.current = options.onFinalTranscript;
+  errorRef.current = options.onError;
+  enabledRef.current = options.enabled ?? true;
 
   const cleanup = useCallback((target = recognitionRef.current, stop = true, updateState = true): void => {
     if (!target) {
@@ -74,7 +80,13 @@ export function useDictation(options: {
   const stop = useCallback((): void => cleanup(), [cleanup]);
 
   const start = useCallback((): void => {
-    if (recognitionRef.current) return;
+    if (
+      recognitionRef.current ||
+      !enabledRef.current ||
+      (typeof document !== "undefined" && document.visibilityState !== "visible")
+    ) {
+      return;
+    }
     const Recognition = recognitionConstructor();
     if (!Recognition) return;
 
@@ -86,7 +98,11 @@ export function useDictation(options: {
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
     recognition.onresult = (event) => {
-      if (recognitionRef.current !== recognition || generationRef.current !== generation) return;
+      if (
+        !enabledRef.current ||
+        recognitionRef.current !== recognition ||
+        generationRef.current !== generation
+      ) return;
       const startIndex = event.resultIndex ?? 0;
       for (let index = startIndex; index < event.results.length; index += 1) {
         const result = event.results[index];
@@ -121,6 +137,25 @@ export function useDictation(options: {
       cleanup(recognitionRef.current, true, false);
     };
   }, [cleanup]);
+
+  useEffect(() => {
+    // An active recognizer keeps the locale it was created with. Treat a locale
+    // switch or a safety/submission lock as a new session requiring another tap.
+    stop();
+  }, [options.language, options.enabled, stop]);
+
+  useEffect(() => {
+    const stopWhenHidden = (): void => {
+      if (document.visibilityState !== "visible") stop();
+    };
+    const stopOnPageHide = (): void => stop();
+    document.addEventListener("visibilitychange", stopWhenHidden);
+    window.addEventListener("pagehide", stopOnPageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", stopWhenHidden);
+      window.removeEventListener("pagehide", stopOnPageHide);
+    };
+  }, [stop]);
 
   return { supported, listening, start, stop };
 }

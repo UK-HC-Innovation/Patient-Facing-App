@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { REALTIME_SESSION_CONFIG, applyTranscriptGate, reduceRealtimeEvent } from "./realtime-session";
+import {
+  REALTIME_SESSION_CONFIG,
+  applyTranscriptGate,
+  createTranscriptGateLatch,
+  reduceRealtimeEvent
+} from "./realtime-session";
 import type { LiveSessionEvent } from "./types";
 import type { VoiceGateDecision } from "./voice-gate";
 
@@ -126,5 +131,37 @@ describe("applyTranscriptGate", () => {
     );
 
     expect(sends).not.toContainEqual({ type: "response.create" });
+  });
+});
+
+describe("createTranscriptGateLatch", () => {
+  it("never creates another response after an intercept on the same connection", () => {
+    const sends: unknown[] = [];
+    const events: LiveSessionEvent[] = [];
+    const gate = createTranscriptGateLatch(
+      (payload) => sends.push(payload),
+      (event) => events.push(event)
+    );
+
+    gate.apply({ kind: "intercept", safety: "blocked", content: "Stop.", actions: [] });
+    gate.apply({ kind: "pass" });
+
+    expect(gate.isLatched()).toBe(true);
+    expect(sends).toEqual([{ type: "response.cancel" }, { type: "output_audio_buffer.clear" }]);
+    expect(sends).not.toContainEqual({ type: "response.create" });
+    expect(events).toHaveLength(1);
+  });
+
+  it("can be latched by an output intercept before another input turn", () => {
+    const sends: unknown[] = [];
+    const gate = createTranscriptGateLatch(
+      (payload) => sends.push(payload),
+      () => undefined
+    );
+
+    gate.latch();
+    gate.apply({ kind: "pass" });
+
+    expect(sends).toEqual([]);
   });
 });

@@ -2,6 +2,7 @@
 
 import React, { useId } from "react";
 import type { FamilyFact } from "@/domain/types";
+import type { FamilyEvidenceTrace } from "@/domain/family-evidence-provenance";
 import { BTN_ROW, BTN_ROW_ON, BTN_SECONDARY, CONTROL_FOCUS } from "@/components/family-theme";
 import { tFamily, type FamilyStringKey } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
@@ -28,6 +29,8 @@ export type FamilyFactCardProps = {
    * turn keeps the full card, where the quote is the whole point.
    */
   variant?: "card" | "row";
+  /** Derived link to the originating conversation or guided answer. */
+  evidenceTrace?: FamilyEvidenceTrace;
 };
 
 const STATUS_KEYS: Record<FamilyFact["status"], FamilyStringKey> = {
@@ -37,13 +40,46 @@ const STATUS_KEYS: Record<FamilyFact["status"], FamilyStringKey> = {
   rejected: "factMarkedWrong"
 };
 
+const CAPTURE_KEYS = {
+  typed: "evidenceCaptureTyped",
+  voice: "evidenceCaptureVoice",
+  mixed: "evidenceCaptureMixed"
+} as const satisfies Record<"typed" | "voice" | "mixed", FamilyStringKey>;
+
+function evidenceTraceLine(trace: FamilyEvidenceTrace, language: Language): string {
+  if (trace.origin === "guided_screen") return tFamily(language, "evidenceTraceScreen");
+  if (
+    trace.origin === "orphaned_conversation" ||
+    trace.capturedAt === null ||
+    trace.captureSource === "structured" ||
+    trace.captureSource === "unknown"
+  ) {
+    return tFamily(language, "evidenceTraceOrphaned");
+  }
+  const date = new Date(trace.capturedAt).toLocaleDateString(language === "es" ? "es" : "en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  });
+  const method =
+    trace.extraction === "online"
+      ? tFamily(language, "evidenceExtractionOnline")
+      : tFamily(language, "evidenceExtractionOnDevice");
+  return tFamily(language, "evidenceTraceConversation", {
+    date,
+    source: tFamily(language, CAPTURE_KEYS[trace.captureSource]),
+    method
+  });
+}
+
 export function FamilyFactCard({
   fact,
   language,
   onConfirm,
   includeToggle,
   onReject,
-  variant = "card"
+  variant = "card",
+  evidenceTrace
 }: FamilyFactCardProps) {
   const titleId = useId();
   const includeId = useId();
@@ -52,6 +88,7 @@ export function FamilyFactCard({
   // "No" is the only durable way to say "do not use this": it pulls the fact out
   // of the clinician's packet without deleting the family's own words.
   const excluded = includeToggle ? !includeToggle.included : false;
+  const provenanceLine = evidenceTrace ? evidenceTraceLine(evidenceTrace, language) : null;
 
   if (variant === "row") {
     return (
@@ -72,7 +109,7 @@ export function FamilyFactCard({
               </span>
             ) : null}
           </p>
-          <div aria-live="polite" className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1">
             <button
               type="button"
               disabled={confirmed || rejected}
@@ -107,6 +144,11 @@ export function FamilyFactCard({
             <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-ink/70">
               {tFamily(language, STATUS_KEYS[fact.status])} · {tFamily(language, "factSource")}
             </p>
+            {provenanceLine ? (
+              <p data-testid="family-evidence-trace" className="mt-1 break-words text-xs leading-5 text-ink/65">
+                {provenanceLine}
+              </p>
+            ) : null}
             <blockquote className="mt-1 break-words border-l-4 border-care/30 pl-3 text-ink/70">
               {fact.sourceSnippet}
             </blockquote>
@@ -171,10 +213,15 @@ export function FamilyFactCard({
       <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-ink/70">
         {tFamily(language, "factSource")}
       </p>
+      {provenanceLine ? (
+        <p data-testid="family-evidence-trace" className="mt-1 break-words text-xs leading-5 text-ink/65">
+          {provenanceLine}
+        </p>
+      ) : null}
       <blockquote className="mt-1 break-words border-l-4 border-care/30 pl-3 text-sm text-ink/70">
         {fact.sourceSnippet}
       </blockquote>
-      <div aria-live="polite">
+      <div>
         <button
           type="button"
           disabled={confirmed}

@@ -1,26 +1,41 @@
 "use client";
 
-import { useCallback, useState, type Dispatch } from "react";
+import { useCallback, useEffect, useState, type Dispatch } from "react";
 import { recordAuditEvent } from "@/domain/audit";
 import { useOptionalHealthState, type HealthAction } from "@/state/store";
 
+/** Legacy device-wide key. It is deliberately ignored and removed on deletion. */
 export const VOICE_CONSENT_KEY = "home-health-voice-consent";
+export const VOICE_SESSION_CONSENT_PREFIX = `${VOICE_CONSENT_KEY}:v2:`;
 
-export function isVoiceConsentGranted(): boolean {
+export function voiceConsentStorageKey(patientId?: string): string {
+  return `${VOICE_SESSION_CONSENT_PREFIX}${encodeURIComponent(patientId ?? "anonymous")}`;
+}
+
+export function isVoiceConsentGranted(patientId?: string): boolean {
   if (typeof window === "undefined") return false;
   try {
-    return window.localStorage.getItem(VOICE_CONSENT_KEY) === "true";
+    return window.sessionStorage.getItem(voiceConsentStorageKey(patientId)) === "true";
   } catch {
     return false;
   }
 }
 
-export function markVoiceConsentGranted(): void {
+export function markVoiceConsentGranted(patientId?: string): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(VOICE_CONSENT_KEY, "true");
+    window.sessionStorage.setItem(voiceConsentStorageKey(patientId), "true");
   } catch {
-    // Voice remains available for this session even if persistence is blocked.
+    // The mounted component still remembers consent if session storage is blocked.
+  }
+}
+
+export function revokeVoiceConsent(patientId?: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(voiceConsentStorageKey(patientId));
+  } catch {
+    // Revocation still closes the mounted voice controls through React state.
   }
 }
 
@@ -32,15 +47,20 @@ export type VoiceEntryContext = {
 export function useVoiceEntry(explicit?: VoiceEntryContext): {
   consentRequired: boolean;
   grantConsent: () => void;
+  revokeConsent: () => void;
   onSessionStart: (surface: string) => void;
 } {
   const healthState = useOptionalHealthState();
   const patientId = explicit?.patientId ?? healthState?.state.patient.id;
   const dispatch = explicit?.dispatch ?? healthState?.dispatch;
-  const [consentRequired, setConsentRequired] = useState(() => !isVoiceConsentGranted());
+  const [consentRequired, setConsentRequired] = useState(() => !isVoiceConsentGranted(patientId));
+
+  useEffect(() => {
+    setConsentRequired(!isVoiceConsentGranted(patientId));
+  }, [patientId]);
 
   const grantConsent = useCallback((): void => {
-    markVoiceConsentGranted();
+    markVoiceConsentGranted(patientId);
     setConsentRequired(false);
     if (!dispatch || !patientId) return;
     dispatch({
@@ -48,6 +68,11 @@ export function useVoiceEntry(explicit?: VoiceEntryContext): {
       event: recordAuditEvent(patientId, "voice_consent_granted", "Voice consent granted")
     });
   }, [dispatch, patientId]);
+
+  const revokeConsent = useCallback((): void => {
+    revokeVoiceConsent(patientId);
+    setConsentRequired(true);
+  }, [patientId]);
 
   const onSessionStart = useCallback(
     (surface: string): void => {
@@ -64,5 +89,5 @@ export function useVoiceEntry(explicit?: VoiceEntryContext): {
     [dispatch, patientId]
   );
 
-  return { consentRequired, grantConsent, onSessionStart };
+  return { consentRequired, grantConsent, revokeConsent, onSessionStart };
 }

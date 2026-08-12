@@ -55,7 +55,11 @@ function familyState(overrides: Partial<FamilyNavigatorState>): FamilyNavigatorS
     soonerList: null,
     packetQuestionIds: [],
     checkinTouchedAt: null,
-    ...overrides
+    ...overrides,
+    resourcePreferences: overrides.resourcePreferences ?? {
+      scope: "no_preference",
+      contact: "no_preference"
+    }
   };
 }
 
@@ -94,20 +98,8 @@ describe("FamilyAppointmentCard", () => {
     expect(callbacks.onSeedReferral).toHaveBeenCalledOnce();
   });
 
-  // F4a. The card's own reminders only exist while this tab is open; the
-  // calendar file is the one that fires with the app closed.
-  it("writes the booked visit to a calendar file with its own three-day alarm", async () => {
+  it("does not export a simulated visit into the caregiver's real calendar", () => {
     const booking = quietBooking();
-    const createObjectURL = vi.fn().mockReturnValue("blob:ics");
-    Object.defineProperty(URL, "createObjectURL", { value: createObjectURL, configurable: true });
-    Object.defineProperty(URL, "revokeObjectURL", { value: vi.fn(), configurable: true });
-    const downloads: string[] = [];
-    const click = vi
-      .spyOn(HTMLAnchorElement.prototype, "click")
-      .mockImplementation(function (this: HTMLAnchorElement) {
-        downloads.push(this.download);
-      });
-
     render(
       <FamilyAppointmentCard
         family={familyState({ appointments: [booking] })}
@@ -117,13 +109,7 @@ describe("FamilyAppointmentCard", () => {
       />
     );
 
-    await userEvent.click(screen.getByTestId("family-appt-ics"));
-
-    expect(downloads).toEqual(["ladder-visit.ics"]);
-    const [blob] = createObjectURL.mock.calls[0] as [Blob];
-    expect(blob.type).toContain("text/calendar");
-    expect(screen.getByTestId("family-appt-ics-receipt")).toHaveTextContent(/Calendar file saved/);
-    click.mockRestore();
+    expect(screen.queryByTestId("family-appt-ics")).not.toBeInTheDocument();
   });
 
   it("books a slot from the offer turn", async () => {

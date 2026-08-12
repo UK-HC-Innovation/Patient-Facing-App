@@ -1,5 +1,12 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE_CAREGIVER_TEXT, schoolAgeFamilyState } from "@/domain/family-fixtures";
+import {
+  FAMILY_AI_SESSION_COOKIE,
+  FAMILY_AI_CONSENT_HEADER,
+  createFamilyAiConsentCapability,
+  createFamilyAiSessionToken,
+  resetFamilyAiRateLimitsForTest
+} from "@/server/family-ai-auth";
 import { POST } from "./route";
 
 const ranked = {
@@ -14,11 +21,29 @@ const ranked = {
   ]
 };
 
-function request(body: unknown): Request {
-  return new Request("http://localhost/api/family/recommend", {
+function request(
+  body: unknown,
+  authorized = true,
+  signal?: AbortSignal,
+  consented = authorized
+): Request {
+  const token = authorized ? createFamilyAiSessionToken() : null;
+  const url = "http://localhost/api/family/recommend";
+  const cookieHeaders: Record<string, string> = token
+    ? { Cookie: `${FAMILY_AI_SESSION_COOKIE}=${token}` }
+    : {};
+  const capability = token
+    ? createFamilyAiConsentCapability(new Request(url, { headers: cookieHeaders }))
+    : null;
+  return new Request(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
+    headers: {
+      "Content-Type": "application/json",
+      ...cookieHeaders,
+      ...(consented && capability ? { [FAMILY_AI_CONSENT_HEADER]: capability } : {})
+    },
+    body: JSON.stringify(body),
+    signal
   });
 }
 
@@ -26,7 +51,6 @@ function validBody(overrides: Record<string, unknown> = {}): Record<string, unkn
   return {
     text: SAMPLE_CAREGIVER_TEXT,
     profile: schoolAgeFamilyState.profile,
-    passcode: "secret",
     language: "en",
     candidateIds: ["idea_school_discipline", "kde_evaluation_request"],
     ...overrides
@@ -43,6 +67,11 @@ function configure(): void {
   vi.stubEnv("DEMO_PASSCODE", "secret");
 }
 
+beforeEach(() => {
+  vi.stubEnv("FAMILY_AI_SESSION_SECRET", "test-session-secret-that-is-at-least-32-bytes");
+  resetFamilyAiRateLimitsForTest();
+});
+
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
@@ -58,6 +87,7 @@ describe("family recommend route", () => {
     ["too many candidates", { candidateIds: Array.from({ length: 25 }, (_, index) => `id-${index}`) }],
     ["unknown language", { language: "fr" }]
   ])("rejects %s with 400", async (_label, overrides) => {
+    configure();
     const response = await POST(request(validBody(overrides)));
 
     expect(response.status).toBe(400);
@@ -74,14 +104,37 @@ describe("family recommend route", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("reports locked on a passcode mismatch and never calls out", async () => {
+  it("reports locked for an unauthorized session before reading its body", async () => {
     configure();
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    const response = await POST(request(validBody({ passcode: "wrong" })));
+    const pending = request(validBody(), false);
+    const response = await POST(pending);
 
     expect(await response.json()).toEqual({ mode: "locked", data: null });
+    expect(pending.bodyUsed).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("reports locked for missing consent before reading its caregiver body", async () => {
+    configure();
+    const pending = request(validBody(), true, undefined, false);
+    const response = await POST(pending);
+
+    expect(await response.json()).toEqual({ mode: "locked", data: null });
+    expect(pending.bodyUsed).toBe(false);
+  });
+
+  it("keeps safety disclosures off the upstream provider", async () => {
+    configure();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await POST(
+      request(validBody({ text: "My child says he wants to die right now." }))
+    );
+    expect(await response.json()).toEqual({ mode: "safety", data: null });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -185,6 +238,25 @@ describe("family recommend route", () => {
 
     const response = await POST(request(validBody()));
 
+    expect(response.status).toBe(502);
+  });
+
+  it("aborts the upstream provider when the caller disconnects", async () => {
+    configure();
+    const caller = new AbortController();
+    const fetchMock = vi.fn((_url: string, options: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        options.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const pending = POST(request(validBody(), true, caller.signal));
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    caller.abort();
+
+    const response = await pending;
+    expect((fetchMock.mock.calls[0][1] as RequestInit).signal?.aborted).toBe(true);
     expect(response.status).toBe(502);
   });
 });

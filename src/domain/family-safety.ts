@@ -1,12 +1,13 @@
 import { classifyCrisis, classifySafety } from "./safety";
-import { screenSocialEmergency } from "./social-screen";
+import { classifySocialEmergency } from "./social-screen";
 import { crisisTierForDomain } from "./crisis-red-flags";
-import type { DevNeedDomain, FamilySafetyEvent } from "./types";
+import type { DevNeedDomain, FamilySafetyEvent, FamilySafetyGuidance } from "./types";
 
 export type FamilySafetyScreen = {
   matched: boolean;
-  tier: "crisis" | "emergency";
+  tier: "crisis" | "emergency" | "blocked";
   domain: string;
+  guidance?: FamilySafetyGuidance;
 };
 
 /**
@@ -21,14 +22,22 @@ export function screenFamilySafety(text: string): FamilySafetyScreen | null {
     return {
       matched: true,
       tier: tier === "emergency" ? "emergency" : "crisis",
-      domain: crisis.domain ?? "unspecified"
+      domain: crisis.domain ?? "unspecified",
+      ...(crisis.ruleIds.some((ruleId) => ruleId.includes("missing_child"))
+        ? { guidance: "missing_child" as const }
+        : {})
     };
   }
-  if (classifySafety(text).level !== "allowed") {
+  const safety = classifySafety(text);
+  if (safety.level === "escalate") {
     return { matched: true, tier: "emergency", domain: "safety" };
   }
-  if (screenSocialEmergency(text)) {
-    return { matched: true, tier: "emergency", domain: "social" };
+  if (safety.level === "blocked") {
+    return { matched: true, tier: "blocked", domain: "medication_change" };
+  }
+  const socialEmergency = classifySocialEmergency(text);
+  if (socialEmergency !== null) {
+    return { matched: true, tier: "emergency", domain: "social", guidance: socialEmergency };
   }
   return null;
 }
@@ -38,6 +47,7 @@ export function createFamilySafetyEvent(screen: FamilySafetyScreen, now = new Da
     id: crypto.randomUUID(),
     tier: screen.tier,
     domain: screen.domain,
+    ...(screen.guidance === undefined ? {} : { guidance: screen.guidance }),
     createdAt: now.toISOString()
   };
 }

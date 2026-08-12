@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import { FamilyFactCard } from "@/components/family-fact-card";
 import { FamilyFoldSection } from "@/components/family-fold-section";
 import type { FamilyFact, FamilyInterview, FamilyNavigatorState } from "@/domain/types";
+import { traceFamilyFact } from "@/domain/family-evidence-provenance";
 import { CARD_SECTION_PAPER, CONTROL_FOCUS } from "@/components/family-theme";
 import { tFamily } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
@@ -161,6 +162,7 @@ export function FamilyJournal({
               <FamilyFactCard
                 key={fact.id}
                 fact={fact}
+                evidenceTrace={traceFamilyFact(family, fact)}
                 language={language}
                 variant="row"
                 onConfirm={onConfirm}

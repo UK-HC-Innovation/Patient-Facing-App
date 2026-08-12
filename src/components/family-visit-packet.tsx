@@ -57,7 +57,11 @@ function packetBlocks(bodyLines: string[], headings: Set<string>): PacketBlock[]
   return blocks;
 }
 
-export type FamilyPacketExportVerb = "printed" | "copied" | "saved" | "shared";
+export type FamilyPacketOutputEvent = {
+  artifact: "family_visit_packet";
+  channel: "download" | "clipboard" | "print_dialog" | "web_share";
+  outcome: "completed" | "fallback_copied";
+};
 
 export type FamilyVisitPacketProps = {
   family: FamilyNavigatorState;
@@ -65,7 +69,7 @@ export type FamilyVisitPacketProps = {
   /** Fixed by the caller in tests; the footer date is the only clock the packet reads. */
   now?: Date;
   onToggleQuestion: (questionId: string) => void;
-  onExport: (verb: FamilyPacketExportVerb) => void;
+  onExport: (event: FamilyPacketOutputEvent) => void;
 };
 
 /** Every receipt this card can show, success and failure alike. */
@@ -111,7 +115,7 @@ export function FamilyVisitPacket({
       }
       await navigator.clipboard.writeText(summary);
       setReceipt("packetCopied");
-      onExport("copied");
+      onExport({ artifact: "family_visit_packet", channel: "clipboard", outcome: "completed" });
     } catch {
       // A blocked clipboard used to fail silently into an empty live region —
       // a caregiver tapped Copy, nothing happened, and nothing said so.
@@ -132,12 +136,12 @@ export function FamilyVisitPacket({
     if ("onafterprint" in window) {
       const settle = (): void => {
         window.removeEventListener("afterprint", settle);
-        onExport("printed");
+        onExport({ artifact: "family_visit_packet", channel: "print_dialog", outcome: "completed" });
       };
       window.addEventListener("afterprint", settle);
     } else {
       // Older engine with no event: keep the receipt rather than lose it.
-      onExport("printed");
+      onExport({ artifact: "family_visit_packet", channel: "print_dialog", outcome: "completed" });
     }
     window.print();
   }
@@ -154,7 +158,7 @@ export function FamilyVisitPacket({
       return;
     }
     setReceipt("packetSaved");
-    onExport("saved");
+    onExport({ artifact: "family_visit_packet", channel: "download", outcome: "completed" });
   }
 
   /**
@@ -177,7 +181,11 @@ export function FamilyVisitPacket({
       return;
     }
     setReceipt(outcome === "shared" ? "packetShareReceipt" : "packetShareCopiedReceipt");
-    onExport("shared");
+    onExport({
+      artifact: "family_visit_packet",
+      channel: outcome === "shared" ? "web_share" : "clipboard",
+      outcome: outcome === "shared" ? "completed" : "fallback_copied"
+    });
   }
 
   return (

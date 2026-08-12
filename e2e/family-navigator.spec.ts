@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const STORAGE_KEY = "home-health-ai-ownership-state";
-const FROZEN_NOW = new Date("2026-07-17T12:00:00.000Z");
+const FROZEN_NOW = new Date("2026-08-12T12:00:00.000Z");
 // Ordinary caregiver wording — not a scripted demo persona. The navigator has to
 // work on whatever a parent actually types.
 const PARENT_DESCRIPTION =
@@ -27,7 +27,7 @@ const SCOTT_SOURCE_URL =
  * bar and Home is all there is.
  */
 async function goToSurface(page: Page, name: string | RegExp): Promise<void> {
-  const tab = page.getByRole("tab", { name });
+  const tab = page.getByTestId("ladder-tabs").getByRole("button", { name });
   try {
     // Stored state arrives after the first paint, and a surface only exists once
     // there is something on it — so wait for the tab rather than racing it.
@@ -35,10 +35,10 @@ async function goToSurface(page: Page, name: string | RegExp): Promise<void> {
   } catch {
     return;
   }
-  if ((await tab.getAttribute("aria-selected")) !== "true") {
+  if ((await tab.getAttribute("aria-current")) !== "page") {
     await tab.click();
   }
-  await expect(tab).toHaveAttribute("aria-selected", "true");
+  await expect(tab).toHaveAttribute("aria-current", "page");
 }
 
 /** A return visit collapses the composer to one tap; opening it is that tap. */
@@ -119,6 +119,26 @@ async function stubUnconfiguredFamilyRecommend(page: Page): Promise<void> {
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ mode: "unconfigured", data: null })
+    });
+  });
+}
+
+async function stubAuthorizedFamilySession(page: Page): Promise<void> {
+  await page.route("**/api/family/session", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ authorized: true })
+    });
+  });
+  await page.route("**/api/family/consent", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        capability: "e2e-memory-only-consent-capability",
+        expiresAt: Date.now() + 30 * 60 * 1000
+      })
     });
   });
 }
@@ -233,6 +253,54 @@ async function installRepeatedFinalSpeechShim(page: Page, transcript: string): P
   }, transcript);
 }
 
+async function installControllableSpeechShim(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    type ResultEvent = {
+      results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }>;
+      resultIndex: number;
+    };
+    let lateResult: ((event: ResultEvent) => void) | null = null;
+    let active: FakeSpeechRecognition | null = null;
+    const control = {
+      starts: 0,
+      stops: 0,
+      handlerAttached: (): boolean => active?.onresult !== null,
+      emitLate: (): void => {
+        const result = Object.assign([{ transcript: "late words from hidden Home" }], { isFinal: true });
+        lateResult?.({ results: [result], resultIndex: 0 });
+      }
+    };
+
+    class FakeSpeechRecognition {
+      lang = "";
+      interimResults = false;
+      maxAlternatives = 1;
+      continuous = true;
+      onresult: ((event: ResultEvent) => void) | null = null;
+      onerror: (() => void) | null = null;
+      onend: (() => void) | null = null;
+
+      constructor() {
+        active = this;
+      }
+
+      start(): void {
+        control.starts += 1;
+        lateResult = this.onresult;
+      }
+
+      stop(): void {
+        control.stops += 1;
+      }
+    }
+
+    (window as unknown as { __ladderSpeechControl: typeof control }).__ladderSpeechControl = control;
+    for (const name of ["SpeechRecognition", "webkitSpeechRecognition"]) {
+      Object.defineProperty(window, name, { configurable: true, value: FakeSpeechRecognition });
+    }
+  });
+}
+
 test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(FROZEN_NOW);
   await useFreshStorage(page);
@@ -243,17 +311,40 @@ test.beforeEach(async ({ page }) => {
   await stubUnconfiguredFamilyRecommend(page);
 });
 
-test("family URL redirects to ladder and keeps the query string", async ({ page }) => {
+test("family URL redirects to ladder and scrubs a legacy query invite without using it", async ({ page }) => {
+  const sessionMethods: string[] = [];
+  await page.route("**/api/family/session", async (route) => {
+    sessionMethods.push(route.request().method());
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ authorized: false })
+    });
+  });
   await page.goto("/family?k=demo-passcode");
-  await expect(page).toHaveURL(/\/ladder\?k=demo-passcode$/);
+  await expect(page).toHaveURL(/\/ladder$/);
+  await expect.poll(() => sessionMethods).toEqual(["GET"]);
+});
+
+test("persisted Spanish marks every shared app surface as Spanish", async ({ page }) => {
+  await page.goto("/today");
+  await setPersistedLanguage(page, "es");
+
+  for (const path of ["/today", "/checkin", "/privacy"]) {
+    await page.goto(path);
+    await expect.poll(() => page.evaluate(() => document.documentElement.lang)).toBe("es");
+  }
 });
 
 test(`golden path works on ordinary caregiver wording: ${PARENT_DESCRIPTION}`, async ({ page }) => {
   const capturedRequests: CapturedFamilyRequest[] = [];
+  await stubAuthorizedFamilySession(page);
   await stubUnconfiguredFamilyInterview(page, (request) => {
     capturedRequests.push(request);
   });
-  await page.goto("/ladder?k=demo-passcode");
+  // The shared invite stays in the URL fragment, which is never sent in the
+  // initial HTTP request or retained in server/CDN access logs.
+  await page.goto("/ladder#invite=demo-passcode");
 
   await expect(page.getByRole("heading", { name: "Ladder", level: 1 })).toBeVisible();
   await expect(page.getByText(/concept demo|not an official service/i)).toHaveCount(0);
@@ -279,7 +370,9 @@ test(`golden path works on ordinary caregiver wording: ${PARENT_DESCRIPTION}`, a
   // F1b. The choice is offered holding the answer, not standing in front of it.
   const aiConsent = page.getByTestId("family-ai-consent");
   await expect(aiConsent).toBeVisible();
-  await expect(aiConsent).toContainText(/sent there to sort topics/i);
+  await expect(aiConsent).toContainText(/Ladder has not sent that text or the child details/i);
+  await expect(aiConsent).toContainText(/browser's speech service may already have processed microphone audio/i);
+  await expect(aiConsent).toContainText(/send the words you type.*to that service to sort topics/i);
 
   const review = page.getByRole("region", { name: "Here is what we heard" });
   await expect(review).toBeVisible();
@@ -516,7 +609,7 @@ test("demo timeline control backdates diagnosis data and advances staged nudges 
   ).toBeVisible();
   await expect(
     timeline
-      .getByRole("region", { name: "Next" })
+      .getByRole("region", { name: "Now" })
       .getByRole("heading", { name: "Look into help for siblings and a break for you" })
   ).toBeVisible();
 
@@ -536,7 +629,9 @@ test("demo timeline control backdates diagnosis data and advances staged nudges 
   await expect(current.getByRole("heading", { name: "Talk to another parent" })).toBeVisible();
   await expect(current.getByRole("heading", { name: "Look into help for siblings and a break for you" })).toBeVisible();
   const setup = await openBasics(page);
-  await expect(setup.getByLabel("Dyslexia diagnosis month (optional)")).toHaveValue("2026-01");
+  // Demo timeline controls are a session overlay. The editable record and its
+  // durable copy keep the caregiver's actual date.
+  await expect(setup.getByLabel("Dyslexia diagnosis month (optional)")).toHaveValue("2026-05");
   await expect
     .poll(() =>
       page.evaluate((key) => {
@@ -547,8 +642,17 @@ test("demo timeline control backdates diagnosis data and advances staged nudges 
         return state?.family?.profile?.diagnoses?.map(({ diagnosedAt }) => diagnosedAt) ?? [];
       }, STORAGE_KEY)
     )
-    .toEqual(["2026-01", "2026-01"]);
+    .toEqual(["2026-05", "2026-05"]);
   expect(await page.evaluate(() => Date.now())).toBe(FROZEN_NOW.valueOf());
+
+  await page.reload();
+  await openFold(page, "family-timeline");
+  const restoredTimeline = page.getByRole("region", { name: "What to do, and when" });
+  await expect(
+    restoredTimeline
+      .getByRole("region", { name: "Now" })
+      .getByRole("heading", { name: "Look into help for siblings and a break for you" })
+  ).toBeVisible();
 });
 
 test("Ladder is reachable from both Menu and the home composer", async ({ page }) => {
@@ -662,7 +766,7 @@ test("Spanish mobile mock path is substantive, language-correct, and horizontall
     matched.getByRole("heading", { name: "Scott County Schools Exceptional Child Services" })
   ).toBeVisible();
   await expect(
-    matched.getByText(/district special-education office and named contacts/i)
+    matched.getByText(/Special Education page lists the district director, assistant director, and administrative assistant/i)
   ).toBeVisible();
   await goToSurface(page, "Inicio");
   await expect(page.getByTestId("thread-source-language-notice")).toBeVisible();
@@ -696,9 +800,9 @@ test(`Spanish safety raises the banner without any family API request: ${SPANISH
 
   const banner = page.getByTestId("family-crisis-banner");
   await expect(banner).toBeVisible();
-  await expect(banner.getByText(/ya sea tu hijo o hija, o tú/i)).toBeVisible();
+  await expect(banner.getByText(/Alguien que te preocupa puede necesitar ayuda urgente/i)).toBeVisible();
   await expect(banner.locator('a[href="tel:988"]')).toBeVisible();
-  await expect(banner.locator('a[href="sms:988"]')).toBeVisible();
+  await expect(banner.locator('a[href="sms:988?body=AYUDA"]')).toBeVisible();
   await expect(banner.locator('a[href="tel:911"]')).toBeVisible();
   await expect(banner.getByRole("button", { name: /Entiendo — volver a Ladder/i })).toBeVisible();
   await expect(page).toHaveURL(/\/ladder$/);
@@ -728,13 +832,13 @@ test("the Breathitt case leads with school procedure and keeps the banner in-thr
   await expect(banner.getByText(/emergency department/i)).toBeVisible();
   await banner.getByRole("button", { name: /I understand — return to Ladder/i }).click();
 
-  // Basics came out of the caregiver's own words — applied on sight, with no
-  // confirm card and no turns, and marked as read-not-stated until someone checks.
+  // Basics came out of the caregiver's own words for this page only, with no
+  // confirm card and no turns. A safety turn must not persist even its logistics.
   await expect(page.getByTestId("family-basics-prefill")).toHaveCount(0);
   await expect(page.getByTestId("family-basics-turns")).toHaveCount(0);
   // F2b: this turn tripped the safety gate, so there is no recap strip — but the
-  // basics it named are still applied, because a county is logistics rather than
-  // part of the disclosure and matching below needs it.
+  // county/age hints it named stay in memory just long enough for the local
+  // resource route below; they are not made into a saved profile.
   await expect(page.getByTestId("family-heard-strip")).toHaveCount(0);
   await expect
     .poll(() =>
@@ -745,10 +849,10 @@ test("the Breathitt case leads with school procedure and keeps the banner in-thr
               family?: { profile?: { county?: string }; profileProvenance?: string };
             })
           : null;
-        return [state?.family?.profile?.county ?? null, state?.family?.profileProvenance ?? null];
+        return state?.family?.profile ?? null;
       }, STORAGE_KEY)
     )
-    .toEqual(["Breathitt", "extracted"]);
+    .toBeNull();
 
   // The lead is school procedure, not help-with-reading.
   await goToSurface(page, "Programs");
@@ -774,8 +878,47 @@ test("speech recognition ignores a repeated final-result replay", async ({ page 
   await interview.fill("");
 
   await page.getByRole("button", { name: "Start speaking" }).click();
+  await page.getByRole("button", { name: "I understand, use voice" }).click();
 
   await expect(interview).toHaveValue(transcript);
+});
+
+test("leaving Home stops hidden dictation and ignores a late result", async ({ page }) => {
+  await installControllableSpeechShim(page);
+  await stubUnconfiguredFamilyInterview(page);
+  await page.goto("/ladder");
+  await fillBasics(page, { county: "Scott", birthYear: "2017", schoolStage: "elementary" });
+  await page.getByLabel("What would you like help with?").fill(PARENT_DESCRIPTION);
+  await page.getByRole("button", { name: "Find help" }).click();
+  const answer = page.getByLabel("Or type a short answer");
+  await expect(answer).toBeVisible();
+
+  await page.getByRole("button", { name: "Answer by voice" }).click();
+  await page.getByRole("button", { name: "I understand, use voice" }).click();
+  await expect.poll(() =>
+    page.evaluate(() =>
+      (window as unknown as { __ladderSpeechControl: { starts: number } }).__ladderSpeechControl.starts
+    )
+  ).toBe(1);
+
+  await goToSurface(page, "Programs");
+  await expect.poll(() =>
+    page.evaluate(() =>
+      (window as unknown as { __ladderSpeechControl: { stops: number } }).__ladderSpeechControl.stops
+    )
+  ).toBe(1);
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { __ladderSpeechControl: { handlerAttached: () => boolean } })
+        .__ladderSpeechControl.handlerAttached()
+    )
+  ).toBe(false);
+  await page.evaluate(() =>
+    (window as unknown as { __ladderSpeechControl: { emitLate: () => void } }).__ladderSpeechControl.emitLate()
+  );
+
+  await goToSurface(page, "Home");
+  await expect(answer).toHaveValue("");
 });
 
 test("ladder walks a family from waitlist to a confirmed evaluation visit", async ({ page }) => {
@@ -786,7 +929,9 @@ test("ladder walks a family from waitlist to a confirmed evaluation visit", asyn
 
   // The appointment companion is a surface of its own, and it does not exist
   // until a referral fits this child — so the demo seeds one from Home first.
-  await expect(page.getByRole("tab", { name: "Visit" })).toHaveCount(0);
+  await expect(
+    page.getByTestId("ladder-tabs").getByRole("button", { name: "Visit" })
+  ).toHaveCount(0);
   const seed = page.getByTestId("family-referral-demo");
   await expect(seed).toBeVisible();
   await expect(page.getByText(/concept demo|not an official service/i)).toHaveCount(0);
@@ -841,7 +986,7 @@ test("ladder companion: notes accrue, check-in watches, packet prints", async ({
 
   // A dated deadline the family would otherwise never see: 2024-01 birth, 45-day
   // First Steps cutoff before the third birthday, read at the frozen clock.
-  await expect(page.getByText(/About 17 weeks left to start First Steps/).first()).toBeVisible();
+  await expect(page.getByText(/About 13 weeks left to start First Steps/).first()).toBeVisible();
 
   // Every submission after the first is a dated note, not a new orientation.
   await page.getByRole("button", { name: "Start over" }).click();
@@ -862,7 +1007,7 @@ test("ladder companion: notes accrue, check-in watches, packet prints", async ({
   await openFold(page, "family-journal");
   const journal = page.getByTestId("family-journal");
   await expect(journal.getByRole("heading", { name: "Your notes so far" })).toBeVisible();
-  await expect(journal.getByTestId("family-journal-month").first()).toContainText("July 2026");
+  await expect(journal.getByTestId("family-journal-month").first()).toContainText("August 2026");
   const rawNote = journal.getByTestId("family-journal-raw-note").last();
   await rawNote.locator("summary").click();
   await expect(rawNote.getByText(REGRESSION_NOTE)).toBeVisible();
@@ -938,7 +1083,7 @@ test("print media isolates the visit packet from the rest of the surface", async
   await expect(notesAdd).toBeVisible();
 });
 
-test("ladder companion: an earlier visit survives reload and reschedules without reviving its prior booking", async ({ page }) => {
+test("ladder companion: demo visits stay in session while real family steps survive reload", async ({ page }) => {
   await stubUnconfiguredFamilyInterview(page);
   await page.goto("/ladder");
   await fillBasics(page, {
@@ -974,30 +1119,41 @@ test("ladder companion: an earlier visit survives reload and reschedules without
   await expect(card.getByText(/Booked for.*\(demo\)/)).toBeVisible();
   await card.getByRole("button", { name: "We need a ride" }).click();
 
+  // A realistic demo can move through booking and earlier-opening states, but
+  // none of those claims may enter the durable family record or audit trail.
   await expect
     .poll(() =>
       page.evaluate((key) => {
         const raw = window.localStorage.getItem(key);
-        if (raw === null) return false;
+        if (raw === null) return null;
         const state = JSON.parse(raw) as {
-          family?: { appointments?: Array<{ status: string }> };
+          family?: {
+            referral?: unknown;
+            appointments?: unknown[];
+            soonerList?: unknown;
+            steps?: Array<{ status?: string }>;
+          };
+          auditEvents?: Array<{ label?: string }>;
         };
-        return state.family?.appointments?.some(({ status }) => status === "booked") ?? false;
+        return {
+          referral: state.family?.referral ?? null,
+          appointmentCount: state.family?.appointments?.length ?? 0,
+          soonerList: state.family?.soonerList ?? null,
+          plannedStep: state.family?.steps?.some(({ status }) => status === "planned") ?? false,
+          simulatedAuditCount:
+            state.auditEvents?.filter(({ label }) =>
+              /evaluation visit|earlier visit|demo control/i.test(label ?? "")
+            ).length ?? 0
+        };
       }, STORAGE_KEY)
     )
-    .toBe(true);
-
-  const originalBooking = await page.evaluate((key) => {
-    const raw = window.localStorage.getItem(key);
-    if (raw === null) return null;
-    const state = JSON.parse(raw) as {
-      family?: { appointments?: Array<{ id: string; status: string }> };
-    };
-    return state.family?.appointments?.find(({ status }) => status === "booked") ?? null;
-  }, STORAGE_KEY);
-  if (originalBooking === null) {
-    throw new Error("Expected the ordinary booking to persist before accepting an earlier visit.");
-  }
+    .toEqual({
+      referral: null,
+      appointmentCount: 0,
+      soonerList: null,
+      plannedStep: true,
+      simulatedAuditCount: 0
+    });
 
   const soonerTurn = card.getByTestId("family-sooner-turn");
   await expect(soonerTurn).toBeVisible();
@@ -1018,101 +1174,24 @@ test("ladder companion: an earlier visit survives reload and reschedules without
   const earlierSlot = (await slots.first().innerText()).trim();
   await slots.first().click();
   await expect(card.getByText(/Booked for.*\(demo\)/)).toContainText(earlierSlot);
+  expect(earlierSlot).not.toBe(originalSlot);
 
-  await expect
-    .poll(() =>
-      page.evaluate(
-        ({ key, originalId }) => {
-          const raw = window.localStorage.getItem(key);
-          if (raw === null) return false;
-          const state = JSON.parse(raw) as {
-            family?: {
-              appointments?: Array<{ id: string; status: string; supersedesId?: string }>;
-            };
-          };
-          const appointments = state.family?.appointments ?? [];
-          const original = appointments.find(({ id }) => id === originalId);
-          const acceptedEarlier = appointments.find(({ id, status }) => id !== originalId && status === "booked");
-          return original?.status === "replaced" && acceptedEarlier?.supersedesId === originalId;
-        },
-        { key: STORAGE_KEY, originalId: originalBooking.id }
-      )
-    )
-    .toBe(true);
-
-  const acceptedEarlierBooking = await page.evaluate(
-    ({ key, originalId }) => {
-      const raw = window.localStorage.getItem(key);
-      if (raw === null) return null;
-      const state = JSON.parse(raw) as {
-        family?: { appointments?: Array<{ id: string; status: string }> };
-      };
-      return state.family?.appointments?.find(({ id, status }) => id !== originalId && status === "booked") ?? null;
-    },
-    { key: STORAGE_KEY, originalId: originalBooking.id }
-  );
-  if (acceptedEarlierBooking === null) {
-    throw new Error("Expected the accepted earlier visit to persist before reload.");
-  }
-
+  // Reload clears the session overlay. It must not resurrect either booking,
+  // while the genuine program step remains available.
   await page.reload();
-  await goToSurface(page, "Visit");
-  await expect(card.getByText(/Booked for.*\(demo\)/)).toContainText(earlierSlot);
-  await expect(card.getByText(originalSlot, { exact: true })).toHaveCount(0);
-  await expect(card.getByRole("button", { name: "Keep our current time" })).toHaveCount(0);
-
-  // The accepted visit starts its own barrier turn before its reminder can offer
-  // a different time. Rebooking it must preserve the retired original booking.
-  await card.getByRole("button", { name: "We're all set" }).click();
-  await expect(page.getByTestId("family-appt-reminder")).toBeVisible();
-  await page.getByRole("button", { name: "Yes, we'll be there" }).click();
-  await card.getByRole("button", { name: "Demo: move the visit closer" }).click();
-  await card.getByRole("button", { name: "Tomorrow" }).click();
-  await expect(page.getByTestId("family-appt-reminder")).toBeVisible();
-  await page.getByRole("button", { name: "We need a different time" }).click();
-  const rescheduledSlot = card.getByRole("button").filter({ hasText: /,/ }).first();
-  await expect(rescheduledSlot).toBeVisible();
-  await rescheduledSlot.click();
-  await expect(card.getByText(/Booked for.*\(demo\)/)).toBeVisible();
-
-  await expect
-    .poll(() =>
-      page.evaluate(
-        ({ key, originalId, currentId }) => {
-          const raw = window.localStorage.getItem(key);
-          if (raw === null) return null;
-          const state = JSON.parse(raw) as {
-            family?: {
-              appointments?: Array<{ id: string; status: string; supersedesId?: string }>;
-            };
-            auditEvents?: Array<{ label?: string }>;
-          };
-          const appointments = state.family?.appointments ?? [];
-          const auditEvents = state.auditEvents ?? [];
-          const current = appointments.find(({ id }) => id === currentId);
-          return {
-            originalStatus: appointments.find(({ id }) => id === originalId)?.status ?? null,
-            currentFound: current !== undefined,
-            currentStatus: current?.status ?? null,
-            currentOwnsSupersedesId:
-              current !== undefined && Object.prototype.hasOwnProperty.call(current, "supersedesId"),
-            replacementAuditCount: auditEvents.filter(
-              ({ label }) => label === "Earlier visit replaced the prior booking"
-            ).length,
-            finalAuditLabel: auditEvents.at(-1)?.label ?? null
-          };
-        },
-        { key: STORAGE_KEY, originalId: originalBooking.id, currentId: acceptedEarlierBooking.id }
-      )
-    )
-    .toEqual({
-      originalStatus: "replaced",
-      currentFound: true,
-      currentStatus: "booked",
-      currentOwnsSupersedesId: false,
-      replacementAuditCount: 1,
-      finalAuditLabel: "Evaluation visit booked"
-    });
+  await expect(
+    page.getByTestId("ladder-tabs").getByRole("button", { name: "Visit" })
+  ).toHaveCount(0);
+  await expect(page.getByTestId("family-appointment-card")).toHaveCount(0);
+  await goToSurface(page, "Programs");
+  await openFold(page, "family-resources");
+  await expect(
+    page
+      .getByTestId("matched-family-resources")
+      .locator("[data-family-resource-card]")
+      .first()
+      .getByTestId("family-step-status")
+  ).toHaveAttribute("data-step-status", "planned");
 });
 
 test("resources-first: one paragraph brings help before any question, with zero confirm taps", async ({
@@ -1175,6 +1254,7 @@ test("resources-first: one paragraph brings help before any question, with zero 
   // renders. Read in one pass so a re-rank between reads cannot split them.
   const threadRegion = page.getByTestId("thread-family-resources");
   await expect(threadRegion.locator("[data-family-resource-card]").first()).toBeVisible();
+  await goToSurface(page, "Programs");
   const ids = await page.evaluate(() => {
     const read = (root: Element | null): string[] | null =>
       root
@@ -1190,6 +1270,7 @@ test("resources-first: one paragraph brings help before any question, with zero 
   expect(ids.thread?.length ?? 0).toBeGreaterThan(0);
   expect(ids.thread?.length ?? 0).toBeLessThanOrEqual(3);
   expect(ids.section?.slice(0, ids.thread?.length ?? 0)).toEqual(ids.thread);
+  await goToSurface(page, "Home");
 
   // 4. The question is optional and it lands below the last card, not above it.
   const question = page.locator("#family-follow-up-question");
@@ -1358,7 +1439,7 @@ test("phone fit: compact answers, expand in place, two-tap share, folded referen
   //    there, and Print is one tap in.
   await goToSurface(page, "Home");
   await page.getByTestId("family-doorways").getByRole("link", { name: /Visit packet/ }).click();
-  await expect(page.getByRole("tab", { name: "Notes" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("ladder-tabs").getByRole("button", { name: "Notes" })).toHaveAttribute("aria-current", "page");
   await expect(page.getByTestId("family-visit-packet-body")).toBeVisible();
   await expect(page.getByRole("button", { name: "Print" })).toBeVisible();
 

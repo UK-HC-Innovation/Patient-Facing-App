@@ -6,7 +6,6 @@ import {
   type FamilyDiagnosisBackdateMonths,
   type FamilyStage
 } from "@/domain/family-stages";
-import { ladderSimEnabled } from "@/domain/ladder-sim";
 import type { FamilyNavigatorState } from "@/domain/types";
 import {
   CARD_SUBDUED,
@@ -21,6 +20,7 @@ export type FamilyStageTimelineProps = {
   family: FamilyNavigatorState;
   language: Language;
   now?: Date;
+  simulationEnabled?: boolean;
   nudgeFirstName?: string;
   onBackdateDiagnoses?: (monthsAgo: FamilyDiagnosisBackdateMonths, now: Date) => void;
 };
@@ -74,6 +74,7 @@ export function FamilyStageTimeline({
   family,
   language,
   now = new Date(),
+  simulationEnabled = false,
   nudgeFirstName,
   onBackdateDiagnoses
 }: FamilyStageTimelineProps) {
@@ -108,7 +109,7 @@ export function FamilyStageTimeline({
               {tFamily(language, "timelineYearOnlyNotice")}
             </p>
           ) : null}
-          {ladderSimEnabled() && family.profile.diagnoses.length > 0 && onBackdateDiagnoses ? (
+          {simulationEnabled && family.profile.diagnoses.length > 0 && onBackdateDiagnoses ? (
             <div className={`mt-4 ${DEMO_BLOCK}`}>
               <button
                 type="button"

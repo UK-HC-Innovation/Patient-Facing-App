@@ -1,11 +1,14 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
+import { openFamilyFoldsFor } from "@/components/family-fold-section";
+import { useLadderSurfaceNavigation } from "@/components/ladder/use-ladder-surface-navigation";
 import {
   LadderPanel,
   LadderShell,
   ladderSurfaceForAnchor,
+  useLadderAnchorSurface,
   type LadderSurface
 } from "./ladder-shell";
 
@@ -32,8 +35,8 @@ function Harness({
       onSurfaceChange={setSurface}
       showTabs={showTabs}
     >
-      {/* Panels track the tab list exactly, the way the page does: a tabpanel
-          whose tab has not been rendered points `aria-labelledby` at nothing. */}
+      {/* Panels track navigation exactly, the way the page does: a named region
+          whose control has not rendered would point `aria-labelledby` at nothing. */}
       <LadderPanel surface="home" active={surface === "home"}>
         <p>front door</p>
         <input aria-label="a note" defaultValue="" />
@@ -57,11 +60,85 @@ function Harness({
   );
 }
 
+function AnchorHarness() {
+  const [surface, setSurface] = React.useState<LadderSurface>("home");
+  const navigation = useLadderSurfaceNavigation({
+    requestedSurface: surface,
+    available: ["home", "programs"],
+    onSurfaceChange: setSurface
+  });
+  useLadderAnchorSurface({
+    activeSurface: navigation.activeSurface,
+    pendingAnchor: navigation.pendingAnchor,
+    selectAnchor: navigation.selectAnchor,
+    settleAnchor: navigation.settleAnchor,
+    openAnchor: openFamilyFoldsFor
+  });
+  return (
+    <LadderShell
+      language="en"
+      onLanguageChange={vi.fn()}
+      subtitle="Mateo · Pike County"
+      surfaces={["home", "programs"]}
+      surface={navigation.activeSurface}
+      onSurfaceChange={navigation.selectSurface}
+      pendingAnchor={navigation.pendingAnchor}
+      showTabs
+    >
+      <LadderPanel surface="home" active={navigation.activeSurface === "home"}>
+        <a href="#family-resources">Open programs</a>
+      </LadderPanel>
+      <LadderPanel surface="programs" active={navigation.activeSurface === "programs"}>
+        <h2 id="family-resources">Program matches</h2>
+      </LadderPanel>
+    </LadderShell>
+  );
+}
+
+function DelayedAnchorHarness() {
+  const [surface, setSurface] = React.useState<LadderSurface>("home");
+  const [showTarget, setShowTarget] = React.useState(false);
+  const navigation = useLadderSurfaceNavigation({
+    requestedSurface: surface,
+    available: ["home"],
+    onSurfaceChange: setSurface
+  });
+  useLadderAnchorSurface({
+    activeSurface: navigation.activeSurface,
+    pendingAnchor: navigation.pendingAnchor,
+    selectAnchor: navigation.selectAnchor,
+    settleAnchor: navigation.settleAnchor,
+    openAnchor: openFamilyFoldsFor
+  });
+  return (
+    <LadderShell
+      language="en"
+      onLanguageChange={vi.fn()}
+      subtitle="Mateo · Pike County"
+      surfaces={["home"]}
+      surface={navigation.activeSurface}
+      onSurfaceChange={navigation.selectSurface}
+      pendingAnchor={navigation.pendingAnchor}
+      showTabs={false}
+    >
+      <LadderPanel surface="home" active>
+        <a href="#family-checkin">Open later check-in</a>
+        <button type="button" onClick={() => setShowTarget(true)}>Show check-in</button>
+        {showTarget ? <h2 id="family-checkin">Monthly check-in</h2> : null}
+      </LadderPanel>
+    </LadderShell>
+  );
+}
+
 /** Every `aria-labelledby` token on the page resolves to an element that exists. */
 function danglingLabelReferences(root: HTMLElement): string[] {
   return [...root.querySelectorAll("[aria-labelledby]")]
     .flatMap((node) => (node.getAttribute("aria-labelledby") ?? "").split(/\s+/))
     .filter((id) => id.length > 0 && root.ownerDocument.getElementById(id) === null);
+}
+
+function surfaceButton(name: string): HTMLElement {
+  return within(screen.getByTestId("ladder-tabs")).getByRole("button", { name });
 }
 
 describe("LadderShell", () => {
@@ -70,13 +147,25 @@ describe("LadderShell", () => {
     render(<Harness />);
 
     expect(screen.getByText("front door")).toBeVisible();
-    expect(screen.getByText("the library")).not.toBeVisible();
+    expect(screen.queryByText("the library")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("tab", { name: "Programs" }));
+    await user.click(surfaceButton("Programs"));
     expect(screen.getByText("the library")).toBeVisible();
     expect(screen.getByText("front door")).not.toBeVisible();
-    expect(screen.getByRole("tab", { name: "Programs" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tab", { name: "Home" })).toHaveAttribute("aria-selected", "false");
+    expect(surfaceButton("Programs")).toHaveAttribute("aria-current", "page");
+    expect(surfaceButton("Home")).not.toHaveAttribute("aria-current");
+  });
+
+  it("lazy-mounts a surface on first visit and keeps it mounted afterward", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    expect(screen.queryByText("the library")).not.toBeInTheDocument();
+
+    await user.click(surfaceButton("Programs"));
+    expect(screen.getByText("the library")).toBeVisible();
+    await user.click(surfaceButton("Home"));
+    expect(screen.getByText("the library")).toBeInTheDocument();
+    expect(screen.getByText("the library")).not.toBeVisible();
   });
 
   // The panel is hidden, not unmounted: a caregiver who taps away mid-sentence
@@ -86,8 +175,8 @@ describe("LadderShell", () => {
     render(<Harness />);
 
     await user.type(screen.getByLabelText("a note"), "he points at what he wants");
-    await user.click(screen.getByRole("tab", { name: "Notes" }));
-    await user.click(screen.getByRole("tab", { name: "Home" }));
+    await user.click(surfaceButton("Notes"));
+    await user.click(surfaceButton("Home"));
 
     expect(screen.getByLabelText("a note")).toHaveValue("he points at what he wants");
   });
@@ -103,52 +192,53 @@ describe("LadderShell", () => {
     expect(programs.className).toContain("hidden");
     expect(programs.className).not.toContain("grid");
 
-    await user.click(screen.getByRole("tab", { name: "Programs" }));
+    await user.click(surfaceButton("Programs"));
     expect(programs.className).toContain("grid");
     expect(programs.className).not.toContain("hidden");
   });
 
   it("names only the surfaces this family has", () => {
     render(<Harness surfaces={["home", "notes"]} />);
-    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Home", "Notes"]);
+    expect(
+      within(screen.getByTestId("ladder-tabs")).getAllByRole("button").map((button) => button.textContent)
+    ).toEqual(["Home", "Notes"]);
   });
 
   it("keeps the bar away while Home is the only surface", () => {
     render(<Harness surfaces={["home"]} showTabs={false} />);
-    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("ladder-tabs")).not.toBeInTheDocument();
     expect(screen.getByText("front door")).toBeVisible();
   });
 
   // F1b. On a first run there is one tab and there was one bug: three panels
   // labelled by tab ids no tab had rendered.
-  it("leaves no tabpanel labelled by a tab that does not exist", () => {
+  it("leaves no panel region labelled by navigation that does not exist", () => {
     const { container, rerender } = render(<Harness surfaces={["home"]} showTabs={false} />);
-    // No bar yet, so no tabpanel either — the panel is simply the page.
-    expect(screen.queryAllByRole("tabpanel", { hidden: true })).toHaveLength(0);
+    // No bar yet, so no named region either — the panel is simply the page.
+    expect(document.querySelectorAll('[data-ladder-panel][role="region"]')).toHaveLength(0);
     expect(screen.getByText("front door")).toBeVisible();
     expect(danglingLabelReferences(container)).toEqual([]);
 
     rerender(<Harness surfaces={["home", "notes"]} />);
-    expect(screen.getAllByRole("tabpanel", { hidden: true })).toHaveLength(2);
+    expect(document.querySelectorAll('[data-ladder-panel][role="region"]')).toHaveLength(2);
     expect(danglingLabelReferences(container)).toEqual([]);
 
     rerender(<Harness />);
-    expect(screen.getAllByRole("tabpanel", { hidden: true })).toHaveLength(4);
+    expect(document.querySelectorAll('[data-ladder-panel][role="region"]')).toHaveLength(4);
     expect(danglingLabelReferences(container)).toEqual([]);
   });
 
-  it("walks the bar with the arrow keys, as a tablist should", async () => {
+  it("uses ordinary bottom-navigation focus and does not consume scroll arrows", async () => {
     const user = userEvent.setup();
     render(<Harness />);
 
-    screen.getByRole("tab", { name: "Home" }).focus();
+    surfaceButton("Home").focus();
     await user.keyboard("{ArrowRight}");
-    expect(screen.getByRole("tab", { name: "Programs" })).toHaveFocus();
-    await user.keyboard("{End}");
-    expect(screen.getByRole("tab", { name: "Visit" })).toHaveFocus();
-    // Wrapping is what makes a four-key bar usable one-handed.
-    await user.keyboard("{ArrowRight}");
-    expect(screen.getByRole("tab", { name: "Home" })).toHaveFocus();
+    expect(surfaceButton("Home")).toHaveFocus();
+    await user.keyboard("{ArrowDown}");
+    expect(surfaceButton("Home")).toHaveFocus();
+    expect(within(screen.getByTestId("ladder-tabs")).getAllByRole("button")).toHaveLength(4);
+    expect(screen.getByTestId("ladder-tabs").querySelectorAll('[aria-current="page"]')).toHaveLength(1);
   });
 
   // P4: the language control is chrome, not a setting. It is in the header of
@@ -165,7 +255,7 @@ describe("LadderShell", () => {
     expect(es).toHaveTextContent("Español");
     expect(en).toHaveAttribute("aria-pressed", "true");
 
-    await user.click(screen.getByRole("tab", { name: "Visit" }));
+    await user.click(surfaceButton("Visit"));
     expect(within(screen.getByRole("banner")).getByRole("group", { name: "Language / Idioma" })).toBeVisible();
 
     await user.click(es);
@@ -183,7 +273,7 @@ describe("LadderShell", () => {
       layer.compareDocumentPosition(screen.getByRole("banner")) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
 
-    await user.click(screen.getByRole("tab", { name: "Programs" }));
+    await user.click(surfaceButton("Programs"));
     expect(screen.getByTestId("ladder-crisis-layer")).toBeVisible();
   });
 
@@ -215,6 +305,43 @@ describe("LadderShell", () => {
   it("offers a way back to the rest of the app", () => {
     render(<Harness />);
     expect(screen.getByRole("link", { name: "All my health" })).toHaveAttribute("href", "/menu");
+  });
+
+  it("activates, scrolls to, and focuses a target owned by another surface", async () => {
+    const user = userEvent.setup();
+    const scrollIntoView = vi.fn();
+    const original = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    window.history.replaceState(null, "", "/ladder?surface=home");
+    render(<AnchorHarness />);
+
+    await user.click(screen.getByRole("link", { name: "Open programs" }));
+    const target = await screen.findByRole("heading", { name: "Program matches" });
+    await waitFor(() => expect(target).toHaveFocus());
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "start" });
+
+    await user.click(surfaceButton("Home"));
+    expect(surfaceButton("Home")).toHaveAttribute("aria-current", "page");
+    expect(window.location.hash).toBe("");
+    expect(target).not.toBeVisible();
+
+    window.history.replaceState(null, "", window.location.pathname);
+    HTMLElement.prototype.scrollIntoView = original;
+  });
+
+  it("settles an anchor whose conditional target mounts after the first frames", async () => {
+    const user = userEvent.setup();
+    const original = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = vi.fn();
+    render(<DelayedAnchorHarness />);
+
+    await user.click(screen.getByRole("link", { name: "Open later check-in" }));
+    await new Promise((resolve) => window.setTimeout(resolve, 100));
+    await user.click(screen.getByRole("button", { name: "Show check-in" }));
+
+    const target = await screen.findByRole("heading", { name: "Monthly check-in" });
+    await waitFor(() => expect(target).toHaveFocus());
+    HTMLElement.prototype.scrollIntoView = original;
   });
 });
 

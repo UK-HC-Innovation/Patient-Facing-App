@@ -6,14 +6,16 @@
     "dev": "next dev",
     "dev:https": "next dev --experimental-https",
     "build": "next build",
+    "bundle:ladder": "node scripts/check-ladder-bundle.mjs",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:offline": "npm run build && playwright test --config=playwright.offline.config.ts",
     "crisis:gate": "node scripts/crisis-gate.mjs",
     "navigator:gate": "node scripts/navigator-gate.mjs",
-    "check": "npm run lint && npm run test && npm run build"
+    "check": "npm run lint && npm run test && npm run build && npm run bundle:ladder"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -27,6 +29,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@playwright/test": "^1.49.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
@@ -45,6 +48,7 @@
     "vitest": "^4.1.10"
   },
   "overrides": {
+    "js-yaml": "4.3.1",
     "postcss": "$postcss",
     "sharp": "0.35.3"
   }

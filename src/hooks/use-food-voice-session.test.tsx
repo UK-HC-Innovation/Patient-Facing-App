@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { demoState } from "@/domain/fixtures";
 import type { IdentifiedFood } from "@/domain/types";
+import type { ConnectArgs } from "@/ai/realtime-session";
 import { useFoodVoiceSession } from "./use-food-voice-session";
 
 const mocks = vi.hoisted(() => ({
@@ -69,5 +70,33 @@ describe("useFoodVoiceSession context injection", () => {
     await act(async () => result.current.start());
     const restartedBuilder = mocks.connect.mock.calls[1][0].buildContextMessage as () => { text: string };
     expect(restartedBuilder().text).toContain(JSON.stringify(food));
+  });
+
+  it("closes on a safety intercept and suppresses trailing transcript events", async () => {
+    const onFinalTranscript = vi.fn();
+    const onSafetyIntercept = vi.fn();
+    const { result } = renderHook(() => useFoodVoiceSession({
+      language: "en",
+      getState: () => demoState,
+      getContext: () => ({ frameDataUrl: null, identifiedFood: null, flagTexts: [] }),
+      onFinalTranscript,
+      onSafetyIntercept
+    }));
+
+    await act(async () => result.current.start());
+    const args = mocks.connect.mock.calls[0][0] as ConnectArgs;
+
+    act(() => args.onEvent({
+      type: "safetyIntercept",
+      safety: "blocked",
+      content: "Ask your care team.",
+      actions: ["call_clinic"]
+    }));
+    act(() => args.onEvent({ type: "assistantTranscript", text: "unsafe trailing text", final: true }));
+
+    expect(onSafetyIntercept).toHaveBeenCalledTimes(1);
+    expect(mocks.close).toHaveBeenCalledTimes(1);
+    expect(result.current.status).toBe("closed");
+    expect(onFinalTranscript).not.toHaveBeenCalled();
   });
 });

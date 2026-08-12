@@ -101,6 +101,10 @@ describe("useChatVoiceSession", () => {
       banner: undefined,
       actions: ["crisis_call_988"]
     });
+    act(() => args.onEvent({ type: "assistantTranscript", text: "unsafe trailing text", final: true }));
+    expect(mocks.close).toHaveBeenCalledTimes(1);
+    expect(result.current.status).toBe("closed");
+    expect(onFinalTranscript).toHaveBeenCalledTimes(2);
   });
 
   it("attests crisis state and uses the deterministic input gate", async () => {

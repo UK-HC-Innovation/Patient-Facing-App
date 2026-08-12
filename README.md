@@ -58,6 +58,14 @@ diabetes).
 - `/demo` renders the app inside a phone bezel (same-origin iframe opening on
   the `/screening?entry=sms` nudge, shares this browser's data) for stakeholder
   walkthroughs — it is not in the nav.
+- `/ladder/impact` is the clinic-facing Ladder impact demo. It computes the
+  agreed engagement, visit follow-through/no-show, and patient-experience pulse
+  measures on-device from a frozen 12-row synthetic cohort. It reads no saved
+  family record and has no API, EHR, scheduler, upload, or live refresh.
+- `/ladder` supports a production-tested repeat visit without a connection. Its
+  service worker caches only the public shell and immutable build assets; family
+  notes remain in browser storage and API/provider responses are never cached.
+  This is a warmed-repeat-visit feature, not cold-install offline support.
 - **DR screening golden path:** open `/screening?entry=sms` → "See times near
   me" → Book it → answer the ride question → "I had my screening — read my
   report" → pick `report-moderate-npdr.svg` from the demo picker → "That's

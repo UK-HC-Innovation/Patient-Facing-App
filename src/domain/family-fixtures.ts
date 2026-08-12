@@ -1,4 +1,5 @@
 import type { FamilyNavigatorState } from "./types";
+import { DEFAULT_FAMILY_RESOURCE_PREFERENCES } from "./family-resource-preferences";
 
 // Ordinary caregiver wording for tests that need submittable interview text.
 // Test-only — the app never pre-fills the interview box, and there is no
@@ -32,6 +33,7 @@ export const schoolAgeFamilyState: FamilyNavigatorState = {
   facts: [],
   latestInterviewDomains: [],
   activeDomains: [],
+  resourcePreferences: DEFAULT_FAMILY_RESOURCE_PREFERENCES,
   saved: [],
   alreadyEnrolled: [],
   steps: [],
@@ -67,6 +69,7 @@ export function eighteenMonthFamilyState(now: Date): FamilyNavigatorState {
     facts: [],
     latestInterviewDomains: [],
     activeDomains: [],
+    resourcePreferences: DEFAULT_FAMILY_RESOURCE_PREFERENCES,
     saved: [],
     alreadyEnrolled: [],
     steps: [],

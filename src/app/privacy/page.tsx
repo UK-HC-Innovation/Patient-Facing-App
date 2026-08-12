@@ -3,14 +3,17 @@
 import { useEffect, useState } from "react";
 import { PrivacyPanel } from "@/components/privacy-panel";
 import { AppShell } from "@/components/app-shell";
-import { clearStoredState } from "@/state/storage";
 import { useHealthState } from "@/state/store";
 import { recordAuditEvent } from "@/domain/audit";
 import { aiDataModeForVoiceTransport, type AiDataMode } from "@/domain/privacy-disclosure";
+import { buildDataExport, downloadDataExportFile } from "@/state/data-export";
 
 export default function PrivacyPage() {
-  const { state, dispatch } = useHealthState();
+  const { state, dispatch, deleteStoredData } = useHealthState();
   const [aiDataMode, setAiDataMode] = useState<AiDataMode>("checking");
+  const [deleteStatus, setDeleteStatus] = useState<
+    "idle" | "pending" | "complete" | "partial" | "unavailable"
+  >("idle");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -45,23 +48,22 @@ export default function PrivacyPage() {
       ...state,
       auditEvents: [...state.auditEvents, exportEvent]
     };
-    const payload = JSON.stringify(nextStateForExport, null, 2);
-    const file = new Blob([payload], { type: "application/json" });
-    const canCreateObjectURL = typeof URL.createObjectURL === "function";
-    const href = canCreateObjectURL
-      ? URL.createObjectURL(file)
-      : `data:application/json;charset=utf-8,${encodeURIComponent(payload)}`;
-    const link = document.createElement("a");
+    downloadDataExportFile(
+      buildDataExport(nextStateForExport),
+      `home-health-data-${state.patient.id}.json`
+    );
+  }
 
-    link.href = href;
-    link.download = `home-health-data-${state.patient.id}.json`;
-    link.hidden = true;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    if (canCreateObjectURL) {
-      URL.revokeObjectURL(href);
-    }
+  async function handleDelete(): Promise<void> {
+    setDeleteStatus("pending");
+    const result = await deleteStoredData();
+    setDeleteStatus(
+      result.status === "cleared"
+        ? "complete"
+        : result.status === "partial"
+          ? "partial"
+          : "unavailable"
+    );
   }
 
   return (
@@ -70,14 +72,25 @@ export default function PrivacyPage() {
         state={state}
         aiDataMode={aiDataMode}
         onExport={handleExport}
-        onReset={() => {
-          clearStoredState();
-          dispatch({ type: "deleteDemoData" });
-        }}
+        onReset={() => void handleDelete()}
         onRestoreDefaultDemo={() => dispatch({ type: "resetDemo" })}
         onUpdateAccessibility={(preferences) => dispatch({ type: "updateAccessibilityPreferences", preferences })}
         onUpdateLanguage={(language) => dispatch({ type: "setLanguage", language })}
       />
+      {deleteStatus !== "idle" ? (
+        <p
+          className="mt-4 text-sm"
+          role={deleteStatus === "partial" || deleteStatus === "unavailable" ? "alert" : "status"}
+        >
+          {deleteStatus === "pending"
+            ? "Deleting stored demo data…"
+            : deleteStatus === "complete"
+              ? "Stored demo data was deleted from this browser."
+              : deleteStatus === "partial"
+                ? "The main record was deleted, but this browser blocked part of the cleanup. Check browser site-data settings before sharing this device."
+                : "This browser did not allow Ladder to clear its stored record. Use browser site-data settings before sharing this device."}
+        </p>
+      ) : null}
     </AppShell>
   );
 }

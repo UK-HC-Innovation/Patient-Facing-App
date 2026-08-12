@@ -26,16 +26,22 @@ vi.mock("@/ai/family-recommend-provider", () => ({ requestFamilyRecommendations 
  * and what the app keeps afterwards.
  */
 const CAREGIVER_CRISIS = "My son told me he wants to die and I do not know what to do.";
+const MEDICATION_CHANGE = "Should I stop taking lisinopril?";
 
 function withFamily(family: FamilyNavigatorState | null): AppState {
   return { ...brentState, family };
 }
 
-function Harness() {
+function Harness({ initialAiConsent = "unset" }: { initialAiConsent?: "unset" | "granted" | "declined" }) {
   const [state, dispatch] = useReducer(healthReducer, withFamily(null));
   return (
     <>
-      <FamilyExperience state={state} dispatch={dispatch} passcode="demo-passcode" />
+      <FamilyExperience
+        state={state}
+        dispatch={dispatch}
+        passcode="demo-passcode"
+        initialAiConsent={initialAiConsent}
+      />
       <output data-testid="family-state">{JSON.stringify(state.family)}</output>
     </>
   );
@@ -73,9 +79,9 @@ describe("a caregiver discloses a crisis about their child", { timeout: 20_000 }
     expect(banner).not.toHaveTextContent(/you may be going through something/i);
     expect(banner).not.toHaveTextContent(/hurt yourself out of reach/i);
 
-    // It names both possibilities, because the detector reports a domain and
+    // It stays household-neutral, because the detector reports a domain and
     // never a subject — it cannot know who is at risk.
-    expect(banner).toHaveTextContent(/whether that is your child or you/i);
+    expect(banner).toHaveTextContent(/someone you are worried about/i);
 
     // Every route the old copy offered is still one tap away.
     expect(within(banner).getByRole("link", { name: "Call 988 — Crisis Lifeline" })).toBeVisible();
@@ -83,13 +89,16 @@ describe("a caregiver discloses a crisis about their child", { timeout: 20_000 }
     expect(within(banner).getByRole("link", { name: "Call 911" })).toBeVisible();
 
     // And it says plainly what Ladder cannot do.
-    expect(banner).toHaveTextContent(/cannot watch for this or contact anyone for you/i);
+    expect(banner).toHaveTextContent(/cannot monitor anyone's safety or contact anyone for you/i);
   });
 
   it("does not file the disclosure as a note, a fact, or anything a clinician would print", async () => {
     const user = userEvent.setup();
     render(<Harness />);
-    await disclose(user, CAREGIVER_CRISIS);
+    await disclose(
+      user,
+      "My 7-year-old son in Scott County told me he wants to die and I do not know what to do."
+    );
     await screen.findByTestId("family-crisis-banner");
 
     const family = familyState();
@@ -97,6 +106,7 @@ describe("a caregiver discloses a crisis about their child", { timeout: 20_000 }
     // or the visit packet, and nothing left behind on a shared phone.
     expect(family.interviews).toEqual([]);
     expect(family.facts).toEqual([]);
+    expect(family.profile).toBeNull();
     expect(JSON.stringify(family)).not.toContain("wants to die");
 
     // The event itself is still recorded — the audit trail is the one thing a
@@ -164,5 +174,60 @@ describe("a caregiver discloses a crisis about their child", { timeout: 20_000 }
     expect(family.activeDomains.length).toBeGreaterThan(0);
     // Routing survived, but the words still were not written down.
     expect(family.interviews).toEqual([]);
+  });
+
+  it("never attaches ephemeral crisis logistics to a later online request", async () => {
+    const user = userEvent.setup();
+    render(<Harness initialAiConsent="granted" />);
+    await disclose(
+      user,
+      "My 7-year-old son in Scott County told me he wants to die and I do not know what to do."
+    );
+
+    const banner = await screen.findByTestId("family-crisis-banner");
+    expect(requestFamilyInterview).not.toHaveBeenCalled();
+    await user.click(within(banner).getByRole("button", { name: /I understand — return to Ladder/i }));
+    await user.click(screen.getByRole("button", { name: "Start over" }));
+
+    await disclose(user, "Reading is difficult at school and I want to understand what help exists.");
+    await waitFor(() => expect(requestFamilyInterview).toHaveBeenCalledTimes(1));
+    expect(requestFamilyInterview.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        profile: expect.objectContaining({ county: "", birthYear: 0, schoolStage: "not_school_age" })
+      })
+    );
+    expect(JSON.stringify(requestFamilyInterview.mock.calls[0]?.[0])).not.toContain("Scott");
+  });
+});
+
+describe("a caregiver asks for a medication change", { timeout: 20_000 }, () => {
+  it("shows a non-emergency care-team block, never sends, and stores no raw text", async () => {
+    const user = userEvent.setup();
+    render(<Harness initialAiConsent="granted" />);
+
+    await disclose(user, MEDICATION_CHANGE);
+
+    const banner = await screen.findByTestId("family-crisis-banner");
+    expect(banner).toHaveAttribute("data-safety-tier", "blocked");
+    expect(banner).toHaveTextContent(/prescriber or care team/i);
+    expect(banner).not.toHaveTextContent(/911|988|urgent help/i);
+    expect(within(banner).queryByRole("link")).toBeNull();
+    expect(requestFamilyInterview).not.toHaveBeenCalled();
+
+    const family = familyState();
+    expect(family.interviews).toEqual([]);
+    expect(family.facts).toEqual([]);
+    expect(family.safetyEvents).toHaveLength(1);
+    expect(family.safetyEvents[0]).toMatchObject({
+      tier: "blocked",
+      domain: "medication_change"
+    });
+    expect(JSON.stringify(family)).not.toContain(MEDICATION_CHANGE);
+    expect(screen.queryByTestId("family-urgent-help-control")).toBeNull();
+
+    await user.click(within(banner).getByRole("button", { name: /return to Ladder/i }));
+    await waitFor(() => expect(screen.queryByTestId("family-crisis-banner")).toBeNull());
+    expect(screen.queryByTestId("family-urgent-help-control")).toBeNull();
+    expect(familyState().safetyEvents[0]?.acknowledgedAt).toEqual(expect.any(String));
   });
 });

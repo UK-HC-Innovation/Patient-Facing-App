@@ -6,8 +6,8 @@ describe("STEADI three-question check", () => {
     [[1, 0, 0, 0], "fall"],
     [[0, 1, 0, -1], "unsteadiness"],
     [[0, 0, 1, -1], "worry"]
-  ] as const)("classifies a single yes for %s as at risk", (responses) => {
-    expect(STEADI3_INSTRUMENT.score([...responses]).band).toBe("at_risk");
+  ] as const)("classifies a single yes for %s as at risk", (responses, label) => {
+    expect(STEADI3_INSTRUMENT.score([...responses]).band, label).toBe("at_risk");
   });
 
   it("distinguishes a fall with injury from a fall without injury", () => {

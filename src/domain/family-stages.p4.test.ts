@@ -27,6 +27,7 @@ function familyAt(ageMonths: number): FamilyNavigatorState {
     facts: [],
     latestInterviewDomains: [],
     activeDomains: [],
+    resourcePreferences: { scope: "no_preference", contact: "no_preference" },
     saved: [],
     alreadyEnrolled: [],
     steps: [],

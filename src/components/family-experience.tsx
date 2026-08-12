@@ -7,9 +7,9 @@ import React, {
   useState,
   type Dispatch
 } from "react";
-import { FamilyAiConsentCard } from "@/components/family-ai-consent-card";
-import { FamilyAppointmentCard } from "@/components/family-appointment-card";
-import { FamilyCheckin, type CheckinPart } from "@/components/family-checkin";
+import dynamic from "next/dynamic";
+import { FamilyAiActiveControl, FamilyAiConsentCard } from "@/components/family-ai-consent-card";
+import { FamilyCheckin } from "@/components/family-checkin";
 import { FamilyCheckinReminder } from "@/components/family-checkin-reminder";
 import { FamilyClockHandoff } from "@/components/family-clock-handoff";
 import { FamilyClockNotice, familyClockLine } from "@/components/family-clock-notice";
@@ -17,17 +17,15 @@ import { FamilyGlossSurface } from "@/components/family-gloss";
 import {
   LadderPanel,
   LadderShell,
-  useLadderAnchorSurface,
-  type LadderSurface
+  useLadderAnchorSurface
 } from "@/components/ladder-shell";
 import { FamilyClinicNowCard } from "@/components/family-clinic-now-card";
 import { FamilyCrisisBanner } from "@/components/family-crisis-banner";
 import { FamilyUrgentHelpControl } from "@/components/family-urgent-help-control";
 import { FamilyFactCard } from "@/components/family-fact-card";
-import { FamilyFoldSection, useFamilyFoldAnchors } from "@/components/family-fold-section";
+import { FamilyFoldSection, openFamilyFoldsFor } from "@/components/family-fold-section";
 import { FamilyGuideCard } from "@/components/family-guide-card";
 import type { FamilyInterviewSubmissionMeta, SanitizedFamilyInterviewResult } from "@/components/family-interview";
-import { FamilyJournal } from "@/components/family-journal";
 import { FamilyNeedsScreen } from "@/components/family-needs-screen";
 import {
   EMPTY_FAMILY_INTERVIEW_PROFILE,
@@ -35,16 +33,14 @@ import {
 } from "@/components/family-orientation-interview";
 import { FamilyProfileForm } from "@/components/family-profile-form";
 import { FamilyResourceCard } from "@/components/family-resource-card";
+import { FamilyResourcePreferencesCard } from "@/components/family-resource-preferences";
 import { FamilySourceLanguageNotice } from "@/components/family-source-language-notice";
 import { FamilyStageTimeline } from "@/components/family-stage-timeline";
-import { FamilyVisitPacket } from "@/components/family-visit-packet";
 import { FamilyWaitHeader } from "@/components/family-wait-header";
 import { recordAuditEvent } from "@/domain/audit";
 import {
   createFamilyAppointmentOffer,
-  createSoonerAppointmentOffer,
-  FAMILY_APPOINTMENT_CLINIC,
-  type FamilyAppointmentCountdownDays
+  FAMILY_APPOINTMENT_CLINIC
 } from "@/domain/family-appointments";
 import { ladderSimEnabled } from "@/domain/ladder-sim";
 import {
@@ -56,20 +52,20 @@ import {
 import {
   createFamilySafetyEvent,
   domainsAfterSafety,
-  pendingFamilySafetyEvent,
   type FamilySafetyScreen
 } from "@/domain/family-safety";
-import type { FamilyDiagnosisBackdateMonths } from "@/domain/family-stages";
+import { backdatedDiagnosisMonth, type FamilyDiagnosisBackdateMonths } from "@/domain/family-stages";
 import { resolveFamilyClinicNowTarget } from "@/domain/family-clinic-now";
 import { firstStepsClock, firstStepsWindowClosed, hasEnrolledFirstSteps } from "@/domain/family-clocks";
 import { matchFamilyGuides } from "@/domain/family-guides";
-import { answerableStaleStep, checkInDue } from "@/domain/family-journey";
 import {
   extractFamilyInterviewMock,
   familyFactStatus,
   shouldRaiseFamilyRegressionFlag
 } from "@/domain/family-interview";
 import { extractFamilyBasics, type FamilyBasicsHints } from "@/domain/family-basics-extract";
+import { traceFamilyFact } from "@/domain/family-evidence-provenance";
+import { applyFamilyResourcePreferences } from "@/domain/family-resource-preferences";
 import {
   KY_COUNTIES,
   getFamilyResourceById,
@@ -90,16 +86,13 @@ import type { Language } from "@/i18n/strings";
 import type {
   AppState,
   DevNeedDomain,
-  FamilyAppointmentBarrier,
   FamilyFact,
   FamilyInterview,
   FamilyProfile,
   FamilyProfileProvenance,
   FamilyPulse,
-  FamilyReminderOffset,
   FamilyResourceStep,
   FamilyScreenAnswer,
-  FamilySoonerConstraint,
   FamilyStepStatus
 } from "@/domain/types";
 import { Mic } from "lucide-react";
@@ -118,10 +111,33 @@ import {
 } from "@/components/family-theme";
 import { tFamily, type FamilyStringKey } from "@/i18n/family-strings";
 import type { HealthAction } from "@/state/store";
+import { useFamilyDraftPersistence } from "@/hooks/use-family-draft-persistence";
+import { useFamilyAiConsentCapability } from "@/hooks/use-family-ai-consent-capability";
+import { useLadderController } from "@/components/ladder/use-ladder-controller";
+import { selectLadderBasicsOpen } from "@/components/ladder/ladder-session-reducer";
+import { useLadderSurfaceNavigation } from "@/components/ladder/use-ladder-surface-navigation";
+import { familyAppointmentWorkflowState } from "@/components/ladder/ladder-simulation";
+import { deriveLadderPresentation } from "@/components/ladder/ladder-presentation";
+import type { FamilyAppointmentWorkflowEvent } from "@/domain/family-appointment-workflow";
+
+const LadderNotesSurface = dynamic(() =>
+  import("@/components/ladder/ladder-notes-surface").then(
+    ({ LadderNotesSurface: Surface }) => Surface
+  )
+);
+
+const LadderVisitSurface = dynamic(() =>
+  import("@/components/ladder/ladder-visit-surface").then(
+    ({ LadderVisitSurface: Surface }) => Surface
+  )
+);
 
 export type FamilyExperienceProps = {
   state: AppState;
   dispatch: Dispatch<HealthAction>;
+  /** Verified by the credential-only HttpOnly-cookie exchange on `/ladder`. */
+  onlineAuthorized?: boolean;
+  /** @deprecated Test seam retained while older characterization tests migrate. */
   passcode?: string;
   /**
    * F1b test seam. Production never passes this — `/ladder` mounts the default
@@ -131,10 +147,6 @@ export type FamilyExperienceProps = {
    * forgetting it can only ever under-send.
    */
   initialAiConsent?: FamilyAiConsent;
-};
-
-type ReviewDetails = {
-  domains: SanitizedFamilyInterviewResult["domains"];
 };
 
 const AI_USE_TITLE_KEYS = {
@@ -203,11 +215,13 @@ function resolveSchoolStage(
 function FamilyBasicsTurns({
   language,
   hints,
-  onComplete
+  onComplete,
+  onDefer
 }: {
   language: Language;
   hints: FamilyBasicsHints;
   onComplete: (basics: FamilyBasicsAnswers) => void;
+  onDefer: () => void;
 }) {
   const [county, setCounty] = useState(hints.county?.value ?? "");
   const [committedCounty, setCommittedCounty] = useState<string | null>(hints.county?.value ?? null);
@@ -250,6 +264,9 @@ function FamilyBasicsTurns({
 
   return (
     <div className="space-y-3" data-testid="family-basics-turns">
+      <p className="text-sm leading-6 text-ink/75" data-testid="family-basics-optional-note">
+        {tFamily(language, "basicsOptionalNote")}
+      </p>
       {committedCounty === null ? (
         <div className="mr-auto max-w-[90%] rounded-control border border-ink/10 bg-white p-3">
           <p className="break-words font-semibold">{countyQuestion}</p>
@@ -336,6 +353,10 @@ function FamilyBasicsTurns({
           </div>
         </div>
       ) : null}
+
+      <button type="button" onClick={onDefer} className={BTN_SECONDARY}>
+        {tFamily(language, "basicsNotNow")}
+      </button>
     </div>
   );
 }
@@ -343,71 +364,84 @@ function FamilyBasicsTurns({
 export function FamilyExperience({
   state,
   dispatch,
+  onlineAuthorized,
   passcode,
   initialAiConsent = "unset"
 }: FamilyExperienceProps) {
   const language = state.patient.language;
   const family = state.family;
-  const [reviewDetails, setReviewDetails] = useState<ReviewDetails | null>(null);
+  const {
+    schedule: scheduleDraftSave,
+    cancel: cancelDraftSave
+  } = useFamilyDraftPersistence(
+    state.patient.id,
+    family?.interviewDraft ?? "",
+    dispatch
+  );
+  const { session, actions: sessionActions } = useLadderController(initialAiConsent);
+  const consentCapabilityController = useFamilyAiConsentCapability(onlineAuthorized === true);
+  const reviewDetails = session.review;
   const safetyEvents = family?.safetyEvents ?? [];
-  const pendingSafetyEvent = pendingFamilySafetyEvent(safetyEvents);
-  const [needsScreenOpen, setNeedsScreenOpen] = useState(false);
+  const urgentSafetyEvents = safetyEvents.filter(({ tier }) => tier !== "blocked");
+  const needsScreenOpen = session.disclosures.needsScreenOpen;
   // Drives the strip's disclosure. Held here rather than left to the native
   // <details> so the profile editor inside it can be mounted only while open.
-  const [stripOpen, setStripOpen] = useState(false);
+  const stripOpen = session.disclosures.heardStripOpen;
   // Reported up by the thread so the page's other asks can stand down for the
   // rest of the visit once a conversation is underway.
-  const [threadActive, setThreadActive] = useState(false);
+  const threadActive = session.threadActive;
   // F1b. Session-scoped on purpose: never persisted, so a shared phone does not
   // inherit the last caregiver's answer and no storage migration can revive it.
   // "unset" is the resting state, and the resting state sends nothing.
-  const [aiConsent, setAiConsent] = useState<FamilyAiConsent>(initialAiConsent);
-  // Every request this session actually put on the wire, counted whatever the
-  // server answered. See the note by `aiUseMode`.
-  const [liveSendCount, setLiveSendCount] = useState(0);
-  // Recomputed every render rather than memoised: `passcode` arrives a tick after
-  // mount (the ladder page reads ?k= in an effect), so anything that latches on
-  // its first value would pin the gate shut and look like it was working.
+  const aiConsent = session.ai.consent;
+  // Every online-service send attempt this session, counted whatever the server
+  // or network answered. See the note by `aiUseMode`.
+  const liveSendCount = session.ai.liveSendCount;
+  // Session-scoped like consent. Persisted interviews describe earlier visits;
+  // mixing them into this counter made a fresh tab claim the caregiver had just
+  // turned on the helper before they had answered the current consent choice.
+  const sessionTurnCount = session.ai.sessionTurnCount;
+  // Recomputed every render: production capability arrives after the short-lived
+  // cookie exchange, while `passcode` remains only as a characterization-test seam.
   // F3a. One switch for the whole simulation, read once per render so every
   // affordance answers to the same posture and none can drift on its own.
   const simEnabled = ladderSimEnabled();
-  const liveAllowed = canSendFamilyTextOffDevice({ passcode, consent: aiConsent });
-  const offerAiChoice = shouldOfferFamilyAiChoice({ passcode, consent: aiConsent });
+  const onlineAvailable =
+    onlineAuthorized === undefined ? passcode : onlineAuthorized ? "session" : undefined;
+  const sendCapability =
+    onlineAuthorized === undefined ? passcode : consentCapabilityController.capability ?? undefined;
+  const liveAllowed = canSendFamilyTextOffDevice({ passcode: sendCapability, consent: aiConsent });
+  const offerAiChoice = shouldOfferFamilyAiChoice({ passcode: onlineAvailable, consent: aiConsent });
   // Counted from attempts, not successes. `extraction` records whether a live
-  // result came back, which is a different question from whether the words left
-  // the device: a POST the server answered `locked` or `unconfigured` records
-  // "mock" even though the body was already sent. Saying "nothing has been sent"
-  // on the strength of that would be the same class of false claim this spec
-  // exists to remove, so the disclosure counts sends the client actually made.
+  // result came back, which is different from whether the client tried to send
+  // the words. A route can answer `locked` or `unconfigured`, and a network call
+  // can fail before the server receives it. The UI therefore says "attempted"
+  // and does not infer an OpenAI handoff from a client-side request.
   const aiUseMode = familyAiUseMode({
-    liveSends:
-      liveSendCount +
-      (family?.interviews ?? []).filter(({ extraction }) => extraction === "live").length,
-    turnsTaken: family?.interviews.length ?? 0
+    liveSends: liveSendCount,
+    turnsTaken: sessionTurnCount
   });
-  const [basicsToggled, setBasicsToggled] = useState<boolean | null>(null);
-  const [followupAnswered, setFollowupAnswered] = useState(false);
+  const followupAnswered = session.followupAnswered;
   // The check-in's own parts stamp touches, which would close the card halfway
   // through; started keeps it open for this visit, skipped closes it for good.
-  const [checkinStarted, setCheckinStarted] = useState(false);
-  const [checkinSkipped, setCheckinSkipped] = useState(false);
+  const checkinStarted = session.checkin.status === "active";
   // The sequence position lives here, not in the card, because a probe yes
   // raises a flag and the clinic-now card takes the page — unmounting the card
   // mid-sequence. Holding the position out here means acknowledging that card
   // hands the caregiver back the part they had not answered (the pulse) instead
   // of restarting at the note invite and re-asking the probe.
-  const [checkinPart, setCheckinPart] = useState<CheckinPart>("note");
+  const checkinPart = session.checkin.part;
   // Which of the four surfaces is showing. Every panel stays mounted, so a tab
   // is a change of view, never a loss of what the caregiver had open.
-  const [surface, setSurface] = useState<LadderSurface>("home");
-  const [visitNoticeOpen, setVisitNoticeOpen] = useState(false);
+  const visitNoticeOpen = session.visitNoticeOpen;
   // The composer collapses to a one-tap row on a return visit; opening it is
   // what the front-door CTA and the check-in's "Add a note" both do.
-  const [composerOpen, setComposerOpen] = useState(false);
-  const [composerFocusTick, setComposerFocusTick] = useState(0);
+  const composerFocusTick = session.composer.focusRequest;
   const reviewRef = useRef<HTMLElement>(null);
   const pendingReviewFocusRef = useRef(false);
   const safetyTurnRef = useRef(false);
+  const activeRecommendationRef = useRef<AbortController | null>(null);
+  const visitNoticeReferralRef = useRef<string | null>(null);
   // Set by a turn that owns the next submission (the monthly check-in); otherwise
   // the first interview is the orientation and everything after it is a note.
   const interviewKindRef = useRef<"note" | "checkin" | null>(null);
@@ -416,53 +450,63 @@ export function FamilyExperience({
   const wroteThisSessionRef = useRef(false);
   const latestInterview = family?.interviews.at(-1);
   const latestInterviewId = latestInterview?.id;
+  const reviewAvailable =
+    session.review !== null ||
+    (latestInterviewId !== undefined &&
+      (family?.facts.some(({ interviewId }) => interviewId === latestInterviewId) ?? false));
+  // One pure application model owns the family/demo posture, available places,
+  // and the priority of safety, clinic, check-in, and follow-up asks. A routing
+  // profile inferred from a safety turn remains inside the ephemeral `session`.
+  const presentation = deriveLadderPresentation({
+    family,
+    session,
+    simulationEnabled: simEnabled,
+    wallClock: new Date(),
+    wroteThisSession: wroteThisSessionRef.current,
+    aiChoiceAvailable: offerAiChoice,
+    reviewAvailable
+  });
+  const {
+    durableFamily,
+    postureFamily,
+    routingProfile,
+    now: followupNow,
+    pendingSafetyEvent,
+    openFlag,
+    checkinVisible,
+    followupStep,
+    activeAsk,
+    returning,
+    composerCollapsed,
+    hasPrograms,
+    hasNotes,
+    hasVisit,
+    surfaces,
+    showTabs
+  } = presentation;
+  const activeDomains = family?.activeDomains;
+  const alreadyEnrolled = family?.alreadyEnrolled;
+  const resourcePreferences = family?.resourcePreferences;
   const reviewFacts = family?.facts.filter(({ interviewId }) => interviewId === latestInterviewId) ?? [];
   const profileDiagnosisVersion =
     family?.profile?.diagnoses.map(({ id, diagnosedAt }) => `${id}:${diagnosedAt ?? ""}`).join("|") ?? "none";
 
-  // Doorway rows, the wait-header rung link, and "See all" all point at sections
-  // that may be folded; this opens whichever one they land on.
-  useFamilyFoldAnchors();
-  // …and may now live on another surface, so the tab has to change first or the
-  // anchor lands on a hidden panel.
-  useLadderAnchorSurface(setSurface);
-
   useEffect(() => {
-    const previousLanguage = document.documentElement.lang;
-    document.documentElement.lang = language;
-    return () => {
-      document.documentElement.lang = previousLanguage;
-    };
-  }, [language]);
-
-  useEffect(() => {
-    const referral = family?.referral;
-    if (!referral) {
-      setVisitNoticeOpen(false);
+    const referral = postureFamily?.referral;
+    if (!simEnabled || !referral) {
+      visitNoticeReferralRef.current = null;
+      sessionActions.setVisitNoticeOpen(false);
       return;
     }
-    const key = `ladder-visit-notice:${state.patient.id}:${referral.referredAt}`;
-    try {
-      setVisitNoticeOpen(window.localStorage.getItem(key) !== "seen");
-    } catch {
-      // Storage can be unavailable in a private or locked-down browser. The
-      // notice remains useful for this visit and dismissal still works in memory.
-      setVisitNoticeOpen(true);
+    const key = `${referral.clinic}:${referral.referredAt}`;
+    if (visitNoticeReferralRef.current !== key) {
+      visitNoticeReferralRef.current = key;
+      sessionActions.setVisitNoticeOpen(true);
     }
-  }, [family?.referral, state.patient.id]);
+  }, [postureFamily?.referral, sessionActions, simEnabled]);
 
   function dismissVisitNotice(): void {
-    const referral = family?.referral;
-    setVisitNoticeOpen(false);
-    if (!referral) return;
-    try {
-      window.localStorage.setItem(
-        `ladder-visit-notice:${state.patient.id}:${referral.referredAt}`,
-        "seen"
-      );
-    } catch {
-      // Dismissal still holds for this mounted session when storage is blocked.
-    }
+    sessionActions.setVisitNoticeOpen(false);
   }
 
   useEffect(() => {
@@ -479,27 +523,27 @@ export function FamilyExperience({
   }, [composerFocusTick]);
 
   const matchResult = useMemo(() => {
-    if (!family?.profile) {
+    if (!activeDomains || !alreadyEnrolled || !routingProfile) {
       return { resources: [], isFallback: false };
     }
     if (latestInterview) {
       return buildStructuredResourceMatches(
-        family.profile,
-        family.activeDomains,
-        family.alreadyEnrolled,
+        routingProfile,
+        activeDomains,
+        alreadyEnrolled,
         latestInterview.rawText
       );
     }
-    return buildResourceMatches(family.profile, family.activeDomains, family.alreadyEnrolled);
-  }, [family?.activeDomains, family?.alreadyEnrolled, family?.profile, latestInterview]);
+    return buildResourceMatches(routingProfile, activeDomains, alreadyEnrolled);
+  }, [activeDomains, alreadyEnrolled, latestInterview, routingProfile]);
 
   // The candidate set the ranker scores — the same deterministic retrieval, minus
   // the display truncation. Ranking may reorder and explain it; never add to it.
   const rankCandidates = useMemo<MatchedResource[]>(() => {
-    if (!family?.profile || family.activeDomains.length === 0) return [];
+    if (!activeDomains || !alreadyEnrolled || !routingProfile || activeDomains.length === 0) return [];
     if (latestInterview) return matchResult.resources;
-    return buildRankCandidates(family.profile, family.activeDomains, family.alreadyEnrolled).resources;
-  }, [family?.activeDomains, family?.alreadyEnrolled, family?.profile, latestInterview, matchResult.resources]);
+    return buildRankCandidates(routingProfile, activeDomains, alreadyEnrolled).resources;
+  }, [activeDomains, alreadyEnrolled, latestInterview, matchResult.resources, routingProfile]);
 
   const storedRecommendations = family?.recommendations ?? null;
   const rankedSet =
@@ -517,7 +561,10 @@ export function FamilyExperience({
     // a stored interview and no stored ranking would POST their narrative on page
     // load, with no action of their own. Gating only the composers would have
     // left this path wide open, and the caregiver would never have seen the ask.
-    if (!liveAllowed) {
+    // Once a safety route has influenced the candidate set, keep ranking local
+    // for this browser record. Acknowledging the banner must not turn its broad
+    // domains into an online request after the literal disclosure was withheld.
+    if (!liveAllowed || safetyEvents.length > 0) {
       dispatch({
         type: "setFamilyRecommendations",
         recommendations: rankFamilyResourcesMock(
@@ -538,7 +585,9 @@ export function FamilyExperience({
       return;
     }
 
-    let cancelled = false;
+    const controller = new AbortController();
+    activeRecommendationRef.current?.abort();
+    activeRecommendationRef.current = controller;
     const profile = family.profile;
     const rawText = latestInterview.rawText;
     const candidateIds = rankCandidates.map(({ resource }) => resource.id);
@@ -552,16 +601,32 @@ export function FamilyExperience({
       language
     };
 
-    void (async () => {
-      setLiveSendCount((count) => count + 1);
-      const live = await requestFamilyRecommendations({
-        text: rawText,
-        profile,
-        passcode,
-        language,
-        candidateIds
-      }).catch(() => null);
-      if (cancelled) return;
+    // Defer the actual send one microtask. In development StrictMode, React can
+    // tear down the first effect pass before this runs, preventing a duplicate
+    // request and duplicate attempt audit.
+    void Promise.resolve().then(async () => {
+      if (controller.signal.aborted || activeRecommendationRef.current !== controller) return;
+      sessionActions.recordAiSendAttempt();
+      // Recorded before awaiting the response: this is an attempt audit, not a
+      // claim that Ladder's server forwarded the request to OpenAI.
+      dispatch({
+        type: "addAuditEvent",
+        event: recordAuditEvent(
+          state.patient.id,
+          "family_ai_send_attempted",
+          "Family program-ranking send attempted through Ladder's online service"
+        )
+      });
+      const live = await requestFamilyRecommendations(
+        {
+          text: rawText,
+          profile,
+          language,
+          candidateIds
+        },
+        { signal: controller.signal, consentCapability: sendCapability }
+      ).catch(() => null);
+      if (controller.signal.aborted || activeRecommendationRef.current !== controller) return;
 
       const fallback = rankFamilyResourcesMock(rankCandidates, domains, rawText, language, interviewId);
       if (!live) {
@@ -594,10 +659,13 @@ export function FamilyExperience({
               },
         context
       });
-    })();
+    });
 
     return () => {
-      cancelled = true;
+      controller.abort();
+      if (activeRecommendationRef.current === controller) {
+        activeRecommendationRef.current = null;
+      }
     };
   }, [
     dispatch,
@@ -606,18 +674,19 @@ export function FamilyExperience({
     language,
     latestInterview,
     liveAllowed,
-    passcode,
+    sendCapability,
     pendingSafetyEvent,
     rankCandidates,
-    rankedSet
+    rankedSet,
+    safetyEvents.length,
+    sessionActions,
+    state.patient.id
   ]);
 
-  // One reading per render, so every First Steps card in the list counts down to
-  // the same dated cutoff. Declared above the interlude because the inline cards
-  // read it during that eagerly-evaluated JSX.
-  const followupNow = new Date();
-  const clock = family?.profile
-    ? firstStepsClock(family.profile, followupNow, hasEnrolledFirstSteps(family))
+  // The application model supplies one instant per render, so every First Steps
+  // card in the list counts down to the same dated cutoff.
+  const clock = family && routingProfile
+    ? firstStepsClock(routingProfile, followupNow, hasEnrolledFirstSteps(family))
     : null;
   // F7b. The clock rung links #family-resources because the countdown lives on
   // the First Steps card — but the section shows the model-ranked top eight, and
@@ -627,9 +696,9 @@ export function FamilyExperience({
     clock !== null && (family?.activeDomains.includes("early_intervention") ?? false);
   // F7c: the clock did not just stop showing — the window actually closed.
   const clockWindowClosed =
-    family?.profile !== undefined &&
-    family?.profile !== null &&
-    firstStepsWindowClosed(family.profile, followupNow, hasEnrolledFirstSteps(family));
+    family !== null &&
+    routingProfile !== null &&
+    firstStepsWindowClosed(routingProfile, followupNow, hasEnrolledFirstSteps(family));
 
   // What actually renders. A valid ranking reorders and annotates the matched set;
   // with no ranking (screen-only, stale, or every item dropped by the lint) the
@@ -666,6 +735,21 @@ export function FamilyExperience({
       ];
     }
 
+    if (resourcePreferences && routingProfile) {
+      const metadataById = new Map(ordered.map((item) => [item.match.resource.id, item]));
+      const preferred = applyFamilyResourcePreferences(
+        ordered.map(({ match }) => match),
+        resourcePreferences,
+        routingProfile.county
+      );
+      ordered = preferred.map((match) => metadataById.get(match.resource.id) ?? {
+        match,
+        why: undefined,
+        quote: undefined,
+        urgency: undefined
+      });
+    }
+
     // Enrollment sinks a card without making the family's just-recorded action
     // disappear beyond the eight-card surface.
     const enrolled = new Set(family?.alreadyEnrolled ?? []);
@@ -692,23 +776,25 @@ export function FamilyExperience({
     ];
   }, [
     family?.alreadyEnrolled,
+    resourcePreferences,
     matchResult.isFallback,
     matchResult.resources,
     pinFirstSteps,
     rankCandidates,
-    rankedSet
+    rankedSet,
+    routingProfile
   ]);
 
   const nearbyTherapeuticRecreation = useMemo(() => {
-    if (!family?.profile || family.activeDomains.length === 0) {
+    if (!activeDomains || !alreadyEnrolled || !routingProfile || activeDomains.length === 0) {
       return [];
     }
     return buildNearbyTherapeuticRecreation(
-      family.profile,
+      routingProfile,
       new Set(matchResult.resources.map(({ resource }) => resource.id)),
-      family.alreadyEnrolled
+      alreadyEnrolled
     );
-  }, [family?.activeDomains, family?.alreadyEnrolled, family?.profile, matchResult.resources]);
+  }, [activeDomains, alreadyEnrolled, matchResult.resources, routingProfile]);
 
   const savedResources = useMemo(
     () =>
@@ -730,11 +816,11 @@ export function FamilyExperience({
   }
 
   function backdateFamilyDiagnoses(monthsAgo: FamilyDiagnosisBackdateMonths, now: Date): void {
-    dispatch({
-      type: "backdateFamilyDiagnoses",
-      monthsAgo,
-      now: now.toISOString()
-    });
+    const diagnoses = postureFamily?.profile?.diagnoses ?? [];
+    const diagnosedAt = backdatedDiagnosisMonth(now, monthsAgo);
+    sessionActions.setSimulationDiagnosisDates(
+      Object.fromEntries(diagnoses.map(({ id }) => [id, diagnosedAt]))
+    );
   }
 
   function submitScreen(answers: FamilyScreenAnswer[], facts: FamilyFact[]): void {
@@ -746,6 +832,10 @@ export function FamilyExperience({
     meta: FamilyInterviewSubmissionMeta,
     { round, newText }: { round: number; newText: string }
   ): void {
+    // The interview action clears the persisted draft. Prevent a delayed recovery
+    // write from restoring the just-submitted words after that clear.
+    cancelDraftSave();
+    sessionActions.completeInterview();
     // F2b. A crisis turn routes, but it is not recorded and it is not presented
     // as an interpretation. Before this, the disclosure ran the whole pipeline:
     // facts were made from it, the raw words were persisted (so they sat in the
@@ -766,13 +856,14 @@ export function FamilyExperience({
     if (safetyTurnRef.current || meta.containsSafetyDisclosure) {
       safetyTurnRef.current = false;
       interviewKindRef.current = null;
-      setReviewDetails(null);
-      // The basics are logistics, not the disclosure. They normally come from
-      // the stored interview text, which this turn deliberately does not keep —
-      // so they are read here and applied directly. Without this, a caregiver
-      // who names their county inside their hardest message is asked for it
-      // again immediately afterwards, and matching has no county to work with.
-      if (family && !family.profile) {
+      sessionActions.clearReview();
+      // Nothing extracted from a safety-tripped turn is durable, including
+      // seemingly harmless logistics such as county, birth year, or school
+      // stage. Keeping those fields would contradict the promise that the turn
+      // is not made into facts and can still expose details from the disclosure
+      // on a shared device. The broad routing domains below are the only
+      // retained interpretation.
+      if (!family?.profile) {
         const hints = extractFamilyBasics(meta.rawText, new Date(), language);
         const county = hints.county?.value;
         const birthYear = hints.birthYear?.value;
@@ -781,7 +872,7 @@ export function FamilyExperience({
             ? resolveSchoolStage(hints, birthYear, new Date())
             : null;
         if (county !== undefined && birthYear !== undefined && schoolStage !== null) {
-          saveProfile({ county, birthYear, schoolStage, diagnoses: [] }, "extracted");
+          sessionActions.setSafetyRoutingProfile({ county, birthYear, schoolStage, diagnoses: [] });
         }
       }
       dispatch({
@@ -821,7 +912,7 @@ export function FamilyExperience({
       ((family?.interviews.length ?? 0) === 0 ? "orientation" : "note");
     interviewKindRef.current = null;
 
-    setReviewDetails({ domains: result.domains });
+    sessionActions.receiveReview({ domains: result.domains });
     dispatch({
       type: "addFamilyInterview",
       interview: {
@@ -870,7 +961,7 @@ export function FamilyExperience({
   }
 
   function answerFollowup(step: FamilyResourceStep, status: FamilyStepStatus): void {
-    setFollowupAnswered(true);
+    sessionActions.answerFollowup();
     dispatch({ type: "updateFamilyStep", stepId: step.id, status, at: new Date().toISOString() });
   }
 
@@ -916,22 +1007,21 @@ export function FamilyExperience({
    */
   function openComposer(kind: "note" | "checkin"): void {
     interviewKindRef.current = kind === "checkin" ? "checkin" : null;
-    setSurface("home");
-    setComposerOpen(true);
-    // The box may not be mounted yet on a return visit, so focus waits for the
-    // render that puts it there.
-    setComposerFocusTick((tick) => tick + 1);
+    // Opening the shared composer also returns Home and advances the focus
+    // request as one reducer transition.
+    sessionActions.openComposer();
+    navigation.replaceSurface("home");
   }
 
   // The check-in never opens a second writing surface: it hands the caregiver
   // the same interview box, tagged so the note files as a check-in.
   function openCheckinNote(): void {
-    setCheckinStarted(true);
+    sessionActions.startCheckin();
     openComposer("checkin");
   }
 
   function answerCheckinProbe(answer: "no" | "yes" | "unsure"): void {
-    setCheckinStarted(true);
+    sessionActions.startCheckin();
     const at = new Date().toISOString();
     // Every answer is kept, including "not sure" — the one tap in the check-in
     // that used to leave no trace at all (F8.3).
@@ -942,12 +1032,12 @@ export function FamilyExperience({
   }
 
   function recordCheckinPulse(score: FamilyPulse["score"]): void {
-    setCheckinStarted(true);
+    sessionActions.startCheckin();
     dispatch({ type: "recordFamilyPulse", pulse: { at: new Date().toISOString(), score } });
   }
 
   function skipCheckin(): void {
-    setCheckinSkipped(true);
+    sessionActions.skipCheckin();
     dispatch({ type: "skipFamilyCheckin", at: new Date().toISOString() });
   }
 
@@ -955,12 +1045,20 @@ export function FamilyExperience({
   // not exist for a family with no referral. Stay on Home so the one-time
   // notice can explain the new tab; its "See it" action performs the switch.
   function seedReferral(): void {
-    const now = new Date();
-    dispatch({
-      type: "setFamilyReferral",
-      referral: { clinic: FAMILY_APPOINTMENT_CLINIC, referredAt: now.toISOString() }
+    if (!family) return;
+    transitionVisit({
+      type: "seeded",
+      referral: { clinic: FAMILY_APPOINTMENT_CLINIC, referredAt: followupNow.toISOString() },
+      appointment: createFamilyAppointmentOffer(followupNow)
     });
-    dispatch({ type: "offerFamilyAppointment", appointment: createFamilyAppointmentOffer(now) });
+  }
+
+  function transitionVisit(event: FamilyAppointmentWorkflowEvent): void {
+    if (!family) return;
+    sessionActions.transitionSimulationVisit(
+      event,
+      familyAppointmentWorkflowState(postureFamily ?? family)
+    );
   }
 
   // Everything the caregiver has already typed, so the basics turns can skip
@@ -999,16 +1097,13 @@ export function FamilyExperience({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAutoApply, autoBasics, latestInterviewId]);
 
-  const basicsOpen = basicsToggled ?? false;
-  const needsBasics =
-    !!family &&
-    !family.profile &&
-    (family.interviews.length > 0 || family.activeDomains.length > 0);
+  const basicsOpen = selectLadderBasicsOpen(session);
+  const needsBasics = activeAsk === "basics";
 
   // The child's own name wherever the copy addresses them, with the language's
   // stand-in when the caregiver has not given one.
   const childName =
-    family?.profile?.childFirstName?.trim() || tFamily(language, "heardStripChildFallback");
+    routingProfile?.childFirstName?.trim() || tFamily(language, "heardStripChildFallback");
   const firstStepsClockLine =
     clock === null ? undefined : familyClockLine(clock, language, childName);
 
@@ -1043,7 +1138,7 @@ export function FamilyExperience({
         domain={domain}
         variant={variant}
         language={language}
-        county={family.profile?.county}
+        county={routingProfile?.county}
         matchNeed={tFamily(language, DOMAIN_KEYS[domain])}
         step={family.steps.find(({ resourceId }) => resourceId === resource.id)}
         onPlanStep={planStep}
@@ -1099,7 +1194,6 @@ export function FamilyExperience({
       <section
         ref={reviewRef}
         tabIndex={-1}
-        aria-live="polite"
         aria-labelledby="family-facts-title"
         data-testid="family-heard-strip"
         className="rounded-control border border-ink/10 bg-paper p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care"
@@ -1108,6 +1202,8 @@ export function FamilyExperience({
           <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
             <p
               data-testid="family-heard"
+              aria-live="polite"
+              aria-atomic="true"
               className="min-w-0 break-words font-medium leading-relaxed text-ink"
             >
               {heardSentence}
@@ -1126,12 +1222,9 @@ export function FamilyExperience({
           <summary
             onClick={(event) => {
               event.preventDefault();
-              setStripOpen((open) => {
-                // Two copies of the profile form on screen would each hold their
-                // own draft, and whichever saved last would quietly undo the other.
-                if (!open) setBasicsToggled(false);
-                return !open;
-              });
+              // Two copies of the profile form on screen would each hold their
+              // own draft. The reducer makes the disclosures mutually exclusive.
+              sessionActions.toggleHeardStrip();
             }}
             className={`min-h-12 min-w-0 cursor-pointer list-item break-words rounded-control py-2 text-sm font-semibold text-care ${CONTROL_FOCUS}`}
           >
@@ -1145,6 +1238,7 @@ export function FamilyExperience({
               <FamilyFactCard
                 key={fact.id}
                 fact={fact}
+                evidenceTrace={family ? traceFamilyFact(family, fact) : undefined}
                 language={language}
                 onConfirm={(factId) => dispatch({ type: "confirmFamilyFact", factId })}
               />
@@ -1202,10 +1296,9 @@ export function FamilyExperience({
                 {tFamily(language, "extractionOnDevice")}
               </p>
             ) : null}
-            {/* F1d. Generated from the record, not asserted: `aiUseMode` counts
-                the interviews whose extraction actually completed live. The old
-                Privacy line derived "AI data use: not active" from the live-voice
-                transport probe, which knew nothing about this surface at all. */}
+            {/* F1d. Generated from this mounted session's attempts and turns, not
+                from persisted history and not asserted from configuration. The
+                global Privacy surface separately reads the durable send audit. */}
             <p
               data-testid="family-ai-use"
               data-ai-use-mode={aiUseMode}
@@ -1236,14 +1329,13 @@ export function FamilyExperience({
 
   // Directly under the safety slot, and never styled like it: informational,
   // dismissible, and the page keeps working around it.
-  const openFlag = family?.flags.find(({ acknowledgedAt }) => acknowledgedAt === undefined);
-  const clinicNowTurn = openFlag ? (
+  const clinicNowTurn = openFlag && postureFamily ? (
     <FamilyClinicNowCard
       key={openFlag.id}
       flag={openFlag}
       language={language}
       // Resolved from the family's own record — never the demo clinic (F2a).
-      target={resolveFamilyClinicNowTarget(family, followupNow)}
+      target={resolveFamilyClinicNowTarget(postureFamily, followupNow)}
       onAcknowledge={acknowledgeClinicNow}
     />
   ) : null;
@@ -1265,16 +1357,28 @@ export function FamilyExperience({
   // banner: a caregiver reading 988 numbers is not being asked to make a data
   // choice. Declining is remembered for the session, so this asks at most once.
   const aiConsentTurn =
-    offerAiChoice && reviewTurn !== null && pendingSafetyEvent === undefined ? (
+    activeAsk === "ai_consent" && reviewTurn !== null ? (
       <FamilyAiConsentCard
         language={language}
-        onAccept={() => setAiConsent("granted")}
-        onDecline={() => setAiConsent("declined")}
+        pending={consentCapabilityController.pending}
+        error={consentCapabilityController.error}
+        onAccept={async () => {
+          if (onlineAuthorized === undefined) {
+            sessionActions.answerAiConsent("granted");
+            return;
+          }
+          const capability = await consentCapabilityController.grant();
+          if (capability !== null) sessionActions.answerAiConsent("granted");
+        }}
+        onDecline={() => {
+          consentCapabilityController.revoke();
+          sessionActions.answerAiConsent("declined");
+        }}
       />
     ) : null;
 
   const aiDeclinedNotice =
-    aiConsent === "declined" && reviewTurn !== null ? (
+    aiConsent === "declined" ? (
       <p
         data-testid="family-ai-declined"
         className="break-words text-sm leading-6 text-ink/70"
@@ -1283,20 +1387,44 @@ export function FamilyExperience({
       </p>
     ) : null;
 
+  const aiActiveControl =
+    aiConsent === "granted" && liveAllowed ? (
+      <FamilyAiActiveControl
+        language={language}
+        onRevoke={() => {
+          consentCapabilityController.revoke();
+          sessionActions.answerAiConsent("declined");
+        }}
+      />
+    ) : null;
+
+  const aiUnavailableNotice =
+    aiConsent === "granted" && !liveAllowed ? (
+      <p className="break-words text-sm leading-6 text-ink/70" role="status">
+        {tFamily(language, "aiConsentUnavailableNotice")}
+      </p>
+    ) : null;
+
   const interlude =
     reviewTurn ||
     needsBasics ||
     threadResources.length > 0 ||
     showFallbackInThread ||
-    aiConsentTurn ? (
+    aiConsentTurn ||
+    aiActiveControl ||
+    aiUnavailableNotice ||
+    aiDeclinedNotice ? (
       <>
         {reviewTurn}
         {aiConsentTurn}
+        {aiActiveControl}
+        {aiUnavailableNotice}
         {aiDeclinedNotice}
         {needsBasics ? (
           <FamilyBasicsTurns
             language={language}
             hints={basicsHints}
+            onDefer={sessionActions.deferBasics}
             onComplete={({ county, birthYear, schoolStage }) =>
               saveProfile({
                 county,
@@ -1345,39 +1473,7 @@ export function FamilyExperience({
       </>
     ) : null;
 
-  // The check-in is the page's one ask while it is up, and it yields to both the
-  // safety banner and the clinic-now card above it.
-  const checkinVisible =
-    family !== null &&
-    family.profile !== null &&
-    pendingSafetyEvent === undefined &&
-    openFlag === undefined &&
-    !checkinSkipped &&
-    (checkinStarted || checkInDue(family, followupNow));
-  // One ask at a time: the stale-step question also yields to an open thread turn,
-  // which owns the ask for the rest of this visit.
-  const followupStep =
-    family &&
-    !followupAnswered &&
-    pendingSafetyEvent === undefined &&
-    openFlag === undefined &&
-    !checkinVisible &&
-    !threadActive
-      ? answerableStaleStep(family.steps, followupNow)
-      : undefined;
   const followupResource = followupStep ? getFamilyResourceById(followupStep.resourceId) : undefined;
-
-  /**
-   * Did the caregiver arrive with history? Storage hydrates after the first
-   * client render, so this follows the current family record instead of
-   * latching the empty demo state that rendered before hydration. The session
-   * ref keeps the first answer from turning its own first-run thread into a
-   * return visit halfway through.
-   */
-  const returning = !wroteThisSessionRef.current && (family?.interviews.length ?? 0) > 0;
-  // On a return visit the composer is one tap away rather than open — but it is
-  // the same box, and nothing else on any surface can write.
-  const composerCollapsed = returning && family?.profile != null && !composerOpen;
 
   // Catalog content follows the resource lead, then fills the small strip from
   // additive needs. This lets a direct therapy route stay first while a neutral
@@ -1399,9 +1495,9 @@ export function FamilyExperience({
       ]
     : rankedGuideDomains;
   const guides =
-    family?.profile && family.activeDomains.length > 0
+    routingProfile && family && family.activeDomains.length > 0
       ? matchFamilyGuides(
-          family.profile,
+          routingProfile,
           guideDomains,
           followupNow
         )
@@ -1417,29 +1513,22 @@ export function FamilyExperience({
     ...(guides.length > 0 ? [tFamily(language, "guidesTitle")] : [])
   ].join(" · ");
 
-  // Which surfaces exist for this family. Programs needs matched needs; Visit
-  // exists only once a referral fits this child, so a family with no waitlist
-  // never gets an appointment companion (1h).
-  const hasPrograms = !!family?.profile && family.activeDomains.length > 0;
-  const hasNotes = !!family && (family.profile !== null || family.facts.length > 0);
-  // F3a. The referral, the slot picker, and the booking are all simulated —
-  // nothing in the app can create a real one. So with the simulation off the
-  // Visit surface does not exist at all, even for a record that already carries
-  // a referral from a demo session: an interface that appears to hold a booked
-  // evaluation is the single most consequential thing a family could believe.
-  const hasVisit = simEnabled && !!family?.profile && family.referral !== null;
-  const surfaces: LadderSurface[] = [
-    "home",
-    ...(hasPrograms ? (["programs"] as const) : []),
-    ...(hasNotes ? (["notes"] as const) : []),
-    ...(hasVisit ? (["visit"] as const) : [])
-  ];
-  // The first session stays a single thread until there is an answer: Programs
-  // only exists once a need has been matched, Notes once something is written.
-  // The bar appears with the second surface, so no panel is ever unreachable.
-  const showTabs = surfaces.length > 1;
   // A tab that stopped existing must not leave the caregiver on a blank panel.
-  const activeSurface = surfaces.includes(surface) ? surface : "home";
+  const navigation = useLadderSurfaceNavigation({
+    requestedSurface: session.surface,
+    available: surfaces,
+    onSurfaceChange: sessionActions.selectSurface
+  });
+  // Linked content may live on another surface. Switch the tab before the
+  // browser settles the anchor, and record that destination in history.
+  const activeSurface = navigation.activeSurface;
+  useLadderAnchorSurface({
+    activeSurface,
+    pendingAnchor: navigation.pendingAnchor,
+    selectAnchor: navigation.selectAnchor,
+    settleAnchor: navigation.settleAnchor,
+    openAnchor: openFamilyFoldsFor
+  });
 
   const homePanel = (
     <>
@@ -1447,17 +1536,18 @@ export function FamilyExperience({
         // Same instant and same check-in visibility the sections below are
         // built from, so the rung can never name a section this render omits.
         <FamilyWaitHeader
-          family={family}
+          family={postureFamily ?? family}
           language={language}
           now={followupNow}
           checkinOpen={checkinVisible}
           threadActive={threadActive}
           returning={returning}
           programsCount={hasPrograms ? librarySize : undefined}
+          simulationEnabled={simEnabled}
         />
       ) : null}
 
-      {visitNoticeOpen && family?.referral ? (
+      {simEnabled && visitNoticeOpen && postureFamily?.referral ? (
         <section
           data-testid="family-visit-tab-notice"
           role="status"
@@ -1469,7 +1559,7 @@ export function FamilyExperience({
           <p className="mt-1 break-words leading-relaxed text-ink/85">
             {tFamily(language, "visitTabNoticeBody", {
               name: childName,
-              clinic: family.referral.clinic
+              clinic: postureFamily.referral.clinic
             })}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -1477,7 +1567,7 @@ export function FamilyExperience({
               type="button"
               onClick={() => {
                 dismissVisitNotice();
-                setSurface("visit");
+                navigation.selectSurface("visit");
               }}
               className={BTN_PRIMARY}
             >
@@ -1495,7 +1585,7 @@ export function FamilyExperience({
           family={family}
           language={language}
           part={checkinPart}
-          onPartChange={setCheckinPart}
+          onPartChange={sessionActions.changeCheckinPart}
           resuming={checkinStarted}
           onOpenNote={openCheckinNote}
           onProbeAnswer={answerCheckinProbe}
@@ -1506,17 +1596,15 @@ export function FamilyExperience({
 
       {/* The only thing in Ladder that ever brings a family back. Placed on the
           front door because it is about the visit after this one. */}
-      {family?.profile ? (
-        <FamilyCheckinReminder family={family} language={language} now={followupNow} />
+      {postureFamily?.profile ? (
+        <FamilyCheckinReminder family={postureFamily} language={language} now={followupNow} />
       ) : null}
 
       {simEnabled && family?.profile && !checkinVisible ? (
         <section data-testid="family-checkin-demo" className={DEMO_BLOCK}>
           <button
             type="button"
-            onClick={() =>
-              dispatch({ type: "backdateFamilyTouches", days: 31, now: new Date().toISOString() })
-            }
+            onClick={() => sessionActions.advanceSimulationClock(31)}
             className={`min-h-12 min-w-0 break-words rounded-control border border-ink/25 bg-white px-4 py-2 text-sm font-semibold text-ink/70 ${CONTROL_FOCUS}`}
           >
             {tFamily(language, "checkinDemoControl")}
@@ -1586,26 +1674,39 @@ export function FamilyExperience({
         <div className="mt-4">
           <FamilyOrientationInterview
             key="family-orientation"
+            // Safety-turn logistics are deliberately excluded: they may route
+            // local resources on this page, but a later Start over + consented
+            // ordinary turn must never attach them to an online request.
             profile={family?.profile ?? EMPTY_FAMILY_INTERVIEW_PROFILE}
             draft={family?.interviewDraft ?? ""}
-            passcode={passcode}
             liveAllowed={liveAllowed}
-            onLiveSend={() => setLiveSendCount((count) => count + 1)}
+            consentCapability={sendCapability}
+            onLiveSend={() => {
+              sessionActions.recordAiSendAttempt();
+              dispatch({
+                type: "addAuditEvent",
+                event: recordAuditEvent(
+                  state.patient.id,
+                  "family_ai_send_attempted",
+                  "Family interview send attempted through Ladder's online service"
+                )
+              });
+            }}
             language={language}
             voiceEntryContext={{ patientId: state.patient.id, dispatch }}
             interlude={interlude}
             holdTurn={needsBasics}
             showComplete={threadResources.length === 0}
-            voiceLocked={pendingSafetyEvent !== undefined}
+            voiceLocked={pendingSafetyEvent !== undefined || activeSurface !== "home"}
             completePlaceholder={
               (family?.interviews.length ?? 0) > 0
                 ? tFamily(language, "journalNotePlaceholder")
                 : undefined
             }
-            onDraftChange={(draft) => dispatch({ type: "setFamilyInterviewDraft", draft })}
+            onDraftChange={scheduleDraftSave}
             onInterviewExtracted={addInterview}
             onSafetyEscalation={recordSafety}
-            onThreadActiveChange={setThreadActive}
+            onThreadActiveChange={sessionActions.setThreadActive}
           />
         </div>
         <div className="mt-4 border-t border-care/10 pt-4">
@@ -1613,7 +1714,7 @@ export function FamilyExperience({
             type="button"
             aria-expanded={needsScreenOpen}
             aria-controls="family-needs-screen-panel"
-            onClick={() => setNeedsScreenOpen((current) => !current)}
+            onClick={sessionActions.toggleNeedsScreen}
             className={`min-h-12 w-full min-w-0 rounded-control text-left ${CONTROL_FOCUS}`}
           >
             <span className="block break-words font-semibold">
@@ -1678,9 +1779,9 @@ export function FamilyExperience({
           aria-expanded={basicsOpen}
           aria-controls="family-basics-panel"
           onClick={() => {
-            // Mirrors the strip's disclosure: one profile editor open at a time.
-            if (!basicsOpen) setStripOpen(false);
-            setBasicsToggled(!basicsOpen);
+            // The reducer mirrors the strip disclosure and allows only one
+            // profile editor to be mounted at a time.
+            sessionActions.toggleBasics();
           }}
           className={`min-h-12 w-full min-w-0 rounded-control text-left ${CONTROL_FOCUS}`}
         >
@@ -1704,9 +1805,18 @@ export function FamilyExperience({
         ) : null}
       </section>
 
+      {family?.profile ? (
+        <FamilyResourcePreferencesCard
+          key={`${family.resourcePreferences.scope}:${family.resourcePreferences.contact}`}
+          preferences={family.resourcePreferences}
+          language={language}
+          onSave={(preferences) => dispatch({ type: "setFamilyResourcePreferences", preferences })}
+        />
+      ) : null}
+
       {/* The demo's way onto a waitlist. It lives here rather than on the Visit
           surface because that surface does not exist until a referral does. */}
-      {simEnabled && family?.profile && family.referral === null ? (
+      {simEnabled && postureFamily?.profile && postureFamily.referral === null ? (
         <section data-testid="family-referral-demo" className={DEMO_BLOCK}>
           <p className="break-words text-sm leading-6 text-ink/75">
             {tFamily(language, "apptJoinDemoBody")}
@@ -1725,10 +1835,12 @@ export function FamilyExperience({
       {/* The plan for the wait. It belongs to Home rather than to the Visit
           companion because a family with no referral has no Visit surface —
           and still has a wait, and still deserves the plan. */}
-      {family?.profile ? (
+      {postureFamily?.profile ? (
         <FamilyStageTimeline
-          family={family}
+          family={postureFamily}
           language={language}
+          now={followupNow}
+          simulationEnabled={simEnabled}
           nudgeFirstName={state.patient.preferredName}
           onBackdateDiagnoses={backdateFamilyDiagnoses}
         />
@@ -1738,79 +1850,16 @@ export function FamilyExperience({
 
   const visitPanel = (
     <>
-      {simEnabled && family?.profile && family.referral !== null ? (
-        <FamilyAppointmentCard
-          family={family}
+      {simEnabled && postureFamily?.profile && postureFamily.referral !== null ? (
+        <LadderVisitSurface
+          family={postureFamily}
           language={language}
+          now={followupNow}
+          simulationEnabled={simEnabled}
           locked={pendingSafetyEvent !== undefined}
           onSeedReferral={seedReferral}
-          onBook={(appointmentId, slot) =>
-            dispatch({ type: "bookFamilyAppointment", appointmentId, slot, at: new Date().toISOString() })
-          }
-          onBarriers={(appointmentId, barriers: FamilyAppointmentBarrier[]) =>
-            dispatch({
-              type: "recordFamilyAppointmentBarriers",
-              appointmentId,
-              barriers,
-              at: new Date().toISOString()
-            })
-          }
-          onAckReminder={(appointmentId, offset: FamilyReminderOffset) =>
-            dispatch({
-              type: "acknowledgeFamilyAppointmentReminder",
-              appointmentId,
-              offset,
-              at: new Date().toISOString()
-            })
-          }
-          onReschedule={(appointmentId) =>
-            dispatch({ type: "requestFamilyAppointmentReschedule", appointmentId, at: new Date().toISOString() })
-          }
-          onComplete={(appointmentId) =>
-            dispatch({ type: "completeFamilyAppointment", appointmentId, at: new Date().toISOString() })
-          }
-          onMiss={(appointmentId) =>
-            dispatch({ type: "missFamilyAppointment", appointmentId, at: new Date().toISOString() })
-          }
-          onRebook={() =>
-            dispatch({ type: "offerFamilyAppointment", appointment: createFamilyAppointmentOffer(new Date()) })
-          }
-          onCountdown={(appointmentId, daysUntil: FamilyAppointmentCountdownDays) =>
-            dispatch({
-              type: "setFamilyAppointmentCountdown",
-              appointmentId,
-              daysUntil,
-              now: new Date().toISOString()
-            })
-          }
-          onJoinSoonerList={(constraints: FamilySoonerConstraint[]) =>
-            dispatch({
-              type: "setFamilySoonerList",
-              soonerList: { optedInAt: new Date().toISOString(), constraints }
-            })
-          }
-          onLeaveSoonerList={() => dispatch({ type: "clearFamilySoonerList" })}
-          onSoonerOffer={(supersedesId) => {
-            const soonerList = family.soonerList;
-            if (soonerList === null) {
-              return;
-            }
-            dispatch({
-              type: "offerFamilyAppointment",
-              appointment: createSoonerAppointmentOffer(
-                new Date(),
-                soonerList.constraints,
-                supersedesId
-              )
-            });
-          }}
-          onDeclineSoonerOffer={(appointmentId) =>
-            dispatch({
-              type: "withdrawFamilyAppointmentOffer",
-              appointmentId,
-              at: new Date().toISOString()
-            })
-          }
+          onTransition={transitionVisit}
+          onPositionSimulationClock={sessionActions.positionSimulationClock}
         />
       ) : null}
     </>
@@ -1818,7 +1867,7 @@ export function FamilyExperience({
 
   const programsPanel = (
     <>
-      {family && family.profile && family.activeDomains.length > 0 ? (
+      {family && routingProfile && family.activeDomains.length > 0 ? (
             <FamilyFoldSection
               id="family-resources"
               testId="family-resources"
@@ -1865,7 +1914,7 @@ export function FamilyExperience({
                         resource={resource}
                         domain={domain}
                         language={language}
-                        county={family.profile?.county}
+                        county={routingProfile.county}
                         matchNeed={tFamily(language, DOMAIN_KEYS[domain])}
                         step={family.steps.find(({ resourceId }) => resourceId === resource.id)}
                         onPlanStep={planStep}
@@ -1943,7 +1992,7 @@ export function FamilyExperience({
                         resource={resource}
                         domain={domain}
                         language={language}
-                        county={family.profile?.county}
+                        county={routingProfile.county}
                         matchNeed={tFamily(language, DOMAIN_KEYS[domain])}
                         step={family.steps.find(({ resourceId }) => resourceId === resource.id)}
                         onPlanStep={planStep}
@@ -2015,67 +2064,32 @@ export function FamilyExperience({
           profile-only family met a near-empty tab with a live Print button and
           no explanation. The exits stay — an empty packet still carries the
           child's basics — but the emptiness is named. */}
-      {family?.profile && family.facts.length === 0 ? (
-        <section data-testid="family-notes-empty" className={CARD_SECTION_PAPER}>
-          <h2 className="break-words text-lg font-semibold">
-            {tFamily(language, "notesEmptyTitle")}
-          </h2>
-          <p className="mt-1 break-words leading-relaxed text-ink/80">
-            {tFamily(language, "notesEmptyBody", { name: childName })}
-          </p>
-          <button
-            type="button"
-            data-testid="family-notes-add"
-            onClick={() => openComposer("note")}
-            className={`mt-4 inline-flex items-center gap-2 ${BTN_PRIMARY}`}
-          >
-            <Mic aria-hidden="true" className="h-5 w-5 shrink-0" />
-            {tFamily(language, "notesEmptyCta")}
-          </button>
-        </section>
-      ) : null}
+      <LadderNotesSurface
+        family={family}
+        durableFamily={durableFamily}
+        language={language}
+        childName={childName}
+        onOpenComposer={() => openComposer("note")}
+        onConfirmFact={(factId) => dispatch({ type: "confirmFamilyFact", factId })}
+        onToggleFact={(factId, include) =>
+          dispatch({ type: "setFamilyFactInclusion", factId, include })
+        }
+        onRejectFact={(factId) => dispatch({ type: "rejectFamilyFact", factId })}
+        onToggleQuestion={(questionId) =>
+          dispatch({ type: "toggleFamilyPacketQuestion", questionId })
+        }
+        onPacketExport={(output) =>
+          dispatch({
+            type: "addAuditEvent",
+            event: recordAuditEvent(
+              state.patient.id,
+              output.channel === "web_share" ? "shared" : "exported",
+              `Family visit packet ${output.outcome} via ${output.channel}`
+            )
+          })
+        }
+      />
 
-      {family && family.facts.length > 0 ? (
-        <FamilyJournal
-          family={family}
-          language={language}
-          onConfirm={(factId) => dispatch({ type: "confirmFamilyFact", factId })}
-          onToggleInclude={(factId, include) =>
-            dispatch({ type: "setFamilyFactInclusion", factId, include })
-          }
-          onReject={(factId) => dispatch({ type: "rejectFamilyFact", factId })}
-        />
-      ) : null}
-
-      {/* Same composer, reached from the surface that keeps its output. */}
-      {family?.profile && family.facts.length > 0 ? (
-        <p>
-          <button
-            type="button"
-            data-testid="family-notes-add"
-            onClick={() => openComposer("note")}
-            className={BTN_SECONDARY}
-          >
-            {tFamily(language, "homeComposerCtaNamed", { name: childName })}
-          </button>
-        </p>
-      ) : null}
-
-      {family?.profile ? (
-        <FamilyVisitPacket
-          family={family}
-          language={language}
-          onToggleQuestion={(questionId) =>
-            dispatch({ type: "toggleFamilyPacketQuestion", questionId })
-          }
-          onExport={(verb) =>
-            dispatch({
-              type: "addAuditEvent",
-              event: recordAuditEvent(state.patient.id, "shared", `Family visit packet ${verb}`)
-            })
-          }
-        />
-      ) : null}
     </>
   );
 
@@ -2084,8 +2098,8 @@ export function FamilyExperience({
       language={language}
       onLanguageChange={(next) => dispatch({ type: "setLanguage", language: next })}
       subtitle={
-        family?.profile
-          ? [childName, family.profile.county ? `${family.profile.county} County` : null]
+        routingProfile
+          ? [childName, routingProfile.county ? `${routingProfile.county} County` : null]
               .filter((part): part is string => part !== null)
               .join(" · ")
           : tFamily(language, "shellHeaderSubtitle")
@@ -2104,11 +2118,12 @@ export function FamilyExperience({
       // visits, since the events persist. Acknowledging the banner stands the
       // presentation down; it no longer takes the phone numbers with it.
       urgentHelp={
-        safetyEvents.length > 0 ? <FamilyUrgentHelpControl language={language} /> : undefined
+        urgentSafetyEvents.length > 0 ? <FamilyUrgentHelpControl language={language} /> : undefined
       }
       surfaces={surfaces}
       surface={activeSurface}
-      onSurfaceChange={setSurface}
+      onSurfaceChange={navigation.selectSurface}
+      pendingAnchor={navigation.pendingAnchor}
       showTabs={showTabs}
     >
       <div
@@ -2117,13 +2132,34 @@ export function FamilyExperience({
         data-testid="family-experience"
         className="grid w-full min-w-0 gap-4 scroll-mt-4"
       >
+        {/* Open Question 1, resolved 2026-08-08. The family posture removes the
+            simulation and therefore every repeated "demo" cue. That is the
+            posture most likely to be mistaken for a connected service, so it
+            carries one visible boundary notice across every Ladder surface. The
+            stakeholder demo stays unchanged, and the exact service-status line
+            remains in both postures. Amber is deliberate: rose belongs to the
+            safety tier. */}
+        {!simEnabled ? (
+          <section
+            data-testid="family-prototype-banner"
+            aria-labelledby="family-prototype-banner-title"
+            className="rounded-control border border-l-4 border-amber-400 bg-amber-50 p-4"
+          >
+            <h2 id="family-prototype-banner-title" className="break-words font-bold text-ink">
+              {tFamily(language, "prototypeBannerTitle")}
+            </h2>
+            <p className="mt-1 break-words text-sm leading-6 text-ink/80">
+              {tFamily(language, "prototypeBannerBody")}
+            </p>
+          </section>
+        ) : null}
         {/* One glossary registry per surface — each screen is read on its own —
             and one provider per panel, so switching tabs never remounts a panel
             and loses what the caregiver had open in it.
 
-            A panel exists only for a surface that has a tab: a `tabpanel` whose
-            `aria-labelledby` points at an id no tab has rendered is a broken
-            reference, and on first run three of the four were exactly that.
+            A panel exists only for a surface that has a navigation control: a
+            named region whose `aria-labelledby` points at an id nothing rendered
+            is a broken reference, and on first run three were exactly that.
             Unlocked panels still stay mounted across tab switches, so drafts,
             open cards, and scroll position survive. */}
         <LadderPanel surface="home" active={activeSurface === "home"}>

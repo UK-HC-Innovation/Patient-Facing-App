@@ -65,8 +65,14 @@ const REFLEXIVE_INTENT =
 const ONGOING_SELF_INJURY =
   /\b(?:has been|keeps?|continues? to)\b[^.?!]{0,24}\b(?:hurting|cutting)\s+(?:himself|herself|themself|themselves)\b/i;
 const THIRD_PERSON_END_LIFE = /\bwant(?:s|ed)? to end (?:his|her|their) life\b(?!\s+(?:insurance|support)\b)/i;
+const ENGLISH_CHILD_NOUN = "(?:child|kid|son|daughter|boy|girl|teen(?:ager)?|baby|toddler)";
+const ENGLISH_CHILD_WITH_OPTIONAL_AGE =
+  `(?:(?:\\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen)[ -]years?[ -]old\\s+)?${ENGLISH_CHILD_NOUN}`;
 const MISSING_CHILD =
-  /\b(?:(?:my|our|the|a)\s+(?:child|kid|son|daughter|boy|girl|teen(?:ager)?)|he|she|they)\s+(?:ran away(?: from home)?|wandered off|got out of (?:the )?house)\b[^.?!]{0,64}\b(?:(?:we\s+)?(?:still\s+)?(?:can't|cannot|couldn't)\s+find|(?:is|are|still)\s+missing)\b/i;
+  new RegExp(
+    `\\b(?:(?:my|our|the|a)\\s+${ENGLISH_CHILD_WITH_OPTIONAL_AGE}|he|she|they)\\s+(?:ran away(?: from home)?|wandered off|got out of (?:the )?house)\\b[^.?!]{0,64}\\b(?:(?:we\\s+)?(?:still\\s+)?(?:can't|cannot|couldn't)\\s+find|(?:is|are|still)\\s+missing)\\b`,
+    "i"
+  );
 const CAREGIVER_COLLAPSE =
   /\bcan't do this anymore\b[^.?!]{0,64}\b(?:want to give up|ending it|end it)\b|\b(?:want to give up|ending it|end it)\b[^.?!]{0,64}\bcan't do this anymore\b/i;
 const CHILD_HARM_DISCLOSURE =
@@ -513,7 +519,7 @@ const ENGLISH_ABUSER =
   "(?:coach|teacher|caregiver|care\\s?giver|sitter|babysitter|stepdad|step-?father|stepmom|step-?mother|uncle|aunt|cousin|neighbor|instructor|aide|bus\\s+driver|boyfriend|girlfriend|partner)";
 const ENGLISH_ABUSE_HARM =
   "(?:hit|hits|hitting|beat|beats|beating|hurt|hurts|hurting|slapped|slaps|punched|punches|grabbed|grabs|choked|chokes|touched|touches|molested)";
-const ENGLISH_CHILD = "(?:child|kid|son|daughter|boy|girl|teen(?:ager)?|baby|toddler)";
+const ENGLISH_CHILD = ENGLISH_CHILD_NOUN;
 
 const ENGLISH_NAMED_ABUSE_SIGNALS: readonly RegExp[] = [
   new RegExp(
@@ -556,15 +562,15 @@ function isEnglishNamedAbuse(input: string): boolean {
 // SPANISH_CURRENTLY_MISSING; English required "ran away"/"wandered off" first.
 const ENGLISH_CURRENTLY_MISSING: readonly RegExp[] = [
   new RegExp(
-    `\\b(?:my|our)\\s+${ENGLISH_CHILD}\\s+(?:has\\s+been|has'?s\\s+been|is|has\\s+gone)\\s+missing\\b`,
+    `\\b(?:my|our)\\s+${ENGLISH_CHILD_WITH_OPTIONAL_AGE}\\s+(?:has\\s+been|has'?s\\s+been|is|has\\s+gone)\\s+missing\\b`,
     "i"
   ),
   new RegExp(
-    `\\b(?:don'?t|do\\s+not)\\s+know\\s+where\\s+(?:my|our)\\s+${ENGLISH_CHILD}\\s+is\\b[^.?!]{0,64}\\b(?:gone|missing|since)\\b`,
+    `\\b(?:don'?t|do\\s+not)\\s+know\\s+where\\s+(?:my|our)\\s+${ENGLISH_CHILD_WITH_OPTIONAL_AGE}\\s+is\\b[^.?!]{0,64}\\b(?:gone|missing|since)\\b`,
     "i"
   ),
   new RegExp(
-    `\\b(?:my|our)\\s+${ENGLISH_CHILD}\\s+(?:has\\s+been|is)\\s+gone\\s+(?:since|for)\\b`,
+    `\\b(?:my|our)\\s+${ENGLISH_CHILD_WITH_OPTIONAL_AGE}\\s+(?:has\\s+been|is)\\s+gone\\s+(?:since|for)\\b`,
     "i"
   )
 ];
@@ -589,6 +595,10 @@ function isEnglishCurrentlyMissingChild(input: string): boolean {
 // hypoglycemia is the one that matters most here — this is a diabetes-first app
 // and "unresponsive, sugar is 32" was reaching no gate at all.
 const ACUTE_MEDICAL_SIGNALS: readonly RegExp[] = [
+  new RegExp(
+    `\\b(?:my|our|the)\\s+${ENGLISH_CHILD_WITH_OPTIONAL_AGE}\\s+(?:(?:is|was)\\s+)?(?:not\\s+breathing|isn'?t\\s+breathing|wasn'?t\\s+breathing|cannot\\s+breathe|can'?t\\s+breathe)\\b`,
+    "i"
+  ),
   /\b(?:is|are|him|her|them|he'?s|she'?s|they'?re)\s+unresponsive\b|\bunresponsive\s+(?:and|right\s+now)\b/i,
   /\b(?:not|isn'?t|aren'?t)\s+responding\b/i,
   /\bcan'?t\s+get\s+(?:him|her|them)\s+to\s+respond\b/i,

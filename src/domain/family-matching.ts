@@ -50,6 +50,25 @@ function prioritizeDomainCandidates(resources: FamilyResource[], county: string)
     .map(({ resource }) => resource);
 }
 
+function deferStatewideNavigationBehindLocalRide(
+  resources: MatchedResource[],
+  alreadyEnrolled: readonly string[]
+): MatchedResource[] {
+  const enrolled = new Set(alreadyEnrolled);
+  const hasAvailableLklp = resources.some(
+    ({ resource }) => resource.id === "lklp_transportation_region_13" && !enrolled.has(resource.id)
+  );
+  if (!hasAvailableLklp) return resources;
+
+  const unenrolledResources = resources.filter(({ resource }) => !enrolled.has(resource.id));
+  const enrolledResources = resources.filter(({ resource }) => enrolled.has(resource.id));
+  return [
+    ...unenrolledResources.filter(({ resource }) => !STATEWIDE_NAVIGATION_ID_SET.has(resource.id)),
+    ...unenrolledResources.filter(({ resource }) => STATEWIDE_NAVIGATION_ID_SET.has(resource.id)),
+    ...enrolledResources
+  ].map((match, position) => ({ ...match, position }));
+}
+
 /**
  * Deterministic retrieval: county + age + active domains against the verified
  * catalog. This is the floor everything else sits on — a ranking layer may
@@ -100,13 +119,14 @@ export function buildResourceMatches(
     };
   }
 
-  return {
-    isFallback: false,
-    resources: [...matches].sort(
+  const resources = [...matches].sort(
       (left, right) =>
         Number(enrolled.has(left.resource.id)) - Number(enrolled.has(right.resource.id)) ||
         left.position - right.position
-    )
+    );
+  return {
+    isFallback: false,
+    resources: deferStatewideNavigationBehindLocalRide(resources, alreadyEnrolled)
   };
 }
 
@@ -150,22 +170,7 @@ export function buildRankCandidates(
 ): FamilyMatchResult {
   const matches = buildResourceMatches(profile, domains, alreadyEnrolled, FAMILY_RESOURCE_CATALOG.length);
   const resources = matches.resources.slice(0, max);
-  const lklp = resources.find(({ resource }) => resource.id === "lklp_transportation_region_13");
-
-  if (!lklp || alreadyEnrolled.includes(lklp.resource.id)) {
-    return { ...matches, resources };
-  }
-
-  const enrolled = new Set(alreadyEnrolled);
-  const unenrolledResources = resources.filter(({ resource }) => !enrolled.has(resource.id));
-  const enrolledResources = resources.filter(({ resource }) => enrolled.has(resource.id));
-  const reordered = [
-    ...unenrolledResources.filter(({ resource }) => !STATEWIDE_NAVIGATION_ID_SET.has(resource.id)),
-    ...unenrolledResources.filter(({ resource }) => STATEWIDE_NAVIGATION_ID_SET.has(resource.id)),
-    ...enrolledResources
-  ].map((match, position) => ({ ...match, position }));
-
-  return { ...matches, resources: reordered };
+  return { ...matches, resources: deferStatewideNavigationBehindLocalRide(resources, alreadyEnrolled) };
 }
 
 /**

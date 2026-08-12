@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { FamilyNavigatorState } from "./types";
 import { eighteenMonthFamilyState, schoolAgeFamilyState } from "./family-fixtures";
 import {
   CHECKIN_DUE_DAYS,
   checkInDue,
+  familyEngagement,
   familyLastTouchAt,
   familyTouches,
+  familyTouchesInWindow,
   monthsOnList,
   nextFamilyRung,
   oldestStaleStep
@@ -163,6 +164,47 @@ describe("familyTouches", () => {
     };
     expect(familyTouches(family, new Date(NOW.valueOf() - 30 * DAY_MS))).toBe(2);
     expect(familyTouches(family, new Date(NOW.valueOf() - 60 * DAY_MS))).toBe(3);
+  });
+
+  it("bounds a point-in-time window on both sides", () => {
+    const family: FamilyNavigatorState = {
+      ...base,
+      interviews: [
+        interview(daysAgo(31), "before-window"),
+        interview(daysAgo(30), "window-start"),
+        interview(daysAgo(0), "as-of"),
+        interview(new Date(NOW.valueOf() + DAY_MS).toISOString(), "future")
+      ]
+    };
+
+    expect(
+      familyTouchesInWindow(family, new Date(NOW.valueOf() - 30 * DAY_MS), NOW)
+    ).toBe(2);
+  });
+});
+
+describe("familyEngagement", () => {
+  it("summarizes the existing journey timestamps without counting future activity", () => {
+    const family: FamilyNavigatorState = {
+      ...base,
+      interviews: [interview(daysAgo(10), "recent")],
+      pulses: [
+        { at: daysAgo(45), score: 3 },
+        { at: new Date(NOW.valueOf() + DAY_MS).toISOString(), score: 5 }
+      ]
+    };
+
+    expect(familyEngagement(family, NOW)).toEqual({
+      lastTouchAt: daysAgo(10),
+      touchesInLast30Days: 1
+    });
+  });
+
+  it("returns an empty summary for an invalid reporting clock", () => {
+    expect(familyEngagement(base, new Date("not-a-date"))).toEqual({
+      lastTouchAt: null,
+      touchesInLast30Days: 0
+    });
   });
 });
 

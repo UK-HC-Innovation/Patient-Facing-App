@@ -1,3 +1,5 @@
+import type { AppState, FamilyNavigatorState } from "@/domain/types";
+
 /**
  * F3a. Which posture this build is in.
  *
@@ -21,4 +23,39 @@ export function ladderSimEnabled(): boolean {
   if (raw === undefined) return true;
   const normalized = raw.trim().toLowerCase();
   return !(normalized === "0" || normalized === "false" || normalized === "off");
+}
+
+export function stripLadderSimulationFamily(
+  family: FamilyNavigatorState
+): FamilyNavigatorState {
+  return { ...family, referral: null, appointments: [], soonerList: null };
+}
+
+const LEGACY_LADDER_SIMULATION_AUDIT_LABELS = new Set([
+  "Family earlier-visit list joined",
+  "Family earlier-visit list left",
+  "Family referral recorded (demo)",
+  "Evaluation slots offered (demo)",
+  "Earlier-visit offer declined (demo)",
+  "Evaluation visit booked",
+  "Earlier visit replaced the prior booking",
+  "Visit barriers recorded",
+  "Evaluation visit confirmed",
+  "Evaluation visit reschedule requested",
+  "Evaluation visit completed (self-reported)",
+  "Evaluation visit missed (self-reported)"
+]);
+
+export function isLegacyLadderSimulationAudit(label: string): boolean {
+  return label.startsWith("Demo control:") || LEGACY_LADDER_SIMULATION_AUDIT_LABELS.has(label);
+}
+
+export function stripLadderSimulationState(state: AppState): AppState {
+  const auditEvents = state.auditEvents.filter(
+    ({ label }) => !isLegacyLadderSimulationAudit(label)
+  );
+  const family = state.family === null ? null : stripLadderSimulationFamily(state.family);
+  return family === state.family && auditEvents.length === state.auditEvents.length
+    ? state
+    : { ...state, family, auditEvents };
 }

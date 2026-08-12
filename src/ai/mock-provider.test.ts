@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { demoState } from "@/domain/fixtures";
+import type { AppState } from "@/domain/types";
 import { MockHealthAiProvider } from "./mock-provider";
 import type { LiveSessionEvent } from "./types";
 
@@ -59,7 +60,7 @@ describe("MockHealthAiProvider", () => {
 
   it("uses the named medication in a multi-medication state", async () => {
     const provider = new MockHealthAiProvider();
-    const multiMedicationState = {
+    const multiMedicationState: AppState = {
       ...demoState,
       medications: [
         {
@@ -105,7 +106,7 @@ describe("MockHealthAiProvider", () => {
 
   it("asks for medication clarification in a multi-medication state when no name matches", async () => {
     const provider = new MockHealthAiProvider();
-    const multiMedicationState = {
+    const multiMedicationState: AppState = {
       ...demoState,
       medications: [
         {

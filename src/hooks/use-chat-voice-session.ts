@@ -38,6 +38,7 @@ export function useChatVoiceSession(args: {
   const [partialAssistantText, setPartialAssistantText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const handleRef = useRef<LiveSessionHandle | null>(null);
+  const safetyLatchedRef = useRef(false);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const partialRef = useRef("");
   const onFinalRef = useRef(onFinalTranscript);
@@ -66,6 +67,7 @@ export function useChatVoiceSession(args: {
   }, [clearIdleTimer, stop]);
 
   const handleEvent = useCallback((event: LiveSessionEvent): void => {
+    if (safetyLatchedRef.current) return;
     armIdleTimer();
     switch (event.type) {
       case "status":
@@ -86,6 +88,7 @@ export function useChatVoiceSession(args: {
         }
         break;
       case "safetyIntercept":
+        safetyLatchedRef.current = true;
         partialRef.current = "";
         setPartialAssistantText("");
         onInterceptRef.current({
@@ -94,13 +97,14 @@ export function useChatVoiceSession(args: {
           banner: event.banner,
           actions: event.actions
         });
+        stop();
         break;
       case "error":
         setError(event.message);
         if (event.fatal) setStatus("error");
         break;
     }
-  }, [armIdleTimer]);
+  }, [armIdleTimer, stop]);
 
   const gateTranscript = useCallback(
     (text: string) => evaluateVoiceTranscript(text, getState(), language),
@@ -109,6 +113,7 @@ export function useChatVoiceSession(args: {
 
   const start = useCallback(async (): Promise<void> => {
     setError(null);
+    safetyLatchedRef.current = false;
     const state = getState();
     if (hasUnacknowledgedCrisis(state)) {
       setStatus("idle");
@@ -140,7 +145,7 @@ export function useChatVoiceSession(args: {
 
     setMode("live");
     try {
-      handleRef.current = await connectRealtimeSession({
+      const handle = await connectRealtimeSession({
         clientSecret: token.clientSecret,
         model: token.model,
         instructions: buildCoachVoiceInstructions(getState()),
@@ -149,7 +154,12 @@ export function useChatVoiceSession(args: {
         onEvent: handleEvent,
         gateTranscript
       });
-      armIdleTimer();
+      if (safetyLatchedRef.current) {
+        handle.close();
+      } else {
+        handleRef.current = handle;
+        armIdleTimer();
+      }
     } catch {
       setError("Could not start the voice session.");
       setStatus("error");

@@ -9,8 +9,6 @@ import {
   overdueFamilyAppointment,
   type FamilyAppointmentCountdownDays
 } from "@/domain/family-appointments";
-import { buildFamilyAppointmentIcs } from "@/domain/family-ics";
-import { ladderSimEnabled } from "@/domain/ladder-sim";
 import type {
   FamilyAppointment,
   FamilyAppointmentBarrier,
@@ -18,7 +16,6 @@ import type {
   FamilyReminderOffset,
   FamilySoonerConstraint
 } from "@/domain/types";
-import { downloadTextFile } from "@/components/family-download";
 import {
   BTN_CHOICE,
   BTN_PRIMARY,
@@ -74,6 +71,8 @@ function ladderTurn(children: React.ReactNode, key?: string): React.ReactElement
 export function FamilyAppointmentCard({
   family,
   language,
+  now = new Date(),
+  simulationEnabled = true,
   locked,
   onSeedReferral,
   onBook,
@@ -91,6 +90,8 @@ export function FamilyAppointmentCard({
 }: {
   family: FamilyNavigatorState;
   language: Language;
+  now?: Date;
+  simulationEnabled?: boolean;
   locked: boolean;
   onSeedReferral: () => void;
   onBook: (appointmentId: string, slot: string) => void;
@@ -116,10 +117,6 @@ export function FamilyAppointmentCard({
   const [slotsRefused, setSlotsRefused] = useState(false);
   const [soonerPicking, setSoonerPicking] = useState(false);
   const [soonerPicks, setSoonerPicks] = useState<FamilySoonerConstraint[]>([]);
-  const [icsReceipt, setIcsReceipt] = useState<"remindCalendarSaved" | "remindCalendarFailed" | null>(
-    null
-  );
-  const now = new Date();
   const appointment = activeFamilyAppointment(family.appointments);
   const reminder = appointment ? dueFamilyReminder(appointment, now) : null;
   const overdue = appointment ? overdueFamilyAppointment(appointment, now) : false;
@@ -241,15 +238,6 @@ export function FamilyAppointmentCard({
     );
   }
 
-  function saveVisitCalendarFile(active: FamilyAppointment): void {
-    const file = buildFamilyAppointmentIcs(active, language, new Date());
-    setIcsReceipt(
-      file !== null && downloadTextFile(file.filename, file.text, "text/calendar;charset=utf-8")
-        ? "remindCalendarSaved"
-        : "remindCalendarFailed"
-    );
-  }
-
   function bookedBody(active: FamilyAppointment): React.ReactNode {
     const when = active.scheduledFor ? formatFamilySlot(active.scheduledFor, language) : "";
     return (
@@ -260,36 +248,6 @@ export function FamilyAppointmentCard({
           </p>,
           "booked-line"
         )}
-        {/* F4a. The reminder that survives the app being closed: a calendar
-            event with its own 3-days-before alarm, written on this device. The
-            card's own reminders only exist while this tab is open. */}
-        {active.scheduledFor
-          ? ladderTurn(
-              <div>
-                <button
-                  type="button"
-                  disabled={locked}
-                  data-testid="family-appt-ics"
-                  onClick={() => saveVisitCalendarFile(active)}
-                  className={secondaryButton}
-                >
-                  {tFamily(language, "remindCalendar")}
-                </button>
-                <p className="mt-2 break-words text-sm leading-6 text-ink/70">
-                  {tFamily(language, "remindCalendarWhy")}
-                </p>
-                <p
-                  role="status"
-                  aria-live="polite"
-                  data-testid="family-appt-ics-receipt"
-                  className="mt-1 min-h-12 break-words text-sm font-semibold text-care"
-                >
-                  {icsReceipt === null ? "" : tFamily(language, icsReceipt)}
-                </p>
-              </div>,
-              "calendar-file"
-            )
-          : null}
         {ladderTurn(
           <div>
             <p className="break-words font-semibold">{tFamily(language, "apptPrepTitle")}</p>
@@ -389,7 +347,7 @@ export function FamilyAppointmentCard({
             "overdue"
           )
         ) : null}
-        {ladderSimEnabled() && active.scheduledFor !== undefined && active.barriersAsked && !reminder && !overdue ? (
+        {simulationEnabled && active.scheduledFor !== undefined && active.barriersAsked && !reminder && !overdue ? (
           <div className={DEMO_BLOCK}>
             <button
               type="button"

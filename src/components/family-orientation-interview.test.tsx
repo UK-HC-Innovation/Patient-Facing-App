@@ -6,8 +6,9 @@ import { SAMPLE_CAREGIVER_TEXT, schoolAgeFamilyState } from "@/domain/family-fix
 import type { FamilyFollowUp, FamilyInterviewResult } from "@/domain/family-interview";
 import { FamilyOrientationInterview } from "./family-orientation-interview";
 
-const { extractFamilyInterviewMock, push, requestFamilyInterview, speak, stopSpeaking, voice } = vi.hoisted(() => ({
+const { extractFamilyInterviewMock, fallbackOverride, push, requestFamilyInterview, speak, stopSpeaking, voice } = vi.hoisted(() => ({
   extractFamilyInterviewMock: vi.fn(),
+  fallbackOverride: { current: null as FamilyInterviewResult | null },
   push: vi.fn(),
   requestFamilyInterview: vi.fn(),
   speak: vi.fn(() => Promise.resolve()),
@@ -38,7 +39,7 @@ vi.mock("@/domain/family-interview", async () => {
     ...actual,
     extractFamilyInterviewMock: (...args: Parameters<typeof actual.extractFamilyInterviewMock>) => {
       extractFamilyInterviewMock(...args);
-      return actual.extractFamilyInterviewMock(...args);
+      return fallbackOverride.current ?? actual.extractFamilyInterviewMock(...args);
     }
   };
 });
@@ -76,7 +77,6 @@ function renderOrientation(overrides: Partial<React.ComponentProps<typeof Family
   const props: React.ComponentProps<typeof FamilyOrientationInterview> = {
     profile: schoolAgeFamilyState.profile!,
     draft: SAMPLE_CAREGIVER_TEXT,
-    passcode: "secret",
     // F1a. See family-interview.test.tsx — a consented session, so these keep
     // testing the live path rather than the gate.
     liveAllowed: true,
@@ -101,6 +101,7 @@ beforeEach(() => {
   speak.mockClear();
   stopSpeaking.mockClear();
   voice.finalTranscript = null;
+  fallbackOverride.current = null;
 });
 
 describe("FamilyOrientationInterview", () => {
@@ -112,6 +113,9 @@ describe("FamilyOrientationInterview", () => {
     await submitOpening();
 
     expect(screen.queryByText(SAMPLE_CAREGIVER_TEXT)).not.toBeInTheDocument();
+    expect(screen.getByRole("log")).toHaveAttribute("aria-relevant", "additions text");
+    expect(screen.getByRole("log")).toHaveAttribute("aria-atomic", "false");
+    expect(screen.getByRole("log")).not.toHaveAttribute("aria-live");
   });
 
   // Help first, question second — the whole point of the reordering.
@@ -201,6 +205,45 @@ describe("FamilyOrientationInterview", () => {
     expect(onInterviewExtracted.mock.calls[1][1]).toMatchObject({ extraction: "mock" });
   });
 
+  it("never re-opens a cumulative transcript after a later correction masks its crisis text", async () => {
+    requestFamilyInterview.mockResolvedValueOnce(result([schoolQuestion]));
+    const onInterviewExtracted = vi.fn();
+    const onSafetyEscalation = vi.fn();
+    renderOrientation({ language: "es", onInterviewExtracted, onSafetyEscalation });
+    fireEvent.click(screen.getByRole("button", { name: "Buscar ayuda" }));
+    await screen.findByRole("heading", { name: schoolQuestion.question });
+
+    // Force one safe second question so this test reaches the round after the
+    // disclosure. The production fallback supplies the question; its content is
+    // irrelevant to the privacy invariant under test.
+    fallbackOverride.current = result([waiverQuestion]);
+    fireEvent.change(screen.getByRole("textbox", { name: "O escribe una respuesta corta" }), {
+      target: { value: "mi hija dice que quiere morir" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Agregar respuesta" }));
+    await screen.findByRole("heading", { name: waiverQuestion.question });
+
+    // Negation-aware classification of the cumulative text can return to safe
+    // here. The original sentence is still in the payload, so the thread-level
+    // latch—not the latest classification—must keep both sending and filing shut.
+    fireEvent.change(screen.getByRole("textbox", { name: "O escribe una respuesta corta" }), {
+      target: { value: "mi hija no dice que quiere morir" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Agregar respuesta" }));
+
+    await waitFor(() => expect(onInterviewExtracted).toHaveBeenCalledTimes(3));
+    expect(onSafetyEscalation).toHaveBeenCalledTimes(1);
+    expect(requestFamilyInterview).toHaveBeenCalledTimes(1);
+    expect(onInterviewExtracted.mock.calls[1][1]).toMatchObject({
+      extraction: "mock",
+      containsSafetyDisclosure: true
+    });
+    expect(onInterviewExtracted.mock.calls[2][1]).toMatchObject({
+      extraction: "mock",
+      containsSafetyDisclosure: true
+    });
+  });
+
   it("uses family-only text for the mock fallback and advances to its next safe question", async () => {
     requestFamilyInterview.mockResolvedValueOnce(result([schoolQuestion])).mockResolvedValueOnce(null);
     renderOrientation();
@@ -274,6 +317,31 @@ describe("FamilyOrientationInterview", () => {
     expect(requestFamilyInterview).toHaveBeenCalledTimes(2);
     await act(async () => pending.resolve(result([])));
     await screen.findByText("Thanks. That is enough to get you started.");
+  });
+
+  it("aborts an old-profile follow-up while preserving the answered thread", async () => {
+    const pending = deferred<FamilyInterviewResult | null>();
+    requestFamilyInterview.mockResolvedValueOnce(result([schoolQuestion])).mockReturnValueOnce(pending.promise);
+    const onInterviewExtracted = vi.fn();
+    const { rerender, props } = renderOrientation({ onInterviewExtracted });
+    await submitOpening();
+
+    fireEvent.click(screen.getByRole("button", { name: "Nothing yet" }));
+    await waitFor(() => expect(requestFamilyInterview).toHaveBeenCalledTimes(2));
+    const signal = requestFamilyInterview.mock.calls[1][1].signal as AbortSignal;
+    rerender(
+      <FamilyOrientationInterview
+        {...props}
+        profile={{ ...schoolAgeFamilyState.profile!, county: "Perry" }}
+      />
+    );
+
+    expect(signal.aborted).toBe(true);
+    expect(screen.getByText("Nothing yet")).toBeVisible();
+    await screen.findByText("Thanks. That is enough to get you started.");
+    await act(async () => pending.resolve(result([waiverQuestion], "waivers_financial")));
+    expect(onInterviewExtracted).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("heading", { name: waiverQuestion.question })).not.toBeInTheDocument();
   });
 
   it("never speaks aloud on its own", async () => {

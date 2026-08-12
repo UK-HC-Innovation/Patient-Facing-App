@@ -25,7 +25,8 @@ export function openAllFamilyFolds(): void {
  */
 export function showFamilySurface(label: "Home" | "Programs" | "Notes" | "Visit"): void {
   act(() => {
-    const tab = Array.from(document.querySelectorAll<HTMLElement>('[role="tab"]')).find(
+    const navigation = document.querySelector<HTMLElement>('[data-testid="ladder-tabs"]');
+    const tab = Array.from(navigation?.querySelectorAll<HTMLElement>("button") ?? []).find(
       (node) => node.textContent?.trim() === label
     );
     tab?.click();

@@ -2,7 +2,7 @@
 
 > An external family-experience review (2026-08-06, full transcript in the review record) walked every Ladder surface in both languages with synthetic crisis wording and returned three release blockers. Two of the three are confirmed in code: **the privacy promise is materially false** ("Nothing here is saved anywhere but this device" while every routine free-text turn POSTs the caregiver's narrative and the full child profile off-device to `/api/family/interview`), and **the crisis pathway speaks adult-directed coach copy to a parent reporting a child in danger** — by explicit design comment, "the family surface never authors its own crisis words." The third (simulation controls inside the family experience) is confirmed but collides with a standing owner decision that the demo apparatus *is* the demo; this spec resolves that with a build flag rather than deletion. A fourth confirmed defect rides along: the eight quick questions say "all of these are optional" above a submit button that is `disabled` until all eight are answered. This spec fixes what the review got right, records what it got wrong, and files its specialist-review demands where they belong — as demo→pilot gates, not code.
 
-**Status:** ✅ **Implemented 2026-08-08** (P0–P6, eight commits `ee953cd..545cf31`, the last three closing defects an adversarial pass found in the implementation itself). Not deployed. `npm run check` green (3027 unit tests), crisis gate 334/334 with a dated report at `docs/ops/red-team-results/2026-08-08-crisis-gate.md`, full Playwright suite 93 passed across both projects. See [Implementation Notes](#implementation-notes-2026-08-08) for the three places the build corrected the spec. Authored 2026-08-06 from the external review, after independent code verification of every claim acted on here. Ground truth verified against `master` (`fdafa7d`) plus the uncommitted working tree. Extends specs 09 (Family Navigator), 11 (crisis inline + keep working), 13 (waitlist companion), 18 (resources-first), 19 (phone fit), 20 (hardening). Amends spec 20's non-goal on demo apparatus (kept, but flag-gated) and spec 09/11's crisis-copy reuse rule (the family surface now authors its own crisis words).
+**Status:** ✅ **Implemented 2026-08-08** in eight commits `ee953cd..32847ab`; the completion-audit fixes described below are in the current working tree. Not deployed and still a pilot **no-go**. Latest verification: `npm run check` passed (3045 tests passed, 1 skipped), the crisis gate passed 334/334 with a dated report at `docs/ops/red-team-results/2026-08-08-crisis-gate.md`, and all targeted Spec 22 and deterministic Coach browser paths passed. The full Playwright run remained load-flaky: 86 passed and 1 skipped, with 7 mobile startup failures; all 7 passed when rerun in isolation. See [Implementation Notes](#implementation-notes-2026-08-08) for the places the build corrected the spec. Authored 2026-08-06 from the external review and reconciled against `master` (`32847ab`) plus the current working tree. Extends specs 09 (Family Navigator), 11 (crisis inline + keep working), 13 (waitlist companion), 18 (resources-first), 19 (phone fit), 20 (hardening). Amends spec 20's non-goal on demo apparatus (kept, but flag-gated) and spec 09/11's crisis-copy reuse rule (the family surface now authors its own crisis words).
 
 ## Problem & Rationale
 
@@ -108,7 +108,7 @@ Line numbers drift; re-locate by the quoted code.
 ### F3 — Two postures, one flag
 
 - **F3a `NEXT_PUBLIC_LADDER_SIM`.** All simulation affordances — referral seed, check-in time travel, visit-closer/earlier-opening controls, and the seeded appointment picker's interactive states — render only when the flag is on. Default **on** (today's demo behavior, zero change for stakeholders); the family/pilot build sets it off. One helper (`ladderSimEnabled()`) so the gate cannot drift per-control; a test renders the family experience with the flag off and asserts no `DEMO_BLOCK` element and no simulation `data-testid` mounts.
-- **F3b Service-status line, not a banner.** The existing disclosure strip gains one sentence, both postures: "Ladder does not contact any clinic, make referrals, book appointments, or watch these notes — it organizes what you notice and shows Kentucky contacts you can call yourself." With the flag off, appointment surfaces render only family-entered facts. A restored full-width prototype banner is Open Question 1 (owner deleted the last one).
+- **F3b Service-status line + family-posture notice.** The existing disclosure strip gains one sentence, both postures: "Ladder does not contact any clinic, make referrals, book appointments, or watch these notes — it organizes what you notice and shows Kentucky contacts you can call yourself." With the flag off, appointment surfaces render only family-entered facts and a visible amber notice identifies Ladder as a prototype rather than a connected clinic service. The stakeholder-demo posture keeps the owner's banner-removal decision and remains unchanged.
 - **F3c Boundary copy.** Extend the front-door limitation line to the full set: no diagnosis, no screening conclusion, no eligibility decision, no clinical monitoring, no automatic referral — one sentence, en+es.
 
 ### F4 — Optional means optional
@@ -151,7 +151,7 @@ Each phase is a committable unit; `npm run check` + `crisis:gate` green at every
 
 ## Open Questions
 
-1. **Prototype banner.** The owner deleted the "concept demo" banner (spec 19); the reviewer wants a persistent disclosure back. This spec ships the F3b strip sentence either way — does the owner want a visible banner restored in the flag-off (family) posture only?
+1. **Prototype banner — decided 2026-08-08.** Restore a visible notice in the flag-off (family) posture only, while retaining the F3b service-status sentence in both postures. Turning simulation off removes the repeated "demo" labels and therefore creates the greater risk that a family mistakes Ladder for a connected service. The stakeholder-demo posture keeps the owner's spec 19 banner-removal decision and is unchanged.
 2. **AI in the family posture.** Keep the online helper behind F1b consent in the pilot build, or strip live AI from that posture entirely (mock-only)? F1 makes both a one-line flag choice; default here is consent-gated.
 3. **Session vs. persisted consent.** F1b makes consent per-session by design (no persisted consent record on a shared device). Confirm, or require a revocable persisted setting with its own storage and copy.
 4. **`parent_support` semantics.** F2b stops injecting it on crisis turns. Should a *non-crisis* mention of caregiver strain still surface caregiver-support resources? (Recommended: yes — unchanged.)
@@ -186,10 +186,13 @@ action carries routing without carrying the record.
 
 A second-order consequence, fixed in the same phase: profile basics normally
 come from stored interview text, which a crisis turn no longer keeps — so a
-caregiver naming their county inside a disclosure was asked for it again
-immediately afterwards, and matching had no county. County and birth year are
-logistics rather than part of the disclosure, so they are now read from the turn
-and applied directly without storing the words.
+caregiver naming county, birth year, or school stage inside a disclosure was
+asked for it again immediately afterwards, and matching had no county. Those
+logistics are now held only in component memory for deterministic resource
+matching on the current page. They never enter the reducer, localStorage, notes,
+packet, or an online request. The broad safety-routing category remains durable
+so the local route and safety-event lifecycle can continue without retaining the
+caregiver's words.
 
 **F1b's ordering is the reverse of what the spec implied.** The spec described
 consent "before the first live-path submission". The build makes the first turn
@@ -215,6 +218,16 @@ not. They are honest-intake improvements with no safety or truthfulness blocker
 behind them, and they touch the profile form's shape rather than its copy. They
 remain open as the next slice.
 
+The simulation flag now masks dedicated referral, appointment, sooner-list,
+visit-packet, clinic-target, and check-in effects when it is off. It cannot
+soundly undo a stakeholder-demo time-travel action that already rewrote canonical
+timestamps or diagnosis months in the same browser: those older mutations have
+no provenance from which to reconstruct the original values. Until demo time
+travel becomes a non-destructive overlay, stakeholder-demo and family builds
+must use distinct origins/storage namespaces. Switching an existing origin from
+simulation-on to simulation-off requires an explicit browser-storage reset
+before family use.
+
 **Environment note for whoever runs the e2e suite next.** `.env.local` on the
 authoring machine carries a live OpenAI key with no `DEMO_PASSCODE`. With it
 set, `e2e/dr-screening.spec.ts` and `e2e/home-health.spec.ts` fail because the
@@ -226,8 +239,9 @@ OpenAI. Verifying it was the point.
 
 ## Adversarial review of the implementation (2026-08-08)
 
-Four attackers went at the shipped code and 25 adjudications ran over their
-claims. Eight survived; all eight were fixed in `65beeef`, `3456743`, `545cf31`.
+Four attackers went at the committed implementation and 25 adjudications ran
+over their claims. Eight survived; those eight were fixed in `65beeef`,
+`3456743`, and `545cf31`.
 Two were blockers, and the sharpest was the twin of a bug that had already been
 fixed on one side and not the other: the crisis-turn record was suppressed but
 the crisis-turn *send* was not, so an ordinary reply after a disclosure POSTed
@@ -235,15 +249,26 @@ the cumulative transcript — crisis sentence included — to the model. The
 guarantee it broke ("the tripping text is never sent anywhere") predates this
 spec by four specs. Both gates now screen the whole transcript.
 
-Two findings are worth carrying forward as their own work rather than as bugs:
+The completion audit then attacked the resulting current tree rather than
+stopping at the committed fixes. It closed several second-order failures: a
+later negating reply can no longer clear the cumulative crisis latch; acknowledging
+a crisis can no longer trigger an online recommendation request derived from
+that turn; crisis-derived profile logistics remain session-only and cannot leak
+into a later consented thread; Privacy now distinguishes Ladder text attempts,
+legacy online records, saved drafts, and Coach voice transport; flag-off masks
+persisted simulation state; and the source-backed missing-child, abuse,
+medication, food, mixed-risk, Spanish, and negation routes have direct regression
+coverage.
 
-**Dictation is a third data path, and the copy does not cover it.** The
-composer's microphone uses the browser's `SpeechRecognition`, which in Chrome
-streams audio to Google — outside the F1a gate entirely, and under copy that
-says nothing is sent unless the online helper is on. Nothing in Ladder discloses
-it. This is pre-existing (spec 12), but spec 22's copy made it a contradiction
-rather than merely an omission. It needs a voice-specific disclosure and a
-decision about whether dictation belongs in the family posture at all.
+Two findings remain product/release work rather than hidden code behavior:
+
+**Dictation is a third data path.** The composer's microphone uses the browser's
+`SpeechRecognition`, whose speech service may process audio off-device and sits
+outside the F1a passcode/online-helper gate. Ladder now discloses that path next
+to the microphone and in the consent/decline copy, and tells a caregiver to type
+instead to avoid it. The remaining release decision is whether third-party
+browser dictation belongs in the family posture at all; there is still no Ladder
+control that disables or withdraws that speech-service path mid-session.
 
 **Consent cannot be withdrawn.** F1b is one-way for the session: a caregiver who
 accepts and then regrets it can only close the tab. The copy now says exactly

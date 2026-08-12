@@ -2,11 +2,36 @@
 
 import { CalendarDays, FileText, Home, LayoutGrid, type LucideIcon } from "lucide-react";
 import Link from "next/link";
-import React, { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode
+} from "react";
 import { LanguageToggle } from "@/components/language-toggle";
 import { CONTROL_FOCUS } from "@/components/family-theme";
-import { tFamily, type FamilyStringKey } from "@/i18n/family-strings";
+import { tFamily } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
+import {
+  LADDER_SURFACE_ORDER,
+  ladderPanelId,
+  ladderSurfaceDefinition,
+  ladderSurfaceForAnchor,
+  ladderTabId,
+  type LadderIconKey,
+  type LadderSurface
+} from "@/components/ladder/ladder-surface-registry";
+import { useLadderSurfaceScrollRestoration } from "@/components/ladder/use-ladder-surface-scroll-restoration";
+
+export {
+  ladderPanelId,
+  ladderSurfaceForAnchor,
+  ladderTabId,
+  type LadderSurface
+} from "@/components/ladder/ladder-surface-registry";
 
 /**
  * Four reflow-safe surfaces behind a wrapping tab bar.
@@ -17,39 +42,18 @@ import type { Language } from "@/i18n/strings";
  * zoom it reflows 2×2 instead of clipping and forcing horizontal scroll — which
  * is exactly what the current fixed two-link bar does.
  */
-export type LadderSurface = "home" | "programs" | "notes" | "visit";
-
-const SURFACE_ORDER: readonly LadderSurface[] = ["home", "programs", "notes", "visit"];
-
-const SURFACE_LABELS: Record<LadderSurface, FamilyStringKey> = {
-  home: "tabHome",
-  programs: "tabPrograms",
-  notes: "tabNotes",
-  visit: "tabVisit"
-};
-
-const SURFACE_ICONS: Record<LadderSurface, LucideIcon> = {
+const SURFACE_ICONS: Record<LadderIconKey, LucideIcon> = {
   home: Home,
   programs: LayoutGrid,
   notes: FileText,
   visit: CalendarDays
 };
 
-export function ladderTabId(surface: LadderSurface): string {
-  return `ladder-tab-${surface}`;
-}
-
 /**
- * Whether the tab bar is on the page at all. A panel is only a `tabpanel` once
- * the tab that labels it exists — through the first session there is no bar, and
- * a `tabpanel` pointing `aria-labelledby` at an id nothing rendered is a broken
- * reference a screen reader reads as an unlabelled region.
+ * Whether the bottom navigation is on the page at all. A named panel region is
+ * only created once the control that labels it exists.
  */
 const LadderTabsRendered = createContext(false);
-
-export function ladderPanelId(surface: LadderSurface): string {
-  return `ladder-panel-${surface}`;
-}
 
 export type LadderShellProps = {
   language: Language;
@@ -73,6 +77,8 @@ export type LadderShellProps = {
   surfaces: readonly LadderSurface[];
   surface: LadderSurface;
   onSurfaceChange: (surface: LadderSurface) => void;
+  /** A registered fragment whose destination is being mounted and settled. */
+  pendingAnchor?: string | null;
   /**
    * False through the first session, which stays a single thread: the tabs
    * appear once the first answer has landed and there is somewhere to go.
@@ -90,34 +96,43 @@ export function LadderShell({
   surfaces,
   surface,
   onSurfaceChange,
+  pendingAnchor = null,
   showTabs,
   children
 }: LadderShellProps) {
   const tabRefs = useRef(new Map<LadderSurface, HTMLButtonElement>());
-  const visible = SURFACE_ORDER.filter((candidate) => surfaces.includes(candidate));
+  const previousSurfaceRef = useRef(surface);
+  const lastPanelFocusRef = useRef<LadderSurface | null>(null);
+  const visible = LADDER_SURFACE_ORDER.filter((candidate) => surfaces.includes(candidate));
+  useLadderSurfaceScrollRestoration(surface, pendingAnchor);
 
-  function moveFocus(from: LadderSurface, delta: number): void {
-    const index = visible.indexOf(from);
-    if (index < 0) return;
-    const next = visible[(index + delta + visible.length) % visible.length];
-    onSurfaceChange(next);
-    tabRefs.current.get(next)?.focus();
-  }
+  useEffect(() => {
+    const rememberPanelFocus = (event: FocusEvent): void => {
+      const node = event.target;
+      if (!(node instanceof Element)) return;
+      const panel = node.closest<HTMLElement>("[data-ladder-panel]");
+      const owner = panel?.dataset.ladderPanel;
+      lastPanelFocusRef.current = owner && surfaces.includes(owner as LadderSurface)
+        ? (owner as LadderSurface)
+        : null;
+    };
+    document.addEventListener("focusin", rememberPanelFocus);
+    return () => document.removeEventListener("focusin", rememberPanelFocus);
+  }, [surfaces]);
 
-  function onTabKeyDown(event: React.KeyboardEvent, tab: LadderSurface): void {
-    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
-      event.preventDefault();
-      moveFocus(tab, 1);
-    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
-      event.preventDefault();
-      moveFocus(tab, -1);
-    } else if (event.key === "Home" || event.key === "End") {
-      event.preventDefault();
-      const next = event.key === "Home" ? visible[0] : visible[visible.length - 1];
-      onSurfaceChange(next);
-      tabRefs.current.get(next)?.focus();
-    }
-  }
+  useLayoutEffect(() => {
+    const previous = previousSurfaceRef.current;
+    if (previous === surface) return;
+    previousSurfaceRef.current = surface;
+    if (pendingAnchor) return;
+
+    const activeElement = document.activeElement;
+    const previousPanel = document.getElementById(ladderPanelId(previous));
+    const focusWasStranded =
+      (activeElement instanceof Node && previousPanel?.contains(activeElement)) ||
+      (activeElement === document.body && lastPanelFocusRef.current === previous);
+    if (focusWasStranded) tabRefs.current.get(surface)?.focus({ preventScroll: true });
+  }, [pendingAnchor, surface]);
 
   return (
     <div className="flex min-h-screen flex-col bg-paper text-ink">
@@ -129,15 +144,15 @@ export function LadderShell({
       ) : null}
 
       <header className="border-b border-care/15 bg-white">
-        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3">
-          <div className="min-w-0">
+        <div className="mx-auto flex max-w-2xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <div className="min-w-[8rem] flex-1">
             <h1 className="text-lg font-bold text-care">Ladder</h1>
             <p className="min-w-0 break-words text-xs text-ink/65">{subtitle}</p>
           </div>
           {/* P4: the language control is chrome, not a setting. It is in the
               header of every surface, including first run and the crisis state.
               F2c puts the urgent-help route beside it for the same reason. */}
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             {urgentHelp}
             <LanguageToggle language={language} onChange={onLanguageChange} variant="segmented" />
           </div>
@@ -164,7 +179,6 @@ export function LadderShell({
 
       {showTabs ? (
         <nav
-          role="tablist"
           aria-label={tFamily(language, "tabsLabel")}
           data-testid="ladder-tabs"
           // Sticky, not fixed, and a wrapping grid: at 200% zoom this reflows
@@ -175,7 +189,8 @@ export function LadderShell({
           className="sticky bottom-0 grid grid-cols-[repeat(auto-fit,minmax(80px,1fr))] gap-1 border-t border-care/15 bg-white px-2 pt-1.5"
         >
           {visible.map((candidate) => {
-            const Icon = SURFACE_ICONS[candidate];
+            const definition = ladderSurfaceDefinition(candidate);
+            const Icon = SURFACE_ICONS[definition.icon];
             const selected = candidate === surface;
             return (
               <button
@@ -185,19 +200,16 @@ export function LadderShell({
                   else tabRefs.current.delete(candidate);
                 }}
                 type="button"
-                role="tab"
                 id={ladderTabId(candidate)}
-                aria-selected={selected}
+                aria-current={selected ? "page" : undefined}
                 aria-controls={ladderPanelId(candidate)}
-                tabIndex={selected ? 0 : -1}
-                onKeyDown={(event) => onTabKeyDown(event, candidate)}
                 onClick={() => onSurfaceChange(candidate)}
                 className={`flex min-h-[52px] flex-col items-center justify-center gap-0.5 rounded-control px-1 text-xs ${
                   selected ? "bg-calm font-bold text-care" : "font-semibold text-ink/75"
                 } ${CONTROL_FOCUS}`}
               >
                 <Icon aria-hidden="true" className="h-5 w-5" />
-                {tFamily(language, SURFACE_LABELS[candidate])}
+                {tFamily(language, definition.labelKey)}
               </button>
             );
           })}
@@ -227,60 +239,101 @@ export function LadderShell({
  * Which surface owns each in-page anchor. Only the ids that are actually linked
  * to are listed; anything else stays on the surface the caregiver is already on.
  */
-const ANCHOR_SURFACES: Readonly<Record<string, LadderSurface>> = {
-  "family-experience": "home",
-  "family-interview-title": "home",
-  "family-checkin": "home",
-  "family-remind": "home",
-  "family-followup": "home",
-  "family-clinic-now": "home",
-  "family-timeline": "home",
-  "family-timeline-title": "home",
-  "family-resources": "programs",
-  "family-resources-title": "programs",
-  "family-guides": "programs",
-  "family-journal": "notes",
-  "family-journal-title": "notes",
-  "family-visit-packet": "notes",
-  "family-appt-title": "visit"
-};
-
-export function ladderSurfaceForAnchor(hash: string): LadderSurface | undefined {
-  if (hash.length <= 1) return undefined;
-  try {
-    return ANCHOR_SURFACES[decodeURIComponent(hash.slice(1))];
-  } catch {
-    return undefined;
-  }
-}
-
 /**
  * An in-page link whose target sits on another surface has to change the tab
  * before the browser settles, or it lands on a hidden panel and does nothing —
  * the "escape hatch that isn't" the audit flagged, in a new costume.
  */
-export function useLadderAnchorSurface(onSurface: (surface: LadderSurface) => void): void {
+export type LadderAnchorSurfaceOptions = {
+  activeSurface: LadderSurface;
+  pendingAnchor: string | null;
+  selectAnchor: (hash: string) => void;
+  settleAnchor: () => void;
+  /** Opens disclosure ancestors, then focuses and scrolls the real target. */
+  openAnchor: (hash: string) => boolean;
+};
+
+export function useLadderAnchorSurface({
+  activeSurface,
+  pendingAnchor,
+  selectAnchor,
+  settleAnchor,
+  openAnchor
+}: LadderAnchorSurfaceOptions): void {
   useEffect(() => {
-    const settle = (hash: string): void => {
-      const target = ladderSurfaceForAnchor(hash);
-      if (target) onSurface(target);
-    };
-    const onHashChange = (): void => settle(window.location.hash);
     const onClick = (event: MouseEvent): void => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
       const node = event.target;
       if (!(node instanceof Element)) return;
       const anchor = node.closest('a[href^="#"]');
-      if (anchor instanceof HTMLAnchorElement) settle(anchor.getAttribute("href") ?? "");
+      if (!(anchor instanceof HTMLAnchorElement)) return;
+      const hash = anchor.getAttribute("href") ?? "";
+      if (!ladderSurfaceForAnchor(hash)) return;
+      event.preventDefault();
+      selectAnchor(hash);
     };
 
-    window.addEventListener("hashchange", onHashChange);
     document.addEventListener("click", onClick);
-    if (window.location.hash) settle(window.location.hash);
-    return () => {
-      window.removeEventListener("hashchange", onHashChange);
-      document.removeEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, [selectAnchor]);
+
+  useEffect(() => {
+    if (!pendingAnchor) return;
+    const anchor = pendingAnchor;
+    const owner = ladderSurfaceForAnchor(anchor);
+    if (!owner || owner !== activeSurface) return;
+
+    let frame: number | undefined;
+    let timeout: number | undefined;
+    let finished = false;
+    const observer = new MutationObserver(() => {
+      if (frame === undefined && !finished) {
+        frame = window.requestAnimationFrame(settle);
+      }
+    });
+    const stopWatching = (): void => {
+      observer.disconnect();
+      if (frame !== undefined) window.cancelAnimationFrame(frame);
+      if (timeout !== undefined) window.clearTimeout(timeout);
+      frame = undefined;
+      timeout = undefined;
     };
-  }, [onSurface]);
+    function settle(): void {
+      frame = undefined;
+      if (finished) return;
+      if (openAnchor(anchor)) {
+        finished = true;
+        stopWatching();
+        settleAnchor();
+      }
+    }
+
+    const panel = document.getElementById(ladderPanelId(owner)) ?? document.body;
+    observer.observe(panel, { childList: true, subtree: true });
+    frame = window.requestAnimationFrame(settle);
+    // Conditional flow targets may not exist on this visit. Bound the observer
+    // and clear the intent so an impossible deep link cannot leave navigation
+    // permanently stuck in an anchor-restoration state.
+    timeout = window.setTimeout(() => {
+      if (finished) return;
+      finished = true;
+      stopWatching();
+      settleAnchor();
+    }, 5_000);
+    return () => {
+      finished = true;
+      stopWatching();
+    };
+  }, [activeSurface, openAnchor, pendingAnchor, settleAnchor]);
 }
 
 export type LadderPanelProps = {
@@ -290,33 +343,34 @@ export type LadderPanelProps = {
 };
 
 /**
- * Inactive panels stay mounted and `hidden`. A caregiver who taps away
- * mid-sentence and back finds their draft, their expanded card, and their
- * scroll position where they left them — and print, find-in-page, and the
- * anchor links keep resolving across the whole surface.
+ * A panel mounts on first activation, then stays mounted and `hidden`. A
+ * caregiver who taps away mid-sentence and back finds their draft and expanded
+ * cards and scroll position where they left them without paying every panel's
+ * effects up front.
  */
 export function LadderPanel({ surface, active, children }: LadderPanelProps) {
   const labelled = useContext(LadderTabsRendered);
+  const [visited, setVisited] = useState(active);
+  useEffect(() => {
+    if (active) setVisited(true);
+  }, [active]);
   return (
     <div
-      // Only a tabpanel while its tab is on the page: through the first session
-      // the bar is not rendered at all, and the role without the label is worse
-      // than no role.
-      role={labelled ? "tabpanel" : undefined}
+      // The sticky controls are bottom navigation, not an ARIA tablist: their
+      // panels precede them in DOM order. Name the current places as regions
+      // without promising tab keyboard behavior the layout cannot provide.
+      role={labelled ? "region" : undefined}
       id={ladderPanelId(surface)}
       data-testid={`ladder-panel-${surface}`}
       data-ladder-panel={surface}
       aria-labelledby={labelled ? ladderTabId(surface) : undefined}
       hidden={!active}
-      // The panel is a focus stop because it is a tabpanel; without the bar it
-      // is just the page, and a bare focusable div is a tab stop that does nothing.
-      tabIndex={labelled ? (active ? 0 : -1) : undefined}
       // The display class has to go with the state: an author `display: grid`
       // beats the UA stylesheet's `[hidden] { display: none }`, so a panel
       // marked hidden would still be painted.
       className={active ? "grid min-w-0 gap-4" : "hidden"}
     >
-      {children}
+      {active || visited ? children : null}
     </div>
   );
 }

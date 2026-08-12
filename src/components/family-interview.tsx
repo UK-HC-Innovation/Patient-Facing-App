@@ -15,6 +15,8 @@ import { screenFamilySafety, type FamilySafetyScreen } from "@/domain/family-saf
 import type { FamilyProfile } from "@/domain/types";
 import { tFamily } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
+import { useVoiceEntry, type VoiceEntryContext } from "@/voice/voice-consent";
+import { VoiceConsentSheet } from "@/voice/voice-consent-sheet";
 
 export const FAMILY_INTERVIEW_MAX_CHARS = 5000;
 // Leave 50 characters of deterministic headroom so a final speech result can be
@@ -62,20 +64,24 @@ export type FamilyInterviewSubmissionMeta = {
 export type FamilyInterviewProps = {
   profile: FamilyProfile;
   draft: string;
-  passcode?: string;
   /**
    * F1a. Whether this turn may use the network at all. Defaults to false so a
    * caller that forgets to thread it keeps the words on the device rather than
    * silently sending them — the safe direction for a missing prop.
    */
   liveAllowed?: boolean;
+  /** Signed memory-only server capability. `liveAllowed` alone is a legacy test seam. */
+  consentCapability?: string;
   language: Language;
+  voiceEntryContext?: VoiceEntryContext;
+  /** Dictation stays closed while an unacknowledged safety banner is visible. */
+  voiceLocked?: boolean;
   /** Overrides the opening prompt once the box is collecting journal notes. */
   placeholder?: string;
   onDraftChange: (draft: string) => void;
   onExtracted: (result: SanitizedFamilyInterviewResult, meta: FamilyInterviewSubmissionMeta) => void;
   onSafetyEscalation?: (screen: FamilySafetyScreen) => void;
-  /** Fired immediately before a request leaves the device, whatever the reply. */
+  /** Fired immediately before the browser starts a request, whatever the reply. */
   onLiveSend?: () => void;
 };
 
@@ -127,15 +133,18 @@ function familyContextKey(profile: FamilyProfile, draft: string, language: Langu
 export function FamilyInterview({
   profile,
   draft,
-  passcode,
   liveAllowed = false,
+  consentCapability,
   language,
+  voiceEntryContext,
+  voiceLocked = false,
   placeholder,
   onDraftChange,
   onExtracted,
   onSafetyEscalation,
   onLiveSend
 }: FamilyInterviewProps) {
+  const sendCapability = consentCapability ?? (liveAllowed ? "legacy-test-capability" : undefined);
   const copy = {
     label: tFamily(language, "interviewLabel"),
     placeholder: placeholder ?? tFamily(language, "interviewPlaceholder"),
@@ -154,6 +163,7 @@ export function FamilyInterview({
   const [voiceSupported, setVoiceSupported] = useState(false);
   const [listening, setListening] = useState(false);
   const [recordingStatus, setRecordingStatus] = useState<RecordingStatus>("idle");
+  const [showVoiceConsent, setShowVoiceConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(draft.length > FAMILY_INTERVIEW_MAX_CHARS ? copy.tooLong : null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
@@ -165,8 +175,28 @@ export function FamilyInterview({
   const lastLocalDraftRef = useRef(draft);
   const submittingRef = useRef(false);
   const mountedRef = useRef(true);
+  const voiceLockedRef = useRef(voiceLocked);
+  const activeLiveRequestRef = useRef<AbortController | null>(null);
+  const dictationLanguageRef = useRef(language);
+  const incomingDraftRef = useRef(draft);
+  const appliedIncomingDraftRef = useRef(draft);
+  const contextDraftRef = useRef(draft);
   const latestContextKeyRef = useRef(familyContextKey(profile, draft, language));
-  latestContextKeyRef.current = familyContextKey(profile, draft, language);
+  if (incomingDraftRef.current !== draft) {
+    incomingDraftRef.current = draft;
+    // A delayed persistence acknowledgement equals the visible local text. A
+    // different incoming value is an actual external replacement and must
+    // invalidate any pending extraction even while the textarea stays frozen.
+    contextDraftRef.current = draft;
+  }
+  const currentContextKey = familyContextKey(profile, contextDraftRef.current, language);
+  const previousContextKeyRef = useRef(currentContextKey);
+  // The parent persists drafts on a short delay. Use the text the caregiver can
+  // actually see, not a briefly older persisted prop, when deciding whether an
+  // async extraction still belongs to this composer.
+  latestContextKeyRef.current = currentContextKey;
+  voiceLockedRef.current = voiceLocked;
+  const { consentRequired, grantConsent, onSessionStart } = useVoiceEntry(voiceEntryContext);
 
   const clearRestartTimer = useCallback((): void => {
     if (restartTimerRef.current === null) return;
@@ -209,12 +239,34 @@ export function FamilyInterview({
     [cleanupRecognition]
   );
 
+  const abortLiveRequest = useCallback((): void => {
+    activeLiveRequestRef.current?.abort();
+    activeLiveRequestRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    if (previousContextKeyRef.current === currentContextKey) return;
+    previousContextKeyRef.current = currentContextKey;
+    // The response guard would discard this result anyway. Abort immediately
+    // so a profile/language replacement does not keep browser and provider work
+    // alive until the route timeout.
+    if (submittingRef.current) abortLiveRequest();
+  }, [abortLiveRequest, currentContextKey]);
+
   useEffect(() => {
     setVoiceSupported(speechRecognitionConstructor() !== null);
   }, []);
 
   useEffect(() => {
-    if (submitting) return;
+    if (submitting || appliedIncomingDraftRef.current === draft) return;
+    appliedIncomingDraftRef.current = draft;
+    // The parent's delayed checkpoint can catch up to text that is already on
+    // screen. Treat that as an acknowledgement, not a new edit that resets
+    // provenance or the textarea selection.
+    if (draft === lastLocalDraftRef.current) {
+      contextDraftRef.current = draft;
+      return;
+    }
     // An empty incoming draft must never wipe words already in the box. Stored
     // state hydrates a tick after mount, so a caregiver who starts typing
     // immediately would otherwise watch their first sentence disappear — and on
@@ -225,8 +277,13 @@ export function FamilyInterview({
     if (draft !== lastLocalDraftRef.current) {
       inputSourceRef.current = "typed";
       lastLocalDraftRef.current = draft;
+      contextDraftRef.current = draft;
     }
   }, [copy.tooLong, draft, submitting]);
+
+  useEffect(() => {
+    if (text.length > FAMILY_INTERVIEW_MAX_CHARS) setError(copy.tooLong);
+  }, [copy.tooLong, text.length]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -234,13 +291,51 @@ export function FamilyInterview({
       mountedRef.current = false;
       keepListeningRef.current = false;
       cleanupRecognition(recognitionRef.current, true, false);
+      abortLiveRequest();
     };
-  }, [cleanupRecognition]);
+  }, [abortLiveRequest, cleanupRecognition]);
+
+  useEffect(() => {
+    if (!liveAllowed) abortLiveRequest();
+  }, [abortLiveRequest, liveAllowed]);
+
+  useEffect(() => {
+    if (!voiceLocked) return;
+    setShowVoiceConsent(false);
+    if (keepListeningRef.current) finishRecording("stopped");
+  }, [finishRecording, voiceLocked]);
+
+  useEffect(() => {
+    if (dictationLanguageRef.current === language) return;
+    dictationLanguageRef.current = language;
+    setShowVoiceConsent(false);
+    if (keepListeningRef.current) finishRecording("stopped");
+  }, [finishRecording, language]);
+
+  useEffect(() => {
+    const stopWhenHidden = (): void => {
+      if (document.visibilityState !== "visible" && keepListeningRef.current) {
+        finishRecording("stopped");
+      }
+    };
+    const stopOnPageHide = (): void => {
+      if (keepListeningRef.current) finishRecording("stopped");
+      abortLiveRequest();
+    };
+    document.addEventListener("visibilitychange", stopWhenHidden);
+    window.addEventListener("pagehide", stopOnPageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", stopWhenHidden);
+      window.removeEventListener("pagehide", stopOnPageHide);
+    };
+  }, [abortLiveRequest, finishRecording]);
 
   function updateText(next: string): void {
     if (submittingRef.current) return;
     inputSourceRef.current = inputSourceRef.current === "voice" || inputSourceRef.current === "mixed" ? "mixed" : "typed";
     lastLocalDraftRef.current = next;
+    contextDraftRef.current = next;
+    latestContextKeyRef.current = familyContextKey(profile, next, language);
     setText(next);
     onDraftChange(next);
     setError(next.length > FAMILY_INTERVIEW_MAX_CHARS ? copy.tooLong : null);
@@ -262,6 +357,8 @@ export function FamilyInterview({
     }
     inputSourceRef.current = current.length === 0 && inputSourceRef.current === "typed" ? "voice" : inputSourceRef.current === "voice" ? "voice" : "mixed";
     lastLocalDraftRef.current = next;
+    contextDraftRef.current = next;
+    latestContextKeyRef.current = familyContextKey(profile, next, language);
     setText(next);
     setError(null);
     onDraftChange(next);
@@ -270,14 +367,17 @@ export function FamilyInterview({
     }
   }
 
-  function toggleVoice(): void {
+  function startVoice(): void {
     if (submittingRef.current) return;
-    if (keepListeningRef.current) {
-      finishRecording("finished");
+    const Recognition = speechRecognitionConstructor();
+    if (
+      !Recognition ||
+      voiceLockedRef.current ||
+      document.visibilityState !== "visible" ||
+      text.length >= FAMILY_INTERVIEW_MIC_DISABLE_AT
+    ) {
       return;
     }
-    const Recognition = speechRecognitionConstructor();
-    if (!Recognition || text.length >= FAMILY_INTERVIEW_MIC_DISABLE_AT) return;
     const recognition = new Recognition();
     acceptedSpeechResultsRef.current.clear();
     recognition.lang = language === "es" ? "es-US" : "en-US";
@@ -289,6 +389,7 @@ export function FamilyInterview({
     recognition.onresult = (event) => {
       if (
         submittingRef.current ||
+        voiceLockedRef.current ||
         recognitionRef.current !== recognition ||
         recognitionGenerationRef.current !== generation
       ) {
@@ -330,6 +431,8 @@ export function FamilyInterview({
         restartTimerRef.current = null;
         if (
           !keepListeningRef.current ||
+          voiceLockedRef.current ||
+          document.visibilityState !== "visible" ||
           recognitionRef.current !== recognition ||
           recognitionGenerationRef.current !== generation
         ) {
@@ -353,11 +456,26 @@ export function FamilyInterview({
     setRecordingStatus("listening");
     try {
       recognition.start();
+      onSessionStart("family interview");
     } catch {
       keepListeningRef.current = false;
       cleanupRecognition(recognition, false);
       setRecordingStatus("stopped");
     }
+  }
+
+  function toggleVoice(): void {
+    if (submittingRef.current) return;
+    if (keepListeningRef.current) {
+      finishRecording("finished");
+      return;
+    }
+    if (voiceLockedRef.current) return;
+    if (consentRequired) {
+      setShowVoiceConsent(true);
+      return;
+    }
+    startVoice();
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
@@ -371,7 +489,6 @@ export function FamilyInterview({
         diagnoses: profile.diagnoses.map((diagnosis) => ({ ...diagnosis }))
       },
       source: inputSourceRef.current,
-      passcode,
       language,
       contextKey: latestContextKeyRef.current
     } as const;
@@ -400,17 +517,26 @@ export function FamilyInterview({
       // until the caregiver has been told what the online helper sends and said
       // yes. The route's own `unconfigured`/`locked` answers arrive after the
       // body does, so this is the only gate that actually keeps words at home.
-      if (!safety && liveAllowed) {
+      if (!safety && liveAllowed && sendCapability) {
         onLiveSend?.();
+        const controller = new AbortController();
+        activeLiveRequestRef.current?.abort();
+        activeLiveRequestRef.current = controller;
         try {
-          live = await requestFamilyInterview({
-            text: snapshot.rawText,
-            profile: snapshot.profile,
-            passcode: snapshot.passcode,
-            language: snapshot.language
-          });
+          live = await requestFamilyInterview(
+            {
+              text: snapshot.rawText,
+              profile: snapshot.profile,
+              language: snapshot.language
+            },
+            { signal: controller.signal, consentCapability: sendCapability }
+          );
         } catch {
           live = null;
+        } finally {
+          if (activeLiveRequestRef.current === controller) {
+            activeLiveRequestRef.current = null;
+          }
         }
       }
       if (!mountedRef.current || latestContextKeyRef.current !== snapshot.contextKey) return;
@@ -462,17 +588,22 @@ export function FamilyInterview({
         placeholder={copy.placeholder}
         onChange={(event) => updateText(event.target.value)}
       />
-      <div className="flex items-center justify-between gap-3">
-        <p id="family-interview-count" className="text-sm text-ink/65" aria-live="polite">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p id="family-interview-count" className="text-sm text-ink/65">
           {tFamily(language, "interviewCount", { count: text.length, max: FAMILY_INTERVIEW_MAX_CHARS })}
         </p>
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
           {voiceSupported ? (
             <button
               type="button"
               aria-label={keepListeningRef.current ? copy.done : copy.speak}
               aria-pressed={keepListeningRef.current}
-              disabled={submitting || (!keepListeningRef.current && text.length >= FAMILY_INTERVIEW_MIC_DISABLE_AT)}
+              aria-describedby="family-interview-dictation-disclosure"
+              disabled={
+                submitting ||
+                voiceLocked ||
+                (!keepListeningRef.current && text.length >= FAMILY_INTERVIEW_MIC_DISABLE_AT)
+              }
               onClick={toggleVoice}
               className="inline-flex min-h-12 items-center gap-2 rounded-control bg-calm px-3 py-2 font-semibold text-care focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -489,7 +620,23 @@ export function FamilyInterview({
           </button>
         </div>
       </div>
-      <div id="family-interview-status" aria-live="polite">
+      {voiceSupported ? (
+        <p id="family-interview-dictation-disclosure" className="text-xs leading-5 text-ink/70">
+          {tFamily(language, "interviewDictationDisclosure")}
+        </p>
+      ) : null}
+      {showVoiceConsent ? (
+        <VoiceConsentSheet
+          language={language}
+          onAccept={() => {
+            grantConsent();
+            setShowVoiceConsent(false);
+            startVoice();
+          }}
+          onCancel={() => setShowVoiceConsent(false)}
+        />
+      ) : null}
+      <div id="family-interview-status">
         {error ? <p role="alert" className="text-sm font-medium text-rose-700">{error}</p> : null}
         {recordingStatus !== "idle" ? (
           <p role="status" className="text-sm font-medium text-care">

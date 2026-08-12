@@ -4,7 +4,13 @@ import { createFamilyAppointmentOffer, createSoonerAppointmentOffer } from "@/do
 import { brentState, deletedDemoState, demoState } from "@/domain/fixtures";
 import { INSTRUMENTS } from "@/domain/instruments/registry";
 import type { ScreeningInstrument } from "@/domain/instruments/types";
-import { clearStoredState, loadStoredState, saveStoredState } from "./storage";
+import {
+  clearStoredState,
+  clearStoredStateResult,
+  loadStoredState,
+  loadStoredStateResult,
+  saveStoredState
+} from "./storage";
 import { healthReducer } from "./store";
 import type {
   FamilyAppointment,
@@ -18,6 +24,7 @@ const STORAGE_KEY = "home-health-ai-ownership-state";
 describe("storage", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    window.sessionStorage.clear();
   });
 
   const validFamily: FamilyNavigatorState = {
@@ -61,6 +68,7 @@ describe("storage", () => {
     ],
     latestInterviewDomains: ["school_iep"],
     activeDomains: ["school_iep", "school_iep"],
+    resourcePreferences: { scope: "no_preference", contact: "no_preference" },
     saved: [
       { resourceId: "ky-spin", savedAt: "2026-07-17T12:00:00.000Z", domain: "parent_support" }
     ],
@@ -101,6 +109,41 @@ describe("storage", () => {
     expect(loaded.family?.alreadyEnrolled).toEqual(["first-steps"]);
     const persisted = JSON.parse(window.localStorage.getItem(STORAGE_KEY) as string);
     expect(persisted.family.activeDomains).toEqual(["school_iep"]);
+    expect(persisted.__storage).toMatchObject({
+      format: "home-health-ai-ownership-state",
+      schemaVersion: 1
+    });
+    expect(Number.isFinite(new Date(persisted.__storage.savedAt).valueOf())).toBe(true);
+  });
+
+  it("migrates a raw v0 record once and then loads the v1 record idempotently", () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...demoState, family: validFamily }));
+
+    expect(loadStoredStateResult().status).toBe("migrated");
+    const migrated = window.localStorage.getItem(STORAGE_KEY);
+    expect(JSON.parse(migrated ?? "{}").__storage.schemaVersion).toBe(1);
+
+    expect(loadStoredStateResult().status).toBe("loaded");
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(migrated);
+  });
+
+  it("preserves an unknown future version byte-for-byte and blocks writes", () => {
+    const future = JSON.stringify({
+      patient: { id: "future-patient" },
+      __storage: {
+        format: "home-health-ai-ownership-state",
+        schemaVersion: 2,
+        savedAt: "2026-08-08T12:00:00.000Z"
+      }
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    window.localStorage.setItem(STORAGE_KEY, future);
+
+    const loaded = loadStoredStateResult();
+
+    expect(loaded).toMatchObject({ status: "future_version", writable: false });
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(future);
+    warn.mockRestore();
   });
 
   it("drops malformed family entries while retaining valid entries", () => {
@@ -184,8 +227,15 @@ describe("storage", () => {
         family: {
           ...validFamily,
           safetyEvents: [
-            { id: "event-1", tier: "crisis", domain: "harm_to_others", createdAt: "2026-07-21T00:00:00.000Z" },
+            {
+              id: "event-1",
+              tier: "emergency",
+              domain: "acute_danger",
+              guidance: "missing_child",
+              createdAt: "2026-07-21T00:00:00.000Z"
+            },
             { id: "event-2", tier: "not-a-tier", domain: "self_harm", createdAt: "2026-07-21T00:00:00.000Z" },
+            { id: "event-3", tier: "crisis", domain: "self_harm", guidance: "unknown", createdAt: "2026-07-21T00:00:00.000Z" },
             { tier: "crisis", domain: "self_harm" }
           ]
         }
@@ -195,8 +245,44 @@ describe("storage", () => {
     const loaded = loadStoredState();
 
     expect(loaded.family?.safetyEvents).toHaveLength(1);
-    expect(loaded.family?.safetyEvents[0]).toMatchObject({ id: "event-1", domain: "harm_to_others" });
+    expect(loaded.family?.safetyEvents[0]).toMatchObject({
+      id: "event-1",
+      domain: "acute_danger",
+      guidance: "missing_child"
+    });
     expect(loaded.family?.activeDomains).toEqual(["school_iep"]);
+  });
+
+  it("keeps a stored medication soft-block event as routing-only metadata", () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        ...demoState,
+        family: {
+          ...validFamily,
+          safetyEvents: [
+            {
+              id: "medication-block-1",
+              tier: "blocked",
+              domain: "medication_change",
+              createdAt: "2026-08-12T12:00:00.000Z"
+            }
+          ]
+        }
+      })
+    );
+
+    const loaded = loadStoredState();
+
+    expect(loaded.family?.safetyEvents).toEqual([
+      {
+        id: "medication-block-1",
+        tier: "blocked",
+        domain: "medication_change",
+        createdAt: "2026-08-12T12:00:00.000Z"
+      }
+    ]);
+    expect(JSON.stringify(loaded.family?.safetyEvents)).not.toContain("lisinopril");
   });
 
   it("backfills referral and appointments on saves written before Ladder", () => {
@@ -227,7 +313,7 @@ describe("storage", () => {
     expect(loaded.family?.appointments).toEqual([]);
   });
 
-  it("preserves a valid referral and appointment on load", () => {
+  it("strips simulated referral and appointment fields before persistence", () => {
     const appointment: FamilyNavigatorState["appointments"][number] = {
       id: "appointment-1",
       clinic: "UK Developmental Pediatrics",
@@ -244,11 +330,11 @@ describe("storage", () => {
 
     const loaded = loadStoredState();
 
-    expect(loaded.family?.referral).toEqual(referral);
-    expect(loaded.family?.appointments).toEqual([appointment]);
+    expect(loaded.family?.referral).toBeNull();
+    expect(loaded.family?.appointments).toEqual([]);
   });
 
-  it("filters a reminder acknowledgement that predates appointment creation without resetting family state", () => {
+  it("removes legacy simulated appointments without resetting family state", () => {
     const validAppointment: FamilyAppointment = {
       id: "valid-confirmed",
       clinic: "UK Developmental Pediatrics",
@@ -278,11 +364,11 @@ describe("storage", () => {
 
     const loaded = loadStoredState();
 
-    expect(loaded.family?.appointments).toEqual([validAppointment]);
+    expect(loaded.family?.appointments).toEqual([]);
     expect(loaded.family?.profile).toEqual(validFamily.profile);
   });
 
-  it("keeps coherent rows for every reducer-produced status and filters mixed semantic failures", () => {
+  it("removes legacy appointment rows across every old simulation status", () => {
     const offered: FamilyAppointment = {
       id: "valid-offered",
       clinic: "UK Developmental Pediatrics",
@@ -384,21 +470,12 @@ describe("storage", () => {
     const loaded = loadStoredState();
 
     expect(loaded.family?.referral).toBeNull();
-    expect(loaded.family?.appointments.map(({ id }) => id)).toEqual([
-      "valid-offered",
-      "valid-booked",
-      "valid-confirmed",
-      "valid-completed",
-      "valid-missed",
-      "valid-replaced",
-      "valid-backfill"
-    ]);
-    expect(loaded.family?.appointments.at(-1)?.supersedesId).toBe("valid-replaced");
+    expect(loaded.family?.appointments).toEqual([]);
     expect(loaded.family?.profile).toEqual(validFamily.profile);
     expect(loaded.patient.id).toBe(demoState.patient.id);
   });
 
-  it("preserves coherent supersession history while clearing incoherent child links", () => {
+  it("removes legacy simulated supersession history", () => {
     const booked = (id: string): FamilyAppointment => ({
       id,
       clinic: "UK Developmental Pediatrics",
@@ -459,21 +536,10 @@ describe("storage", () => {
     );
 
     const loaded = loadStoredState();
-    const links = new Map(loaded.family?.appointments.map(({ id, supersedesId }) => [id, supersedesId]));
-
-    expect(loaded.family?.appointments.map(({ id }) => id)).toEqual(appointments.map(({ id }) => id));
-    expect(links.get("valid-offered-over-booked")).toBe("valid-booked-parent");
-    expect(links.get("valid-offered-over-confirmed")).toBe("valid-confirmed-parent");
-    expect(links.get("valid-booked-over-replaced")).toBe("valid-replaced-booked-parent");
-    expect(links.get("valid-confirmed-over-replaced")).toBe("valid-replaced-confirmed-parent");
-    expect(links.get("valid-terminal-over-replaced")).toBe("valid-replaced-terminal-parent");
-    expect(links.get("missing-parent-child")).toBeUndefined();
-    expect(links.get("later-parent-child")).toBeUndefined();
-    expect(links.get("incompatible-child")).toBeUndefined();
-    expect(links.get("offered-over-replaced")).toBeUndefined();
+    expect(loaded.family?.appointments).toEqual([]);
   });
 
-  it("preserves replacement history through reload before a rebooked reschedule", () => {
+  it("resets replacement simulation history on reload", () => {
     const at = "2026-07-24T12:00:00.000Z";
     const referred = healthReducer(
       { ...demoState, family: validFamily },
@@ -496,28 +562,12 @@ describe("storage", () => {
 
     saveStoredState(accepted);
     const reloaded = loadStoredState();
-    const reopened = healthReducer(reloaded, {
-      type: "requestFamilyAppointmentReschedule",
-      appointmentId: earlier.id,
-      at
-    });
-    const rebooked = healthReducer(reopened, {
-      type: "bookFamilyAppointment",
-      appointmentId: earlier.id,
-      slot: reopened.family?.appointments.find(({ id }) => id === earlier.id)?.offeredSlots[0] ?? "",
-      at
-    });
-
-    expect(reloaded.family?.appointments.map(({ id, status, supersedesId }) => ({ id, status, supersedesId }))).toEqual([
-      { id: original.id, status: "replaced", supersedesId: undefined },
-      { id: earlier.id, status: "booked", supersedesId: original.id }
-    ]);
-    expect(rebooked.family?.appointments.map(({ id, status, supersedesId }) => ({ id, status, supersedesId }))).toEqual([
-      { id: original.id, status: "replaced", supersedesId: undefined },
-      { id: earlier.id, status: "booked", supersedesId: undefined }
-    ]);
-    expect(rebooked.auditEvents.filter(({ label }) => label === "Earlier visit replaced the prior booking")).toHaveLength(1);
-    expect(rebooked.auditEvents.at(-1)?.label).toBe("Evaluation visit booked");
+    expect(reloaded.family?.referral).toBeNull();
+    expect(reloaded.family?.appointments).toEqual([]);
+    expect(reloaded.family?.soonerList).toBeNull();
+    expect(
+      reloaded.auditEvents.filter(({ label }) => label === "Earlier visit replaced the prior booking")
+    ).toHaveLength(0);
   });
 
   it.each([
@@ -544,6 +594,7 @@ describe("storage", () => {
     delete legacyFamily.packetQuestionIds;
     delete legacyFamily.checkinTouchedAt;
     delete legacyFamily.profileProvenance;
+    delete legacyFamily.resourcePreferences;
     legacyFamily.interviews = validFamily.interviews.map((interview) => {
       const legacyInterview: Record<string, unknown> = { ...interview };
       delete legacyInterview.kind;
@@ -563,6 +614,10 @@ describe("storage", () => {
     expect(loaded.family?.interviews.every((row) => row.kind === "orientation")).toBe(true);
     // A save written before provenance existed describes basics a person typed.
     expect(loaded.family?.profileProvenance).toBe("stated");
+    expect(loaded.family?.resourcePreferences).toEqual({
+      scope: "no_preference",
+      contact: "no_preference"
+    });
     expect(loaded.family?.profile).toEqual(validFamily.profile);
   });
 
@@ -573,6 +628,26 @@ describe("storage", () => {
     );
 
     expect(loadStoredState().family?.profileProvenance).toBe("extracted");
+  });
+
+  it("discards invalid resource preferences without losing the family slice", () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        ...demoState,
+        family: {
+          ...validFamily,
+          resourcePreferences: { scope: "cheap_first", contact: "telepathy" }
+        }
+      })
+    );
+
+    const loaded = loadStoredState();
+    expect(loaded.family?.resourcePreferences).toEqual({
+      scope: "no_preference",
+      contact: "no_preference"
+    });
+    expect(loaded.family?.interviews).toHaveLength(validFamily.interviews.length);
   });
 
   // A provenance value we do not recognize must cost the value and nothing else.
@@ -698,10 +773,7 @@ describe("storage", () => {
     expect(loaded.family?.steps).toEqual([step]);
     expect(loaded.family?.pulses).toEqual([{ at: "2026-07-02T00:00:00.000Z", score: 4 }]);
     expect(loaded.family?.flags).toEqual([flag]);
-    expect(loaded.family?.soonerList).toEqual({
-      optedInAt: "2026-07-01T00:00:00.000Z",
-      constraints: ["weekday_mornings"]
-    });
+    expect(loaded.family?.soonerList).toBeNull();
     expect(loaded.family?.packetQuestionIds).toEqual(["who_to_call", "home_help"]);
     expect(loaded.family?.checkinTouchedAt).toBe("2026-07-05T00:00:00.000Z");
   });
@@ -840,27 +912,94 @@ describe("storage", () => {
       warn.mockRestore();
     });
 
+    it("preserves the primary and disables writes when the recovery copy fails", () => {
+      const raw = "{not json";
+      window.localStorage.setItem(STORAGE_KEY, raw);
+      const nativeSetItem = Storage.prototype.setItem;
+      const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (
+        this: Storage,
+        key: string,
+        value: string
+      ) {
+        if (key === RECOVERY_KEY) throw new Error("Quota exceeded");
+        return nativeSetItem.call(this, key, value);
+      });
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const loaded = loadStoredStateResult();
+
+      expect(loaded).toMatchObject({ status: "unavailable", writable: false });
+      expect(window.localStorage.getItem(STORAGE_KEY)).toBe(raw);
+      expect(window.localStorage.getItem(RECOVERY_KEY)).toBeNull();
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("original payload was left"));
+      setItem.mockRestore();
+      warn.mockRestore();
+    });
+
     // A stash is still the family's record, so "clear my data" takes it too.
     it("goes when the caregiver clears their data", () => {
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
       window.localStorage.setItem(STORAGE_KEY, "{not json");
+      window.localStorage.setItem("ladder-visit-notice:patient-1:2026-01-01", "seen");
+      window.localStorage.setItem("dose-reminder-notified:med-1:2026-08-12", "true");
+      window.localStorage.setItem("dose-reminder-notified:med-2:2026-08-12", "true");
+      window.localStorage.setItem("ladder-checkin-reminder", "true");
+      window.localStorage.setItem("home-health-voice-consent", "true");
+      window.sessionStorage.setItem("home-health-voice-consent:v2:patient-1", "true");
       loadStoredState();
       expect(window.localStorage.getItem(RECOVERY_KEY)).not.toBeNull();
 
       clearStoredState();
 
       expect(window.localStorage.getItem(RECOVERY_KEY)).toBeNull();
+      expect(window.localStorage.getItem("ladder-visit-notice:patient-1:2026-01-01")).toBeNull();
+      expect(window.localStorage.getItem("dose-reminder-notified:med-1:2026-08-12")).toBeNull();
+      expect(window.localStorage.getItem("dose-reminder-notified:med-2:2026-08-12")).toBeNull();
+      expect(window.localStorage.getItem("ladder-checkin-reminder")).toBeNull();
+      expect(window.localStorage.getItem("home-health-voice-consent")).toBeNull();
+      expect(window.sessionStorage.getItem("home-health-voice-consent:v2:patient-1")).toBeNull();
       warn.mockRestore();
+    });
+
+    it("reports a reminder scope when a per-medication marker cannot be removed", () => {
+      const doseKey = "dose-reminder-notified:med-1:2026-08-12";
+      window.localStorage.setItem(doseKey, "true");
+      window.localStorage.setItem("ladder-checkin-reminder", "true");
+      const nativeRemoveItem = Storage.prototype.removeItem;
+      const removeItem = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(function (
+        this: Storage,
+        key: string
+      ) {
+        if (key === doseKey) throw new Error("Removal blocked");
+        return nativeRemoveItem.call(this, key);
+      });
+
+      const result = clearStoredStateResult();
+
+      expect(result).toMatchObject({
+        status: "partial",
+        failedScopes: ["dose_reminder_notifications"]
+      });
+      expect(window.localStorage.getItem(doseKey)).toBe("true");
+      expect(window.localStorage.getItem("ladder-checkin-reminder")).toBeNull();
+      removeItem.mockRestore();
     });
   });
 
   it("falls back to the retinopathy demo state when localStorage.getItem throws", () => {
-    const getItemSpy = vi.spyOn(window.localStorage, "getItem").mockImplementation(() => {
+    const getItemSpy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("Storage unavailable");
     });
 
-    expect(() => loadStoredState()).not.toThrow();
-    expect(loadStoredState()).toEqual(brentState);
+    let loaded: ReturnType<typeof loadStoredStateResult> | undefined;
+    expect(() => {
+      loaded = loadStoredStateResult();
+    }).not.toThrow();
+    expect(loaded).toMatchObject({
+      state: brentState,
+      status: "unavailable",
+      writable: false
+    });
 
     getItemSpy.mockRestore();
   });
@@ -952,7 +1091,7 @@ describe("storage", () => {
     expect(persisted).not.toBeNull();
     const persistedState = JSON.parse(persisted ?? "{}");
     expect(persistedState.tasks).toHaveLength(2);
-    expect(persistedState.tasks.map((task) => task.id)).toEqual(["task-valid-1", "task-valid-2"]);
+    expect(persistedState.tasks.map((task: { id: string }) => task.id)).toEqual(["task-valid-1", "task-valid-2"]);
   });
 
   it("falls back to the retinopathy demo state for carePlan patient mismatch and clears storage", () => {
@@ -1042,14 +1181,36 @@ describe("storage", () => {
 
   it("does not throw when saveStoredState cannot write", () => {
     const originalState = { ...demoState, readings: [...demoState.readings] };
-    const setItemSpy = vi.spyOn(window.localStorage, "setItem").mockImplementation(() => {
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new Error("Storage is full");
     });
 
-    expect(() => saveStoredState(originalState)).not.toThrow();
+    let saved: boolean | undefined;
+    expect(() => {
+      saved = saveStoredState(originalState);
+    }).not.toThrow();
+    expect(saved).toBe(false);
     expect(clearStoredState()).toBeUndefined();
 
     setItemSpy.mockRestore();
+  });
+
+  it("discards a write when another tab clears during the localStorage write", () => {
+    const deletionFenceKey = `${STORAGE_KEY}.deletion-fence`;
+    const nativeSetItem = Storage.prototype.setItem;
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (
+      this: Storage,
+      key: string,
+      value: string
+    ) {
+      nativeSetItem.call(this, key, value);
+      if (key === STORAGE_KEY) nativeSetItem.call(this, deletionFenceKey, "1");
+    });
+
+    expect(saveStoredState(demoState, 0)).toBe(false);
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
+    expect(window.localStorage.getItem(deletionFenceKey)).toBe("1");
+    setItem.mockRestore();
   });
 
   it("does not throw when clearStoredState cannot remove", () => {
@@ -1993,7 +2154,11 @@ describe("P4 assessment storage", () => {
     expect(loaded.patient).toEqual(demoState.patient);
     // probeAnswers is additive and hydrates to []; the point of this case is
     // that the family slice survives a malformed assessment event intact.
-    expect(loaded.family).toEqual({ probeAnswers: [], ...family });
+    expect(loaded.family).toEqual({
+      probeAnswers: [],
+      ...family,
+      resourcePreferences: { scope: "no_preference", contact: "no_preference" }
+    });
     expect(loaded.assessmentEvents.map(({ id }) => id)).toEqual(["posi-valid"]);
   });
 });

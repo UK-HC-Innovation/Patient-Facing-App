@@ -24,6 +24,7 @@ describe("FamilyStageTimeline", () => {
         family={schoolAgeFamilyState}
         language="en"
         now={now}
+        simulationEnabled
         onBackdateDiagnoses={onBackdateDiagnoses}
       />
     );
@@ -54,6 +55,7 @@ describe("FamilyStageTimeline", () => {
         }}
         language="en"
         now={new Date("2026-07-17T12:00:00.000Z")}
+        simulationEnabled
         onBackdateDiagnoses={vi.fn()}
       />
     );

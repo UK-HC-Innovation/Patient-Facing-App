@@ -54,6 +54,7 @@ export function useFoodVoiceSession(args: {
   const [partialAssistantText, setPartialAssistantText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const handleRef = useRef<LiveSessionHandle | null>(null);
+  const safetyLatchedRef = useRef(false);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onFinalRef = useRef(onFinalTranscript);
   onFinalRef.current = onFinalTranscript;
@@ -72,6 +73,7 @@ export function useFoodVoiceSession(args: {
     handleRef.current = null;
     partialRef.current = "";
     setPartialAssistantText("");
+    setStatus("closed");
   }, [clearIdleTimer]);
 
   const armIdleTimer = useCallback(() => {
@@ -84,6 +86,7 @@ export function useFoodVoiceSession(args: {
 
   const handleEvent = useCallback(
     (event: LiveSessionEvent) => {
+      if (safetyLatchedRef.current) return;
       armIdleTimer();
       switch (event.type) {
         case "status":
@@ -108,6 +111,7 @@ export function useFoodVoiceSession(args: {
           }
           break;
         case "safetyIntercept":
+          safetyLatchedRef.current = true;
           partialRef.current = "";
           setPartialAssistantText("");
           onInterceptRef.current({
@@ -116,6 +120,7 @@ export function useFoodVoiceSession(args: {
             banner: event.banner,
             actions: event.actions
           });
+          stop();
           break;
         case "error":
           setError(event.message);
@@ -125,7 +130,7 @@ export function useFoodVoiceSession(args: {
           break;
       }
     },
-    [armIdleTimer]
+    [armIdleTimer, stop]
   );
 
   const gateTranscript = useCallback(
@@ -135,6 +140,7 @@ export function useFoodVoiceSession(args: {
 
   const start = useCallback(async () => {
     setError(null);
+    safetyLatchedRef.current = false;
 
     const stateBeforeStart = getState();
     // Refuse to open a routine voice session while an unacknowledged crisis is on
@@ -181,7 +187,7 @@ export function useFoodVoiceSession(args: {
         };
       };
       try {
-        handleRef.current = await connectRealtimeSession({
+        const handle = await connectRealtimeSession({
           clientSecret: token.clientSecret,
           model: token.model,
           instructions: buildFoodLensInstructions(state, selectLenses(activeConditions(state.carePlan))),
@@ -190,7 +196,12 @@ export function useFoodVoiceSession(args: {
           onEvent: handleEvent,
           gateTranscript
         });
-        armIdleTimer();
+        if (safetyLatchedRef.current) {
+          handle.close();
+        } else {
+          handleRef.current = handle;
+          armIdleTimer();
+        }
       } catch {
         setError("Could not start the voice session.");
         setStatus("error");
@@ -204,13 +215,18 @@ export function useFoodVoiceSession(args: {
     setMode("mock");
     const resolvedDataMode = aiDataModeForVoiceTransport(token);
     setDataMode(resolvedDataMode);
-    handleRef.current = await openLocalCoachSession(
+    const handle = await openLocalCoachSession(
       { language, getState, getContext, onEvent: handleEvent },
       resolvedDataMode === "on_device"
         ? new MockHealthAiProvider()
         : new OpenAiVisionProvider({ passcode })
     );
-    armIdleTimer();
+    if (safetyLatchedRef.current) {
+      handle.close();
+    } else {
+      handleRef.current = handle;
+      armIdleTimer();
+    }
   }, [armIdleTimer, gateTranscript, getContext, getState, handleEvent, language]);
 
   const sendUserText = useCallback((text: string) => {

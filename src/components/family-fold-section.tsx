@@ -95,19 +95,23 @@ export function FamilyFoldSection({
  * ancestors (a resource card's own "Details and source") are opened directly —
  * they own no React state.
  */
-export function openFamilyFoldsFor(hash: string): void {
-  if (typeof document === "undefined" || hash.length <= 1) return;
+export function openFamilyFoldsFor(hash: string): boolean {
+  if (typeof document === "undefined" || hash.length <= 1) return false;
   let target: HTMLElement | null = null;
   try {
     target = document.getElementById(decodeURIComponent(hash.slice(1)));
   } catch {
     // A malformed hash is not worth throwing over; nothing to open.
-    return;
+    return false;
   }
-  if (!target) return;
+  if (!target) return false;
 
   for (let node: HTMLElement | null = target; node; node = node.parentElement) {
     if (node.dataset.familyFold !== undefined) {
+      // Open the native disclosure synchronously so focus and scroll measure
+      // the destination's final layout. The event keeps React state in step.
+      const disclosure = node.querySelector(":scope > details");
+      if (disclosure instanceof HTMLDetailsElement) disclosure.open = true;
       node.dispatchEvent(new CustomEvent(FOLD_OPEN_EVENT));
     } else if (node instanceof HTMLDetailsElement) {
       node.open = true;
@@ -126,6 +130,7 @@ export function openFamilyFoldsFor(hash: string): void {
   if (typeof target.scrollIntoView === "function") {
     target.scrollIntoView({ block: "start" });
   }
+  return true;
 }
 
 /**
@@ -134,7 +139,9 @@ export function openFamilyFoldsFor(hash: string): void {
  */
 export function useFamilyFoldAnchors(): void {
   useEffect(() => {
-    const onHashChange = (): void => openFamilyFoldsFor(window.location.hash);
+    const onHashChange = (): void => {
+      openFamilyFoldsFor(window.location.hash);
+    };
     const onClick = (event: MouseEvent): void => {
       const target = event.target;
       if (!(target instanceof Element)) return;

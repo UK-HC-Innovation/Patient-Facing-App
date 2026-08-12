@@ -175,7 +175,8 @@ export type AuditEvent = {
     | "recall_scheduled"
     | "referral_booked"
     | "voice_consent_granted"
-    | "voice_session_started";
+    | "voice_session_started"
+    | "family_ai_send_attempted";
   label: string;
   createdAt: string;
 };
@@ -444,10 +445,17 @@ export type FamilyAppointment = {
 // A safety disclosure inside the family thread. The navigator shows the standard
 // crisis resources and keeps helping — this record is what holds the banner open
 // (and every voice mic closed) until the caregiver acknowledges it.
+export type FamilySafetyGuidance =
+  | "missing_child"
+  | "medication_access"
+  | "basic_needs"
+  | "basic_needs_and_medication_access";
+
 export type FamilySafetyEvent = {
   id: string;
-  tier: "crisis" | "emergency";
+  tier: "crisis" | "emergency" | "blocked";
   domain: string;
+  guidance?: FamilySafetyGuidance;
   createdAt: string;
   acknowledgedAt?: string;
 };
@@ -522,6 +530,11 @@ export type FamilySoonerConstraint =
 
 export type FamilySoonerList = { optedInAt: string; constraints: FamilySoonerConstraint[] };
 
+export type FamilyResourcePreferences = {
+  scope: "no_preference" | "local_first" | "statewide_first";
+  contact: "no_preference" | "self_serve_first" | "call_first" | "school_or_provider_first";
+};
+
 export type FamilyNavigatorState = {
   profile: FamilyProfile | null;
   /**
@@ -540,6 +553,8 @@ export type FamilyNavigatorState = {
   facts: FamilyFact[];
   latestInterviewDomains: DevNeedDomain[];
   activeDomains: DevNeedDomain[];
+  /** Optional local-only soft ordering; never sent to the recommendation API. */
+  resourcePreferences: FamilyResourcePreferences;
   saved: SavedFamilyResource[];
   alreadyEnrolled: string[];
   steps: FamilyResourceStep[];

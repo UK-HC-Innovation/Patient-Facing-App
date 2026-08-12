@@ -264,7 +264,6 @@ describe("Ladder semantic contrast", () => {
       <FamilyOrientationInterview
         profile={schoolAgeFamilyState.profile!}
         draft={SAMPLE_CAREGIVER_TEXT}
-        passcode="secret"
         // The mocked provider result is what drives the sign-off this test is
         // measuring, so it stands in for a consented session (F1a).
         liveAllowed

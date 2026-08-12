@@ -81,6 +81,12 @@ export type FamilyWaitHeaderProps = {
   returning?: boolean;
   /** How many places the Programs surface is actually showing. */
   programsCount?: number;
+  /**
+   * False in the family posture. Persisted demo referral/appointment state may
+   * still exist after a posture change, but none of its claims or links may leak
+   * into a build where the simulated Visit surface does not exist.
+   */
+  simulationEnabled?: boolean;
 };
 
 /**
@@ -96,11 +102,15 @@ export function FamilyWaitHeader({
   checkinOpen,
   threadActive,
   returning = false,
-  programsCount
+  programsCount,
+  simulationEnabled = true
 }: FamilyWaitHeaderProps) {
-  const rung = nextFamilyRung(family, now, { checkinOpen, threadActive });
+  const visibleFamily: FamilyNavigatorState = simulationEnabled
+    ? family
+    : { ...family, referral: null, appointments: [], soonerList: null };
+  const rung = nextFamilyRung(visibleFamily, now, { checkinOpen, threadActive });
   const label = rungLabel(rung, language);
-  const referral = family.referral;
+  const referral = visibleFamily.referral;
   // Elapsed time only. A predicted seen-by date is the one number we will not invent.
   const months = referral ? monthsOnList(referral.referredAt, now) : 0;
   const monthName = referral
@@ -118,7 +128,7 @@ export function FamilyWaitHeader({
   const stepsInMotion = family.steps.filter(
     ({ status }) => status !== "not_for_us" && status !== "enrolled"
   ).length;
-  const appointment = activeFamilyAppointment(family.appointments);
+  const appointment = activeFamilyAppointment(visibleFamily.appointments);
   const visitWhen =
     appointment?.scheduledFor &&
     (appointment.status === "booked" || appointment.status === "confirmed")
@@ -240,7 +250,7 @@ export function FamilyWaitHeader({
             {tFamily(language, "waitChipVisit", { when: visitWhen })}
           </span>
         ) : null}
-        {family.soonerList ? (
+        {visibleFamily.soonerList ? (
           <span className="rounded-full bg-calm px-3 py-1">
             {tFamily(language, "waitChipSooner")}
           </span>

@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import { PhoneFrame } from "@/components/phone-frame";
 
 // Not in the app nav — a standalone bezel for stakeholder walkthroughs. The
@@ -18,6 +19,12 @@ export default function DemoPage() {
         slot → teachable moment. Restore the default walkthrough from the Privacy page and rerun with report-pdr-dme (urgent) or report-no-dr
         (recall). This frame shares the saved data in this browser.
       </p>
+      <Link
+        href="/ladder/impact"
+        className="inline-flex min-h-12 items-center rounded-control bg-care px-4 py-2 text-sm font-semibold text-white"
+      >
+        Open Ladder clinic impact demo
+      </Link>
     </main>
   );
 }

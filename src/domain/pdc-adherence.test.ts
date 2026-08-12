@@ -91,6 +91,27 @@ describe("PDC diabetes adherence policy", () => {
     expect(result.meetsThreshold).toBe(true);
   });
 
+  it("ignores claims outside the measurement year before choosing the IPSD", () => {
+    const result = calculateDiabetesPdc({
+      patientId: "patient_d4",
+      measurementYear: 2026,
+      claims: [
+        { id: "prior_year", medicationName: "metformin", dateOfService: "2025-01-01", daysSupply: 365 },
+        { id: "claim_1", medicationName: "metformin", dateOfService: "2026-10-01", daysSupply: 45 },
+        { id: "claim_2", medicationName: "metformin", dateOfService: "2026-11-15", daysSupply: 45 },
+        { id: "next_year", medicationName: "mysteryglucose", dateOfService: "2027-01-01", daysSupply: 90 }
+      ]
+    });
+
+    expect(result.ipsd).toBe("2026-10-01");
+    expect(result.treatmentPeriodDays).toBe(92);
+    expect(result.coveredDays).toBe(90);
+    expect(result.pdcPercent).toBe(97.83);
+    expect(result.meetsThreshold).toBe(true);
+    expect(result.includedClaimIds).toEqual(["claim_1", "claim_2"]);
+    expect(result.reviewClaims).toEqual([]);
+  });
+
   it("fails below threshold and emits a refill-gap insight from claims only", () => {
     const result = calculateDiabetesPdc({
       patientId: "patient_d4",

@@ -1,12 +1,15 @@
 import { z } from "zod";
-import { buildVoiceSafetyIdentifier } from "@/ai/voice-safety-identifier";
 import { devNeedDomainSchema, familyInterviewInputSchema, parseFamilyInterviewPayload } from "@/domain/family-interview";
+import { screenFamilySafety } from "@/domain/family-safety";
+import { readBoundedFamilyJson } from "@/server/family-ai-auth";
+import {
+  beginFamilyAiEgress,
+  requestFamilyAiJsonCompletion
+} from "@/server/family-ai-egress";
 
 export const dynamic = "force-dynamic";
 
-const CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions";
 const DEFAULT_INTERVIEW_MODEL = "gpt-4o-mini";
-const INTERVIEW_TIMEOUT_MS = 15_000;
 
 const diagnosisSchema = z
   .object({
@@ -42,28 +45,9 @@ const bodySchema = z
   .object({
     text: familyInterviewInputSchema,
     profile: profileSchema,
-    passcode: z.string().max(200).optional(),
     language: z.enum(["en", "es"])
   })
   .strict();
-
-const providerEnvelopeSchema = z
-  .object({
-    choices: z
-      .array(
-        z
-          .object({
-            message: z
-              .object({
-                content: z.string()
-              })
-              .passthrough()
-          })
-          .passthrough()
-      )
-      .min(1)
-  })
-  .passthrough();
 
 const domainValues = devNeedDomainSchema.options.join(", ");
 
@@ -95,78 +79,39 @@ function userPrompt(body: z.infer<typeof bodySchema>): string {
   return `Profile: ${JSON.stringify(minimalProfile)}\nCaregiver interview: ${JSON.stringify(body.text)}`;
 }
 
-async function readJson(request: Request): Promise<unknown> {
-  try {
-    return (await request.json()) as unknown;
-  } catch {
-    return null;
-  }
-}
-
 export async function POST(request: Request): Promise<Response> {
-  const parsedBody = bodySchema.safeParse(await readJson(request));
+  const egress = beginFamilyAiEgress(request, "interview");
+  if (!egress.ok && egress.mode === "limited") {
+    return Response.json(
+      { mode: "limited", data: null },
+      { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": "60" } }
+    );
+  }
+  if (!egress.ok) return Response.json({ mode: egress.mode, data: null });
+  const payload = await readBoundedFamilyJson(request);
+  if (!payload.ok) {
+    return Response.json({ data: null }, { status: payload.status });
+  }
+  const parsedBody = bodySchema.safeParse(payload.value);
   if (!parsedBody.success) {
     return Response.json({ data: null }, { status: 400 });
   }
   const body = parsedBody.data;
-  const provider = process.env.HEALTH_AI_PROVIDER;
-  const apiKey = process.env.HEALTH_AI_API_KEY;
-  if (provider !== "openai" || !apiKey) {
-    return Response.json({ mode: "unconfigured", data: null });
+  if (screenFamilySafety(body.text) !== null) {
+    return Response.json({ mode: "safety", data: null });
   }
 
-  const requiredPasscode = process.env.DEMO_PASSCODE;
-  if (requiredPasscode && body.passcode !== requiredPasscode) {
-    return Response.json({ mode: "locked", data: null });
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), INTERVIEW_TIMEOUT_MS);
-  try {
-    const upstream = await fetch(CHAT_COMPLETIONS_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        // Matches the anonymous fallback the coach, vision, extract and realtime
-        // routes already send. The family flow carries no patient id in its body,
-        // so every caller is the anonymous bucket until one is threaded through.
-        "OpenAI-Safety-Identifier": buildVoiceSafetyIdentifier("anonymous")
-      },
-      body: JSON.stringify({
-        model: process.env.HEALTH_AI_INTERVIEW_MODEL || DEFAULT_INTERVIEW_MODEL,
-        temperature: 0,
-        max_tokens: 1200,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: systemPrompt() },
-          { role: "user", content: userPrompt(body) }
-        ]
-      }),
-      signal: controller.signal
-    });
-    if (!upstream.ok) {
-      return Response.json({ data: null }, { status: 502 });
-    }
-
-    const envelope = providerEnvelopeSchema.safeParse((await upstream.json()) as unknown);
-    if (!envelope.success) {
-      return Response.json({ mode: "success", data: null });
-    }
-    const content = envelope.data.choices[0].message.content;
-    let decoded: unknown;
-    try {
-      decoded = JSON.parse(content) as unknown;
-    } catch {
-      decoded = null;
-    }
-    return Response.json(
-      { mode: "success", data: parseFamilyInterviewPayload(decoded) },
-      { headers: { "Cache-Control": "no-store" } }
-    );
-  } catch {
-    return Response.json({ data: null }, { status: 502 });
-  } finally {
-    clearTimeout(timeout);
-  }
+  const completion = await requestFamilyAiJsonCompletion(egress.context, {
+    model: process.env.HEALTH_AI_INTERVIEW_MODEL || DEFAULT_INTERVIEW_MODEL,
+    maxTokens: 1200,
+    messages: [
+      { role: "system", content: systemPrompt() },
+      { role: "user", content: userPrompt(body) }
+    ]
+  });
+  if (!completion.ok) return Response.json({ data: null }, { status: 502 });
+  return Response.json(
+    { mode: "success", data: parseFamilyInterviewPayload(completion.data) },
+    { headers: { "Cache-Control": "no-store" } }
+  );
 }

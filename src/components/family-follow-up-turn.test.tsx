@@ -77,7 +77,7 @@ describe("FamilyFollowUpTurn", () => {
     expect(onAnswer).toHaveBeenCalledWith("No", "typed");
   });
 
-  it("announces the round counter", () => {
+  it("keeps the visible round counter out of the live-announcement queue", () => {
     render(
       <FamilyFollowUpTurn
         question={question}
@@ -89,7 +89,7 @@ describe("FamilyFollowUpTurn", () => {
       />
     );
 
-    expect(screen.getByText("Question 2 of 2")).toHaveAttribute("aria-live", "polite");
+    expect(screen.getByText("Question 2 of 2")).not.toHaveAttribute("aria-live");
   });
 
   it("matches a spoken chip label and ordinal locally as voice answers", () => {

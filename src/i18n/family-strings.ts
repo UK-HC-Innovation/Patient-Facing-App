@@ -70,6 +70,7 @@ export type FamilyStringKey =
   | "interviewIntro"
   | "interviewLabel"
   | "interviewPlaceholder"
+  | "interviewDictationDisclosure"
   | "interviewMicStart"
   | "interviewMicStop"
   | "interviewMicDone"
@@ -124,6 +125,14 @@ export type FamilyStringKey =
   | "evidenceInferred"
   | "evidenceConfirmed"
   | "factSource"
+  | "evidenceTraceConversation"
+  | "evidenceTraceScreen"
+  | "evidenceTraceOrphaned"
+  | "evidenceCaptureTyped"
+  | "evidenceCaptureVoice"
+  | "evidenceCaptureMixed"
+  | "evidenceExtractionOnline"
+  | "evidenceExtractionOnDevice"
   | "factConfirm"
   | "factConfirmed"
   | "factNotRight"
@@ -196,11 +205,28 @@ export type FamilyStringKey =
   | "apptDemoPassed"
   | "apptSafetyHold"
   | "resourcesTitle"
+  | "preferencesTitle"
+  | "preferencesSummary"
+  | "preferencesIntro"
+  | "preferencesHonesty"
+  | "preferencesScopeLegend"
+  | "preferencesScopeNone"
+  | "preferencesScopeLocal"
+  | "preferencesScopeStatewide"
+  | "preferencesContactLegend"
+  | "preferencesContactNone"
+  | "preferencesContactSelfServe"
+  | "preferencesContactCall"
+  | "preferencesContactSchoolProvider"
+  | "preferencesSave"
+  | "preferencesSaved"
   | "resourcesIntro"
   | "basicsCountyQuestion"
   | "basicsYearQuestion"
   | "basicsStageQuestion"
   | "basicsTurnNext"
+  | "basicsOptionalNote"
+  | "basicsNotNow"
   | "rankHeardFallback"
   | "rankQuotePrefix"
   | "rankUrgencyActNow"
@@ -218,6 +244,7 @@ export type FamilyStringKey =
   | "resourceContact"
   | "resourceReferralMode"
   | "resourceHumanVerify"
+  | "resourceFreshnessExpired"
   | "resourceActNow"
   | "resourceAllAges"
   | "resourceAgeFrom"
@@ -375,25 +402,48 @@ export type FamilyStringKey =
   | "aiConsentTitle"
   | "aiConsentBody"
   | "aiConsentAccept"
+  | "aiConsentGranting"
+  | "aiConsentGrantError"
+  | "aiConsentUnavailableNotice"
   | "aiConsentDecline"
   | "aiConsentDeclinedNotice"
+  | "aiConsentActiveTitle"
+  | "aiConsentActiveBody"
+  | "aiConsentRevoke"
   | "aiUseNoneTitle"
   | "aiUseNoneBody"
   | "aiUseOnDeviceTitle"
   | "aiUseOnDeviceBody"
   | "aiUseOnlineTitle"
   | "aiUseOnlineBody"
+  | "aiHistoryNoneTitle"
+  | "aiHistoryNoneBody"
+  | "aiHistoryOnDeviceTitle"
+  | "aiHistoryOnDeviceBody"
+  | "aiHistoryOnlineTitle"
+  | "aiHistoryOnlineBody"
   | "safetyHeading"
+  | "safetyMedicationHeading"
   | "safetyCrisis"
   | "safetyAbuse"
   | "safetyHarmToOthers"
   | "safetySocial"
+  | "safetyMedicationAccess"
+  | "safetyMedicationChange"
+  | "safetyMissingChild"
   | "safetyEmergency"
   | "safetySteps"
   | "safetyNoInterpretation"
+  | "safetyText988"
+  | "safetyCallKySafe"
+  | "safetyCall211"
+  | "safetyCallNcmec"
+  | "safetyDirectory"
   | "safetyAcknowledge"
   | "safetyReopen"
   | "safetyReopenHint"
+  | "prototypeBannerTitle"
+  | "prototypeBannerBody"
   | "serviceStatusLine"
   | "serviceStatusShort"
   | "programsCapped"
@@ -621,6 +671,8 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     interviewIntro: "Tell us what you have noticed about how your child talks, learns, moves, or acts — and what you have already tried. We use your own words to find help. Ladder cannot diagnose, decide whether your child qualifies for a program, tell you the result of a screening, monitor your child, or send a referral for you.",
     interviewLabel: "What would you like help with?",
     interviewPlaceholder: "For example: My son is 3 and barely talking. The doctor said wait and see, but I'm worried.",
+    interviewDictationDisclosure:
+      "Dictation uses your browser's speech-recognition service, which may process microphone audio off this device. Type instead to keep audio out of that service.",
     interviewMicStart: "Start speaking",
     interviewMicStop: "Stop listening",
     interviewMicDone: "Done recording",
@@ -675,6 +727,14 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     evidenceInferred: "Our guess — please check",
     evidenceConfirmed: "You said this is right",
     factSource: "You wrote",
+    evidenceTraceConversation: "Evidence trail: {date} · {source} · {method}",
+    evidenceTraceScreen: "Evidence trail: guided answers · processed on this device",
+    evidenceTraceOrphaned: "Evidence trail: the original note is no longer linked",
+    evidenceCaptureTyped: "typed",
+    evidenceCaptureVoice: "spoken",
+    evidenceCaptureMixed: "typed and spoken",
+    evidenceExtractionOnline: "online helper",
+    evidenceExtractionOnDevice: "processed on this device",
     factConfirm: "Yes, that is right",
     factConfirmed: "Marked as correct",
     factNotRight: "No, that is not right — leave it out of the visit packet",
@@ -748,11 +808,29 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     apptDemoPassed: "Date passed",
     apptSafetyHold: "Paused while the safety message above is open.",
     resourcesTitle: "Places that can help",
+    preferencesTitle: "What matters for your program list (optional)",
+    preferencesSummary: "Two choices Ladder can actually use to reorder the list.",
+    preferencesIntro: "Choose only if it is useful. These choices change order, not which programs appear.",
+    preferencesHonesty: "Ladder cannot verify openings, cost, insurance, language access, hours, or eligibility. Check with the source before relying on a listing.",
+    preferencesScopeLegend: "Which reach should come first?",
+    preferencesScopeNone: "No preference",
+    preferencesScopeLocal: "Nearby or county-specific first",
+    preferencesScopeStatewide: "Statewide options first",
+    preferencesContactLegend: "What kind of first step feels most useful?",
+    preferencesContactNone: "No preference",
+    preferencesContactSelfServe: "Something I can start online myself",
+    preferencesContactCall: "A person or navigator I can call",
+    preferencesContactSchoolProvider: "A step through the school or a provider",
+    preferencesSave: "Save list preferences",
+    preferencesSaved: "List preferences saved on this device.",
     resourcesIntro: "These are based on your county, your child's age, and what you told us. Always check the program's own page — their rules are the ones that count.",
     basicsCountyQuestion: "To find programs near you — which Kentucky county do you live in?",
     basicsYearQuestion: "What year was your child born? Just the year.",
     basicsStageQuestion: "Is your child in school yet?",
     basicsTurnNext: "Next",
+    basicsOptionalNote:
+      "These details are optional. Without them, Ladder will not claim that a program is local or age-matched.",
+    basicsNotNow: "Not now — I can add these later",
     rankHeardFallback:
       "These are based on what you told us, your county, and your child's age. Check each program's own page — their rules are the ones that count.",
     rankQuotePrefix: "You said",
@@ -771,6 +849,7 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     resourceContact: "How to start",
     resourceReferralMode: "How to get in",
     resourceHumanVerify: "Call and check before you count on this. Details change.",
+    resourceFreshnessExpired: "This information is past Ladder's 45-day check window. Open the official page or call to confirm before relying on it.",
     resourceActNow: "Why it helps to start now",
     resourceAllAges: "All ages",
     resourceAgeFrom: "Age {min} and older",
@@ -930,20 +1009,38 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
       "We read this on your phone, not with the online assistant. Same words, simpler reading — check anything that looks off.",
     aiConsentTitle: "Want the online helper to read this too?",
     aiConsentBody:
-      "We read what you wrote here on your device, and nothing has been sent anywhere. The online helper is an AI service run by OpenAI. If you turn it on, the words you type and the child details you entered are sent there to sort topics and put program options in order. It never contacts a clinic, and no clinician sees what you send. OpenAI may review requests for safety and abuse monitoring. Your answer lasts until you close Ladder.",
+      "We read the Ladder text you wrote here on your device, and Ladder has not sent that text or the child details you entered to its online helper. If you used dictation, your browser's speech service may already have processed microphone audio; this choice controls only Ladder text and child details. The online helper uses Ladder's online service and, when configured, OpenAI. If you turn it on, Ladder will try to send the words you type and the child details you entered to that service to sort topics and put program options in order; a configured service forwards them to OpenAI. It never contacts a clinic, and no clinician sees what you send. OpenAI may review requests it receives for safety and abuse monitoring. Your answer lasts until you close Ladder.",
     aiConsentAccept: "Use the online helper",
+    aiConsentGranting: "Turning on the online helper…",
+    aiConsentGrantError:
+      "The online helper could not be turned on. Your words stayed on this device; you can try again or keep using the on-device path.",
+    aiConsentUnavailableNotice:
+      "The online helper is off because its short session ended. New words stay on this device; reload Ladder to check whether it is available again.",
     aiConsentDecline: "Keep everything on this device",
     aiConsentDeclinedNotice:
-      "Staying on this device. Nothing you write is sent anywhere, and the programs below are matched here on your phone.",
-    aiUseNoneTitle: "Nothing has been sent anywhere",
+      "Ladder will keep your text and child details out of its online helper, and the programs below are matched here on your phone. Dictation may still use your browser's speech service for microphone audio.",
+    aiConsentActiveTitle: "Online helper: On for this Ladder session",
+    aiConsentActiveBody:
+      "You can turn it off at any time. Turning it off stops new sends and cancels requests still in progress, but it cannot undo a request already sent.",
+    aiConsentRevoke: "Turn off the online helper",
+    aiUseNoneTitle: "No Ladder online-helper send this session",
     aiUseNoneBody:
-      "You have not written anything yet. When you do, it is read on this device unless you turn on the online helper.",
-    aiUseOnDeviceTitle: "Read on this device",
+      "You have not written anything in this Ladder session. When you do, it is read on this device unless you turn on the online helper.",
+    aiUseOnDeviceTitle: "Read on this device this session",
     aiUseOnDeviceBody:
-      "Everything you have written was read here on your phone. No words and no child details have been sent to any AI service.",
-    aiUseOnlineTitle: "Sent to the online helper",
+      "Everything you have written in this Ladder session was read here on your phone. No words or child details were sent to the online helper this session.",
+    aiUseOnlineTitle: "Online-helper send attempted this session",
     aiUseOnlineBody:
-      "You turned on the online helper, so the words you wrote and the child details you entered were sent to OpenAI to sort topics and order options. Closing Ladder ends this choice; nothing can take back what was already sent.",
+      "You turned on the online helper, so Ladder attempted to send words you wrote and child details you entered off this device to its online service to sort topics and order options. When that service is connected to OpenAI, it forwards the request to OpenAI. Closing Ladder ends this choice; it cannot undo a request already sent.",
+    aiHistoryNoneTitle: "No Ladder text activity is recorded",
+    aiHistoryNoneBody:
+      "This browser's saved activity contains no Ladder notes and no recorded online-helper send.",
+    aiHistoryOnDeviceTitle: "No Ladder online-helper send is recorded",
+    aiHistoryOnDeviceBody:
+      "This browser contains Ladder notes, but its activity record does not show words or child details sent through Ladder's online helper.",
+    aiHistoryOnlineTitle: "Ladder online-helper send recorded",
+    aiHistoryOnlineBody:
+      "This browser's activity shows that Ladder attempted to send words and child details to its online service to sort topics or order program options. When that service is connected to OpenAI, it forwards the request to OpenAI. New attempts appear in the activity log below; older live results may predate that log.",
     // F2a. Ladder's own safety words. These used to be the coach's, which are
     // written to an adult describing their own crisis — so a parent reporting
     // that their child wants to die was asked whether *they* felt unsafe and
@@ -953,23 +1050,39 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     // read correctly either way rather than guessing, and each one keeps every
     // action the coach copy offered (988 voice, 988 text, 911).
     safetyHeading: "Someone may need urgent help",
+    safetyMedicationHeading: "Check this medicine question with the care team",
     safetyCrisis:
-      "Someone in your home may need urgent help right now — whether that is your child or you. Call or text 988 to reach the Suicide & Crisis Lifeline: it is free, confidential, open every hour of every day, and it helps caregivers worried about a child as well as people in crisis themselves. If anyone is in immediate danger, call 911. Ladder cannot watch for this or contact anyone for you.",
+      "Someone you are worried about may need urgent help right now. Call or text 988 to reach the 988 Suicide & Crisis Lifeline. It is free, confidential, available 24/7, and can help when you are worried about someone else. If anyone is in immediate danger, call 911. Ladder cannot monitor anyone's safety or contact anyone for you.",
     safetyAbuse:
-      "A person trained in child safety should be involved right now. If anyone is in immediate danger, call 911. You can also call or text 988, and your child's pediatrician can help you decide what to do next. Ladder cannot make a report or contact anyone for you.",
+      "Suspected child abuse or neglect should be reported now. In Kentucky, call 1-877-KYSAFE1 (1-877-597-2331). If anyone is in immediate danger, call 911. You can also tell the child's pediatrician, but you do not need to wait for a clinician to make the report. Ladder cannot make a report or contact anyone for you.",
     safetyHarmToOthers:
-      "Keeping everyone safe comes first. If anyone is in immediate danger, call 911 now. If you are worried your child may hurt someone or an animal, you can go to the nearest emergency department, and you can call or text 988 — they also help people who are worried about someone else. Please tell your child's pediatrician what is happening.",
+      "Keeping everyone safe comes first. If anyone is in immediate danger, call 911 now. If you are worried someone in your household may hurt another person or an animal, call or text 988 for crisis support; they also help people who are worried about someone else. If the concern is about a child, contact the child's pediatrician or go to the nearest emergency department for urgent help. Ladder cannot monitor anyone's safety or contact anyone for you.",
     safetySocial:
-      "It sounds like your family may be without something you need today, like food or medicine. If this is an emergency, call 911. You can also dial 211 any time to reach someone who can help with food, housing, or utility support right now.",
+      "If your family has no food today, call 211 to connect with local food, housing, and utility resources. If anyone is in immediate danger, call 911. Ladder cannot request help or contact anyone for you.",
+    safetyMedicationAccess:
+      "If someone is out of insulin or another needed medicine, contact the prescriber or pharmacist now. If insulin cannot be obtained promptly, or if the person has symptoms that may be an emergency, seek urgent medical care; call 911 for an emergency. Ladder cannot contact anyone for you.",
+    safetyMedicationChange:
+      "Do not stop, start, or change a medicine dose based on Ladder. Contact the prescriber or care team to review the concern and decide what to do. Ladder can help organize the question, but it cannot change a prescription or contact the care team for you.",
+    safetyMissingChild:
+      "If a child is missing, act now: contact local law enforcement first. Then call the National Center for Missing & Exploited Children at 1-800-THE-LOST (1-800-843-5678). If there is immediate danger, call 911. Ladder cannot make a report or contact anyone for you.",
     safetyEmergency:
       "If this may be a medical emergency, call 911 now, or go to the nearest emergency department. Ladder cannot contact anyone for you.",
     safetySteps:
-      "While you are reaching someone: stay with the person who is struggling if you can, and move anything they could use to hurt themselves out of reach, including medicines and firearms. Tell one other adult you trust what is happening, so you are not carrying this alone.",
+      "If you can do so safely, stay with the person who is struggling; secure or remove firearms, medicines, and other possible means; and tell another trusted adult what is happening.",
     safetyNoInterpretation:
-      "We are not sorting this message into topics or adding it to your notes. The contacts above are the next step.",
+      "We are not adding this message to your notes or turning it into a recap or facts. Ladder may keep a broad routing topic so relevant contacts and resources stay visible. County or age details from this message are used only on this page and are not saved.",
+    safetyText988: "Text 988",
+    safetyCallKySafe: "Call KYSAFE1 — report child abuse",
+    safetyCall211: "Call 211 — local resources",
+    safetyCallNcmec: "Call NCMEC — missing-child help",
+    safetyDirectory:
+      "This is the same directory after every urgent message; it does not reveal which kind of help was shown before. Use 988 for a mental-health crisis, KYSAFE1 to report suspected child abuse or neglect, 211 for food or basic needs, NCMEC for a missing child, a prescriber or pharmacist for missing medicine, and 911 for immediate danger.",
     safetyAcknowledge: "I understand — return to Ladder",
     safetyReopen: "Urgent help",
     safetyReopenHint: "You can reopen these contacts any time.",
+    prototypeBannerTitle: "Ladder is a prototype — not a clinic service",
+    prototypeBannerBody:
+      "Use invented information only; do not enter real family or health details. No clinic is connected, and no one monitors these notes. Ladder organizes what you write and shows contacts; it does not diagnose, make referrals, book appointments, or send alerts.",
     // F3b/F3c. What Ladder is, and what it is not, in the two places a caregiver
     // is deciding whether to trust it: beside the privacy line, and at the front
     // door. Both are true in either posture — the simulation changes what is on
@@ -1222,6 +1335,8 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     interviewIntro: "Cuéntanos qué has notado sobre cómo habla, aprende, se mueve o se comporta tu hijo o hija, y qué ya intentaste. Usamos tus propias palabras para buscar ayuda. Ladder no puede diagnosticar, decidir si tu hijo o hija califica para un programa, darte el resultado de una prueba, vigilar a tu hijo o hija, ni enviar una referencia por ti.",
     interviewLabel: "¿Con qué te gustaría recibir ayuda?",
     interviewPlaceholder: "Por ejemplo: Mi hijo tiene 3 años y casi no habla. El doctor dijo que esperáramos, pero estoy preocupada.",
+    interviewDictationDisclosure:
+      "El dictado usa el servicio de reconocimiento de voz de tu navegador, que puede procesar el audio del micrófono fuera de este dispositivo. Escribe para mantener el audio fuera de ese servicio.",
     interviewMicStart: "Empezar a hablar",
     interviewMicStop: "Dejar de escuchar",
     interviewMicDone: "Terminar grabación",
@@ -1276,6 +1391,14 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     evidenceInferred: "Es una suposición — revísala",
     evidenceConfirmed: "Dijiste que está correcto",
     factSource: "Escribiste",
+    evidenceTraceConversation: "Rastro de evidencia: {date} · {source} · {method}",
+    evidenceTraceScreen: "Rastro de evidencia: respuestas guiadas · procesadas en este dispositivo",
+    evidenceTraceOrphaned: "Rastro de evidencia: la nota original ya no está vinculada",
+    evidenceCaptureTyped: "escrito",
+    evidenceCaptureVoice: "hablado",
+    evidenceCaptureMixed: "escrito y hablado",
+    evidenceExtractionOnline: "ayudante en línea",
+    evidenceExtractionOnDevice: "procesado en este dispositivo",
     factConfirm: "Sí, así es",
     factConfirmed: "Marcado como correcto",
     factNotRight: "No, no es así — déjalo fuera del paquete de la visita",
@@ -1349,11 +1472,29 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     apptDemoPassed: "La fecha pasó",
     apptSafetyHold: "En pausa mientras el mensaje de seguridad de arriba esté abierto.",
     resourcesTitle: "Lugares que pueden ayudar",
+    preferencesTitle: "Qué te importa para la lista de programas (opcional)",
+    preferencesSummary: "Dos opciones que Ladder sí puede usar para reordenar la lista.",
+    preferencesIntro: "Elige solo si te resulta útil. Estas opciones cambian el orden, no los programas que aparecen.",
+    preferencesHonesty: "Ladder no puede verificar cupos, costo, seguro, acceso en tu idioma, horarios ni elegibilidad. Confirma con la fuente antes de depender de un listado.",
+    preferencesScopeLegend: "¿Qué alcance debe aparecer primero?",
+    preferencesScopeNone: "Sin preferencia",
+    preferencesScopeLocal: "Opciones cercanas o del condado primero",
+    preferencesScopeStatewide: "Opciones estatales primero",
+    preferencesContactLegend: "¿Qué tipo de primer paso te resulta más útil?",
+    preferencesContactNone: "Sin preferencia",
+    preferencesContactSelfServe: "Algo que pueda empezar en línea por mi cuenta",
+    preferencesContactCall: "Una persona o navegador a quien pueda llamar",
+    preferencesContactSchoolProvider: "Un paso por medio de la escuela o un profesional",
+    preferencesSave: "Guardar preferencias de la lista",
+    preferencesSaved: "Preferencias guardadas en este dispositivo.",
     resourcesIntro: "Esto se basa en tu condado, la edad de tu hijo o hija y lo que nos contaste. Revisa siempre la página del programa — sus reglas son las que valen.",
     basicsCountyQuestion: "Para buscar programas cerca de ti — ¿en qué condado de Kentucky vives?",
     basicsYearQuestion: "¿En qué año nació tu hijo o hija? Solo el año.",
     basicsStageQuestion: "¿Tu hijo o hija ya va a la escuela?",
     basicsTurnNext: "Siguiente",
+    basicsOptionalNote:
+      "Estos datos son opcionales. Sin ellos, Ladder no afirmará que un programa sea local ni adecuado para la edad.",
+    basicsNotNow: "Ahora no — puedo agregarlos después",
     rankHeardFallback:
       "Esto se basa en lo que nos contaste, tu condado y la edad de tu hijo o hija. Revisa la página de cada programa — sus reglas son las que valen.",
     rankQuotePrefix: "Dijiste",
@@ -1369,6 +1510,7 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
     resourceContact: "Cómo empezar",
     resourceReferralMode: "Cómo entrar",
     resourceHumanVerify: "Llama y confirma antes de contar con esto. Los datos cambian.",
+    resourceFreshnessExpired: "Esta información ya pasó el plazo de verificación de 45 días de Ladder. Abre la página oficial o llama para confirmar antes de confiar en ella.",
     resourceActNow: "Por qué conviene empezar ahora",
     resourceAllAges: "Todas las edades",
     resourceAgeFrom: "Desde los {min} años",
@@ -1528,38 +1670,72 @@ export const familyStrings: Record<Language, Record<FamilyStringKey, string>> = 
       "Esto lo leímos en tu teléfono, no con el asistente en línea. Las mismas palabras, una lectura más sencilla — revisa cualquier cosa que se vea mal.",
     aiConsentTitle: "¿Quieres que el asistente en línea también lea esto?",
     aiConsentBody:
-      "Leímos lo que escribiste aquí en tu dispositivo, y no se ha enviado nada a ninguna parte. El asistente en línea es un servicio de inteligencia artificial de OpenAI. Si lo activas, las palabras que escribes y los datos del niño o la niña que ingresaste se envían allí para ordenar los temas y las opciones de programas. Nunca se comunica con una clínica, y ningún profesional clínico ve lo que envías. OpenAI puede revisar las solicitudes para seguridad y control de abuso. Tu respuesta dura hasta que cierres Ladder.",
+      "Leímos en tu dispositivo el texto que escribiste en Ladder, y Ladder no ha enviado ese texto ni los datos del niño o la niña que ingresaste a su asistente en línea. Si usaste el dictado, es posible que el servicio de reconocimiento de voz de tu navegador ya haya procesado el audio del micrófono; esta elección controla solo el texto de Ladder y los datos del menor. El asistente en línea usa el servicio en línea de Ladder y, cuando está configurado, OpenAI. Si lo activas, Ladder intentará enviar a ese servicio las palabras que escribes y los datos del niño o la niña que ingresaste para ordenar los temas y las opciones de programas; un servicio configurado los reenvía a OpenAI. Nunca se comunica con una clínica, y ningún profesional clínico ve lo que envías. OpenAI puede revisar las solicitudes que recibe para seguridad y control de abuso. Tu respuesta dura hasta que cierres Ladder.",
     aiConsentAccept: "Usar el asistente en línea",
+    aiConsentGranting: "Activando el asistente en línea…",
+    aiConsentGrantError:
+      "No se pudo activar el asistente en línea. Tus palabras permanecieron en este dispositivo; puedes intentarlo de nuevo o seguir usando la opción del dispositivo.",
+    aiConsentUnavailableNotice:
+      "El asistente en línea está desactivado porque terminó su sesión breve. Las palabras nuevas permanecen en este dispositivo; vuelve a cargar Ladder para comprobar si está disponible otra vez.",
     aiConsentDecline: "Mantener todo en este dispositivo",
     aiConsentDeclinedNotice:
-      "Todo se queda en este dispositivo. Nada de lo que escribes se envía a ninguna parte, y los programas de abajo se emparejan aquí en tu teléfono.",
-    aiUseNoneTitle: "No se ha enviado nada a ninguna parte",
+      "Ladder mantendrá tu texto y los datos del menor fuera de su asistente en línea, y los programas de abajo se emparejan aquí en tu teléfono. El dictado aún puede usar el servicio de reconocimiento de voz de tu navegador para el audio del micrófono.",
+    aiConsentActiveTitle: "Asistente en línea: activado para esta sesión de Ladder",
+    aiConsentActiveBody:
+      "Puedes desactivarlo en cualquier momento. Al desactivarlo se detienen los envíos nuevos y se cancelan las solicitudes en curso, pero no se puede deshacer una solicitud ya enviada.",
+    aiConsentRevoke: "Desactivar el asistente en línea",
+    aiUseNoneTitle: "No hubo un envío al asistente en línea de Ladder en esta sesión",
     aiUseNoneBody:
-      "Todavía no has escrito nada. Cuando lo hagas, se lee en este dispositivo a menos que actives el asistente en línea.",
-    aiUseOnDeviceTitle: "Leído en este dispositivo",
+      "Todavía no has escrito nada en esta sesión de Ladder. Cuando lo hagas, se lee en este dispositivo a menos que actives el asistente en línea.",
+    aiUseOnDeviceTitle: "Leído en este dispositivo en esta sesión",
     aiUseOnDeviceBody:
-      "Todo lo que has escrito se leyó aquí en tu teléfono. No se han enviado palabras ni datos del niño o la niña a ningún servicio de inteligencia artificial.",
-    aiUseOnlineTitle: "Enviado al asistente en línea",
+      "Todo lo que has escrito en esta sesión de Ladder se leyó aquí en tu teléfono. No se enviaron palabras ni datos del niño o la niña al asistente en línea en esta sesión.",
+    aiUseOnlineTitle: "Intento de envío al asistente en línea en esta sesión",
     aiUseOnlineBody:
-      "Activaste el asistente en línea, así que las palabras que escribiste y los datos del niño o la niña que ingresaste se enviaron a OpenAI para ordenar los temas y las opciones. Cerrar Ladder termina esta elección; nada puede recuperar lo que ya se envió.",
+      "Activaste el asistente en línea, así que Ladder intentó enviar fuera de este dispositivo las palabras que escribiste y los datos del niño o la niña que ingresaste a su servicio en línea para ordenar los temas y las opciones. Cuando ese servicio está conectado a OpenAI, reenvía la solicitud a OpenAI. Cerrar Ladder termina esta elección; no puede deshacer una solicitud ya enviada.",
+    aiHistoryNoneTitle: "No hay actividad de texto de Ladder registrada",
+    aiHistoryNoneBody:
+      "La actividad guardada en este navegador no contiene notas de Ladder ni un envío registrado al asistente en línea.",
+    aiHistoryOnDeviceTitle: "No hay un envío de Ladder al asistente en línea registrado",
+    aiHistoryOnDeviceBody:
+      "Este navegador contiene notas de Ladder, pero su registro de actividad no muestra palabras ni datos del niño o la niña enviados mediante el asistente en línea de Ladder.",
+    aiHistoryOnlineTitle: "Se registró un intento de envío de Ladder al asistente en línea",
+    aiHistoryOnlineBody:
+      "La actividad de este navegador muestra que Ladder intentó enviar palabras y datos del niño o la niña a su servicio en línea para ordenar temas u opciones de programas. Cuando ese servicio está conectado a OpenAI, reenvía la solicitud a OpenAI. Los intentos nuevos aparecen en el registro de actividad de abajo; es posible que los resultados en línea anteriores sean previos a ese registro.",
     safetyHeading: "Alguien puede necesitar ayuda urgente",
+    safetyMedicationHeading: "Consulta esta pregunta sobre medicamentos con el equipo de salud",
     safetyCrisis:
-      "Alguien en tu casa puede necesitar ayuda urgente ahora mismo — ya sea tu hijo o hija, o tú. Llama o envía un mensaje de texto al 988 para comunicarte con la Línea de Crisis y Suicidio: es gratis, confidencial, está disponible a toda hora todos los días, y ayuda tanto a quienes cuidan a un niño o niña que les preocupa como a quienes están en crisis. Si alguien está en peligro inmediato, llama al 911. Ladder no puede vigilar esto ni comunicarse con nadie por ti.",
+      "Alguien que te preocupa puede necesitar ayuda urgente ahora mismo. Llama al 988 o envía AYUDA al 988 para comunicarte con la Línea 988 de Prevención del Suicidio y Crisis. Es gratis, confidencial y está disponible las 24 horas, todos los días; también ayuda cuando te preocupa otra persona. Si alguien está en peligro inmediato, llama al 911. Ladder no puede vigilar la seguridad de nadie ni comunicarse con nadie por ti.",
     safetyAbuse:
-      "Una persona capacitada en la seguridad de menores debe participar ahora mismo. Si alguien está en peligro inmediato, llama al 911. También puedes llamar o enviar un mensaje de texto al 988, y el pediatra de tu hijo o hija puede ayudarte a decidir qué hacer. Ladder no puede hacer un reporte ni comunicarse con nadie por ti.",
+      "La sospecha de abuso o negligencia infantil debe reportarse ahora. En Kentucky, llama al 1-877-KYSAFE1 (1-877-597-2331). Si alguien está en peligro inmediato, llama al 911. También puedes informar al pediatra del menor, pero no necesitas esperar a un profesional clínico para hacer el reporte. Ladder no puede hacer un reporte ni comunicarse con nadie por ti.",
     safetyHarmToOthers:
-      "La seguridad de todos es lo primero. Si alguien está en peligro inmediato, llama al 911 ahora. Si te preocupa que tu hijo o hija pueda lastimar a alguien o a un animal, puedes ir a la sala de emergencias más cercana, y también puedes llamar o enviar un mensaje de texto al 988 — también ayudan a quienes están preocupados por otra persona. Por favor, cuéntale al pediatra de tu hijo o hija lo que está pasando.",
+      "La seguridad de todos es lo primero. Si alguien está en peligro inmediato, llama al 911 ahora. Si te preocupa que alguien en tu hogar pueda lastimar a otra persona o a un animal, llama al 988 o envía AYUDA al 988 para obtener apoyo en una crisis; también ayudan a quienes están preocupados por otra persona. Si la preocupación es por un menor, comunícate con su pediatra o ve a la sala de emergencias más cercana para obtener ayuda urgente. Ladder no puede vigilar la seguridad de nadie ni comunicarse con nadie por ti.",
     safetySocial:
-      "Parece que hoy tu familia podría estar sin algo que necesita, como comida o medicina. Si esto es una emergencia, llama al 911. También puedes llamar al 211 en cualquier momento para comunicarte con alguien que pueda ayudarte con comida, vivienda o servicios ahora mismo.",
+      "Si tu familia no tiene comida hoy, llama al 211 para conectarte con recursos locales de comida, vivienda y servicios básicos. Si alguien está en peligro inmediato, llama al 911. Ladder no puede solicitar ayuda ni comunicarse con nadie por ti.",
+    safetyMedicationAccess:
+      "Si alguien se quedó sin insulina u otro medicamento necesario, comunícate ahora con quien lo recetó o con una farmacia. Si no se puede conseguir insulina pronto, o si la persona tiene síntomas que pueden ser una emergencia, busca atención médica urgente; llama al 911 si es una emergencia. Ladder no puede comunicarse con nadie por ti.",
+    safetyMedicationChange:
+      "No suspendas, empieces ni cambies la dosis de un medicamento basándote en Ladder. Comunícate con quien lo recetó o con el equipo de salud para revisar la inquietud y decidir qué hacer. Ladder puede ayudarte a organizar la pregunta, pero no puede cambiar una receta ni comunicarse con el equipo por ti.",
+    safetyMissingChild:
+      "Si un menor está desaparecido, actúa ahora: comunícate primero con la policía local. Después llama al Centro Nacional para Menores Desaparecidos y Explotados al 1-800-THE-LOST (1-800-843-5678). Si hay peligro inmediato, llama al 911. Ladder no puede hacer un reporte ni comunicarse con nadie por ti.",
     safetyEmergency:
       "Si esto puede ser una emergencia médica, llama al 911 ahora, o ve a la sala de emergencias más cercana. Ladder no puede comunicarse con nadie por ti.",
     safetySteps:
-      "Mientras logras comunicarte con alguien: quédate con la persona que está sufriendo si puedes, y aleja cualquier cosa que pueda usar para lastimarse, incluidos los medicamentos y las armas de fuego. Dile a otro adulto de confianza lo que está pasando, para que no cargues con esto a solas.",
+      "Si puedes hacerlo de forma segura, quédate con la persona que está sufriendo; guarda bajo llave o retira las armas de fuego, los medicamentos y otros posibles medios; y cuéntale lo que ocurre a otro adulto de confianza.",
     safetyNoInterpretation:
-      "No estamos clasificando este mensaje en temas ni agregándolo a tus notas. Los contactos de arriba son el siguiente paso.",
+      "No agregamos este mensaje a tus notas ni lo convertimos en un resumen o en datos. Ladder puede guardar un tema general de enrutamiento para mantener visibles los contactos y recursos relevantes. Los datos de condado o edad de este mensaje se usan solo en esta página y no se guardan.",
+    safetyText988: "Envía AYUDA al 988",
+    safetyCallKySafe: "Llama a KYSAFE1 — reportar abuso infantil",
+    safetyCall211: "Llama al 211 — recursos locales",
+    safetyCallNcmec: "Llama a NCMEC — ayuda para menores desaparecidos",
+    safetyDirectory:
+      "Este es el mismo directorio después de cualquier mensaje urgente; no revela qué tipo de ayuda se mostró antes. Usa el 988 para una crisis de salud mental, KYSAFE1 para reportar sospechas de abuso o negligencia infantil, el 211 para comida o necesidades básicas, NCMEC para un menor desaparecido, quien recetó el medicamento o una farmacia si falta medicina, y el 911 para peligro inmediato.",
     safetyAcknowledge: "Entiendo — volver a Ladder",
     safetyReopen: "Ayuda urgente",
     safetyReopenHint: "Puedes volver a abrir estos contactos cuando quieras.",
+    prototypeBannerTitle: "Ladder es un prototipo — no es un servicio de una clínica",
+    prototypeBannerBody:
+      "Usa solo información inventada; no ingreses datos reales de una familia ni datos de salud. No hay ninguna clínica conectada y nadie vigila estas notas. Ladder organiza lo que escribes y muestra contactos; no diagnostica, no hace referencias, no reserva citas ni envía alertas.",
     serviceStatusShort: "Ladder no está conectado con una clínica — te muestra contactos de Kentucky a los que puedes llamar tú mismo.",
     serviceStatusLine:
       "Ladder no se comunica con ninguna clínica, no hace referencias, no reserva citas ni le avisa a nadie. Ninguna persona ve estas notas a menos que tú las compartas. Organiza lo que observas y te muestra contactos de Kentucky a los que puedes llamar tú mismo.",

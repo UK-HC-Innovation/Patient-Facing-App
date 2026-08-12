@@ -40,6 +40,31 @@ describe("classifySafety", () => {
     expect(classifySafety("I'm having trouble breathing").level).toBe("escalate");
   });
 
+  it("recognizes urgent symptoms, severe hypoglycemia, and medication changes in Spanish", () => {
+    expect(classifySafety("Tengo dolor en el pecho").level).toBe("escalate");
+    expect(classifySafety("No puedo respirar").level).toBe("escalate");
+    expect(classifySafety("Mi glucosa es 45").level).toBe("escalate");
+    expect(classifySafety("¿Debo dejar de tomar lisinopril?").level).toBe("blocked");
+  });
+
+  it("does not escalate explicitly negated urgent symptoms", () => {
+    expect(classifySafety("My child has no chest pain and is breathing normally").level).toBe("allowed");
+    expect(classifySafety("No shortness of breath").level).toBe("allowed");
+    expect(classifySafety("No new confusion").level).toBe("allowed");
+    expect(classifySafety("He is not fainting").level).toBe("allowed");
+    expect(classifySafety("I have no chest pain, but I cannot breathe").level).toBe("escalate");
+  });
+
+  it("still escalates an active symptom after an earlier denial of the same symptom", () => {
+    expect(classifySafety("No chest pain earlier, but now I have chest pain").level).toBe("escalate");
+    expect(classifySafety("I don't have shortness of breath, but I can't breathe").level).toBe("escalate");
+  });
+
+  it("allows repeated denials after every denied symptom span is removed", () => {
+    expect(classifySafety("No chest pain earlier and no chest pain now").level).toBe("allowed");
+    expect(classifySafety("No shortness of breath and no trouble breathing").level).toBe("allowed");
+  });
+
   it("blocks common medication-adjustment phrasing", () => {
     expect(classifySafety("should I increase my dose").level).toBe("blocked");
     expect(classifySafety("can I take two").level).toBe("blocked");

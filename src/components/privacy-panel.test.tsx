@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import React from "react";
 import { demoState } from "@/domain/fixtures";
+import { SAMPLE_CAREGIVER_TEXT, schoolAgeFamilyState } from "@/domain/family-fixtures";
+import type { AppState } from "@/domain/types";
 import { PrivacyPanel } from "./privacy-panel";
 
 type URLExports = typeof URL & {
@@ -123,8 +125,102 @@ describe("PrivacyPanel", () => {
       />
     );
 
-    expect(screen.getByText(/microphone audio, a current camera frame/i)).toBeInTheDocument();
+    expect(screen.getByText(/microphone audio and relevant care-plan context/i)).toBeInTheDocument();
+    expect(screen.queryByText(/camera|image|food context/i)).toBeNull();
     expect(screen.getByText(/sent to OpenAI/i)).toBeInTheDocument();
+  });
+
+  it("discloses recorded Ladder text sends independently of the voice transport", () => {
+    const state = {
+      ...demoState,
+      auditEvents: [
+        ...demoState.auditEvents,
+        {
+          id: "family-send-1",
+          patientId: demoState.patient.id,
+          action: "family_ai_send_attempted" as const,
+          label: "Family interview send attempted through Ladder's online service",
+          createdAt: "2026-08-08T12:00:00.000Z"
+        }
+      ]
+    };
+
+    render(
+      <PrivacyPanel
+        state={state}
+        aiDataMode="checking"
+        onReset={() => undefined}
+        onExport={() => undefined}
+      />
+    );
+
+    const disclosure = screen.getByTestId("privacy-family-ai-use");
+    expect(disclosure).toHaveAttribute("data-family-ai-use-mode", "online");
+    expect(disclosure).toHaveTextContent(/Ladder online-helper send recorded/i);
+    expect(screen.getByText("Family interview send attempted through Ladder's online service")).toBeVisible();
+    expect(screen.getByText(/Coach connection: checking/i)).toBeVisible();
+    expect(screen.queryByText(/No AI content has been sent/i)).toBeNull();
+  });
+
+  it("counts a saved Ladder draft as on-device text activity", () => {
+    const state = {
+      ...demoState,
+      family: {
+        ...schoolAgeFamilyState,
+        interviews: [],
+        interviewDraft: "My child needs help with reading."
+      }
+    };
+
+    render(
+      <PrivacyPanel
+        state={state}
+        aiDataMode="checking"
+        onReset={() => undefined}
+        onExport={() => undefined}
+      />
+    );
+
+    const disclosure = screen.getByTestId("privacy-family-ai-use");
+    expect(disclosure).toHaveAttribute("data-family-ai-use-mode", "on_device");
+    expect(disclosure).toHaveTextContent(/contains Ladder notes/i);
+    expect(disclosure).not.toHaveTextContent(/No Ladder text activity is recorded/i);
+  });
+
+  it("describes legacy live Ladder results without inventing an access-log row", () => {
+    const state = {
+      ...demoState,
+      family: {
+        ...schoolAgeFamilyState,
+        activeDomains: ["school_iep" as const],
+        latestInterviewDomains: ["school_iep" as const],
+        interviews: [
+          {
+            id: "legacy-live-interview",
+            rawText: SAMPLE_CAREGIVER_TEXT,
+            source: "typed" as const,
+            createdAt: "2026-07-01T12:00:00.000Z",
+            extraction: "live" as const,
+            kind: "orientation" as const
+          }
+        ],
+        recommendations: null
+      }
+    };
+
+    render(
+      <PrivacyPanel
+        state={state}
+        aiDataMode="on_device"
+        onReset={() => undefined}
+        onExport={() => undefined}
+      />
+    );
+
+    const disclosure = screen.getByTestId("privacy-family-ai-use");
+    expect(disclosure).toHaveAttribute("data-family-ai-use-mode", "online");
+    expect(disclosure).toHaveTextContent(/older live results may predate that log/i);
+    expect(screen.queryByText(/Family online-helper send attempted/)).toBeNull();
   });
 
   it("shows a visible retinopathy walkthrough restore control when provided", () => {
@@ -144,7 +240,7 @@ describe("PrivacyPanel", () => {
   });
 
   it("shows readable action labels and sorts newest entries first", () => {
-    const state = {
+    const state: AppState = {
       ...demoState,
       auditEvents: [
         {

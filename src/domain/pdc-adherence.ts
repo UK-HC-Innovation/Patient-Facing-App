@@ -263,11 +263,18 @@ export function classifyDiabetesMedication(medicationName: string): DiabetesMedi
 }
 
 export function calculateDiabetesPdc(input: CalculateDiabetesPdcInput): DiabetesPdcResult {
-  const sortedClaims = [...input.claims].sort((left, right) =>
-    left.dateOfService === right.dateOfService
-      ? left.id.localeCompare(right.id)
-      : left.dateOfService.localeCompare(right.dateOfService)
-  );
+  const measurementPeriodStart = `${input.measurementYear}-01-01`;
+  const measurementPeriodEndExclusive = `${input.measurementYear + 1}-01-01`;
+  const sortedClaims = input.claims
+    .filter(
+      ({ dateOfService }) =>
+        dateOfService >= measurementPeriodStart && dateOfService < measurementPeriodEndExclusive
+    )
+    .sort((left, right) =>
+      left.dateOfService === right.dateOfService
+        ? left.id.localeCompare(right.id)
+        : left.dateOfService.localeCompare(right.dateOfService)
+    );
   const reviewClaims: PdcClaimFlag[] = [];
   const exclusionClaims: PdcClaimFlag[] = [];
   const includedClaims = sortedClaims.flatMap((claim) => {
@@ -295,7 +302,7 @@ export function calculateDiabetesPdc(input: CalculateDiabetesPdcInput): Diabetes
   const treatmentPeriodEndExclusive = minDefinedDate([
     input.disenrollmentDate ? addDays(input.disenrollmentDate, 1) : undefined,
     input.deathDate ? addDays(input.deathDate, 1) : undefined,
-    `${input.measurementYear + 1}-01-01`
+    measurementPeriodEndExclusive
   ]);
   const treatmentPeriodDays =
     ipsd && treatmentPeriodEndExclusive ? daysBetween(ipsd, treatmentPeriodEndExclusive) : 0;

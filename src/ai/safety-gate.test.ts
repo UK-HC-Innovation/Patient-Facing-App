@@ -49,7 +49,7 @@ const chestPainReading = {
   diastolic: 82,
   pulse: 72,
   measuredAt: "2026-07-05T10:30:00.000Z",
-  contexts: ["morning"],
+  contexts: ["morning" as const],
   note: "I had chest pain for 5 minutes."
 };
 
@@ -60,7 +60,7 @@ const thresholdReading = {
   diastolic: 102,
   pulse: 70,
   measuredAt: "2026-07-05T11:00:00.000Z",
-  contexts: ["morning"],
+  contexts: ["morning" as const],
   note: ""
 };
 
@@ -120,7 +120,7 @@ describe("createSafeAiResponse", () => {
   });
 
   it("escalates for dangerous state reading even when patient input is blocked", async () => {
-    const stateWithDangerousReading = {
+    const stateWithDangerousReading: AppState = {
       ...demoState,
       readings: [
         {
@@ -173,7 +173,7 @@ describe("createSafeAiResponse", () => {
   });
 
   it("escalates on dangerous latest reading even with normal patient input", async () => {
-    const stateWithDangerousReading = {
+    const stateWithDangerousReading: AppState = {
       ...demoState,
       readings: [
         {
@@ -213,7 +213,7 @@ describe("createSafeAiResponse", () => {
   });
 
   it("escalates on very low recent reading before provider call", async () => {
-    const stateWithLowReading = {
+    const stateWithLowReading: AppState = {
       ...demoState,
       readings: [
         {
@@ -253,7 +253,7 @@ describe("createSafeAiResponse", () => {
 
 
   it("escalates on earlier dangerous reading when a later normal reading exists", async () => {
-    const stateWithEarlierDangerousReading = {
+    const stateWithEarlierDangerousReading: AppState = {
       ...demoState,
       readings: [
         {
@@ -303,7 +303,7 @@ describe("createSafeAiResponse", () => {
   });
 
   it("does not escalate from stale urgent or blocked readings outside the 24-hour real-time window", async () => {
-    const stateWithStaleReadings = {
+    const stateWithStaleReadings: AppState = {
       ...demoState,
       readings: [
         {
@@ -361,7 +361,7 @@ describe("createSafeAiResponse", () => {
   });
 
   it("escalates when an older dangerous reading exists and a newer blocked note is newer", async () => {
-    const stateWithBlockedLatestAndEarlierDanger = {
+    const stateWithBlockedLatestAndEarlierDanger: AppState = {
       ...demoState,
       readings: [
         {
@@ -411,7 +411,7 @@ describe("createSafeAiResponse", () => {
   });
 
   it("escalates on an older chest-pain reading when a newer threshold reading exists", async () => {
-    const stateWithOlderSymptomAndNewerThreshold = {
+    const stateWithOlderSymptomAndNewerThreshold: AppState = {
       ...demoState,
       readings: [thresholdReading, chestPainReading]
     };
@@ -441,7 +441,7 @@ describe("createSafeAiResponse", () => {
   });
 
   it("blocks earlier blocked reading classification when later reading is normal", async () => {
-    const stateWithBlockedEarlierReading = {
+    const stateWithBlockedEarlierReading: AppState = {
       ...demoState,
       readings: [
         {
@@ -490,7 +490,7 @@ describe("createSafeAiResponse", () => {
   });
 
   it("allows education when a side effects barrier exists but the current question is safe", async () => {
-    const stateWithSideEffects = {
+    const stateWithSideEffects: AppState = {
       ...demoState,
       medications: [
         {
@@ -522,7 +522,7 @@ describe("createSafeAiResponse", () => {
   });
 
   it("escalates when an active side effects barrier and current symptom concern are present", async () => {
-    const stateWithSideEffects = {
+    const stateWithSideEffects: AppState = {
       ...demoState,
       medications: [
         {
@@ -555,7 +555,7 @@ describe("createSafeAiResponse", () => {
   });
 
   it("lets urgent symptom escalation win over side-effect medication barriers", async () => {
-    const stateWithSideEffects = {
+    const stateWithSideEffects: AppState = {
       ...demoState,
       medications: [
         {
@@ -588,7 +588,7 @@ describe("createSafeAiResponse", () => {
   });
 
   it("answers the question with a banner instead of a broken record when a fresh high reading exists", async () => {
-    const stateWithFreshHighReading = {
+    const stateWithFreshHighReading: AppState = {
       ...demoState,
       readings: [
         {
@@ -974,7 +974,7 @@ describe("grounding leaves every mock canned answer intact", () => {
 
   for (const fixture of [{ name: "demoState", state: demoState }, { name: "brentState", state: brentState }]) {
     for (const scenario of scenarios) {
-      it(`passes ${scenario.name} × ${scenario.label}`, async () => {
+      it(`passes ${fixture.name} × ${scenario.label}`, async () => {
         const provider = new MockHealthAiProvider();
         const response = await provider.respond(scenario.request(fixture.state));
         const result = verifyGrounding({

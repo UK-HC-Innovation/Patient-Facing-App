@@ -226,12 +226,12 @@ async function fillProfile(page: Page, persona: Persona): Promise<void> {
 async function openResourceLibrary(page: Page): Promise<void> {
   // The library is a surface of its own now; its tab is labelled in whichever
   // language the caregiver is reading.
-  const tab = page.getByRole("tab", { name: /Programs|Programas/ });
+  const tab = page.getByTestId("ladder-tabs").getByRole("button", { name: /Programs|Programas/ });
   await tab.waitFor({ state: "attached", timeout: 10000 });
-  if ((await tab.getAttribute("aria-selected")) !== "true") {
+  if ((await tab.getAttribute("aria-current")) !== "page") {
     await tab.click();
   }
-  await expect(tab).toHaveAttribute("aria-selected", "true");
+  await expect(tab).toHaveAttribute("aria-current", "page");
   const details = page.locator("#family-resources > details");
   const alreadyOpen = await details.evaluate((node) => (node as HTMLDetailsElement).open);
   if (!alreadyOpen) {

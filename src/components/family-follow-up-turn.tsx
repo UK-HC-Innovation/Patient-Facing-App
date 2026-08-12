@@ -95,7 +95,11 @@ export function FamilyFollowUpTurn({
     },
     [language, onAnswer, question.options]
   );
-  const dictation = useDictation({ language, onFinalTranscript });
+  const dictation = useDictation({
+    language,
+    onFinalTranscript,
+    enabled: !voiceLocked && !submitting
+  });
   const stopDictation = dictation.stop;
 
   useEffect(() => {
@@ -112,6 +116,10 @@ export function FamilyFollowUpTurn({
     },
     [stopDictation]
   );
+
+  useEffect(() => {
+    if (voiceLocked || submitting) setShowConsent(false);
+  }, [submitting, voiceLocked]);
 
   function beginVoice(): void {
     onSessionStart("family follow-up");
@@ -145,7 +153,7 @@ export function FamilyFollowUpTurn({
 
   return (
     <section className="rounded-control border border-care/30 bg-white p-4" aria-labelledby="family-follow-up-question">
-      <p className="text-xs font-semibold uppercase tracking-wide text-care" aria-live="polite">
+      <p className="text-xs font-semibold uppercase tracking-wide text-care">
         {tFamily(language, "orientationRoundCount", { round, max: roundCap })}
       </p>
       {/* Help is already on screen above this; answering only sharpens it. */}

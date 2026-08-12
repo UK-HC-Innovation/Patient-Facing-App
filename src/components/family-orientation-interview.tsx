@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { requestFamilyInterview } from "@/ai/family-interview-provider";
 import { extractFamilyInterviewMock, type FamilyFollowUp, type FamilyInterviewResult } from "@/domain/family-interview";
 import { screenFamilySafety, type FamilySafetyScreen } from "@/domain/family-safety";
@@ -47,16 +47,24 @@ type OrientationState = {
   openingSource: "typed" | "voice" | "mixed";
   rounds: OrientationRound[];
   pendingFollowUps: FamilyFollowUp[];
+  /**
+   * Monotonic for this thread. A later denial or correction can make the safety
+   * classifier return `null` for a cumulative transcript even though that same
+   * transcript still contains an earlier disclosure. Once true, no version of
+   * this conversation may be sent or filed.
+   */
+  containsSafetyDisclosure: boolean;
   status: "idle" | "active" | "submitting" | "complete";
 };
 
 export type FamilyOrientationInterviewProps = {
   profile: FamilyProfile;
   draft: string;
-  passcode?: string;
   /** F1a. See FamilyInterviewProps.liveAllowed — same gate, same safe default. */
   liveAllowed?: boolean;
-  /** Fired immediately before a request leaves the device, whatever the reply. */
+  /** Signed memory-only server capability. `liveAllowed` alone is a legacy test seam. */
+  consentCapability?: string;
+  /** Fired immediately before the browser starts a request, whatever the reply. */
   onLiveSend?: () => void;
   language: Language;
   voiceEntryContext?: VoiceEntryContext;
@@ -101,7 +109,14 @@ export type FamilyOrientationInterviewProps = {
 const FOLLOW_UP_TRANSCRIPT_RESERVE = 200 + FAMILY_FOLLOW_UP_ANSWER_MAX + 8;
 
 function initialOrientationState(): OrientationState {
-  return { openingText: "", openingSource: "typed", rounds: [], pendingFollowUps: [], status: "idle" };
+  return {
+    openingText: "",
+    openingSource: "typed",
+    rounds: [],
+    pendingFollowUps: [],
+    containsSafetyDisclosure: false,
+    status: "idle"
+  };
 }
 
 function orientationContextKey(profile: FamilyProfile, language: Language): string {
@@ -143,8 +158,8 @@ function combinedSource(sources: readonly ("typed" | "voice" | "mixed" | undefin
 export function FamilyOrientationInterview({
   profile,
   draft,
-  passcode,
   liveAllowed = false,
+  consentCapability,
   onLiveSend,
   language,
   voiceEntryContext,
@@ -158,20 +173,39 @@ export function FamilyOrientationInterview({
   onSafetyEscalation,
   onThreadActiveChange
 }: FamilyOrientationInterviewProps) {
+  const sendCapability = consentCapability ?? (liveAllowed ? "legacy-test-capability" : undefined);
   const [thread, setThread] = useState<OrientationState>(initialOrientationState);
   const submittingRef = useRef(false);
   const mountedRef = useRef(true);
+  const activeLiveRequestRef = useRef<AbortController | null>(null);
+  const threadGenerationRef = useRef(0);
   const contextKey = orientationContextKey(profile, language);
   const previousContextRef = useRef({ contextKey, profileWasEmpty: isEmptyProfile(profile), language });
   const latestContextKeyRef = useRef(contextKey);
   latestContextKeyRef.current = contextKey;
 
+  const abortLiveRequest = useCallback((): void => {
+    activeLiveRequestRef.current?.abort();
+    activeLiveRequestRef.current = null;
+  }, []);
+
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      abortLiveRequest();
     };
-  }, []);
+  }, [abortLiveRequest]);
+
+  useEffect(() => {
+    if (!liveAllowed) abortLiveRequest();
+  }, [abortLiveRequest, liveAllowed]);
+
+  useEffect(() => {
+    const stopOnPageHide = (): void => abortLiveRequest();
+    window.addEventListener("pagehide", stopOnPageHide);
+    return () => window.removeEventListener("pagehide", stopOnPageHide);
+  }, [abortLiveRequest]);
 
   // Monotonic within a visit: idle -> active -> complete, never back. A per-question
   // signal would drop to false between rounds and let another surface ask.
@@ -190,12 +224,27 @@ export function FamilyOrientationInterview({
     if (previous.contextKey === contextKey) return;
     const languageChanged = previous.language !== language;
     previousContextRef.current = { contextKey, profileWasEmpty: isEmptyProfile(profile), language };
-    if (!languageChanged) return;
+    threadGenerationRef.current += 1;
+    abortLiveRequest();
     submittingRef.current = false;
-    setThread(initialOrientationState());
-  }, [contextKey, language, profile]);
+    if (languageChanged) {
+      setThread(initialOrientationState());
+      return;
+    }
+    // The answer is already visible by the time its extraction starts. A
+    // profile correction invalidates that old-profile extraction, but it must
+    // not erase the caregiver's answered transcript. End this short thread in
+    // a stable state; they can start another pass with the corrected details.
+    setThread((current) =>
+      current.status === "submitting"
+        ? { ...current, pendingFollowUps: [], status: "complete" }
+        : current
+    );
+  }, [abortLiveRequest, contextKey, language, profile]);
 
   function resetThread(): void {
+    threadGenerationRef.current += 1;
+    abortLiveRequest();
     submittingRef.current = false;
     setThread(initialOrientationState());
   }
@@ -209,6 +258,7 @@ export function FamilyOrientationInterview({
       openingSource: meta.source,
       rounds: canAsk ? [{ question: candidates[0] }] : [],
       pendingFollowUps: canAsk ? candidates.slice(1) : [],
+      containsSafetyDisclosure: meta.containsSafetyDisclosure,
       status: canAsk ? "active" : "complete"
     });
   }
@@ -245,39 +295,55 @@ export function FamilyOrientationInterview({
         ...profile,
         diagnoses: profile.diagnoses.map((diagnosis) => ({ ...diagnosis }))
       },
-      passcode,
       language,
-      contextKey: latestContextKeyRef.current
+      contextKey: latestContextKeyRef.current,
+      generation: threadGenerationRef.current
     } as const;
     setThread({ ...thread, rounds: answeredRounds, status: "submitting" });
 
-    // Screened over the whole conversation, not just this answer. `safety` above
-    // decides whether to raise a banner for what was *just* written; this decides
-    // what may be sent and filed, and the thing about to be sent is the cumulative
-    // transcript. Screening only the new answer meant a caregiver's disclosure was
-    // correctly withheld on its own turn and then POSTed off-device by the next
-    // ordinary reply — breaking the oldest guarantee this surface makes.
-    const transcriptDiscloses = safety !== null || screenFamilySafety(caregiverTranscript) !== null;
+    // Screened over the whole conversation, not just this answer, and latched
+    // across rounds. The classifier deliberately understands negation, so it is
+    // not monotonic: a later correction can make a cumulative transcript return
+    // to `null` while the original crisis sentence is still literally inside the
+    // payload. Reclassification alone therefore re-opened both the send and the
+    // record. Once this thread has disclosed, it stays local and unfiled.
+    const transcriptDiscloses =
+      thread.containsSafetyDisclosure ||
+      safety !== null ||
+      screenFamilySafety(caregiverTranscript) !== null;
 
     try {
       let live: FamilyInterviewResult | null = null;
       // F1a. This composer re-sends the whole conversation every round, so an
       // ungated round here leaks every earlier turn as well — the gate matters
       // more on this path, not less.
-      if (!transcriptDiscloses && liveAllowed) {
+      if (!transcriptDiscloses && liveAllowed && sendCapability) {
         onLiveSend?.();
+        const controller = new AbortController();
+        activeLiveRequestRef.current?.abort();
+        activeLiveRequestRef.current = controller;
         try {
-          live = await requestFamilyInterview({
-            text: liveTranscript,
-            profile: snapshot.profile,
-            passcode: snapshot.passcode,
-            language: snapshot.language
-          });
+          live = await requestFamilyInterview(
+            {
+              text: liveTranscript,
+              profile: snapshot.profile,
+              language: snapshot.language
+            },
+            { signal: controller.signal, consentCapability: sendCapability }
+          );
         } catch {
           live = null;
+        } finally {
+          if (activeLiveRequestRef.current === controller) {
+            activeLiveRequestRef.current = null;
+          }
         }
       }
-      if (!mountedRef.current || latestContextKeyRef.current !== snapshot.contextKey) return;
+      if (
+        !mountedRef.current ||
+        latestContextKeyRef.current !== snapshot.contextKey ||
+        threadGenerationRef.current !== snapshot.generation
+      ) return;
 
       const extraction = live ? "live" : "mock";
       const now = new Date();
@@ -321,13 +387,11 @@ export function FamilyOrientationInterview({
         openingSource: thread.openingSource,
         rounds: canContinue ? [...answeredRounds, { question: candidates[0] }] : answeredRounds,
         pendingFollowUps: canContinue ? candidates.slice(1) : [],
+        containsSafetyDisclosure: transcriptDiscloses,
         status: canContinue ? "active" : "complete"
       });
     } finally {
       submittingRef.current = false;
-      if (mountedRef.current && latestContextKeyRef.current !== snapshot.contextKey) {
-        setThread(initialOrientationState());
-      }
     }
   }
 
@@ -337,10 +401,12 @@ export function FamilyOrientationInterview({
         <FamilyInterview
           profile={profile}
           draft={draft}
-          passcode={passcode}
           liveAllowed={liveAllowed}
+          consentCapability={sendCapability}
           onLiveSend={onLiveSend}
           language={language}
+          voiceEntryContext={voiceEntryContext}
+          voiceLocked={voiceLocked}
           placeholder={completePlaceholder}
           onDraftChange={onDraftChange}
           onExtracted={receiveOpening}
@@ -357,7 +423,7 @@ export function FamilyOrientationInterview({
     <div className="space-y-4">
       {/* The opening description is not echoed back: the strip is the
           acknowledgement, and the raw text is kept, dated, in the journal. */}
-      <div className="space-y-3" role="log" aria-live="polite">
+      <div className="space-y-3" role="log" aria-relevant="additions text" aria-atomic="false">
         {thread.rounds.map(({ question, answer }, index) =>
           answer === undefined ? null : (
             <React.Fragment key={`${index}-${question.question}`}>

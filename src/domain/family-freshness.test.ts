@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   FRESHNESS_BUDGET_DAYS,
   STALE_ACCEPTED,
+  catalogEntryNeedsRefresh,
   expiredStaleAcceptances,
   staleCatalogEntries,
   type FreshnessSubject
@@ -64,6 +65,24 @@ describe("staleCatalogEntries", () => {
     expect(
       staleCatalogEntries(subject, now, [{ id: "blocked", until: "2026-07-01", reason }]).map(({ id }) => id)
     ).toEqual(["blocked"]);
+  });
+});
+
+describe("catalogEntryNeedsRefresh", () => {
+  const now = new Date("2026-08-15T00:00:00.000Z");
+
+  it("warns only after the 45-day check window has elapsed", () => {
+    expect(catalogEntryNeedsRefresh({ verifiedAt: "2026-07-01" }, now)).toBe(false);
+    expect(catalogEntryNeedsRefresh({ verifiedAt: "2026-06-30" }, now)).toBe(true);
+  });
+
+  it("fails closed for an invalid or future checked date", () => {
+    expect(catalogEntryNeedsRefresh({ verifiedAt: "not-a-date" }, now)).toBe(true);
+    expect(catalogEntryNeedsRefresh({ verifiedAt: "2026-08-16" }, now)).toBe(true);
+  });
+
+  it("still warns at runtime for maintenance allowlists and human-only checks", () => {
+    expect(catalogEntryNeedsRefresh({ verifiedAt: "2020-01-01" }, now)).toBe(true);
   });
 });
 

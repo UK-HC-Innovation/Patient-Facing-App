@@ -15,15 +15,15 @@ describe("colorectal screening eligibility", () => {
     [[60, 1, 0, 0, 0, 0], "colonoscopy"],
     [[60, 0, 1, 0, 0, 0], "FIT"],
     [[60, 0, 0, 1, 0, 0], "other modality"]
-  ] as const)("marks recent %s screening not due", (responses) => {
-    expect(CRC_ELIGIBILITY_INSTRUMENT.score([...responses]).band).toBe("not_due");
+  ] as const)("marks recent %s screening not due", (responses, label) => {
+    expect(CRC_ELIGIBILITY_INSTRUMENT.score([...responses]).band, label).toBe("not_due");
   });
 
   it.each([
     [[60, 0, 0, 0, 1, 0], "red flag"],
     [[60, 1, 1, 1, 0, 1], "family history"]
-  ] as const)("routes a %s to clinician contact instead of routine screening", (responses) => {
-    expect(CRC_ELIGIBILITY_INSTRUMENT.score([...responses]).band).toBe("see_clinician_now");
+  ] as const)("routes a %s to clinician contact instead of routine screening", (responses, label) => {
+    expect(CRC_ELIGIBILITY_INSTRUMENT.score([...responses]).band, label).toBe("see_clinician_now");
   });
 
   it("locks the combined other-modality wording and fixed response length", () => {

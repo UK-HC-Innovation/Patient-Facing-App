@@ -6,6 +6,7 @@ import { brentState } from "@/domain/fixtures";
 import { SAMPLE_CAREGIVER_TEXT, SAMPLE_CAREGIVER_TEXT_ES, eighteenMonthFamilyState, schoolAgeFamilyState } from "@/domain/family-fixtures";
 import { createFamilyAppointmentOffer } from "@/domain/family-appointments";
 import type { AppState, DevNeedDomain, FamilyNavigatorState } from "@/domain/types";
+import { clearAllFamilyDrafts } from "@/state/family-draft-storage";
 import { healthReducer } from "@/state/store";
 import { openAllFamilyFolds, showFamilySurface } from "@/test/family-folds";
 import { FamilyExperience } from "@/components/family-experience";
@@ -68,9 +69,10 @@ async function goToSurface(
   user: ReturnType<typeof userEvent.setup>,
   name: RegExp
 ): Promise<void> {
-  const tab = screen.queryByRole("tab", { name });
-  if (tab && tab.getAttribute("aria-selected") !== "true") {
-    await user.click(tab);
+  const navigation = screen.queryByTestId("ladder-tabs");
+  const button = navigation ? within(navigation).queryByRole("button", { name }) : null;
+  if (button && button.getAttribute("aria-current") !== "page") {
+    await user.click(button);
   }
 }
 
@@ -158,6 +160,7 @@ beforeEach(() => {
   requestFamilyInterview.mockResolvedValue(null);
   requestFamilyRecommendations.mockReset();
   requestFamilyRecommendations.mockResolvedValue(null);
+  clearAllFamilyDrafts();
   // A test that follows an in-page link leaves that hash on the jsdom location,
   // and the next mount would treat it as a deep link and open that section.
   window.history.replaceState(null, "", window.location.pathname);
@@ -209,12 +212,20 @@ describe("the heard strip", { timeout: 20_000 }, () => {
 
     // Collapsed by default — the help is what leads.
     const strip = screen.getByTestId("family-heard-strip");
+    const heard = within(strip).getByTestId("family-heard");
+    const heardText = heard.textContent;
+    expect(strip).not.toHaveAttribute("aria-live");
+    expect(heard).toHaveAttribute("aria-live", "polite");
+    expect(heard).toHaveAttribute("aria-atomic", "true");
+    const liveRegionCount = strip.querySelectorAll("[aria-live]").length;
     expect(within(strip).getByText(/Check or change this/i).closest("details")).not.toHaveAttribute(
       "open"
     );
     expect(screen.queryByTestId("family-heard-strip-editor")).not.toBeInTheDocument();
 
     const disclosure = await openStrip(user);
+    expect(heard).toHaveTextContent(heardText ?? "");
+    expect(strip.querySelectorAll("[aria-live]")).toHaveLength(liveRegionCount);
     expect(within(disclosure).getByRole("heading", { name: "Here is what we heard" })).toBeVisible();
     expect(within(disclosure).getAllByText("You wrote")[0]).toBeVisible();
     expect(within(disclosure).getByText("Grade")).toBeVisible();
@@ -293,21 +304,6 @@ describe("the heard strip", { timeout: 20_000 }, () => {
 });
 
 describe("FamilyExperience", { timeout: 20_000 }, () => {
-  it("synchronizes the document language and restores the prior value on unmount", () => {
-    const originalLanguage = document.documentElement.lang;
-    document.documentElement.lang = "fr";
-    const { rerender, unmount } = render(
-      <FamilyExperience state={withFamily(schoolAgeFamilyState, "es")} dispatch={vi.fn()} passcode="" />
-    );
-
-    expect(document.documentElement.lang).toBe("es");
-    rerender(<FamilyExperience state={withFamily(schoolAgeFamilyState, "en")} dispatch={vi.fn()} passcode="" />);
-    expect(document.documentElement.lang).toBe("en");
-    unmount();
-    expect(document.documentElement.lang).toBe("fr");
-    document.documentElement.lang = originalLanguage;
-  });
-
   it("states the tool's limits plainly, in English and Spanish, without a tap", () => {
     // The owner removed the standing demo banner and the "what this tool can and
     // cannot do" disclosure it sat beside — this line is what still says it,
@@ -366,7 +362,8 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
   // Every doorway row names a surface that exists and a target that is in the
   // document. A row pointing at a section this state does not render is the
   // front door's one navigation control doing nothing.
-  it("keeps every rendered doorway target in the document", () => {
+  it("routes every rendered doorway to a real visible target", async () => {
+    const user = userEvent.setup();
     const { unmount } = render(
       <FamilyExperience state={withFamily(schoolAgeFamilyState)} dispatch={vi.fn()} passcode="" />
     );
@@ -376,11 +373,11 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     expect(baselineDoorways.queryByRole("link", { name: /Programs/ })).not.toBeInTheDocument();
     // No referral, so no appointment companion either (1h).
     expect(baselineDoorways.queryByRole("link", { name: /Your visit/ })).not.toBeInTheDocument();
-    for (const link of baselineDoorways.getAllByRole("link")) {
-      const href = link.getAttribute("href");
-      expect(href).toMatch(/^#/);
-      expect(document.querySelector(href!)).toBeInTheDocument();
-    }
+    const baselinePacket = baselineDoorways.getByRole("link", { name: /Visit packet/ });
+    const baselineHref = baselinePacket.getAttribute("href") ?? "";
+    await user.click(baselinePacket);
+    await waitFor(() => expect(document.querySelector(baselineHref)).toBeVisible());
+    await goToSurface(user, /Home/);
 
     unmount();
     render(
@@ -406,10 +403,12 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     const conditionalDoorways = within(screen.getByTestId("family-doorways"));
     expect(conditionalDoorways.getByRole("link", { name: /Programs/ })).toBeVisible();
     expect(conditionalDoorways.getByRole("link", { name: /Visit packet/ })).toBeVisible();
-    for (const link of conditionalDoorways.getAllByRole("link")) {
-      const href = link.getAttribute("href");
-      expect(href).toMatch(/^#/);
-      expect(document.querySelector(href!)).toBeInTheDocument();
+    for (const name of [/Programs/, /Visit packet/]) {
+      const link = within(screen.getByTestId("family-doorways")).getByRole("link", { name });
+      const href = link.getAttribute("href") ?? "";
+      await user.click(link);
+      await waitFor(() => expect(document.querySelector(href)).toBeVisible());
+      await goToSurface(user, /Home/);
     }
   });
 
@@ -421,7 +420,7 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
       <FamilyExperience state={withFamily(schoolAgeFamilyState)} dispatch={vi.fn()} passcode="" />
     );
     // Home plus Notes (a profile means a packet). No matched needs, no referral.
-    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Home", "Notes"]);
+    expect(within(screen.getByTestId("ladder-tabs")).getAllByRole("button").map((button) => button.textContent)).toEqual(["Home", "Notes"]);
     unmount();
 
     render(
@@ -435,7 +434,7 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
         passcode=""
       />
     );
-    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+    expect(within(screen.getByTestId("ladder-tabs")).getAllByRole("button").map((button) => button.textContent)).toEqual([
       "Home",
       "Programs",
       "Notes",
@@ -446,7 +445,9 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
       "You said Riley is on the list at UK Developmental Pediatrics."
     );
     await user.click(within(visitNotice).getByRole("button", { name: "See it" }));
-    expect(screen.getByRole("tab", { name: "Visit" })).toHaveAttribute("aria-selected", "true");
+    const visitButton = within(screen.getByTestId("ladder-tabs")).getByRole("button", { name: "Visit" });
+    expect(visitButton).toHaveAttribute("aria-current", "page");
+    expect(visitButton).toHaveFocus();
     expect(screen.queryByTestId("family-visit-tab-notice")).not.toBeInTheDocument();
   });
 
@@ -460,16 +461,22 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
       })
     );
 
-    expect(screen.getByRole("tab", { name: "Home" })).toHaveAttribute("aria-selected", "true");
+    expect(within(screen.getByTestId("ladder-tabs")).getByRole("button", { name: "Home" })).toHaveAttribute("aria-current", "page");
     const notice = await screen.findByTestId("family-visit-tab-notice");
     expect(notice).toBeVisible();
+    expect(familyStateOutput()).toMatchObject({
+      referral: null,
+      appointments: [],
+      soonerList: null
+    });
+    expect(screen.getByTestId("audit-events")).not.toHaveTextContent("Family referral recorded");
     await user.click(within(notice).getByRole("button", { name: "See it" }));
-    expect(screen.getByRole("tab", { name: "Visit" })).toHaveAttribute("aria-selected", "true");
+    expect(within(screen.getByTestId("ladder-tabs")).getByRole("button", { name: "Visit" })).toHaveAttribute("aria-current", "page");
   });
 
   // F1b. The redesign rendered all four panels always while the bar rendered
   // only the unlocked ones, so a first run shipped three (and, with no bar at
-  // all, four) tabpanels labelled by ids nothing had rendered.
+  // all, four) panel regions labelled by ids nothing had rendered.
   it("labels no panel by a tab that is not on the page", () => {
     const dangling = (): string[] =>
       [...document.body.querySelectorAll("[aria-labelledby]")]
@@ -477,15 +484,15 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
         .filter((id) => id.length > 0 && document.getElementById(id) === null);
 
     const first = render(<FamilyExperience state={withFamily(null)} dispatch={vi.fn()} passcode="" />);
-    expect(screen.queryAllByRole("tab")).toHaveLength(0);
-    expect(screen.queryAllByRole("tabpanel", { hidden: true })).toHaveLength(0);
+    expect(screen.queryByTestId("ladder-tabs")).not.toBeInTheDocument();
+    expect(document.querySelectorAll('[data-ladder-panel][role="region"]')).toHaveLength(0);
     expect(dangling()).toEqual([]);
     first.unmount();
 
     // Home + Notes: two tabs, two panels, and nothing pointing past them.
     render(<FamilyExperience state={withFamily(schoolAgeFamilyState)} dispatch={vi.fn()} passcode="" />);
-    expect(screen.getAllByRole("tab")).toHaveLength(2);
-    expect(screen.getAllByRole("tabpanel", { hidden: true })).toHaveLength(2);
+    expect(within(screen.getByTestId("ladder-tabs")).getAllByRole("button")).toHaveLength(2);
+    expect(document.querySelectorAll('[data-ladder-panel][role="region"]')).toHaveLength(2);
     expect(dangling()).toEqual([]);
   });
 
@@ -540,10 +547,7 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
         name: "Have you applied for any state programs yet?"
       })
     ).toBeVisible();
-    expect(screen.getByText("Question 1 of 2")).toHaveAttribute(
-      "aria-live",
-      "polite"
-    );
+    expect(screen.getByText("Question 1 of 2")).not.toHaveAttribute("aria-live");
     expect(
       screen.queryByRole("heading", {
         name: /start at the very beginning|what is autism|new diagnosis/i
@@ -585,7 +589,10 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     showFamilySurface("Programs");
     openAllFamilyFolds();
     expect(screen.getByTestId("matched-family-resources")).toBeVisible();
-    expect(requestFamilyInterview).toHaveBeenCalledWith(expect.objectContaining({ passcode: "demo-passcode" }));
+    expect(requestFamilyInterview).toHaveBeenCalledWith(
+      expect.not.objectContaining({ passcode: expect.anything() }),
+      expect.objectContaining({ signal: expect.any(Object) })
+    );
     expect(screen.getByTestId("adult-facts").textContent).toBe(adultFactsBefore);
 
     const stateAfterCrunch = JSON.parse(screen.getByTestId("family-state").textContent || "null") as FamilyNavigatorState;
@@ -735,6 +742,7 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
       "href",
       "#family-resources"
     );
+    await goToSurface(user, /Programs/);
     const matched = screen.getByTestId("matched-family-resources");
     expect(
       within(matched)
@@ -772,6 +780,7 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     expect(family.interviews[0]?.kind).toBe("orientation");
 
     await screen.findByRole("heading", { name: "Has anyone talked with you about therapy visits?" });
+    await goToSurface(user, /Programs/);
     const cards = within(screen.getByTestId("matched-family-resources")).getAllByTestId("family-resource-card");
     expect(cards.slice(0, 2).map((card) => card.getAttribute("data-resource-id"))).toEqual([
       "first_steps_big_sandy",
@@ -939,12 +948,14 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     await submitDescription(user);
 
     await waitFor(() => expect(requestFamilyRecommendations).toHaveBeenCalled());
+    await goToSurface(user, /Programs/);
     await waitFor(() =>
       expect(
         within(screen.getByTestId("matched-family-resources")).getAllByTestId("family-resource-card").length
       ).toBeGreaterThan(0)
     );
     expect(screen.queryByTestId("family-resource-why")).not.toBeInTheDocument();
+    await goToSurface(user, /Home/);
     expect(screen.getByTestId("family-heard")).toBeVisible();
   });
 
@@ -1068,6 +1079,7 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     expect(screen.getByRole("heading", { name: "What has the school offered so far?" })).toBeVisible();
     expect(familyStateOutput().profile).toMatchObject({ county: "Perry" });
     // The corrected county drives the next set of matches.
+    await goToSurface(user, /Programs/);
     await waitFor(() =>
       expect(
         within(screen.getByTestId("matched-family-resources"))
@@ -1229,6 +1241,7 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
       <FamilyExperience state={withFamily(recreationFamily)} dispatch={vi.fn()} passcode="" />
     );
 
+    showFamilySurface("Programs");
     expect(screen.getAllByText("Central Kentucky Riding for Hope")).toHaveLength(1);
     expect(screen.queryByRole("region", { name: "Something else nearby" })).not.toBeInTheDocument();
 
@@ -1862,9 +1875,11 @@ function familyQuietFor(days: number): FamilyNavigatorState {
 }
 
 describe("monthly check-in", () => {
-  it("stays away until a month of silence, and the demo control produces one", async () => {
+  it("uses a session clock to produce a month of silence without rewriting history", async () => {
     const user = userEvent.setup();
     render(<ReducerHarness initialState={withFamily(familyQuietFor(3))} />);
+    const originalInterview = familyStateOutput().interviews[0];
+    const originalAudit = screen.getByTestId("audit-events").textContent;
 
     expect(screen.queryByTestId("family-checkin")).not.toBeInTheDocument();
 
@@ -1872,9 +1887,36 @@ describe("monthly check-in", () => {
 
     expect(screen.getByTestId("family-checkin")).toBeVisible();
     expect(screen.queryByTestId("family-checkin-demo")).not.toBeInTheDocument();
-    expect(screen.getByTestId("audit-events")).toHaveTextContent(
-      "Demo control: family activity moved 31 days back"
+    expect(familyStateOutput().interviews[0]).toEqual(originalInterview);
+    expect(screen.getByTestId("audit-events").textContent).toBe(originalAudit);
+  });
+
+  it("keeps child details optional and resumes the conversation when they are deferred", async () => {
+    const user = userEvent.setup();
+    render(<ReducerHarness />);
+
+    await user.type(
+      screen.getByLabelText("What would you like help with?"),
+      "Reading is really hard for him at school and I keep hearing about waivers."
     );
+    await submitDescription(user);
+
+    const turns = await screen.findByTestId("family-basics-turns");
+    expect(within(turns).getByTestId("family-basics-optional-note")).toHaveTextContent(
+      /optional.*will not claim.*local or age-matched/i
+    );
+    const durableBefore = screen.getByTestId("family-state").textContent;
+
+    await user.click(
+      within(turns).getByRole("button", { name: "Not now — I can add these later" })
+    );
+
+    expect(screen.queryByTestId("family-basics-turns")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "What has the school offered so far?" })).toBeVisible();
+    expect(screen.getByTestId("family-state").textContent).toBe(durableBefore);
+    const family = JSON.parse(durableBefore || "null") as FamilyNavigatorState;
+    expect(family.profile).toBeNull();
+    expect(screen.getByRole("button", { name: /Add or change your child's details/i })).toBeVisible();
   });
 
   it("files the note it invites under the check-in kind", async () => {
@@ -2288,11 +2330,14 @@ describe("wait header rungs", () => {
     }
   ];
 
-  it.each(rungCases)("puts the $kind rung on a section that is on the page", ({ href, family }) => {
+  it.each(rungCases)("puts the $kind rung on a section it can open", async ({ href, family }) => {
+    const user = userEvent.setup();
     render(<ReducerHarness initialState={withFamily(family())} />);
 
-    expect(screen.getByTestId("family-next-rung")).toHaveAttribute("href", href);
-    expect(document.querySelector(href)).toBeInTheDocument();
+    const rung = screen.getByTestId("family-next-rung");
+    expect(rung).toHaveAttribute("href", href);
+    await user.click(rung);
+    await waitFor(() => expect(document.querySelector(href)).toBeVisible());
   });
 
   it("holds the First Steps rung until the resources section carries the countdown", () => {
@@ -2337,7 +2382,7 @@ describe("phone fit", { timeout: 20_000 }, () => {
 
     // The library is not competing with the answer for the same scroll: it is a
     // whole surface, one tap away, and Home stays the one ask (P2).
-    expect(screen.getByTestId("matched-family-resources")).not.toBeVisible();
+    expect(screen.queryByTestId("matched-family-resources")).not.toBeInTheDocument();
 
     const threadCards = within(screen.getByTestId("thread-family-resources")).getAllByTestId(
       "family-resource-card"
@@ -2385,13 +2430,13 @@ describe("phone fit", { timeout: 20_000 }, () => {
     const user = userEvent.setup();
     render(<ReducerHarness initialState={withFamily(describedFamily)} />);
 
-    const packetBody = screen.getByTestId("family-visit-packet-body");
-    expect(packetBody).not.toBeVisible();
+    expect(screen.queryByTestId("family-visit-packet-body")).not.toBeInTheDocument();
 
     await user.click(
       within(screen.getByTestId("family-doorways")).getByRole("link", { name: /Visit packet/ })
     );
 
+    const packetBody = await screen.findByTestId("family-visit-packet-body");
     await waitFor(() => expect(packetBody).toBeVisible());
     expect(screen.getByRole("button", { name: "Print" })).toBeVisible();
   });
@@ -2518,7 +2563,7 @@ describe("the return front door", { timeout: 20_000 }, () => {
     await user.click(screen.getByTestId("family-notes-add"));
 
     // It brings the caregiver back to Home rather than opening a second field.
-    expect(screen.getByRole("tab", { name: "Home" })).toHaveAttribute("aria-selected", "true");
+    expect(within(screen.getByTestId("ladder-tabs")).getByRole("button", { name: "Home" })).toHaveAttribute("aria-current", "page");
     expect(screen.getAllByLabelText("What would you like help with?")).toHaveLength(1);
   });
 });

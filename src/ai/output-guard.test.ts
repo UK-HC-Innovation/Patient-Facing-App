@@ -48,6 +48,21 @@ describe("createOutputTranscriptGuard", () => {
     });
   });
 
+  it("blocks medication-change advice written in Spanish", () => {
+    const { guard, send, onEvent } = harness("es");
+
+    guard.observeDelta("Debe dejar de tomar lisinopril hoy.");
+
+    expect(send).toHaveBeenCalledWith({ type: "response.cancel" });
+    expect(send).toHaveBeenCalledWith({ type: "output_audio_buffer.clear" });
+    expect(onEvent).toHaveBeenCalledWith({
+      type: "safetyIntercept",
+      safety: "blocked",
+      content: tVoice("es", "outputBlockedCopy"),
+      actions: CARE_TEAM_ACTIONS
+    });
+  });
+
   it("accumulates split deltas and trips only once per response", () => {
     const { guard, send, onEvent } = harness();
     guard.observeDelta("You should ");

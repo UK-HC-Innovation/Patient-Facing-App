@@ -26,28 +26,77 @@ const medicationChangePatterns = [
   /\bstop\b[^.?!]{0,30}\b(lisinopril|medicine|medication|pill|pills|dose|it)\b/i,
   /\bstop\b[^.?!]{0,30}\bfor a (day|week|while|few days)\b/i,
   /\b(pause|hold off on|quit|halve|cut back on)\b[^.?!]{0,25}\b(lisinopril|medicine|medication|pill|pills|dose)\b/i,
-  /\b(come|get) off\b[^.?!]{0,20}\b(lisinopril|medicine|medication|pill|dose)\b/i
+  /\b(come|get) off\b[^.?!]{0,20}\b(lisinopril|medicine|medication|pill|dose)\b/i,
+  /\bdejar\s+de\s+tomar\b/i,
+  /\b(?:suspender|suspenda|suspende|interrumpir|dejar)\b[^.?!]{0,30}\b(?:lisinopril|medicina|medicamento|pastilla|pastillas|dosis)\b/i,
+  /\b(?:cambiar|cambie|duplicar|duplique|aumentar|aumente|reducir|reduzca)\b[^.?!]{0,20}\b(?:mi|la|su)?\s*dosis\b/i,
+  /\b(?:puedo|debo|deberia)\s+tomar\s+(?:dos|otra|una\s+dosis\s+extra)\b/i,
+  /\b(?:saltar|omitir)\b[^.?!]{0,20}\b(?:mi|la|una)?\s*(?:medicina|medicamento|pastilla|dosis)\b/i
 ];
 const dangerousReadingWithSlashPattern = /(\d{2,3})\s*[\/\-]\s*(\d{2,3})/i;
 const dangerousSystolicDiastolicPattern = /systolic\s*(?:is\s*)?(\d{2,3})\D{1,20}?diastolic\s*(?:is\s*)?(\d{2,3})/i;
-const urgentSymptomPatterns = [
-  /chest pain/i,
-  /i can't breathe/i,
-  /i cannot breathe/i,
-  /shortness of breath/i,
-  /trouble breathing/i,
-  /weakness on one side/i,
-  /new confusion/i,
-  /severe headache/i,
-  /fainting/i
+type UrgentSymptomRule = {
+  signal: RegExp;
+  denial: RegExp;
+};
+
+// Each denial is tied to the symptom it negates. A clause such as "no chest
+// pain, but I cannot breathe" must still escalate on the breathing disclosure.
+const urgentSymptomRules: readonly UrgentSymptomRule[] = [
+  {
+    signal: /\b(?:chest\s+pain|dolor\s+(?:en|de)\s+(?:el\s+)?pecho)\b/i,
+    denial:
+      /\b(?:no|without|den(?:y|ies|ied)|(?:am|is|are|was|were)\s+not\s+(?:having|experiencing)|(?:do|does|did)\s+not\s+have|(?:don'?t|doesn'?t|didn'?t)\s+have|(?:have|has|had)\s+no)\s+(?:any\s+)?chest\s+pain\b|\b(?:no\s+(?:tengo|tiene|tenemos)|sin)\s+dolor\s+(?:en|de)\s+(?:el\s+)?pecho\b/i
+  },
+  {
+    signal:
+      /\b(?:i\s+(?:can'?t|cannot)\s+breathe|shortness\s+of\s+breath|trouble\s+breathing|no\s+puedo\s+respirar|me\s+falta\s+el\s+aire|falta\s+de\s+aire|dificultad\s+para\s+respirar)\b/i,
+    denial:
+      /\b(?:no|without|den(?:y|ies|ied)|(?:do|does|did)\s+not\s+have|(?:don'?t|doesn'?t|didn'?t)\s+have|(?:have|has|had)\s+no)\s+(?:any\s+)?(?:shortness\s+of\s+breath|trouble\s+breathing)\b|\bbreath(?:e|ing)(?:\s+is)?\s+normally\b|\b(?:no\s+(?:tengo|tiene)|sin)\s+(?:falta\s+de\s+aire|dificultad\s+para\s+respirar)\b|\b(?:puedo|puede)\s+respirar\s+bien\b/i
+  },
+  {
+    signal: /\b(?:weakness\s+on\s+one\s+side|debilidad\s+en\s+un\s+lado)\b/i,
+    denial:
+      /\b(?:no|without|den(?:y|ies|ied)|(?:do|does|did)\s+not\s+have)\s+(?:any\s+)?weakness\s+on\s+one\s+side\b|\b(?:no\s+(?:tengo|tiene)|sin)\s+debilidad\s+en\s+un\s+lado\b/i
+  },
+  {
+    signal: /\b(?:new\s+confusion|confusion\s+(?:nueva|repentina))\b/i,
+    denial:
+      /\b(?:no|without|den(?:y|ies|ied))\s+(?:any\s+)?new\s+confusion\b|\b(?:no|without|den(?:y|ies|ied)|(?:am|is|are|was|were)\s+not)\s+(?:newly\s+)?confused\b|\bno\s+(?:hay|tengo|tiene)\s+confusion\b/i
+  },
+  {
+    signal: /\b(?:severe\s+headache|dolor\s+de\s+cabeza\s+(?:intenso|severo|muy\s+fuerte))\b/i,
+    denial:
+      /\b(?:no|without|den(?:y|ies|ied)|(?:do|does|did)\s+not\s+have)\s+(?:a\s+)?severe\s+headache\b|\b(?:no\s+(?:tengo|tiene)|sin)\s+dolor\s+de\s+cabeza\b/i
+  },
+  {
+    signal: /\b(?:fainting|desmay(?:o|andome|andose))\b/i,
+    denial:
+      /\b(?:not|isn'?t|aren'?t|wasn'?t|weren'?t)\s+fainting\b|\b(?:no|without|den(?:y|ies|ied))\s+(?:any\s+)?fainting\b|\bno\s+(?:me\s+|se\s+)?(?:desmayo|esta\s+desmayando)\b/i
+  }
 ];
+
+function normalizeSafetyInput(input: string): string {
+  return input
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
+}
+
+function hasUrgentSymptom(input: string): boolean {
+  return urgentSymptomRules.some(({ signal, denial }) => {
+    const flags = denial.flags.includes("g") ? denial.flags : `${denial.flags}g`;
+    const withoutDeniedSpans = input.replace(new RegExp(denial.source, flags), " ");
+    return signal.test(withoutDeniedSpans);
+  });
+}
 
 // A glucose utterance only escalates when an explicit blood-sugar cue is present,
 // so a bare "180" is never misread as a systolic. Severe low (<54) is a
 // standalone emergency; a very high reading (>=250) escalates only alongside a
 // diabetic-ketoacidosis symptom cue — a high number alone stays clinic education.
-const glucoseCuePattern = /blood sugar|glucose|mg\s*\/?\s*dl|finger\s*stick|sugar (?:is|was|reading|of|at|hit)/i;
-const dkaCuePattern = /nausea|vomit|throwing up|fruity breath|deep breathing|very thirsty|can'?t stop drinking|new confusion|confused/i;
+const glucoseCuePattern = /blood sugar|glucose|mg\s*\/?\s*dl|finger\s*stick|sugar (?:is|was|reading|of|at|hit)|azucar\s+en\s+(?:la\s+)?sangre|glucosa|medicion\s+de\s+azucar/i;
+const dkaCuePattern = /nausea|vomit|throwing up|fruity breath|deep breathing|very thirsty|can'?t stop drinking|new confusion|confused|nauseas?|vomit(?:o|ando)|aliento afrutado|respiracion profunda|mucha sed|confusion/i;
 
 function hasDangerousBloodPressure(systolic: number, diastolic: number): boolean {
   const plausibleReading = systolic >= 50 && systolic <= 260 && diastolic >= 20 && diastolic <= 160;
@@ -190,21 +239,23 @@ export function extractGlucose(input: string): number | null {
 }
 
 export function hasDangerousGlucose(input: string): boolean {
-  if (!glucoseCuePattern.test(input)) {
+  const normalized = normalizeSafetyInput(input);
+  if (!glucoseCuePattern.test(normalized)) {
     return false;
   }
-  const value = extractGlucose(input);
+  const value = extractGlucose(normalized);
   if (value === null || value < 20 || value > 900) {
     return false;
   }
-  return value < 54 || (value >= 250 && dkaCuePattern.test(input));
+  return value < 54 || (value >= 250 && dkaCuePattern.test(normalized));
 }
 
 export function classifySafety(input: string): SafetyClassification {
+  const normalized = normalizeSafetyInput(input);
   if (
-    urgentSymptomPatterns.some((pattern) => pattern.test(input)) ||
-    hasDangerousReading(input) ||
-    hasDangerousGlucose(input)
+    hasUrgentSymptom(normalized) ||
+    hasDangerousReading(normalized) ||
+    hasDangerousGlucose(normalized)
   ) {
     return {
       level: "escalate",
@@ -213,7 +264,7 @@ export function classifySafety(input: string): SafetyClassification {
     };
   }
 
-  if (medicationChangePatterns.some((pattern) => pattern.test(input))) {
+  if (medicationChangePatterns.some((pattern) => pattern.test(normalized))) {
     return {
       level: "blocked",
       response:

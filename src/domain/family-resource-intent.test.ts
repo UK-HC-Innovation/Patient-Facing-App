@@ -50,7 +50,7 @@ describe("Ladder Wave 2 structured resource routing", () => {
     ]);
     expect(
       result.find(({ resource }) => resource.id === "uk_developmental_pediatrics")
-    ).toMatchObject({ domain: "therapies" });
+    ).toMatchObject({ domain: "diagnosis_education" });
     expect(result.map(({ resource }) => resource.id)).not.toEqual(
       expect.arrayContaining(["michelle_p_waiver", "child_waiver"])
     );

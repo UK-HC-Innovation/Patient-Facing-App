@@ -51,6 +51,35 @@ export function applyTranscriptGate(
   });
 }
 
+// A safety intercept is terminal for one realtime connection. Requiring a new
+// connection before another response can be created prevents a later benign
+// transcript (or a queued event) from reopening a session whose audio was just
+// cancelled for safety.
+export function createTranscriptGateLatch(
+  send: (payload: unknown) => void,
+  onEvent: (event: LiveSessionEvent) => void
+): {
+  apply: (decision: VoiceGateDecision) => void;
+  latch: () => void;
+  isLatched: () => boolean;
+} {
+  let latched = false;
+
+  return {
+    apply(decision): void {
+      if (latched) return;
+      if (decision.kind === "intercept") latched = true;
+      applyTranscriptGate(decision, send, onEvent);
+    },
+    latch(): void {
+      latched = true;
+    },
+    isLatched(): boolean {
+      return latched;
+    }
+  };
+}
+
 export type RealtimeReduction = {
   status: LiveSessionStatus;
   emits: LiveSessionEvent[];
@@ -185,11 +214,14 @@ export async function connectRealtimeSession(args: ConnectArgs): Promise<LiveSes
     }
   };
 
+  const transcriptGate = createTranscriptGateLatch(send, args.onEvent);
+
   const outputGuard = createOutputTranscriptGuard({
     language: args.language,
     send: (event) => send(event),
     onEvent: (event) => {
       outputIntercepted = true;
+      transcriptGate.latch();
       args.onEvent(event);
     }
   });
@@ -208,15 +240,24 @@ export async function connectRealtimeSession(args: ConnectArgs): Promise<LiveSes
   channel.onmessage = (message) => {
     metrics.observeServerEvent(message.data);
 
+    if (closed) return;
+
     let event: RealtimeServerEvent;
     try {
       event = JSON.parse(message.data) as RealtimeServerEvent;
     } catch {
       return;
     }
+    if (transcriptGate.isLatched()) return;
     if (event.type === "response.created") {
       outputGuard.reset();
       outputIntercepted = false;
+    }
+    // Observe generated text before publishing the same delta. If this delta
+    // trips the output guard, none of it reaches the consuming hook.
+    if (event.type === "response.output_audio_transcript.delta") {
+      outputGuard.observeDelta(str(event.delta));
+      if (transcriptGate.isLatched()) return;
     }
     const reduction = reduceRealtimeEvent(status, event);
     status = reduction.status;
@@ -225,9 +266,6 @@ export async function connectRealtimeSession(args: ConnectArgs): Promise<LiveSes
         args.onEvent(emitted);
       }
     });
-    if (event.type === "response.output_audio_transcript.delta") {
-      outputGuard.observeDelta(str(event.delta));
-    }
     if (reduction.actions.includes("injectContext")) {
       injectContext();
     }
@@ -248,7 +286,7 @@ export async function connectRealtimeSession(args: ConnectArgs): Promise<LiveSes
       clearFailClosedTimer();
       const transcript = str(event.transcript);
       if (transcript.trim().length > 0) {
-        applyTranscriptGate(args.gateTranscript(transcript), send, args.onEvent);
+        transcriptGate.apply(args.gateTranscript(transcript));
       }
     }
     if (event.type === "response.done") {
@@ -287,14 +325,21 @@ export async function connectRealtimeSession(args: ConnectArgs): Promise<LiveSes
 
   return {
     sendUserText: (text: string) => {
+      if (closed || transcriptGate.isLatched()) return;
+      const decision = args.gateTranscript(text);
+      if (decision.kind === "intercept") {
+        transcriptGate.apply(decision);
+        return;
+      }
       // Attach the current camera frame + food context first, so a typed live turn
       // sees the image just like a spoken one does.
       injectContext();
       send({ type: "conversation.item.create", item: { type: "message", role: "user", content: [{ type: "input_text", text }] } });
       // Typed live turns run the same gate as spoken turns before any answer.
-      applyTranscriptGate(args.gateTranscript(text), send, args.onEvent);
+      transcriptGate.apply(decision);
     },
     updateInstructions: (instructions: string) => {
+      if (closed || transcriptGate.isLatched()) return;
       send({ type: "session.update", session: { type: "realtime", instructions } });
     },
     close: () => {

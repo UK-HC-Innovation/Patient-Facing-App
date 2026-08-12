@@ -198,7 +198,11 @@ describe("FamilyVisitPacket", () => {
     expect(onExport).not.toHaveBeenCalled();
 
     window.dispatchEvent(new Event("afterprint"));
-    expect(onExport).toHaveBeenCalledExactlyOnceWith("printed");
+    expect(onExport).toHaveBeenCalledExactlyOnceWith({
+      artifact: "family_visit_packet",
+      channel: "print_dialog",
+      outcome: "completed"
+    });
 
     // The listener is one-shot: a second dialog closing is not a second receipt.
     window.dispatchEvent(new Event("afterprint"));
@@ -219,7 +223,11 @@ describe("FamilyVisitPacket", () => {
     await user.click(screen.getByRole("button", { name: "Copy as text" }));
 
     expect(writeText).toHaveBeenCalledWith(buildFamilyVisitSummary(fatFamily, "en", NOW));
-    expect(onExport).toHaveBeenCalledWith("copied");
+    expect(onExport).toHaveBeenCalledWith({
+      artifact: "family_visit_packet",
+      channel: "clipboard",
+      outcome: "completed"
+    });
     expect(await screen.findByText("Copied.")).toBeVisible();
   });
 
@@ -284,7 +292,11 @@ describe("FamilyVisitPacket", () => {
     expect(blob.type).toContain("text/plain");
     expect(clicked).toEqual([{ href: "blob:packet", download: "visit-packet.txt" }]);
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:packet");
-    expect(onExport).toHaveBeenCalledWith("saved");
+    expect(onExport).toHaveBeenCalledWith({
+      artifact: "family_visit_packet",
+      channel: "download",
+      outcome: "completed"
+    });
     expect(
       await within(screen.getByTestId("family-packet-receipt")).findByText(/Saved to this device/)
     ).toBeVisible();
@@ -320,11 +332,47 @@ describe("FamilyVisitPacket", () => {
       title: "Our visit packet",
       text: buildFamilyVisitSummary(fatFamily, "en", NOW)
     });
-    expect(onExport).toHaveBeenCalledWith("shared");
+    expect(onExport).toHaveBeenCalledWith({
+      artifact: "family_visit_packet",
+      channel: "web_share",
+      outcome: "completed"
+    });
     expect(
       await within(screen.getByTestId("family-packet-receipt")).findByText(
         "Shared: the packet text, including your child's information."
       )
+    ).toBeVisible();
+  });
+
+  it("records a failed share-sheet attempt as a clipboard fallback, not a share", async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(navigator, "share", {
+      value: vi.fn().mockRejectedValue(new Error("share unavailable")),
+      configurable: true
+    });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true
+    });
+    const { onExport } = renderPacket();
+
+    await user.click(screen.getByTestId("family-packet-share-open"));
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: /this text includes my child's information and leaves this app/i
+      })
+    );
+    await user.click(screen.getByTestId("family-packet-share"));
+
+    expect(writeText).toHaveBeenCalledWith(buildFamilyVisitSummary(fatFamily, "en", NOW));
+    expect(onExport).toHaveBeenCalledWith({
+      artifact: "family_visit_packet",
+      channel: "clipboard",
+      outcome: "fallback_copied"
+    });
+    expect(
+      await within(screen.getByTestId("family-packet-receipt")).findByText(/Copied:/)
     ).toBeVisible();
   });
 

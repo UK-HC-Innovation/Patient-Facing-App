@@ -1,5 +1,12 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE_CAREGIVER_TEXT, schoolAgeFamilyState } from "@/domain/family-fixtures";
+import {
+  FAMILY_AI_SESSION_COOKIE,
+  FAMILY_AI_CONSENT_HEADER,
+  createFamilyAiConsentCapability,
+  createFamilyAiSessionToken,
+  resetFamilyAiRateLimitsForTest
+} from "@/server/family-ai-auth";
 import { POST } from "./route";
 
 const result = {
@@ -8,11 +15,31 @@ const result = {
   followUps: []
 };
 
-function request(body: unknown): Request {
-  return new Request("http://localhost/api/family/interview", {
+function request(
+  body: unknown,
+  authorized = true,
+  headers: Record<string, string> = {},
+  signal?: AbortSignal,
+  consented = authorized
+): Request {
+  const token = authorized ? createFamilyAiSessionToken() : null;
+  const url = "http://localhost/api/family/interview";
+  const cookieHeaders: Record<string, string> = token
+    ? { Cookie: `${FAMILY_AI_SESSION_COOKIE}=${token}` }
+    : {};
+  const capability = token
+    ? createFamilyAiConsentCapability(new Request(url, { headers: cookieHeaders }))
+    : null;
+  return new Request(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
+    headers: {
+      "Content-Type": "application/json",
+      ...cookieHeaders,
+      ...(consented && capability ? { [FAMILY_AI_CONSENT_HEADER]: capability } : {}),
+      ...headers
+    },
+    body: JSON.stringify(body),
+    signal
   });
 }
 
@@ -20,7 +47,6 @@ function validBody(overrides: Record<string, unknown> = {}): Record<string, unkn
   return {
     text: SAMPLE_CAREGIVER_TEXT,
     profile: schoolAgeFamilyState.profile,
-    passcode: "secret",
     language: "en",
     ...overrides
   };
@@ -29,6 +55,11 @@ function validBody(overrides: Record<string, unknown> = {}): Record<string, unkn
 function completion(content: unknown): Response {
   return new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200 });
 }
+
+beforeEach(() => {
+  vi.stubEnv("FAMILY_AI_SESSION_SECRET", "test-session-secret-that-is-at-least-32-bytes");
+  resetFamilyAiRateLimitsForTest();
+});
 
 afterEach(() => {
   vi.useRealTimers();
@@ -52,7 +83,8 @@ describe("family interview route", () => {
       }
     ],
     ["invalid language", { language: "fr" }],
-    ["unknown body key", { unknown: true }]
+    ["unknown body key", { unknown: true }],
+    ["legacy passcode in the private body", { passcode: "secret" }]
   ])("strictly rejects %s before any provider call", async (_name, overrides) => {
     vi.stubEnv("HEALTH_AI_PROVIDER", "openai");
     vi.stubEnv("HEALTH_AI_API_KEY", "test-key");
@@ -67,7 +99,7 @@ describe("family interview route", () => {
   });
 
   it.each([
-    ["wrong passcode", { HEALTH_AI_PROVIDER: "openai", HEALTH_AI_API_KEY: "test-key", DEMO_PASSCODE: "secret" }, "locked"],
+    ["unauthorized session", { HEALTH_AI_PROVIDER: "openai", HEALTH_AI_API_KEY: "test-key", DEMO_PASSCODE: "secret" }, "locked"],
     ["missing provider before passcode", { HEALTH_AI_PROVIDER: "", HEALTH_AI_API_KEY: "test-key", DEMO_PASSCODE: "secret" }, "unconfigured"],
     ["missing key before passcode", { HEALTH_AI_PROVIDER: "openai", HEALTH_AI_API_KEY: "", DEMO_PASSCODE: "secret" }, "unconfigured"]
   ])("returns %s without calling the provider", async (_name, env, mode) => {
@@ -77,7 +109,7 @@ describe("family interview route", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await POST(request(validBody({ passcode: "wrong" })));
+    const res = await POST(request(validBody(), _name !== "unauthorized session"));
     expect(await res.json()).toEqual({ mode, data: null });
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -120,15 +152,51 @@ describe("family interview route", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("allows configured local development when DEMO_PASSCODE is unset", async () => {
+  it("fails closed before reading the body when authentication is unconfigured", async () => {
     vi.stubEnv("HEALTH_AI_PROVIDER", "openai");
     vi.stubEnv("HEALTH_AI_API_KEY", "test-key");
     vi.stubEnv("DEMO_PASSCODE", "");
-    const fetchMock = vi.fn().mockResolvedValue(completion(JSON.stringify(result)));
+    const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    expect(await (await POST(request(validBody({ passcode: undefined })))).json()).toEqual({ mode: "success", data: result });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const pending = request(validBody(), false);
+    expect(await (await POST(pending)).json()).toEqual({ mode: "locked", data: null });
+    expect(pending.bodyUsed).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unauthorized caller before reading the caregiver body", async () => {
+    vi.stubEnv("HEALTH_AI_PROVIDER", "openai");
+    vi.stubEnv("HEALTH_AI_API_KEY", "test-key");
+    vi.stubEnv("DEMO_PASSCODE", "secret");
+    const pending = request(validBody(), false);
+
+    expect(await (await POST(pending)).json()).toEqual({ mode: "locked", data: null });
+    expect(pending.bodyUsed).toBe(false);
+  });
+
+  it("rejects a session without current consent before reading caregiver text", async () => {
+    vi.stubEnv("HEALTH_AI_PROVIDER", "openai");
+    vi.stubEnv("HEALTH_AI_API_KEY", "test-key");
+    vi.stubEnv("DEMO_PASSCODE", "secret");
+    const pending = request(validBody(), true, {}, undefined, false);
+
+    expect(await (await POST(pending)).json()).toEqual({ mode: "locked", data: null });
+    expect(pending.bodyUsed).toBe(false);
+  });
+
+  it("keeps safety disclosures off the upstream provider for an authorized session", async () => {
+    vi.stubEnv("HEALTH_AI_PROVIDER", "openai");
+    vi.stubEnv("HEALTH_AI_API_KEY", "test-key");
+    vi.stubEnv("DEMO_PASSCODE", "secret");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await POST(
+      request(validBody({ text: "My child says he wants to die right now." }))
+    );
+    expect(await response.json()).toEqual({ mode: "safety", data: null });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("calls OpenAI-compatible JSON chat completions with a 15-second abort signal and no catalog names", async () => {
@@ -228,5 +296,41 @@ describe("family interview route", () => {
     expect(response.status).toBe(502);
     expect(await response.json()).toEqual({ data: null });
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("aborts the upstream provider when the caller disconnects", async () => {
+    vi.stubEnv("HEALTH_AI_PROVIDER", "openai");
+    vi.stubEnv("HEALTH_AI_API_KEY", "test-key");
+    vi.stubEnv("DEMO_PASSCODE", "secret");
+    const caller = new AbortController();
+    const fetchMock = vi.fn((_url: string, options: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        options.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const pending = POST(request(validBody(), true, {}, caller.signal));
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    caller.abort();
+
+    const response = await pending;
+    expect((fetchMock.mock.calls[0][1] as RequestInit).signal?.aborted).toBe(true);
+    expect(response.status).toBe(502);
+  });
+
+  it("does not start the provider for an already-disconnected caller", async () => {
+    vi.stubEnv("HEALTH_AI_PROVIDER", "openai");
+    vi.stubEnv("HEALTH_AI_API_KEY", "test-key");
+    vi.stubEnv("DEMO_PASSCODE", "secret");
+    const caller = new AbortController();
+    caller.abort();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await POST(request(validBody(), true, {}, caller.signal));
+
+    expect(response.status).toBe(502);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

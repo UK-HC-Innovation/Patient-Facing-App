@@ -5,7 +5,11 @@ import type { AppState } from "@/domain/types";
 // banner. Voice sessions refuse to start in this state so the on-screen crisis
 // resources stay the focus.
 export function hasUnacknowledgedCrisis(state: AppState): boolean {
-  if (state.family?.safetyEvents.some(({ acknowledgedAt }) => acknowledgedAt === undefined)) {
+  if (
+    state.family?.safetyEvents.some(
+      ({ acknowledgedAt, tier }) => tier !== "blocked" && acknowledgedAt === undefined
+    )
+  ) {
     return true;
   }
   for (let index = state.aiMessages.length - 1; index >= 0; index -= 1) {

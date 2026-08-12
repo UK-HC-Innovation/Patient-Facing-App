@@ -2,8 +2,8 @@
 
 import React, { useId, useState } from "react";
 import { LifeBuoy } from "lucide-react";
+import { FamilySafetyContacts } from "@/components/family-safety-contacts";
 import { CONTROL_FOCUS } from "@/components/family-theme";
-import { UrgentHelp } from "@/components/urgent-help";
 import { tFamily } from "@/i18n/family-strings";
 import type { Language } from "@/i18n/strings";
 
@@ -49,7 +49,12 @@ export function FamilyUrgentHelpControl({ language }: FamilyUrgentHelpControlPro
           aria-label={tFamily(language, "safetyReopen")}
           className="absolute right-0 z-10 mt-2 w-72 max-w-[80vw] rounded-control border-2 border-rose-300 bg-white p-3 shadow-lg"
         >
-          <UrgentHelp language={language} summary={tFamily(language, "safetyHeading")} />
+          <FamilySafetyContacts
+            events={[]}
+            language={language}
+            summary={tFamily(language, "safetyHeading")}
+            directory
+          />
         </div>
       ) : null}
     </div>

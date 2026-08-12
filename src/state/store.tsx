@@ -2,10 +2,12 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
   useReducer,
+  useRef,
   useState,
   type Dispatch,
   type ReactNode
@@ -16,6 +18,7 @@ import {
   type FamilyDiagnosisBackdateMonths
 } from "@/domain/family-stages";
 import { getFamilyResourceById } from "@/domain/family-resources";
+import { DEFAULT_FAMILY_RESOURCE_PREFERENCES } from "@/domain/family-resource-preferences";
 import {
   applyFamilyScreenRetractions,
   mergeFamilyDomains
@@ -25,11 +28,13 @@ import { PACKET_QUESTIONS } from "@/domain/family-visit-packet";
 import {
   BARRIER_DOMAINS,
   FAMILY_APPOINTMENT_COUNTDOWNS,
-  buildDemoSlotOffers,
-  dueFamilyReminder,
-  overdueFamilyAppointment,
   type FamilyAppointmentCountdownDays
 } from "@/domain/family-appointments";
+import {
+  familyAppointmentWorkflowReducer,
+  type FamilyAppointmentWorkflowEvent,
+  type FamilyAppointmentWorkflowState
+} from "@/domain/family-appointment-workflow";
 import { recordAuditEvent } from "@/domain/audit";
 import { activeConditions } from "@/domain/condition-lens";
 import { canTransition, outcomeToStatus, transition } from "@/domain/screening-gap";
@@ -62,11 +67,11 @@ import type {
   FamilyPulse,
   FamilyReferral,
   FamilyRecommendationSet,
+  FamilyResourcePreferences,
   FamilyReminderOffset,
   FamilyResourceStep,
   FamilySafetyEvent,
   FamilyScreenAnswer,
-  FamilySoonerConstraint,
   FamilySoonerList,
   FamilyStepStatus,
   GlucoseReading,
@@ -78,7 +83,13 @@ import type {
   SavedFamilyResource,
   ScreeningResult
 } from "@/domain/types";
-import { isLanguage, loadStoredState, saveStoredState } from "./storage";
+import { isLanguage } from "./storage";
+import type {
+  AppStateRepository,
+  RepositoryClearResult
+} from "@/state/app-state-repository";
+import { createLocalStorageAppStateRepository } from "@/state/local-storage-app-state-repository";
+import { PersistenceCoordinator } from "@/state/persistence-coordinator";
 
 export type FamilyRecommendationRequestContext = {
   interviewId: string;
@@ -133,6 +144,7 @@ export type HealthAction =
       now: string;
     }
   | { type: "setFamilyInterviewDraft"; draft: string }
+  | { type: "setFamilyResourcePreferences"; preferences: FamilyResourcePreferences }
   | { type: "submitFamilyScreen"; answers: FamilyScreenAnswer[]; facts: FamilyFact[] }
   | { type: "addFamilyInterview"; interview: FamilyInterview; facts: FamilyFact[]; domains: FamilyNavigatorState["activeDomains"] }
   | { type: "recordFamilySafetyTurn"; domains: FamilyNavigatorState["activeDomains"] }
@@ -160,6 +172,7 @@ export type HealthAction =
   | { type: "setFamilySoonerList"; soonerList: FamilySoonerList }
   | { type: "clearFamilySoonerList" }
   | { type: "setFamilyReferral"; referral: FamilyReferral }
+  | { type: "transitionFamilyAppointment"; event: FamilyAppointmentWorkflowEvent }
   | { type: "offerFamilyAppointment"; appointment: FamilyAppointment }
   | { type: "withdrawFamilyAppointmentOffer"; appointmentId: string; at: string }
   | { type: "bookFamilyAppointment"; appointmentId: string; slot: string; at: string }
@@ -204,6 +217,7 @@ function emptyFamilyState(
     facts: [],
     latestInterviewDomains: [],
     activeDomains: [],
+    resourcePreferences: DEFAULT_FAMILY_RESOURCE_PREFERENCES,
     saved: [],
     alreadyEnrolled: [],
     steps: [],
@@ -213,24 +227,6 @@ function emptyFamilyState(
     packetQuestionIds: [],
     checkinTouchedAt: null
   };
-}
-
-const FAMILY_APPOINTMENT_BARRIERS: FamilyAppointmentBarrier[] = [
-  "ride",
-  "sibling_care",
-  "work_schedule",
-  "none"
-];
-
-const FAMILY_SOONER_CONSTRAINTS: FamilySoonerConstraint[] = [
-  "weekday_mornings",
-  "weekday_afternoons",
-  "any_weekday",
-  "needs_notice"
-];
-
-function isNonblank(value: string): boolean {
-  return value.trim().length > 0;
 }
 
 function isExactIsoTimestamp(value: string): boolean {
@@ -395,79 +391,12 @@ function backdatedFamilyTouches(family: FamilyNavigatorState, days: number): Fam
   };
 }
 
-function isCoherentBarrierAnswer(barriers: FamilyAppointmentBarrier[]): boolean {
-  if (
-    barriers.length === 0 ||
-    new Set(barriers).size !== barriers.length ||
-    barriers.some((barrier) => !FAMILY_APPOINTMENT_BARRIERS.includes(barrier))
-  ) {
-    return false;
-  }
-  return !barriers.includes("none") || barriers.length === 1;
-}
-
-function isCoherentSoonerList(soonerList: FamilySoonerList): boolean {
-  const { constraints } = soonerList;
-  return (
-    isExactIsoTimestamp(soonerList.optedInAt) &&
-    constraints.length > 0 &&
-    new Set(constraints).size === constraints.length &&
-    constraints.every((constraint) => FAMILY_SOONER_CONSTRAINTS.includes(constraint))
-  );
-}
-
-// A new offer normally only follows a visit that is over. The earlier-visit list
-// is the one exception: a cancellation backfill is offered *over* a live booking,
-// and declining it (withdrawFamilyAppointmentOffer) hands that booking back.
-//
-// The backfill has to say which booking it replaces, and that booking has to be
-// the live one — array position is not evidence of either.
-function acceptsNewOffer(family: FamilyNavigatorState, offer: FamilyAppointment): boolean {
-  const latest = family.appointments.at(-1);
-  if (offer.supersedesId === undefined) {
-    return latest === undefined || latest.status === "missed" || latest.status === "replaced";
-  }
-  return (
-    family.soonerList !== null &&
-    latest !== undefined &&
-    latest.id === offer.supersedesId &&
-    (latest.status === "booked" || latest.status === "confirmed") &&
-    latest.scheduledFor !== undefined
-  );
-}
-
 function isValidActionTime(appointment: FamilyAppointment, at: string): boolean {
   return (
     isExactIsoTimestamp(at) &&
     isExactIsoTimestamp(appointment.createdAt) &&
     new Date(at).valueOf() >= new Date(appointment.createdAt).valueOf()
   );
-}
-
-function hasValidOfferSlots(appointment: FamilyAppointment): boolean {
-  return (
-    appointment.offeredSlots.length > 0 &&
-    new Set(appointment.offeredSlots).size === appointment.offeredSlots.length &&
-    appointment.offeredSlots.every(isExactIsoTimestamp)
-  );
-}
-
-function isValidNewAppointmentOffer(appointment: FamilyAppointment): boolean {
-  if (
-    !isNonblank(appointment.id) ||
-    !isNonblank(appointment.clinic) ||
-    !isExactIsoTimestamp(appointment.createdAt) ||
-    appointment.status !== "offered" ||
-    appointment.scheduledFor !== undefined ||
-    appointment.barriersAsked ||
-    appointment.barriers.length > 0 ||
-    appointment.reminderAcks.length > 0 ||
-    !hasValidOfferSlots(appointment)
-  ) {
-    return false;
-  }
-  const createdAt = new Date(appointment.createdAt).valueOf();
-  return appointment.offeredSlots.every((slot) => new Date(slot).valueOf() > createdAt);
 }
 
 function sameFamilyAppointment(left: FamilyAppointment, right: FamilyAppointment): boolean {
@@ -536,6 +465,110 @@ function updateFamilyAppointment(
       appointments
     },
     auditEvents: [...state.auditEvents, recordAuditEvent(state.patient.id, "updated", auditMessage)]
+  };
+}
+
+type AppointmentAudit = {
+  action: "created" | "updated";
+  message: string;
+};
+
+function appointmentWorkflowAudits(
+  event: FamilyAppointmentWorkflowEvent,
+  before: FamilyAppointmentWorkflowState,
+  after: FamilyAppointmentWorkflowState
+): AppointmentAudit[] {
+  switch (event.type) {
+    case "referred":
+      return [{ action: "created", message: "Family referral recorded (demo)" }];
+    case "seeded":
+      return [
+        { action: "created", message: "Family referral recorded (demo)" },
+        { action: "created", message: "Evaluation slots offered (demo)" }
+      ];
+    case "offered":
+      return [{ action: "created", message: "Evaluation slots offered (demo)" }];
+    case "withdrawn":
+      return [{ action: "updated", message: "Earlier-visit offer declined (demo)" }];
+    case "booked": {
+      const supersedesId = before.appointments.find(({ id }) => id === event.appointmentId)
+        ?.supersedesId;
+      const replaced =
+        supersedesId !== undefined &&
+        after.appointments.some(
+          (appointment) => appointment.id === supersedesId && appointment.status === "replaced"
+        );
+      return [
+        { action: "updated", message: "Evaluation visit booked" },
+        ...(replaced
+          ? [
+              {
+                action: "updated" as const,
+                message: "Earlier visit replaced the prior booking"
+              }
+            ]
+          : [])
+      ];
+    }
+    case "barriersRecorded":
+      return [{ action: "updated", message: "Visit barriers recorded" }];
+    case "reminderAcknowledged":
+      return [{ action: "updated", message: "Evaluation visit confirmed" }];
+    case "rescheduleRequested":
+      return [{ action: "updated", message: "Evaluation visit reschedule requested" }];
+    case "completed":
+      return [{ action: "updated", message: "Evaluation visit completed (self-reported)" }];
+    case "missed":
+      return [{ action: "updated", message: "Evaluation visit missed (self-reported)" }];
+    case "soonerListJoined":
+      return [{ action: "created", message: "Family earlier-visit list joined" }];
+    case "soonerListLeft":
+      return [{ action: "updated", message: "Family earlier-visit list left" }];
+  }
+}
+
+/**
+ * The persisted store is an adapter around the same pure workflow reducer used
+ * by Ladder's session-only simulation. Audit events and the barrier-to-resource
+ * domain mapping are persistence concerns; transition validity is not repeated.
+ */
+function applyFamilyAppointmentWorkflow(
+  state: AppState,
+  event: FamilyAppointmentWorkflowEvent
+): AppState {
+  const family = state.family ?? emptyFamilyState(null);
+  const before: FamilyAppointmentWorkflowState = {
+    referral: family.referral,
+    appointments: family.appointments,
+    soonerList: family.soonerList
+  };
+  const after = familyAppointmentWorkflowReducer(before, event);
+  if (after === before) return state;
+
+  const mappedDomains =
+    event.type === "barriersRecorded"
+      ? event.barriers.flatMap((barrier) =>
+          barrier === "none" ? [] : [BARRIER_DOMAINS[barrier]]
+        )
+      : [];
+  const activeDomains =
+    mappedDomains.length === 0
+      ? family.activeDomains
+      : Array.from(new Set([...family.activeDomains, ...mappedDomains]));
+  const audits = appointmentWorkflowAudits(event, before, after).map(({ action, message }) =>
+    recordAuditEvent(state.patient.id, action, message)
+  );
+
+  return {
+    ...state,
+    family: {
+      ...family,
+      referral: after.referral,
+      appointments: after.appointments,
+      soonerList: after.soonerList,
+      activeDomains
+    },
+    auditEvents: [...state.auditEvents, ...audits]
   };
 }
 
@@ -1057,6 +1090,23 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
       const family = state.family ?? emptyFamilyState(null);
       return { ...state, family: { ...family, interviewDraft: action.draft } };
     }
+    case "setFamilyResourcePreferences": {
+      const family = state.family ?? emptyFamilyState(null);
+      if (
+        family.resourcePreferences.scope === action.preferences.scope &&
+        family.resourcePreferences.contact === action.preferences.contact
+      ) {
+        return state;
+      }
+      return {
+        ...state,
+        family: { ...family, resourcePreferences: action.preferences },
+        auditEvents: [
+          ...state.auditEvents,
+          recordAuditEvent(state.patient.id, "updated", "Family program-list preferences updated")
+        ]
+      };
+    }
     case "submitFamilyScreen": {
       const family = state.family ?? emptyFamilyState(null);
       const interviewFacts = family.facts.filter((fact) => fact.interviewId !== undefined);
@@ -1509,241 +1559,70 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
       };
     }
     case "setFamilySoonerList": {
-      const family = state.family;
-      if (!family || family.referral === null || !isCoherentSoonerList(action.soonerList)) {
-        return state;
-      }
-      return {
-        ...state,
-        family: { ...family, soonerList: action.soonerList },
-        auditEvents: [
-          ...state.auditEvents,
-          recordAuditEvent(state.patient.id, "created", "Family earlier-visit list joined")
-        ]
-      };
+      return applyFamilyAppointmentWorkflow(state, {
+        type: "soonerListJoined",
+        constraints: action.soonerList.constraints,
+        at: action.soonerList.optedInAt
+      });
     }
-    case "clearFamilySoonerList": {
-      const family = state.family;
-      if (!family || family.soonerList === null) {
-        return state;
-      }
-      return {
-        ...state,
-        family: { ...family, soonerList: null },
-        auditEvents: [
-          ...state.auditEvents,
-          recordAuditEvent(state.patient.id, "updated", "Family earlier-visit list left")
-        ]
-      };
-    }
-    case "setFamilyReferral": {
-      const family = state.family ?? emptyFamilyState(null);
-      if (
-        family.referral !== null ||
-        !isNonblank(action.referral.clinic) ||
-        !isExactIsoTimestamp(action.referral.referredAt)
-      ) {
-        return state;
-      }
-      return {
-        ...state,
-        family: { ...family, referral: action.referral },
-        auditEvents: [
-          ...state.auditEvents,
-          recordAuditEvent(state.patient.id, "created", "Family referral recorded (demo)")
-        ]
-      };
-    }
-    case "offerFamilyAppointment": {
-      const family = state.family ?? emptyFamilyState(null);
-      if (
-        family.referral === null ||
-        action.appointment.clinic !== family.referral.clinic ||
-        !isValidNewAppointmentOffer(action.appointment) ||
-        family.appointments.some(({ id }) => id === action.appointment.id) ||
-        !acceptsNewOffer(family, action.appointment)
-      ) {
-        return state;
-      }
-      return {
-        ...state,
-        family: { ...family, appointments: [...family.appointments, action.appointment] },
-        auditEvents: [
-          ...state.auditEvents,
-          recordAuditEvent(state.patient.id, "created", "Evaluation slots offered (demo)")
-        ]
-      };
-    }
-    case "withdrawFamilyAppointmentOffer": {
-      const family = state.family;
-      if (!family) {
-        return state;
-      }
-      const appointment = family.appointments.find(({ id }) => id === action.appointmentId);
-      if (
-        appointment === undefined ||
-        appointment.status !== "offered" ||
-        appointment.scheduledFor !== undefined ||
-        !isValidActionTime(appointment, action.at)
-      ) {
-        return state;
-      }
-      return {
-        ...state,
-        family: {
-          ...family,
-          appointments: family.appointments.filter(({ id }) => id !== action.appointmentId)
-        },
-        auditEvents: [
-          ...state.auditEvents,
-          recordAuditEvent(state.patient.id, "updated", "Earlier-visit offer declined (demo)")
-        ]
-      };
-    }
+    case "clearFamilySoonerList":
+      return applyFamilyAppointmentWorkflow(state, { type: "soonerListLeft" });
+    case "setFamilyReferral":
+      return applyFamilyAppointmentWorkflow(state, { type: "referred", referral: action.referral });
+    case "transitionFamilyAppointment":
+      return applyFamilyAppointmentWorkflow(state, action.event);
+    case "offerFamilyAppointment":
+      return applyFamilyAppointmentWorkflow(state, {
+        type: "offered",
+        appointment: action.appointment
+      });
+    case "withdrawFamilyAppointmentOffer":
+      return applyFamilyAppointmentWorkflow(state, {
+        type: "withdrawn",
+        appointmentId: action.appointmentId,
+        at: action.at
+      });
     case "bookFamilyAppointment": {
-      const booked = updateFamilyAppointment(
-        state,
-        action.appointmentId,
-        (appointment) => {
-          const slotTime = new Date(action.slot).valueOf();
-          if (
-            appointment.status !== "offered" ||
-            appointment.scheduledFor !== undefined ||
-            appointment.reminderAcks.length > 0 ||
-            !hasValidOfferSlots(appointment) ||
-            !isValidActionTime(appointment, action.at) ||
-            !appointment.offeredSlots.includes(action.slot) ||
-            !Number.isFinite(slotTime) ||
-            slotTime <= new Date(action.at).valueOf()
-          ) {
-            return appointment;
-          }
-          return { ...appointment, scheduledFor: action.slot, status: "booked" };
-        },
-        "Evaluation visit booked"
-      );
-      // Taking the earlier opening hands the old time back to the clinic. It is
-      // retired in the same step as the booking, so the family is never holding
-      // two visits and a later reschedule cannot offer the stale one back.
-      const supersedesId = booked.family?.appointments.find(
-        ({ id }) => id === action.appointmentId
-      )?.supersedesId;
-      if (booked === state || !booked.family || supersedesId === undefined) {
-        return booked;
-      }
-      return {
-        ...booked,
-        family: {
-          ...booked.family,
-          appointments: booked.family.appointments.map((appointment): FamilyAppointment =>
-            appointment.id === supersedesId &&
-            (appointment.status === "booked" || appointment.status === "confirmed")
-              ? { ...appointment, status: "replaced" }
-              : appointment
-          )
-        },
-        auditEvents: [
-          ...booked.auditEvents,
-          recordAuditEvent(state.patient.id, "updated", "Earlier visit replaced the prior booking")
-        ]
-      };
+      return applyFamilyAppointmentWorkflow(state, {
+        type: "booked",
+        appointmentId: action.appointmentId,
+        slot: action.slot,
+        at: action.at
+      });
     }
     case "recordFamilyAppointmentBarriers": {
-      const withBarriers = updateFamilyAppointment(
-        state,
-        action.appointmentId,
-        (appointment) => {
-          if (
-            (appointment.status !== "booked" && appointment.status !== "confirmed") ||
-            appointment.barriersAsked ||
-            appointment.scheduledFor === undefined ||
-            !isValidActionTime(appointment, action.at) ||
-            !isCoherentBarrierAnswer(action.barriers)
-          ) {
-            return appointment;
-          }
-          return { ...appointment, barriers: action.barriers, barriersAsked: true };
-        },
-        "Visit barriers recorded"
-      );
-      if (withBarriers === state || !withBarriers.family) {
-        return withBarriers;
-      }
-      const mappedDomains = action.barriers.flatMap((barrier) =>
-        barrier === "none" ? [] : [BARRIER_DOMAINS[barrier]]
-      );
-      return {
-        ...withBarriers,
-        family: {
-          ...withBarriers.family,
-          activeDomains: Array.from(new Set([...withBarriers.family.activeDomains, ...mappedDomains]))
-        }
-      };
+      return applyFamilyAppointmentWorkflow(state, {
+        type: "barriersRecorded",
+        appointmentId: action.appointmentId,
+        barriers: action.barriers,
+        at: action.at
+      });
     }
     case "acknowledgeFamilyAppointmentReminder":
-      return updateFamilyAppointment(
-        state,
-        action.appointmentId,
-        (appointment) => {
-          if (
-            !isValidActionTime(appointment, action.at) ||
-            dueFamilyReminder(appointment, new Date(action.at)) !== action.offset
-          ) {
-            return appointment;
-          }
-          return {
-            ...appointment,
-            status: "confirmed",
-            reminderAcks: [...appointment.reminderAcks, { offset: action.offset, acknowledgedAt: action.at }]
-          };
-        },
-        "Evaluation visit confirmed"
-      );
+      return applyFamilyAppointmentWorkflow(state, {
+        type: "reminderAcknowledged",
+        appointmentId: action.appointmentId,
+        offset: action.offset,
+        at: action.at
+      });
     case "requestFamilyAppointmentReschedule":
-      return updateFamilyAppointment(
-        state,
-        action.appointmentId,
-        (appointment) => {
-          if (
-            (appointment.status !== "booked" && appointment.status !== "confirmed") ||
-            appointment.scheduledFor === undefined ||
-            !isValidActionTime(appointment, action.at)
-          ) {
-            return appointment;
-          }
-          return {
-            ...appointment,
-            offeredSlots: buildDemoSlotOffers(new Date(action.at)),
-            status: "offered",
-            scheduledFor: undefined,
-            reminderAcks: [],
-            supersedesId: undefined
-          };
-        },
-        "Evaluation visit reschedule requested"
-      );
+      return applyFamilyAppointmentWorkflow(state, {
+        type: "rescheduleRequested",
+        appointmentId: action.appointmentId,
+        at: action.at
+      });
     case "completeFamilyAppointment":
-      return updateFamilyAppointment(
-        state,
-        action.appointmentId,
-        (appointment) =>
-          isValidActionTime(appointment, action.at) &&
-          overdueFamilyAppointment(appointment, new Date(action.at))
-            ? { ...appointment, status: "completed" }
-            : appointment,
-        "Evaluation visit completed (self-reported)"
-      );
+      return applyFamilyAppointmentWorkflow(state, {
+        type: "completed",
+        appointmentId: action.appointmentId,
+        at: action.at
+      });
     case "missFamilyAppointment":
-      return updateFamilyAppointment(
-        state,
-        action.appointmentId,
-        (appointment) =>
-          isValidActionTime(appointment, action.at) &&
-          overdueFamilyAppointment(appointment, new Date(action.at))
-            ? { ...appointment, status: "missed" }
-            : appointment,
-        "Evaluation visit missed (self-reported)"
-      );
+      return applyFamilyAppointmentWorkflow(state, {
+        type: "missed",
+        appointmentId: action.appointmentId,
+        at: action.at
+      });
     case "setFamilyAppointmentCountdown":
       return updateFamilyAppointment(
         state,
@@ -1788,18 +1667,64 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
 type HealthStateContextValue = {
   state: AppState;
   dispatch: Dispatch<HealthAction>;
+  deleteStoredData: () => Promise<RepositoryClearResult>;
 };
 
 const HealthStateContext = createContext<HealthStateContextValue | null>(null);
 
-export function HealthStateProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(healthReducer, defaultDemoState);
+export function HealthStateProvider({
+  children,
+  repository
+}: {
+  children: ReactNode;
+  repository?: AppStateRepository;
+}) {
+  const [state, rawDispatch] = useReducer(healthReducer, defaultDemoState);
   const [hydrated, setHydrated] = useState(false);
+  const repositoryRef = useRef<AppStateRepository | null>(null);
+  if (repositoryRef.current === null) {
+    repositoryRef.current = repository ?? createLocalStorageAppStateRepository();
+  }
+  const coordinatorRef = useRef<PersistenceCoordinator | null>(null);
+  if (coordinatorRef.current === null) {
+    coordinatorRef.current = new PersistenceCoordinator(repositoryRef.current);
+  }
+  const hydrationGenerationRef = useRef(0);
+
+  const deleteStoredData = useCallback((): Promise<RepositoryClearResult> => {
+    hydrationGenerationRef.current += 1;
+    const pending = coordinatorRef.current!.enqueueDelete();
+    rawDispatch({ type: "deleteDemoData" });
+    return pending;
+  }, []);
+
+  const dispatch = useCallback<Dispatch<HealthAction>>((action) => {
+    if (action.type === "deleteDemoData") {
+      void deleteStoredData();
+      return;
+    }
+    rawDispatch(action);
+  }, [deleteStoredData]);
 
   useEffect(() => {
-    dispatch({ type: "hydrateStoredState", state: loadStoredState() });
-    dispatch({ type: "checkReferralFollowup" });
-    setHydrated(true);
+    let mounted = true;
+    const generation = hydrationGenerationRef.current;
+    void coordinatorRef.current!.initialize().then((stored) => {
+      if (!mounted) return;
+      // An explicit delete made while the async repository was loading wins over
+      // that stale snapshot; initialization still completes so its queued clear
+      // barrier and scrubbed-state checkpoint can run in order.
+      if (generation === hydrationGenerationRef.current) {
+        rawDispatch({ type: "hydrateStoredState", state: stored.state });
+        rawDispatch({ type: "checkReferralFollowup" });
+      }
+      setHydrated(true);
+    }).catch(() => {
+      if (mounted) setHydrated(true);
+    });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -1807,10 +1732,13 @@ export function HealthStateProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    saveStoredState(state);
+    coordinatorRef.current!.enqueueSnapshot(state);
   }, [hydrated, state]);
 
-  const value = useMemo(() => ({ state, dispatch }), [state]);
+  const value = useMemo(
+    () => ({ state, dispatch, deleteStoredData }),
+    [deleteStoredData, dispatch, state]
+  );
 
   return <HealthStateContext.Provider value={value}>{children}</HealthStateContext.Provider>;
 }

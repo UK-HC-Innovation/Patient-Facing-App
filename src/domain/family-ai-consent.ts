@@ -16,8 +16,13 @@
  */
 export type FamilyAiConsent = "unset" | "granted" | "declined";
 
+/** Changes whenever the just-in-time disclosure materially changes. */
+export const FAMILY_AI_DISCLOSURE_VERSION = "2026-08-09";
+export const FAMILY_AI_CONSENT_HEADER = "X-Ladder-AI-Consent";
+export type FamilyAiEgressPurpose = "interview" | "recommend";
+
 export type FamilyAiGateInput = {
-  /** The `?k=` demo passcode. Absent means this deployment never offers the live path. */
+  /** A server-verified session capability. The legacy name remains as a narrow test seam. */
   passcode?: string;
   consent: FamilyAiConsent;
 };
@@ -47,13 +52,14 @@ export function shouldOfferFamilyAiChoice({ passcode, consent }: FamilyAiGateInp
 export type FamilyAiUseMode = "none" | "on_device" | "online";
 
 /**
- * What to tell the caregiver about what actually happened, derived from the
- * record rather than asserted. `liveSends` counts interviews whose extraction
- * was "live" — the only persisted trace of a completed network round trip.
+ * What to tell the caregiver about what actually happened in this mounted
+ * session, derived from attempted sends and completed turns rather than from
+ * configuration or persisted history.
  *
- * Note the asymmetry this cannot see: a POST that the server answered `locked`
- * or `unconfigured` records "mock" even though the body left the device. That is
- * exactly why the gate above has to prevent the send rather than describe it.
+ * An attempt is counted before awaiting the response: the client cannot infer
+ * from a `locked`, `unconfigured`, or network-error result whether Ladder's
+ * service forwarded anything to OpenAI. Durable history therefore records an
+ * attempted online-service send, not a vendor-delivery claim.
  */
 export function familyAiUseMode({
   liveSends,

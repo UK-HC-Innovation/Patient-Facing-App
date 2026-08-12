@@ -33,13 +33,10 @@ export interface FamilyGuide {
 /** At most two guides in the resources strip — a nudge, never a reading list. */
 export const GUIDE_STRIP_LIMIT = 2;
 
-// Every URL below was fetched on 2026-07-25 (GET, redirects followed, browser
-// user agent) and returned 200; the steps were written from the fetched pages.
-// All eight were re-fetched on 2026-08-05 by scripts/verify-catalog.mjs and each
-// page still carried a signal from its own entry, so all eight carry that date.
-// See family-resources.ts for what a content-confirmed re-check does and does
-// not prove, and docs/ops/catalog-verification/ for the report.
-const RECHECKED_AT = "2026-08-05";
+// All eight sources were manually reviewed against their primary-source text
+// during the 2026-08-12 catalog refresh. See docs/ops/catalog-verification/ for
+// the evidence and corrections; reachability alone never earns this date.
+const RECHECKED_AT = "2026-08-12";
 
 // Verified exclusion 2026-07-25: do not seed
 // https://www.chfs.ky.gov/agencies/dph/dmch/ecdb/Pages/firststeps.aspx — it 404s.
@@ -106,7 +103,7 @@ export const FAMILY_GUIDE_CATALOG: FamilyGuide[] = [
       "All children misbehave sometimes; a hostile, aggressive, or disruptive pattern lasting more than six months is worth asking about.",
     steps: [
       "Note how long the hard behavior has lasted — a pattern past six months is different from a hard month.",
-      "Write down what changed at home: a new sibling, a move, a separation, a death in the family.",
+      "Write down what changed at home: the birth of a sibling, a divorce, or a death in the family.",
       "Ask for help rather than waiting, because poor choices can turn into habits.",
       "Ask about classes or family therapy for parents, and talk or behavior therapy for your child."
     ],
@@ -117,7 +114,7 @@ export const FAMILY_GUIDE_CATALOG: FamilyGuide[] = [
   {
     id: "firststeps_family_guide",
     domains: ["early_intervention"],
-    ages: { min: 0, max: 36 },
+    ages: { min: 0, max: 35 },
     title: "What First Steps visits look like",
     plainSummary:
       "Kentucky's early intervention system serves children from birth to age 3 where they spend their day, with the parent in the visit.",
@@ -134,7 +131,7 @@ export const FAMILY_GUIDE_CATALOG: FamilyGuide[] = [
   {
     id: "kyspin_resources",
     domains: ["parent_support", "school_iep"],
-    ages: { min: 0, max: 252 },
+    ages: { min: 0, max: 323 },
     title: "KY-SPIN: a parent line that answers",
     plainSummary:
       "KY-SPIN is Kentucky's statewide parent network, linking families of children with disabilities to resources and training.",
@@ -146,18 +143,18 @@ export const FAMILY_GUIDE_CATALOG: FamilyGuide[] = [
     ],
     contact: "Call 800-525-7746",
     sourceName: "KY-SPIN, Inc.",
-    sourceUrl: "https://www.kyspin.com/",
+    sourceUrl: "https://www.kyspin.com/about/",
     verifiedAt: RECHECKED_AT
   },
   {
     id: "cdc_autism_signs",
     domains: ["diagnosis_education"],
-    ages: { min: 12, max: 96 },
+    ages: { min: 9, max: 96 },
     title: "Understanding the signs you're seeing",
     plainSummary:
-      "CDC lists example signs of autism across social communication and repeated behavior, with the age most children reach each one.",
+      "CDC lists examples of autism-related differences in social communication and repeated behavior; some social examples include an age when the difference may be noticed.",
     steps: [
-      "Watch the social signs by age: responding to their name by 9 months, gestures by 12 months, pointing to show you something by 18 months.",
+      "Notice social examples such as not responding to their name by 9 months, using few or no gestures by 12 months, or not pointing to show something interesting by 18 months.",
       "Watch the repeated patterns too: lining toys up, repeating phrases, hand flapping, big upset at small changes.",
       "Remember a child may have all, some, or none of these — the list is examples, not a test.",
       "Contact your child's doctor about any concern with your child's development."

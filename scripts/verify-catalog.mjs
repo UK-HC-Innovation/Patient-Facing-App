@@ -9,24 +9,25 @@
  *
  * So this never bumps a `verifiedAt` by itself (FR-6). It fetches every source
  * URL, and for each entry looks for a *content signal* in the page it got back:
- * a phone number the entry prints, or a distinctive phrase from the entry's own
- * name. A signal found is evidence the page still carries the fact the card
- * shows; a signal not found is not evidence of anything — plenty of these pages
- * render their content in JavaScript, or are PDFs. Both outcomes are reported,
- * and the owner decides which dates move.
+ * a phone number the entry prints, or at least two meaningful terms from the
+ * entry's own name. A signal found grounds the source identity or a displayed
+ * phone, not every fact on the card; a missing signal is not evidence of
+ * anything — plenty of these pages render their content in JavaScript, or are
+ * PDFs. Both outcomes are reported, and the owner decides which dates move.
  *
- * Hosts known to refuse scripts (kynect, ssa.gov, healthychildren.org — spec 09)
- * are classified "needs human", never "dead": a link checker that cries wolf
- * teaches everyone to ignore it.
+ * A blocked response (403/429), or a timeout from a host known to refuse scripts
+ * (kynect, ssa.gov, healthychildren.org — spec 09), is classified "needs human",
+ * never "dead": a link checker that cries wolf teaches everyone to ignore it.
  *
- *   node scripts/verify-catalog.mjs --out docs/ops/catalog-verification/<date>.md
+ *   node scripts/verify-catalog.mjs --strict --out docs/ops/catalog-verification/<date>.md
  */
 import "./ts-resolve-hooks.mjs";
 import { writeFile, mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const SCRIPT_PATH = fileURLToPath(import.meta.url);
+const ROOT = resolve(dirname(SCRIPT_PATH), "..");
 
 const AUTOMATION_BLOCKED = ["kynect.ky.gov", "ssa.gov", "www.ssa.gov", "healthychildren.org", "www.healthychildren.org"];
 
@@ -36,7 +37,10 @@ const UA =
 const STOPWORDS = new Set([
   "the", "and", "of", "for", "a", "an", "in", "on", "to", "with", "kentucky", "ky",
   "county", "program", "services", "service", "center", "centre", "support", "family",
-  "families", "child", "children", "resources", "resource", "guide", "how", "your"
+  "families", "child", "children", "resources", "resource", "guide", "how", "your",
+  "first", "steps", "parent", "developmental", "special", "education", "office",
+  "community", "health", "central", "statewide", "waiver", "association", "department",
+  "administration", "organization", "university"
 ]);
 
 async function loadEntries() {
@@ -88,17 +92,21 @@ function digitsOnly(value) {
 }
 
 /** What we would recognise on the page if the entry's claim still holds. */
-function signalsFor(entry) {
+export function signalsFor(entry) {
   const phones = [...(entry.contact ?? "").matchAll(/\b\d{3}-\d{3}-\d{4}\b/g)].map((match) => match[0]);
-  const words = entry.name
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, " ")
-    .split(/\s+/)
-    .filter((word) => word.length > 4 && !STOPWORDS.has(word));
+  const words = [
+    ...new Set(
+      entry.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .split(/\s+/)
+        .filter((word) => word.length > 4 && !STOPWORDS.has(word))
+    )
+  ];
   return { phones, words };
 }
 
-function findSignal(entry, body) {
+export function findSignal(entry, body) {
   const { phones, words } = signalsFor(entry);
   const bodyDigits = digitsOnly(body);
   for (const phone of phones) {
@@ -106,10 +114,15 @@ function findSignal(entry, body) {
       return { kind: "phone", value: phone };
     }
   }
-  const lower = body.toLowerCase();
-  for (const word of words) {
-    if (lower.includes(word)) return { kind: "phrase", value: word };
-  }
+  const bodyWords = new Set(
+    body
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .split(/\s+/)
+      .filter(Boolean)
+  );
+  const matched = words.filter((word) => bodyWords.has(word));
+  if (matched.length >= 2) return { kind: "name_terms", value: matched.slice(0, 3).join(" + ") };
   return null;
 }
 
@@ -140,15 +153,32 @@ async function fetchPage(url) {
   return result;
 }
 
-function classify(entry, page) {
+export function classify(entry, page) {
   const blocked = AUTOMATION_BLOCKED.includes(hostOf(entry.sourceUrl));
-  if (blocked || page.code === 403 || page.code === 429) {
+  if (page.code === 403 || page.code === 429 || (blocked && page.code === 0)) {
     return { reach: "needs_human" };
   }
   if (page.code === 0) return { reach: "dead" };
   if (page.code < 200 || page.code >= 300) return { reach: "dead" };
   const normalize = (value) => value.replace(/\/$/, "").toLowerCase();
   return { reach: normalize(page.finalUrl) === normalize(entry.sourceUrl) ? "ok" : "moved" };
+}
+
+/** Mutually exclusive report groups: every result belongs to exactly one. */
+export function groupResults(results) {
+  return {
+    confirmed: results.filter(
+      (row) => row.reach === "ok" && row.signal !== null && !row.humanVerify
+    ),
+    unconfirmed: results.filter(
+      (row) => row.reach === "ok" && row.signal === null && !row.humanVerify
+    ),
+    moved: results.filter((row) => row.reach === "moved"),
+    needsHuman: results.filter(
+      (row) => row.reach === "needs_human" || (row.reach === "ok" && row.humanVerify)
+    ),
+    dead: results.filter((row) => row.reach === "dead")
+  };
 }
 
 function table(rows, columns) {
@@ -165,6 +195,7 @@ async function main() {
     outFlag >= 0 && process.argv[outFlag + 1]
       ? process.argv[outFlag + 1]
       : "docs/ops/catalog-verification/report.md";
+  const strict = process.argv.includes("--strict");
 
   const entries = await loadEntries();
   const urls = new Set(entries.map(({ sourceUrl }) => sourceUrl));
@@ -181,29 +212,28 @@ async function main() {
     );
   }
 
-  const of = (reach) => results.filter((row) => row.reach === reach);
-  const confirmed = results.filter((row) => row.reach === "ok" && row.signal !== null && !row.humanVerify);
-  const unconfirmed = results.filter(
-    (row) => (row.reach === "ok" || row.reach === "moved") && row.signal === null
-  );
+  const { confirmed, unconfirmed, moved, needsHuman, dead } = groupResults(results);
+  const generatedAt = new Date().toISOString();
 
   const body = [
     "# Catalog source verification",
     "",
     `\`scripts/verify-catalog.mjs\`, ${entries.length} entries across ${urls.size} unique source URLs`,
     "(`family-resources`, `family-guides`, `sdoh-resources`).",
+    `Generated: ${generatedAt}`,
     "",
     "**Reachability** is what a fetch can answer. **Content confirmed** means the page we got back",
-    "still carries a signal from the entry itself — a phone number it prints, or a distinctive",
-    "phrase from its name. A missing signal is *not* evidence the entry is wrong: several of these",
-    "pages render in JavaScript or are PDFs. Only content-confirmed entries are eligible for a",
-    "`verifiedAt` bump (FR-6); everything else stays at its old date and goes on the checklist below.",
+    "still carries a strong signal from the entry itself — a phone number it prints, at least two",
+    "meaningful name terms. A missing signal is *not* evidence the entry is wrong: several pages",
+    "render in JavaScript or are PDFs. A signal only",
+    "establishes source identity or a displayed phone; it does not validate every card claim and",
+    "never bumps `verifiedAt` without a reviewer (FR-6).",
     "",
     `- reachable, content confirmed: **${confirmed.length}**`,
     `- reachable, content not machine-confirmable: **${unconfirmed.length}**`,
-    `- moved (200, final URL differs): **${of("moved").length}**`,
-    `- needs a human (host blocks automated requests): **${of("needs_human").length}**`,
-    `- dead: **${of("dead").length}**`,
+    `- moved (200, final URL differs): **${moved.length}**`,
+    `- needs a human (catalog flag, blocked request, or known-blocked timeout): **${needsHuman.length}**`,
+    `- dead: **${dead.length}**`,
     "",
     "## Reachable, content confirmed",
     "",
@@ -211,7 +241,7 @@ async function main() {
       { label: "id", cell: (row) => row.id },
       { label: "catalog", cell: (row) => row.catalog },
       { label: "signal", cell: (row) => `${row.signal.kind}: \`${row.signal.value}\`` },
-      { label: "was", cell: (row) => row.verifiedAt }
+      { label: "verifiedAt", cell: (row) => row.verifiedAt }
     ]),
     "## Reachable, content not machine-confirmable",
     "",
@@ -223,21 +253,22 @@ async function main() {
     ]),
     "## Moved",
     "",
-    table(of("moved"), [
+    table(moved, [
       { label: "id", cell: (row) => row.id },
       { label: "from", cell: (row) => row.sourceUrl },
       { label: "to", cell: (row) => row.finalUrl }
     ]),
     "## Needs a human",
     "",
-    table(of("needs_human"), [
+    table(needsHuman, [
       { label: "id", cell: (row) => row.id },
       { label: "url", cell: (row) => row.sourceUrl },
-      { label: "code", cell: (row) => row.code || "—" }
+      { label: "code", cell: (row) => row.code || "—" },
+      { label: "reason", cell: (row) => row.humanVerify ? "catalog humanVerify flag" : "request blocked" }
     ]),
     "## Dead",
     "",
-    table(of("dead"), [
+    table(dead, [
       { label: "id", cell: (row) => row.id },
       { label: "url", cell: (row) => row.sourceUrl },
       { label: "code", cell: (row) => row.code || "—" },
@@ -250,7 +281,7 @@ async function main() {
   await writeFile(target, `${body}\n`, "utf8");
   process.stdout.write(`\nWrote ${out}\n`);
   process.stdout.write(
-    `confirmed=${confirmed.length} unconfirmed=${unconfirmed.length} moved=${of("moved").length} needsHuman=${of("needs_human").length} dead=${of("dead").length}\n`
+    `confirmed=${confirmed.length} unconfirmed=${unconfirmed.length} moved=${moved.length} needsHuman=${needsHuman.length} dead=${dead.length}\n`
   );
   await writeFile(
     resolve(ROOT, "docs/ops/catalog-verification/.last-run.json"),
@@ -258,15 +289,22 @@ async function main() {
       {
         confirmedIds: confirmed.map(({ id }) => id),
         unconfirmedIds: unconfirmed.map(({ id }) => id),
-        needsHumanIds: of("needs_human").map(({ id }) => id),
-        movedIds: of("moved").map(({ id }) => id),
-        deadIds: of("dead").map(({ id }) => id)
+        needsHumanIds: needsHuman.map(({ id }) => id),
+        movedIds: moved.map(({ id }) => id),
+        deadIds: dead.map(({ id }) => id)
       },
       null,
       2
     )}\n`,
     "utf8"
   );
+
+  if (strict && (dead.length > 0 || moved.length > 0)) {
+    process.stderr.write("Strict verification failed: resolve dead or moved catalog sources.\n");
+    process.exitCode = 1;
+  }
 }
 
-await main();
+if (process.argv[1] && resolve(process.argv[1]) === SCRIPT_PATH) {
+  await main();
+}

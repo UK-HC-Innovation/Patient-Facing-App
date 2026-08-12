@@ -30,9 +30,9 @@ describe("familyResourcePhones", () => {
   it("finds a number buried mid-sentence", () => {
     expect(
       familyResourcePhones(
-        "Apply through kynect or call the waiver help desk at 844-784-5614"
+        "Apply through kynect or call the waiver operating agency at 502-564-7700"
       )
-    ).toEqual(["844-784-5614"]);
+    ).toEqual(["502-564-7700"]);
   });
 
   it("returns nothing when the catalog names no number", () => {
@@ -63,7 +63,7 @@ describe("familyResourceFaceAction", () => {
     const waiver = getFamilyResourceById("michelle_p_waiver")!;
     const action = familyResourceFaceAction(waiver);
     expect(action.kind).toBe("link");
-    expect(action).toMatchObject({ number: "844-784-5614", tel: "tel:8447845614" });
+    expect(action).toMatchObject({ number: "502-564-7700", tel: "tel:5025647700" });
   });
 
   it("degrades a call program with no listed number to its official page", () => {

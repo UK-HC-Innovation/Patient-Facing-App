@@ -1,6 +1,6 @@
 "use client";
 
-import React, { type ReactNode } from "react";
+import React, { type ReactNode, useEffect } from "react";
 import { accessibilityProfileForPatient } from "@/domain/accessibility";
 import { useHealthState } from "@/state/store";
 
@@ -9,6 +9,14 @@ import { useHealthState } from "@/state/store";
 export function AccessibilityShell({ children }: { children: ReactNode }) {
   const { state } = useHealthState();
   const profile = accessibilityProfileForPatient(state.patient);
+
+  useEffect(() => {
+    const previousLanguage = document.documentElement.lang;
+    document.documentElement.lang = state.patient.language;
+    return () => {
+      document.documentElement.lang = previousLanguage;
+    };
+  }, [state.patient.language]);
 
   return (
     <div aria-label={profile.ariaLabel} className={profile.className}>

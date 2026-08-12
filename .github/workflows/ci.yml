@@ -40,13 +40,23 @@ jobs:
       - name: Run crisis safety gate
         run: npm run crisis:gate
 
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install browsers
+        run: npx playwright install --with-deps chromium firefox webkit
 
       - name: Run Ladder acceptance cohort
         env:
           PLAYWRIGHT_PORT: "3221"
-        run: npx playwright test e2e/ladder-persona-routing.spec.ts e2e/family-navigator.spec.ts --workers=1
+        run: npx playwright test e2e/ladder-persona-routing.spec.ts e2e/family-navigator.spec.ts --project=chromium --project=mobile --workers=1
+
+      - name: Run Ladder cross-browser contract
+        env:
+          PLAYWRIGHT_PORT: "3222"
+        run: npx playwright test e2e/ladder-browser-contract.spec.ts --project=firefox-smoke --project=webkit-smoke --project=mobile-webkit-smoke --workers=1
+
+      - name: Run Ladder repeat-visit offline contract
+        env:
+          PLAYWRIGHT_PORT: "3223"
+        run: npm run test:e2e:offline
 
       - name: Upload browser failure artifacts
         if: failure()

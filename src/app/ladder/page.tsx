@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { FamilyExperience } from "@/components/family-experience";
+import { useFamilyAiSession } from "@/hooks/use-family-ai-session";
 import { useHealthState } from "@/state/store";
 
 // Ladder brings its own shell: a header that carries the language control on
@@ -10,12 +10,13 @@ import { useHealthState } from "@/state/store";
 // of the app is a quiet link at the foot of the shell.
 export default function FamilyPage() {
   const { state, dispatch } = useHealthState();
-  const [passcode, setPasscode] = useState<string | undefined>();
+  const aiCapability = useFamilyAiSession();
 
-  useEffect(() => {
-    const queryPasscode = new URLSearchParams(window.location.search).get("k");
-    setPasscode(queryPasscode ?? undefined);
-  }, []);
-
-  return <FamilyExperience state={state} dispatch={dispatch} passcode={passcode} />;
+  return (
+    <FamilyExperience
+      state={state}
+      dispatch={dispatch}
+      onlineAuthorized={aiCapability === "authorized"}
+    />
+  );
 }
