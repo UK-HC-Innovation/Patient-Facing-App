@@ -1,6 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "./route";
 
+// The route's response is a discriminated union across six modes; the tests assert on
+// one branch at a time, so a loose read-only shape keeps them honest without ceremony.
+type IdentifyJson = {
+  mode: string;
+  reason?: string;
+  candidates?: Array<{ code: string; description: string; fcs: number }>;
+  match?: {
+    food: { code: string; description: string; group: string };
+    tier: string;
+    score: { fcs: number; band: string; tier: string };
+    alternatives: Array<{ fcs: number; recipeSearchUrl: string; description: string }>;
+  };
+};
+
 const ORIGINAL_ENV = { ...process.env };
 
 function request(body: unknown): Request {
@@ -29,15 +43,15 @@ describe("POST /api/food/identify — deterministic paths", () => {
   it("serves a typed query with no provider configured and no model spend", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     const response = await POST(request({ text: "banana" }));
-    const json = (await response.json()) as Record<string, never>;
+    const json = (await response.json()) as IdentifyJson;
 
     expect(response.status).toBe(200);
     expect(json.mode).toBe("match");
     // The headline demo number: 83 is what Tufts published for Banana, raw.
-    expect(json.match.score.fcs).toBe(83);
-    expect(json.match.score.band).toBe("encourage");
-    expect(json.match.score.tier).toBe("T1");
-    expect(json.match.food.code).toBe("63107010");
+    expect(json.match?.score.fcs).toBe(83);
+    expect(json.match?.score.band).toBe("encourage");
+    expect(json.match?.score.tier).toBe("T1");
+    expect(json.match?.food.code).toBe("63107010");
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -47,36 +61,36 @@ describe("POST /api/food/identify — deterministic paths", () => {
     process.env.DEMO_PASSCODE = "secret";
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
-    const json = (await (await POST(request({ text: "quinoa", passcode: "wrong" }))).json()) as Record<string, never>;
+    const json = (await (await POST(request({ text: "quinoa", passcode: "wrong" }))).json()) as IdentifyJson;
     expect(json.mode).toBe("match");
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("returns the carve-out for plain water instead of a flavoured-water score", async () => {
-    const json = (await (await POST(request({ text: "water" }))).json()) as Record<string, never>;
+    const json = (await (await POST(request({ text: "water" }))).json()) as IdentifyJson;
     expect(json.mode).toBe("carve_out");
     expect(json.reason).toBe("zero_calorie");
     expect(json.match).toBeUndefined();
   });
 
   it("offers same-group better options with recipe links", async () => {
-    const json = (await (await POST(request({ text: "doritos" }))).json()) as Record<string, never>;
+    const json = (await (await POST(request({ text: "doritos" }))).json()) as IdentifyJson;
     expect(json.mode).toBe("match");
-    expect(json.match.alternatives.length).toBeGreaterThan(0);
-    for (const alternative of json.match.alternatives as Array<Record<string, never>>) {
-      expect(alternative.fcs).toBeGreaterThanOrEqual((json.match.score.fcs as unknown as number) + 10);
-      expect(String(alternative.recipeSearchUrl)).toContain("google.com/search");
+    expect(json.match?.alternatives.length).toBeGreaterThan(0);
+    for (const alternative of json.match?.alternatives ?? []) {
+      expect(alternative.fcs).toBeGreaterThanOrEqual((json.match?.score.fcs ?? 0) + 10);
+      expect(alternative.recipeSearchUrl).toContain("google.com/search");
     }
   });
 
   it("re-scores an exact food code for a correction-chip tap", async () => {
-    const json = (await (await POST(request({ foodId: "63107010" }))).json()) as Record<string, never>;
+    const json = (await (await POST(request({ foodId: "63107010" }))).json()) as IdentifyJson;
     expect(json.mode).toBe("match");
-    expect(json.match.score.fcs).toBe(83);
+    expect(json.match?.score.fcs).toBe(83);
   });
 
   it("reports a code it does not know rather than guessing", async () => {
-    const json = (await (await POST(request({ foodId: "99999999" }))).json()) as Record<string, never>;
+    const json = (await (await POST(request({ foodId: "99999999" }))).json()) as IdentifyJson;
     expect(json.mode).toBe("none");
   });
 
@@ -88,7 +102,7 @@ describe("POST /api/food/identify — deterministic paths", () => {
 
 describe("POST /api/food/identify — image gating", () => {
   it("reports unconfigured when no provider is set", async () => {
-    const json = (await (await POST(request({ image: TINY_IMAGE }))).json()) as Record<string, never>;
+    const json = (await (await POST(request({ image: TINY_IMAGE }))).json()) as IdentifyJson;
     expect(json.mode).toBe("unconfigured");
   });
 
@@ -99,7 +113,7 @@ describe("POST /api/food/identify — image gating", () => {
 
     const response = await POST(request({ image: TINY_IMAGE, passcode: "nope" }));
     expect(response.status).toBe(200);
-    expect(((await response.json()) as Record<string, never>).mode).toBe("locked");
+    expect(((await response.json()) as IdentifyJson).mode).toBe("locked");
   });
 
   it("short-circuits the disambiguation call when the top match leads clearly", async () => {
@@ -113,7 +127,7 @@ describe("POST /api/food/identify — image gating", () => {
       })
     );
 
-    const json = (await (await POST(request({ image: TINY_IMAGE }))).json()) as Record<string, never>;
+    const json = (await (await POST(request({ image: TINY_IMAGE }))).json()) as IdentifyJson;
     expect(json.mode).toBe("match");
     // One call to identify, none to disambiguate: that is what keeps the live loop cheap.
     expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -132,10 +146,10 @@ describe("POST /api/food/identify — image gating", () => {
         new Response(JSON.stringify({ choices: [{ message: { content: '{"index":0}' } }] }), { status: 200 })
       );
 
-    const json = (await (await POST(request({ image: TINY_IMAGE }))).json()) as Record<string, never>;
+    const json = (await (await POST(request({ image: TINY_IMAGE }))).json()) as IdentifyJson;
     expect(fetchSpy).toHaveBeenCalledTimes(2);
     expect(json.mode).toBe("match");
-    expect(String(json.match.food.description)).toMatch(/pizza/i);
+    expect(json.match?.food.description).toMatch(/pizza/i);
   });
 
   it("returns none, never a guess, when the model sees no food", async () => {
@@ -145,7 +159,7 @@ describe("POST /api/food/identify — image gating", () => {
       new Response(JSON.stringify({ choices: [{ message: { content: '{"food":"","confidence":0}' } }] }), { status: 200 })
     );
 
-    const json = (await (await POST(request({ image: TINY_IMAGE }))).json()) as Record<string, never>;
+    const json = (await (await POST(request({ image: TINY_IMAGE }))).json()) as IdentifyJson;
     expect(json.mode).toBe("none");
   });
 
@@ -156,6 +170,6 @@ describe("POST /api/food/identify — image gating", () => {
 
     const response = await POST(request({ image: TINY_IMAGE }));
     expect(response.status).toBe(502);
-    expect(((await response.json()) as Record<string, never>).mode).toBe("error");
+    expect(((await response.json()) as IdentifyJson).mode).toBe("error");
   });
 });
