@@ -141,6 +141,9 @@ export default function CompassPage() {
     getContext,
     onFinalTranscript: () => {},
     onSafetyIntercept: () => {},
+    // Without this the voice control below can never appear: it renders only when
+    // mode === "live", and mode only leaves "unknown" inside start().
+    probeOnMount: true,
     buildInstructions: () => buildCompassInstructions(),
     buildContext: (context) =>
       buildCompassVoiceContext(
@@ -155,6 +158,11 @@ export default function CompassPage() {
       }
     ]
   });
+
+  // In mock or locked mode the on-device coach speaks in a patient-care-plan voice, which is
+  // wrong for this surface — so the voice button is hidden rather than mislabelled. Typed
+  // scoring and alternatives still work fully, which IS the no-passcode shareable demo.
+  const voiceAvailable = voice.mode === "live";
 
   useEffect(() => {
     void camera.start();
@@ -175,11 +183,6 @@ export default function CompassPage() {
       window.removeEventListener("pagehide", onHidden);
     };
   }, [camera, voice]);
-
-  // In mock or locked mode the on-device coach speaks in a patient-care-plan voice, which is
-  // wrong for this surface — so the voice button is hidden rather than mislabelled. Typed
-  // scoring and alternatives still work fully, which IS the no-passcode shareable demo.
-  const voiceAvailable = voice.mode === "live";
 
   return (
     <main className="mx-auto grid max-w-2xl gap-4 p-4">
@@ -206,6 +209,7 @@ export default function CompassPage() {
         scoreName={shown?.kind === "match" ? shown.match.food.description : undefined}
         scoreTier={shown?.kind === "match" ? shown.match.score.tier : undefined}
         sessionStatus={voice.status}
+        showVoiceStatus={voiceAvailable}
         videoRef={camera.videoRef}
       />
 

@@ -62,12 +62,30 @@ test("water gets the carve-out copy and no number at all", async ({ page }) => {
   await expect(page.getByText("Food Compass score")).toHaveCount(0);
 });
 
+test("shows the voice control as soon as the token route reports a live provider", async ({ page }) => {
+  // The mount probe is what makes this reachable at all: the control renders only when
+  // mode === "live", and before spec 23's fix mode only left "unknown" inside start() —
+  // which could only be triggered by the control that was not being rendered.
+  await page.route("**/api/realtime/token", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ mode: "live", model: "gpt-realtime-2" })
+    })
+  );
+  await page.goto("/compass?k=anything");
+
+  await expect(page.getByRole("button", { name: /Talk about this food/ })).toBeVisible();
+});
+
 test("hides the voice button without a live provider, and carries no patient data", async ({ page }) => {
   await stubRealtime(page);
   await page.goto("/compass");
 
   // The on-device coach speaks in a patient-care-plan voice, wrong for this surface.
   await expect(page.getByRole("button", { name: /Talk about this food/ })).toHaveCount(0);
+  // ...and with no voice control on screen, nothing may tell the reader to tap one.
+  await expect(page.getByText("Tap start to talk about this food.")).toHaveCount(0);
 
   // The root layout seeds a demo patient into every other route; none of it reaches here.
   await expect(page.getByText(/Maria|Brent|blood pressure|lisinopril/i)).toHaveCount(0);

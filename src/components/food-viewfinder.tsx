@@ -28,7 +28,8 @@ export function FoodViewfinder({
   scoreBand,
   scoreTier,
   scoreName,
-  onScoreTap
+  onScoreTap,
+  showVoiceStatus = true
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
   cameraStatus: CameraStatus;
@@ -41,6 +42,11 @@ export function FoodViewfinder({
   scoreTier?: "T1" | "T2";
   scoreName?: string;
   onScoreTap?: () => void;
+  /**
+   * The pill reads "Tap start to talk about this food". On a surface with no voice
+   * control it points at a button that is not on screen, so it is suppressed there.
+   */
+  showVoiceStatus?: boolean;
 }) {
   return (
     <div className="relative overflow-hidden rounded-control border border-ink/10 bg-ink" style={{ height: "55vh" }}>
@@ -75,6 +81,7 @@ export function FoodViewfinder({
         tier={scoreTier}
       />
 
+      {showVoiceStatus ? (
       <div className="absolute inset-x-0 bottom-3 flex justify-center">
         <div className="flex items-center gap-2 rounded-control bg-white/90 px-4 py-2 text-sm font-semibold text-ink">
           <span
@@ -92,6 +99,7 @@ export function FoodViewfinder({
           {t(language, statusKey[sessionStatus])}
         </div>
       </div>
+      ) : null}
     </div>
   );
 }

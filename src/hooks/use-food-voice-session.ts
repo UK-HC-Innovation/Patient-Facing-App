@@ -41,6 +41,16 @@ export function useFoodVoiceSession(args: {
   buildInstructions?: (state: AppState) => string;
   buildContext?: (context: LiveSessionContext) => string;
   tools?: RealtimeTool[];
+  /**
+   * Resolve `mode` on mount instead of waiting for the first start().
+   *
+   * A surface that only renders its voice control when mode === "live" deadlocks
+   * otherwise: mode leaves "unknown" only inside start(), and start() can only be
+   * reached through the control that is not being rendered. The probe uses the token
+   * route's `probe` flag, which answers from environment alone and never mints an
+   * OpenAI session, so this costs nothing.
+   */
+  probeOnMount?: boolean;
 }): {
   mode: VoiceMode;
   dataMode: AiDataMode;
@@ -69,6 +79,7 @@ export function useFoodVoiceSession(args: {
   const onInterceptRef = useRef(onSafetyIntercept);
   onInterceptRef.current = onSafetyIntercept;
   const [mode, setMode] = useState<VoiceMode>("unknown");
+  const probeOnMount = args.probeOnMount === true;
   const [dataMode, setDataMode] = useState<AiDataMode>("checking");
   const [status, setStatus] = useState<LiveSessionStatus>("idle");
   const [partialAssistantText, setPartialAssistantText] = useState("");
@@ -260,6 +271,35 @@ export function useFoodVoiceSession(args: {
       armIdleTimer();
     }
   }, [armIdleTimer, gateTranscript, getContext, getState, handleEvent, language]);
+
+  useEffect(() => {
+    if (!probeOnMount) {
+      return;
+    }
+    let cancelled = false;
+    const passcode =
+      typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("k") ?? undefined : undefined;
+    void fetch("/api/realtime/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ probe: true, crisisOpen: false, passcode })
+    })
+      .then((response) => response.json() as Promise<TokenResponse>)
+      .then((token) => {
+        if (!cancelled) {
+          setMode(token.mode === "live" ? "live" : "mock");
+          setDataMode(aiDataModeForVoiceTransport(token));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMode("mock");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [probeOnMount]);
 
   const sendUserText = useCallback((text: string) => {
     handleRef.current?.sendUserText(text);
