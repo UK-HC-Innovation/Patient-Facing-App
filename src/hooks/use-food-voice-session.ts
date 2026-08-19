@@ -5,7 +5,7 @@ import { OpenAiVisionProvider } from "@/ai/vision-provider";
 import { MockHealthAiProvider } from "@/ai/mock-provider";
 import { openLocalCoachSession } from "@/ai/local-coach-session";
 import { buildCompassContext, buildFoodLensInstructions } from "@/ai/food-instructions";
-import { connectRealtimeSession } from "@/ai/realtime-session";
+import { connectRealtimeSession, type RealtimeTool } from "@/ai/realtime-session";
 import { evaluateVoiceTranscript } from "@/ai/voice-gate";
 import { activeConditions, selectLenses } from "@/domain/condition-lens";
 import { hasUnacknowledgedCrisis } from "@/state/selectors";
@@ -35,6 +35,12 @@ export function useFoodVoiceSession(args: {
   getContext: () => LiveSessionContext;
   onFinalTranscript: (role: "patient" | "assistant", text: string) => void;
   onSafetyIntercept: (intercept: VoiceSafetyIntercept) => void;
+  // Optional overrides so a surface with no patient (/compass) can reuse the whole voice
+  // stack — token, safety gate, output guard — with its own persona and context. Omitted,
+  // /food behaves exactly as before.
+  buildInstructions?: (state: AppState) => string;
+  buildContext?: (context: LiveSessionContext) => string;
+  tools?: RealtimeTool[];
 }): {
   mode: VoiceMode;
   dataMode: AiDataMode;
@@ -46,6 +52,20 @@ export function useFoodVoiceSession(args: {
   sendUserText: (text: string) => void;
 } {
   const { language, getState, getContext, onFinalTranscript, onSafetyIntercept } = args;
+  // Held in refs, not read from the closure: /compass rebuilds these every render (its
+  // context closes over whichever food is on screen), and start() is a useCallback. Read
+  // straight from args and a session started once would keep answering with the first
+  // render's food forever.
+  const overridesRef = useRef({
+    buildInstructions: args.buildInstructions,
+    buildContext: args.buildContext,
+    tools: args.tools
+  });
+  overridesRef.current = {
+    buildInstructions: args.buildInstructions,
+    buildContext: args.buildContext,
+    tools: args.tools
+  };
   const onInterceptRef = useRef(onSafetyIntercept);
   onInterceptRef.current = onSafetyIntercept;
   const [mode, setMode] = useState<VoiceMode>("unknown");
@@ -175,6 +195,10 @@ export function useFoodVoiceSession(args: {
       let lastInjectedFoodId: string | null = null;
       const buildContextMessage = (): { text: string; imageDataUrl: string | null } => {
         const context = getContext();
+        const override = overridesRef.current.buildContext;
+        if (override) {
+          return { imageDataUrl: context.frameDataUrl, text: override(context) };
+        }
         const includeFood = context.identifiedFood && context.identifiedFood.id !== lastInjectedFoodId;
         if (context.identifiedFood) {
           lastInjectedFoodId = context.identifiedFood.id;
@@ -195,7 +219,10 @@ export function useFoodVoiceSession(args: {
         const handle = await connectRealtimeSession({
           clientSecret: token.clientSecret,
           model: token.model,
-          instructions: buildFoodLensInstructions(state, selectLenses(activeConditions(state.carePlan))),
+          instructions: overridesRef.current.buildInstructions
+            ? overridesRef.current.buildInstructions(state)
+            : buildFoodLensInstructions(state, selectLenses(activeConditions(state.carePlan))),
+          tools: overridesRef.current.tools,
           language,
           buildContextMessage,
           onEvent: handleEvent,

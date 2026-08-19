@@ -140,6 +140,18 @@ export function reduceRealtimeEvent(status: LiveSessionStatus, event: RealtimeSe
   }
 }
 
+/**
+ * A function the model may call mid-turn. The handler runs locally and returns
+ * deterministic data; the model is never asked to compute anything, only to ask for a
+ * number it does not have. Whatever it then says still passes the output guard.
+ */
+export type RealtimeTool = {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+  handler: (args: Record<string, unknown>) => Promise<unknown>;
+};
+
 export type ConnectArgs = {
   clientSecret: string;
   model: string;
@@ -148,7 +160,51 @@ export type ConnectArgs = {
   buildContextMessage: () => { text: string; imageDataUrl?: string | null } | null;
   onEvent: (event: LiveSessionEvent) => void;
   gateTranscript: (transcript: string) => VoiceGateDecision;
+  tools?: RealtimeTool[];
 };
+
+/**
+ * Runs one tool call and returns the two realtime events that answer it: the output item
+ * and the response.create that lets the model speak the result. Pure enough to test
+ * without a peer connection.
+ */
+export async function runRealtimeToolCall(
+  tools: RealtimeTool[],
+  event: RealtimeServerEvent
+): Promise<Array<Record<string, unknown>>> {
+  const name = str(event.name);
+  const callId = str(event.call_id);
+  const tool = tools.find((candidate) => candidate.name === name);
+  if (!tool || callId.length === 0) {
+    return [];
+  }
+
+  let parsed: Record<string, unknown> = {};
+  try {
+    const raw = JSON.parse(str(event.arguments) || "{}") as unknown;
+    if (raw && typeof raw === "object") {
+      parsed = raw as Record<string, unknown>;
+    }
+  } catch {
+    parsed = {};
+  }
+
+  let output: unknown;
+  try {
+    output = await tool.handler(parsed);
+  } catch {
+    // The model must never fill the gap with an invented number.
+    output = { error: "lookup_failed" };
+  }
+
+  return [
+    {
+      type: "conversation.item.create",
+      item: { type: "function_call_output", call_id: callId, output: JSON.stringify(output) }
+    },
+    { type: "response.create" }
+  ];
+}
 
 const CONNECT_TIMEOUT_MS = 10000;
 const REALTIME_CALLS_URL = "https://api.openai.com/v1/realtime/calls";
@@ -289,6 +345,15 @@ export async function connectRealtimeSession(args: ConnectArgs): Promise<LiveSes
         transcriptGate.apply(args.gateTranscript(transcript));
       }
     }
+    if (event.type === "response.function_call_arguments.done" && (args.tools ?? []).length > 0) {
+      void runRealtimeToolCall(args.tools ?? [], event).then((payloads) => {
+        if (closed || transcriptGate.isLatched()) {
+          return;
+        }
+        payloads.forEach(send);
+      });
+    }
+
     if (event.type === "response.done") {
       outputGuard.reset();
       outputIntercepted = false;
@@ -296,9 +361,19 @@ export async function connectRealtimeSession(args: ConnectArgs): Promise<LiveSes
   };
 
   channel.onopen = () => {
+    const tools = (args.tools ?? []).map((tool) => ({
+      type: "function",
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters
+    }));
     send({
       type: "session.update",
-      session: { ...REALTIME_SESSION_CONFIG, instructions: args.instructions }
+      session: {
+        ...REALTIME_SESSION_CONFIG,
+        instructions: args.instructions,
+        ...(tools.length > 0 ? { tools, tool_choice: "auto" } : {})
+      }
     });
   };
 

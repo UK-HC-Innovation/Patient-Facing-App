@@ -167,6 +167,43 @@ export const deletedDemoState: AppState = {
   family: null
 };
 
+/**
+ * The state /compass runs on.
+ *
+ * The root layout wraps every route in HealthStateProvider, which seeds a full demo
+ * patient with medications and blood-pressure readings. A shareable food-scoring page
+ * that touched that state would leak a fictional patient into its prompts, so /compass
+ * builds this instead: no medications, no readings, no history, and a care plan that
+ * exists only because grounding requires the provider to cite a carePlan.id before any
+ * clinical-adjacent phrasing is allowed through.
+ */
+export function blankCompassState(): AppState {
+  return {
+    ...deletedDemoState,
+    patient: {
+      id: "compass-anonymous",
+      name: "Guest",
+      preferredName: "there",
+      language: "en",
+      primaryClinicName: "Your care team",
+      primaryClinicPhone: ""
+    },
+    carePlan: {
+      ...deletedDemoState.carePlan,
+      id: "plan-compass",
+      patientId: "compass-anonymous",
+      plainLanguageSummary:
+        "This preview scores foods with the published Food Compass 2.0 system. It holds no personal health information.",
+      nextVisitReason: "Talk with your own care team about what these scores mean for you."
+    },
+    medications: [],
+    readings: [],
+    glucoseReadings: [],
+    aiMessages: [],
+    mealLog: []
+  };
+}
+
 export const brentState: AppState = {
   patient: {
     id: "patient-brent",

@@ -75,9 +75,10 @@ assertBudget("Ladder page entry (raw)", pageEntryRaw, budgets.pageEntryRaw);
 // A budget on the two routes that render scores is the enforcement: if src/data/food-compass
 // is ever imported from a client component, these numbers move by megabytes, not kilobytes.
 const compassBudgets = {
-  // measured 272.0 KiB gzip after spec 23; headroom for normal growth, and orders of
-  // magnitude below the ~1.6 MB a leaked fcs2-foods.json would add
-  "/food/page": 285 * kib
+  // measured after spec 23: /compass 162.6 KiB, /food 273.9 KiB gzip. Headroom for normal
+  // growth, and orders of magnitude below the ~1.6 MB a leaked fcs2-foods.json would add.
+  "/compass/page": 185 * kib,
+  "/food/page": 290 * kib
 };
 
 const compassReport = [];
