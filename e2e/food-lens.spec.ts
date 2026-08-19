@@ -43,7 +43,8 @@ test("scans a food, asks a typed question, logs the meal, and persists it", asyn
 
   // spec 23: the Food Compass score sits above the flag chips, badged as a label estimate.
   await expect(page.getByText("Food Compass score")).toBeVisible();
-  await expect(page.getByText("Estimate from label")).toBeVisible();
+  // Shown twice on purpose: the viewfinder badge and the score row on the card.
+  await expect(page.getByText("Estimate from label")).toHaveCount(2);
   await expect(page.getByText("Better options")).toBeVisible();
 
   await page.getByRole("button", { name: "Log this" }).click();
@@ -53,7 +54,8 @@ test("scans a food, asks a typed question, logs the meal, and persists it", asyn
   const logged = await page.evaluate(() => {
     const raw = window.localStorage.getItem("home-health-ai-ownership-state");
     const parsed = raw ? (JSON.parse(raw) as { mealLog?: Array<Record<string, unknown>> }) : null;
-    return parsed?.mealLog?.[0]?.compassScore ?? null;
+    const entries = parsed?.mealLog ?? [];
+    return entries[entries.length - 1]?.compassScore ?? null;
   });
   expect(logged).toMatchObject({ tier: "T2" });
   expect(["encourage", "moderate", "minimize"]).toContain((logged as { band: string }).band);
