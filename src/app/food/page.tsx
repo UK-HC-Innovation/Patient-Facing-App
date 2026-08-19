@@ -19,6 +19,8 @@ import { t } from "@/i18n/strings";
 import { useFoodCamera } from "@/hooks/use-food-camera";
 import { useBarcodeScan } from "@/hooks/use-barcode-scan";
 import { useFoodVoiceSession, type VoiceSafetyIntercept } from "@/hooks/use-food-voice-session";
+import { useCompassScore } from "@/hooks/use-compass-score";
+import { toCompassContext } from "@/domain/compass-context";
 import { useHealthState } from "@/state/store";
 import type { AiMessage, IdentifiedFood, PantryResult } from "@/domain/types";
 import type { LiveSessionContext } from "@/ai/types";
@@ -39,6 +41,10 @@ export default function FoodPage() {
   }, [foodMessages]);
 
   const camera = useFoodCamera();
+  const passcode = useMemo(
+    () => (typeof window === "undefined" ? undefined : new URLSearchParams(window.location.search).get("k") ?? undefined),
+    []
+  );
   const [identifiedFood, setIdentifiedFood] = useState<IdentifiedFood | null>(null);
   const [portionServings, setPortionServings] = useState(1);
   const [logged, setLogged] = useState(false);
@@ -56,6 +62,13 @@ export default function FoodPage() {
     onBarcode: () => setLogged(false)
   });
 
+  // Scored from identifiedFood, not scaledFood: scaleNutrition rounds to integers, and a
+  // per-100-kcal score recomputed off rounded values would wobble as portions change.
+  // The score is a property of the food; the flags are a property of the portion.
+  const compass = useCompassScore(identifiedFood, { passcode });
+  const compassRef = useRef(compass);
+  compassRef.current = compass;
+
   const flags = useMemo<FoodFlag[]>(
     () => computeFoodFlags(scaledFood, lens, { medications: state.medications, readings: state.readings }, language),
     [scaledFood, lens, state.medications, state.readings, language]
@@ -71,10 +84,14 @@ export default function FoodPage() {
   stateRef.current = state;
 
   const getContext = useCallback((): LiveSessionContext => {
+    const current = compassRef.current;
     return {
       frameDataUrl: camera.grabFrame(),
       identifiedFood: foodRef.current,
-      flagTexts: flagsRef.current.map((flag) => flag.text)
+      flagTexts: flagsRef.current.map((flag) => flag.text),
+      compass: current.carveOut
+        ? { kind: "carve_out", reason: current.carveOut }
+        : toCompassContext(current.score, current.alternatives)
     };
   }, [camera]);
 
@@ -233,12 +250,14 @@ export default function FoodPage() {
   const canLog = scaledFood !== null || lastAssistantRef.current !== null;
 
   const onLog = useCallback(() => {
+    const scored = compassRef.current.score;
     const entry = buildMealLogEntry({
       patientId: stateRef.current.patient.id,
       food: foodRef.current,
       flags: flagsRef.current,
       lastAssistantText: lastAssistantRef.current,
-      language
+      language,
+      compassScore: scored ? { fcs: scored.fcs, band: scored.band, tier: scored.tier } : null
     });
     const parsed = mealLogEntrySchema.safeParse(entry);
     if (!parsed.success) {
@@ -298,6 +317,9 @@ export default function FoodPage() {
 
         {scaledFood || flags.length > 0 ? (
           <FoodFactsCard
+            compassAlternatives={compass.alternatives}
+            compassCarveOut={compass.carveOut}
+            compassScore={compass.score}
             food={scaledFood}
             flags={flags}
             logged={logged}

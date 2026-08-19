@@ -67,3 +67,44 @@ describe("buildPerAskContext", () => {
     expect(context).toContain("- none");
   });
 });
+
+describe("buildPerAskContext — Food Compass block", () => {
+  it("hands the model the score, the density and the alternatives as facts", () => {
+    const context = buildPerAskContext(null, [], {
+      kind: "score",
+      fcs: 83,
+      band: "encourage",
+      tier: "T1",
+      calorieDensityKcalPer100g: 89,
+      alternatives: [{ description: "Raspberries, raw", fcs: 100 }]
+    });
+    expect(context).toContain("83 out of 100");
+    expect(context).toContain("encourage");
+    expect(context).toContain("89 kcal per 100 g");
+    expect(context).toContain("Raspberries, raw (100)");
+    // The non-negotiable line every numeric context in this app closes with.
+    expect(context).toContain("Use the numbers above exactly; do not recompute them.");
+  });
+
+  it("marks a label-derived score as estimated so the model does not present it as published", () => {
+    const context = buildPerAskContext(null, [], {
+      kind: "score",
+      fcs: 19,
+      band: "minimize",
+      tier: "T2",
+      calorieDensityKcalPer100g: null,
+      alternatives: []
+    });
+    expect(context).toContain("estimated from the label");
+  });
+
+  it("tells the model to give no number at all for a carved-out food", () => {
+    const context = buildPerAskContext(null, [], { kind: "carve_out", reason: "zero_calorie" });
+    expect(context).toContain("outside the score's range");
+    expect(context).toContain("do not give it a number");
+  });
+
+  it("says nothing about the compass when there is no score", () => {
+    expect(buildPerAskContext(null, [])).not.toContain("Food Compass");
+  });
+});

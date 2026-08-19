@@ -71,6 +71,35 @@ assertBudget("Ladder first-load JavaScript (gzip sum)", firstLoad.gzip, budgets.
 assertBudget("Ladder route-only JavaScript (gzip sum)", routeOnly.gzip, budgets.routeOnlyGzip);
 assertBudget("Ladder page entry (raw)", pageEntryRaw, budgets.pageEntryRaw);
 
+// --- spec 23: the Food Compass lookup assets are ~5 MB and must never reach a client ---
+// A budget on the two routes that render scores is the enforcement: if src/data/food-compass
+// is ever imported from a client component, these numbers move by megabytes, not kilobytes.
+const compassBudgets = {
+  // measured 272.0 KiB gzip after spec 23; headroom for normal growth, and orders of
+  // magnitude below the ~1.6 MB a leaked fcs2-foods.json would add
+  "/food/page": 285 * kib
+};
+
+const compassReport = [];
+for (const [route, budget] of Object.entries(compassBudgets)) {
+  const files = javascriptFiles(route);
+  const totals = byteTotals(files);
+  assertBudget(`${route} first-load JavaScript (gzip sum)`, totals.gzip, budget);
+  compassReport.push(`${route} ${(totals.gzip / kib).toFixed(1)} KiB gzip`);
+
+  // A data asset would land as a huge single chunk; catch it directly as well.
+  for (const file of files) {
+    const size = statSync(resolve(nextRoot, file)).size;
+    if (size > 900 * kib) {
+      throw new Error(
+        `${route} pulls ${file} at ${(size / kib).toFixed(0)} KiB raw — a Food Compass data asset has leaked into the client bundle.`
+      );
+    }
+  }
+}
+
+console.log(`Food Compass route budgets passed: ${compassReport.join(", ")}`);
+
 console.log(
   [
     `Ladder bundle budget passed:`,

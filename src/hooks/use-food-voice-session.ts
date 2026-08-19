@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { OpenAiVisionProvider } from "@/ai/vision-provider";
 import { MockHealthAiProvider } from "@/ai/mock-provider";
 import { openLocalCoachSession } from "@/ai/local-coach-session";
-import { buildFoodLensInstructions } from "@/ai/food-instructions";
+import { buildCompassContext, buildFoodLensInstructions } from "@/ai/food-instructions";
 import { connectRealtimeSession } from "@/ai/realtime-session";
 import { evaluateVoiceTranscript } from "@/ai/voice-gate";
 import { activeConditions, selectLenses } from "@/domain/condition-lens";
@@ -181,9 +181,14 @@ export function useFoodVoiceSession(args: {
         }
         const foodJson = includeFood ? JSON.stringify(context.identifiedFood) : '{"foodData":"unchanged"}';
         const flags = context.flagTexts.length > 0 ? context.flagTexts.join("; ") : "none";
+        const compass = buildCompassContext(context.compass ?? null);
         return {
           imageDataUrl: context.frameDataUrl,
-          text: `[camera context — not spoken by the patient] Food data: ${foodJson}. Precomputed flags: ${flags}.`
+          text: [
+            `[camera context — not spoken by the patient] Food data: ${foodJson}. Precomputed flags: ${flags}.`,
+            ...(compass ? [compass] : []),
+            "Use the numbers above exactly; do not recompute them."
+          ].join(" ")
         };
       };
       try {

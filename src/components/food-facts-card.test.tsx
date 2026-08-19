@@ -117,3 +117,58 @@ describe("FoodFactsCard", () => {
     expect(screen.getByText("120")).toBeInTheDocument();
   });
 });
+
+describe("FoodFactsCard — Food Compass row", () => {
+  const score = {
+    fcs: 19,
+    band: "minimize" as const,
+    tier: "T2" as const,
+    ambiguous: false,
+    range: null,
+    calorieDensity: { kcalPer100g: 480, band: "high" as const },
+    domains: [{ key: "D3" as const, value: -5 }],
+    coverage: { included: ["D3" as const], missing: ["D2" as const, "D4" as const] }
+  };
+
+  it("shows the score, the band, the estimate badge and what the label could not cover", () => {
+    render(
+      <FoodFactsCard
+        canLog
+        compassAlternatives={[]}
+        compassScore={score}
+        flags={[]}
+        food={soup}
+        language="en"
+        logged={false}
+        onLog={() => {}}
+        onPortionChange={() => {}}
+        portionServings={1}
+      />
+    );
+
+    expect(screen.getByText("19")).toBeInTheDocument();
+    expect(screen.getByText("Minimize")).toBeInTheDocument();
+    expect(screen.getByText("Estimate from label")).toBeInTheDocument();
+    expect(screen.getByText(/Not scored from this label: D2, D4/)).toBeInTheDocument();
+    expect(screen.getByText(/Already one of the best choices/)).toBeInTheDocument();
+  });
+
+  it("shows carve-out copy and no number at all for a food outside the score's range", () => {
+    render(
+      <FoodFactsCard
+        canLog
+        compassCarveOut="zero_calorie"
+        flags={[]}
+        food={soup}
+        language="en"
+        logged={false}
+        onLog={() => {}}
+        onPortionChange={() => {}}
+        portionServings={1}
+      />
+    );
+
+    expect(screen.getByText(/Water is the best choice there is/)).toBeInTheDocument();
+    expect(screen.queryByText("Food Compass score")).not.toBeInTheDocument();
+  });
+});

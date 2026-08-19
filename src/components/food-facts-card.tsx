@@ -4,6 +4,8 @@ import React from "react";
 import { t, type FoodLensStringKey, type Language } from "@/i18n/strings";
 import type { FoodFlag, FoodFlagSeverity } from "@/domain/food-flags";
 import type { IdentifiedFood, NutritionFacts } from "@/domain/types";
+import type { CompassAlternative, CompassScore, NotScoreableReason } from "@/domain/food-compass";
+import { CompassAlternatives, CompassCarveOut, CompassScoreRow } from "./compass-score";
 
 const severityClass: Record<FoodFlagSeverity, string> = {
   warning: "bg-pulse/10 text-pulse",
@@ -52,7 +54,10 @@ export function FoodFactsCard({
   onLog,
   language,
   portionServings,
-  onPortionChange
+  onPortionChange,
+  compassScore = null,
+  compassCarveOut = null,
+  compassAlternatives = []
 }: {
   food: IdentifiedFood | null;
   flags: FoodFlag[];
@@ -62,6 +67,9 @@ export function FoodFactsCard({
   language: Language;
   portionServings: number;
   onPortionChange: (servings: number) => void;
+  compassScore?: CompassScore | null;
+  compassCarveOut?: NotScoreableReason | null;
+  compassAlternatives?: CompassAlternative[];
 }) {
   const title = food ? (food.brand ? `${food.brand} ${food.name}` : food.name) : t(language, "unknownFood");
   const portionLabel = formatServingCount(portionServings);
@@ -121,6 +129,26 @@ export function FoodFactsCard({
               ))}
             </dl>
           ) : null}
+        </div>
+      ) : null}
+
+      {compassCarveOut ? (
+        <div className="mt-3">
+          <CompassCarveOut language={language} reason={compassCarveOut} />
+        </div>
+      ) : null}
+
+      {compassScore ? (
+        <div className="mt-3 grid gap-2">
+          <CompassScoreRow language={language} score={compassScore} />
+          <details className="rounded-control border border-ink/10 bg-white p-3">
+            <summary className="cursor-pointer text-sm font-semibold text-care">
+              {t(language, "compassBetterOptions")}
+            </summary>
+            <div className="mt-2">
+              <CompassAlternatives alternatives={compassAlternatives} language={language} />
+            </div>
+          </details>
         </div>
       ) : null}
 

@@ -1,3 +1,4 @@
+import type { CompassContext } from "@/domain/compass-context";
 import type { AiMessageAction, AiMode, AppState, IdentifiedFood, PantryRecipe, SafetyLevel } from "@/domain/types";
 import type { RealtimeVoiceMetricsReport } from "./realtime-voice-metrics";
 
@@ -7,6 +8,7 @@ export type HealthAiRequest = {
   state: AppState;
   image?: string;
   identifiedFood?: IdentifiedFood;
+  compass?: CompassContext | null;
 };
 
 export type HealthAiResponse = {
@@ -49,6 +51,7 @@ export type LiveSessionContext = {
   frameDataUrl: string | null;
   identifiedFood: IdentifiedFood | null;
   flagTexts: string[];
+  compass?: CompassContext | null;
 };
 
 export type LiveSessionInit = {

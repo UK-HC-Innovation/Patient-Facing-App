@@ -57,7 +57,32 @@ export type FoodLensStringKey =
   | "pantryWatchLabel"
   | "pantryUnavailable"
   | "pantryNoFood"
-  | "pantryLocked";
+  | "pantryLocked"
+  | "compassScoreLabel"
+  | "compassBandEncourage"
+  | "compassBandModerate"
+  | "compassBandMinimize"
+  | "compassEstimateBadge"
+  | "compassEstimateNote"
+  | "compassCalorieDensity"
+  | "compassDensityVeryLow"
+  | "compassDensityLow"
+  | "compassDensityMedium"
+  | "compassDensityHigh"
+  | "compassDensityUnknown"
+  | "compassBetterOptions"
+  | "compassAlreadyBest"
+  | "compassRecipeLink"
+  | "compassCarveOutZeroCalorie"
+  | "compassCarveOutBelow5"
+  | "compassCarveOutAlcohol"
+  | "compassCarveOutInfant"
+  | "compassCarveOutSpecialized"
+  | "compassAmbiguous"
+  | "compassPointAtFood"
+  | "compassScoring"
+  | "compassMissingDomains"
+  | "compassOutOf100";
 
 export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>> = {
   en: {
@@ -117,7 +142,32 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     pantryWatchLabel: "Heads up",
     pantryUnavailable: "I need the live camera model to read your pantry. Once it's set up, point the camera at your open pantry or fridge and tap Find recipes.",
     pantryNoFood: "I couldn't spot foods to build a recipe from. Try pointing the camera at your open pantry or fridge so I can see the items.",
-    pantryLocked: "This demo needs its access code before it can read your pantry."
+    pantryLocked: "This demo needs its access code before it can read your pantry.",
+    compassScoreLabel: "Food Compass score",
+    compassBandEncourage: "Encourage",
+    compassBandModerate: "Moderate",
+    compassBandMinimize: "Minimize",
+    compassEstimateBadge: "Estimate from label",
+    compassEstimateNote: "Scored from the Nutrition Facts panel alone, so it is typically within about {mae} points and reads low: vitamins, food groups and phytochemicals are not printed on a label.",
+    compassCalorieDensity: "Calorie density",
+    compassDensityVeryLow: "Very low",
+    compassDensityLow: "Low",
+    compassDensityMedium: "Medium",
+    compassDensityHigh: "High",
+    compassDensityUnknown: "Serving weight unknown",
+    compassBetterOptions: "Better options",
+    compassAlreadyBest: "Already one of the best choices in its group.",
+    compassRecipeLink: "Recipe ideas",
+    compassCarveOutZeroCalorie: "Water is the best choice there is - it's outside this score's range.",
+    compassCarveOutBelow5: "Under 5 calories per 100 g, so this sits outside the score's range.",
+    compassCarveOutAlcohol: "Alcohol is outside this score's range.",
+    compassCarveOutInfant: "Infant and baby foods are outside this score's range.",
+    compassCarveOutSpecialized: "Specialized dietary foods are outside this score's range.",
+    compassAmbiguous: "Published twice with different scores ({low} and {high}) - treat it as a range.",
+    compassPointAtFood: "Point at a food",
+    compassScoring: "Scoring...",
+    compassMissingDomains: "Not scored from this label: {domains}",
+    compassOutOf100: "out of 100"
   },
   es: {
     pageTitle: "Lente de Comida",
@@ -176,7 +226,32 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     pantryWatchLabel: "Ojo",
     pantryUnavailable: "Necesito el modelo de cámara en vivo para leer tu despensa. Cuando esté configurado, apunta la cámara a tu despensa o refrigerador abierto y toca Buscar recetas.",
     pantryNoFood: "No pude ver alimentos para armar una receta. Intenta apuntar la cámara a tu despensa o refrigerador abierto para que vea los productos.",
-    pantryLocked: "Esta demostración necesita su código de acceso antes de leer tu despensa."
+    pantryLocked: "Esta demostración necesita su código de acceso antes de leer tu despensa.",
+    compassScoreLabel: "Puntaje Food Compass",
+    compassBandEncourage: "Recomendado",
+    compassBandModerate: "Moderado",
+    compassBandMinimize: "Limitar",
+    compassEstimateBadge: "Estimado por la etiqueta",
+    compassEstimateNote: "Calculado solo con la tabla nutricional, asi que suele estar a unos {mae} puntos y queda bajo: las vitaminas, los grupos de alimentos y los fitoquimicos no aparecen en la etiqueta.",
+    compassCalorieDensity: "Densidad calorica",
+    compassDensityVeryLow: "Muy baja",
+    compassDensityLow: "Baja",
+    compassDensityMedium: "Media",
+    compassDensityHigh: "Alta",
+    compassDensityUnknown: "Peso de la porcion desconocido",
+    compassBetterOptions: "Mejores opciones",
+    compassAlreadyBest: "Ya es una de las mejores opciones de su grupo.",
+    compassRecipeLink: "Ideas de recetas",
+    compassCarveOutZeroCalorie: "El agua es la mejor opcion que existe: queda fuera del rango de este puntaje.",
+    compassCarveOutBelow5: "Menos de 5 calorias por 100 g, asi que queda fuera del rango del puntaje.",
+    compassCarveOutAlcohol: "El alcohol queda fuera del rango de este puntaje.",
+    compassCarveOutInfant: "Las formulas y papillas infantiles quedan fuera del rango de este puntaje.",
+    compassCarveOutSpecialized: "Los alimentos dieteticos especializados quedan fuera del rango de este puntaje.",
+    compassAmbiguous: "Publicado dos veces con puntajes distintos ({low} y {high}): tomalo como un rango.",
+    compassPointAtFood: "Apunta a una comida",
+    compassScoring: "Calculando...",
+    compassMissingDomains: "No se calculo con esta etiqueta: {domains}",
+    compassOutOf100: "de 100"
   }
 };
 

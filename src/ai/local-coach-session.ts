@@ -45,6 +45,7 @@ export async function openLocalCoachSession(
           patientInput: text,
           state: init.getState(),
           identifiedFood: context.identifiedFood ?? undefined,
+          compass: context.compass ?? null,
           image: context.frameDataUrl ?? undefined
         },
         provider

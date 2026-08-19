@@ -232,6 +232,12 @@ export type MealLogEntry = {
   food: IdentifiedFood;
   flags: string[];
   assistantSummary: string;
+  // Added by spec 23. Optional and migration-safe: absent on every entry logged before it.
+  compassScore?: {
+    fcs: number;
+    band: "encourage" | "moderate" | "minimize";
+    tier: "T1" | "T2";
+  };
 };
 
 // A condition-tailored recipe suggested from what the camera sees in the pantry.

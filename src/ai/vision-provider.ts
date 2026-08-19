@@ -60,7 +60,7 @@ export class OpenAiVisionProvider implements HealthAiProvider {
           passcode: this.passcode,
           question: request.patientInput,
           system: buildFoodVisionSystemPrompt(state, lens),
-          foodContext: buildPerAskContext(request.identifiedFood ?? null, flags),
+          foodContext: buildPerAskContext(request.identifiedFood ?? null, flags, request.compass ?? null),
           image: request.image ?? null
         })
       });

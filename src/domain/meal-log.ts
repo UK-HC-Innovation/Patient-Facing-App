@@ -1,6 +1,7 @@
 import { t, type Language } from "@/i18n/strings";
 import type { FoodFlag } from "./food-flags";
 import type { IdentifiedFood, MealLogEntry } from "./types";
+import type { CompassBand, CompassTier } from "./food-compass";
 
 const SUMMARY_MAX = 240;
 
@@ -26,6 +27,7 @@ export function buildMealLogEntry(args: {
   language: Language;
   now?: Date;
   id?: string;
+  compassScore?: { fcs: number; band: CompassBand; tier: CompassTier } | null;
 }): MealLogEntry {
   const id = args.id ?? crypto.randomUUID();
   const food: IdentifiedFood = args.food ?? {
@@ -45,6 +47,9 @@ export function buildMealLogEntry(args: {
     loggedAt: (args.now ?? new Date()).toISOString(),
     food,
     flags: args.flags.map((flag) => flag.text),
-    assistantSummary: summarize(args.lastAssistantText)
+    assistantSummary: summarize(args.lastAssistantText),
+    // Optional by design: an entry logged without a score simply has no compassScore key,
+    // which is what keeps every meal logged before spec 23 valid.
+    ...(args.compassScore ? { compassScore: args.compassScore } : {})
   };
 }

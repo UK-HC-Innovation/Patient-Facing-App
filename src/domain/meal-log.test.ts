@@ -65,3 +65,30 @@ describe("buildMealLogEntry", () => {
     expect(entry.assistantSummary.endsWith("…")).toBe(true);
   });
 });
+
+describe("buildMealLogEntry — Food Compass score", () => {
+  it("carries the score when one was computed", () => {
+    const entry = buildMealLogEntry({
+      patientId: "patient-1",
+      food: null,
+      flags: [],
+      lastAssistantText: null,
+      language: "en",
+      compassScore: { fcs: 19, band: "minimize", tier: "T2" }
+    });
+    expect(entry.compassScore).toEqual({ fcs: 19, band: "minimize", tier: "T2" });
+    expect(mealLogEntrySchema.safeParse(entry).success).toBe(true);
+  });
+
+  it("omits the key entirely when there is no score, so older entries stay valid", () => {
+    const entry = buildMealLogEntry({
+      patientId: "patient-1",
+      food: null,
+      flags: [],
+      lastAssistantText: null,
+      language: "en"
+    });
+    expect("compassScore" in entry).toBe(false);
+    expect(mealLogEntrySchema.safeParse(entry).success).toBe(true);
+  });
+});

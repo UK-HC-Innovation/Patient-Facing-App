@@ -41,8 +41,23 @@ test("scans a food, asks a typed question, logs the meal, and persists it", asyn
   await expect(page.getByText(/Chicken Noodle Soup/).first()).toBeVisible();
   await expect(page.getByText(/890/).first()).toBeVisible();
 
+  // spec 23: the Food Compass score sits above the flag chips, badged as a label estimate.
+  await expect(page.getByText("Food Compass score")).toBeVisible();
+  await expect(page.getByText("Estimate from label")).toBeVisible();
+  await expect(page.getByText("Better options")).toBeVisible();
+
   await page.getByRole("button", { name: "Log this" }).click();
   await expect(page.getByText("Added to your meals")).toBeVisible();
+
+  // and the logged entry carries it, so a clinician-facing view can read it back
+  const logged = await page.evaluate(() => {
+    const raw = window.localStorage.getItem("home-health-ai-ownership-state");
+    const parsed = raw ? (JSON.parse(raw) as { mealLog?: Array<Record<string, unknown>> }) : null;
+    return parsed?.mealLog?.[0]?.compassScore ?? null;
+  });
+  expect(logged).toMatchObject({ tier: "T2" });
+  expect(["encourage", "moderate", "minimize"]).toContain((logged as { band: string }).band);
+  expect(typeof (logged as { fcs: number }).fcs).toBe("number");
 
   await expect(page.getByRole("listitem").filter({ hasText: "Campbell's Condensed Chicken Noodle Soup" })).toBeVisible();
 

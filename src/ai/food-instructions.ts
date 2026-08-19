@@ -1,4 +1,5 @@
 import { activeMedDietRules, type FoodFlag } from "@/domain/food-flags";
+import type { CompassContext } from "@/domain/compass-context";
 import { activeConditions, type ConditionLens } from "@/domain/condition-lens";
 import type { AppState, HomeReading, IdentifiedFood } from "@/domain/types";
 
@@ -76,7 +77,7 @@ export function buildFoodLensInstructions(state: AppState, lens: ConditionLens):
 // verifier. Each shape below trips a verifier rule — command-shaped medication
 // advice, diagnosis-shaped statements, or an unverifiable BP/A1C number — so the
 // model is steered away from them while the substance of the advice stays identical.
-const GROUNDING_SAFE_PHRASING = [
+export const GROUNDING_SAFE_PHRASING = [
   'Give advice as gentle suggestions, never commands. Never begin advice with "You should stop / start / change / lower / raise / increase / decrease". Instead say things like "a lower-sodium version would be a better pick", "try a smaller portion", or "going easy on the salt helps here".',
   'Never tell the patient they "have" a condition. Refer to their care plan instead — say "for your blood-pressure plan" or "since lower sodium matters for you", not "you have high blood pressure" or "because you have hypertension".',
   "Never state a specific blood-pressure, A1C, or blood-sugar number — talk about the food."
@@ -107,7 +108,38 @@ export function buildPantryPrompt(state: AppState, lens: ConditionLens): string 
   ].join("\n\n");
 }
 
-export function buildPerAskContext(food: IdentifiedFood | null, flags: FoodFlag[]): string {
+// The Food Compass block handed to the model. It is a fact sheet, never a request to
+// compute: the score comes from the published table or the deterministic engine, and the
+// closing line is the same instruction every other numeric context in this app carries.
+export function buildCompassContext(compass: CompassContext | null): string | null {
+  if (!compass) {
+    return null;
+  }
+  if (compass.kind === "carve_out") {
+    return `Food Compass: this food is outside the score's range (${compass.reason}). Say so plainly and do not give it a number.`;
+  }
+
+  const lines = [
+    `Food Compass score: ${compass.fcs} out of 100 (${compass.band}${compass.tier === "T2" ? ", estimated from the label" : ""}).`
+  ];
+  if (compass.calorieDensityKcalPer100g !== null) {
+    lines.push(`Calorie density: ${compass.calorieDensityKcalPer100g} kcal per 100 g.`);
+  }
+  if (compass.alternatives.length > 0) {
+    lines.push(
+      `Better options in the same food group: ${compass.alternatives
+        .map((alternative) => `${alternative.description} (${alternative.fcs})`)
+        .join("; ")}.`
+    );
+  }
+  return lines.join("\n");
+}
+
+export function buildPerAskContext(
+  food: IdentifiedFood | null,
+  flags: FoodFlag[],
+  compass: CompassContext | null = null
+): string {
   const foodData = food
     ? JSON.stringify({
         name: food.name,
@@ -119,9 +151,11 @@ export function buildPerAskContext(food: IdentifiedFood | null, flags: FoodFlag[
     : JSON.stringify({ foodData: "none" });
 
   const flagLines = flags.length > 0 ? flags.map((flag) => `- ${flag.text}`).join("\n") : "- none";
+  const compassBlock = buildCompassContext(compass);
 
   return [
     `Food data: ${foodData}`,
+    ...(compassBlock ? [compassBlock] : []),
     `Precomputed flags:\n${flagLines}`,
     "Weave at most the top two flags into a natural spoken answer. Use the numbers above exactly; do not recompute them."
   ].join("\n");
