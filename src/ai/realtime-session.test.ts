@@ -1,9 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   REALTIME_SESSION_CONFIG,
   applyTranscriptGate,
+  contextResponsePayloads,
   createTranscriptGateLatch,
-  reduceRealtimeEvent
+  reduceRealtimeEvent,
+  waitForTranscriptPreparation
 } from "./realtime-session";
 import type { LiveSessionEvent } from "./types";
 import type { VoiceGateDecision } from "./voice-gate";
@@ -73,6 +75,50 @@ describe("REALTIME_SESSION_CONFIG", () => {
   it("pins server VAD auto-response OFF so classify-before-respond is possible", () => {
     expect(REALTIME_SESSION_CONFIG.audio.input.turn_detection.create_response).toBe(false);
     expect(REALTIME_SESSION_CONFIG.audio.input.turn_detection.type).toBe("server_vad");
+  });
+});
+
+describe("contextResponsePayloads", () => {
+  it("injects camera context before requesting the proactive assistant response", () => {
+    expect(
+      contextResponsePayloads({ text: "[camera context] Banana, raw · score 83", imageDataUrl: "data:image/jpeg;base64,abc" })
+    ).toEqual([
+      {
+        type: "conversation.item.create",
+        item: {
+          type: "message",
+          role: "user",
+          content: [
+            { type: "input_image", image_url: "data:image/jpeg;base64,abc" },
+            { type: "input_text", text: "[camera context] Banana, raw · score 83" }
+          ]
+        }
+      },
+      { type: "response.create" }
+    ]);
+  });
+
+  it("does not ask the assistant to speak without camera context", () => {
+    expect(contextResponsePayloads(null)).toEqual([]);
+  });
+});
+
+describe("waitForTranscriptPreparation", () => {
+  it("lets a completed deterministic refinement proceed", async () => {
+    const prepare = vi.fn().mockResolvedValue(undefined);
+    await expect(waitForTranscriptPreparation(prepare, "pepperoni", 100)).resolves.toBe("ready");
+    expect(prepare).toHaveBeenCalledWith("pepperoni");
+  });
+
+  it("bounds a hung refinement so the voice turn can recover", async () => {
+    vi.useFakeTimers();
+    try {
+      const result = waitForTranscriptPreparation(() => new Promise<void>(() => undefined), "Papa John's", 100);
+      await vi.advanceTimersByTimeAsync(100);
+      await expect(result).resolves.toBe("unavailable");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -26,6 +26,30 @@ export const REALTIME_SESSION_CONFIG = {
 // A final transcript that never arrives must fail closed: after this window with
 // no transcription.completed we never create a response for that turn.
 const TRANSCRIPT_FAIL_CLOSED_MS = 4000;
+const TRANSCRIPT_PREPARATION_TIMEOUT_MS = 5000;
+
+export async function waitForTranscriptPreparation(
+  prepare: (transcript: string) => Promise<void>,
+  transcript: string,
+  timeoutMs = TRANSCRIPT_PREPARATION_TIMEOUT_MS
+): Promise<"ready" | "unavailable"> {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  try {
+    await Promise.race([
+      prepare(transcript),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error("transcript_preparation_timeout")), timeoutMs);
+      })
+    ]);
+    return "ready";
+  } catch {
+    return "unavailable";
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+  }
+}
 
 // Turns a gate decision into realtime control messages. On pass we create the
 // response; on intercept we cancel any in-flight response, clear buffered output
@@ -160,8 +184,29 @@ export type ConnectArgs = {
   buildContextMessage: () => { text: string; imageDataUrl?: string | null } | null;
   onEvent: (event: LiveSessionEvent) => void;
   gateTranscript: (transcript: string) => VoiceGateDecision;
+  /**
+   * Optional deterministic work that must finish before a safe patient turn can
+   * receive a response. Compass uses this to resolve spoken restaurant/topping
+   * details and refresh the injected score context before the assistant talks.
+   */
+  beforeRespondToTranscript?: (transcript: string) => Promise<void>;
   tools?: RealtimeTool[];
 };
+
+export function contextResponsePayloads(
+  context: { text: string; imageDataUrl?: string | null } | null
+): Array<Record<string, unknown>> {
+  if (!context) return [];
+  const content: Array<Record<string, unknown>> = [];
+  if (context.imageDataUrl) {
+    content.push({ type: "input_image", image_url: context.imageDataUrl });
+  }
+  content.push({ type: "input_text", text: context.text });
+  return [
+    { type: "conversation.item.create", item: { type: "message", role: "user", content } },
+    { type: "response.create" }
+  ];
+}
 
 /**
  * Runs one tool call and returns the two realtime events that answer it: the output item
@@ -212,6 +257,8 @@ const REALTIME_CALLS_URL = "https://api.openai.com/v1/realtime/calls";
 export async function connectRealtimeSession(args: ConnectArgs): Promise<LiveSessionHandle> {
   let status: LiveSessionStatus = "connecting";
   let closed = false;
+  let sessionConfigured = false;
+  let contextResponsePending = false;
   const metrics = createRealtimeVoiceMetricsRecorder();
   let failClosedTimer: ReturnType<typeof setTimeout> | null = null;
   let outputIntercepted = false;
@@ -283,14 +330,19 @@ export async function connectRealtimeSession(args: ConnectArgs): Promise<LiveSes
   });
 
   const injectContext = () => {
-    const context = args.buildContextMessage();
-    if (!context) return;
-    const content: Array<Record<string, unknown>> = [];
-    if (context.imageDataUrl) {
-      content.push({ type: "input_image", image_url: context.imageDataUrl });
+    const [contextItem] = contextResponsePayloads(args.buildContextMessage());
+    if (contextItem) send(contextItem);
+  };
+
+  const flushContextResponse = () => {
+    if (closed || transcriptGate.isLatched() || !sessionConfigured || !contextResponsePending) {
+      return;
     }
-    content.push({ type: "input_text", text: context.text });
-    send({ type: "conversation.item.create", item: { type: "message", role: "user", content } });
+    contextResponsePending = false;
+    // This is the assistant's proactive camera turn. Context is injected first and
+    // clearly marked as not spoken by the patient; actual patient speech still cannot
+    // create a response until its final transcript clears the safety gate below.
+    contextResponsePayloads(args.buildContextMessage()).forEach(send);
   };
 
   channel.onmessage = (message) => {
@@ -305,6 +357,9 @@ export async function connectRealtimeSession(args: ConnectArgs): Promise<LiveSes
       return;
     }
     if (transcriptGate.isLatched()) return;
+    if (event.type === "session.updated") {
+      sessionConfigured = true;
+    }
     if (event.type === "response.created") {
       outputGuard.reset();
       outputIntercepted = false;
@@ -325,6 +380,9 @@ export async function connectRealtimeSession(args: ConnectArgs): Promise<LiveSes
     if (reduction.actions.includes("injectContext")) {
       injectContext();
     }
+    if (event.type === "session.updated") {
+      flushContextResponse();
+    }
 
     if (event.type === "input_audio_buffer.speech_stopped") {
       // Arm the fail-closed watchdog: if no final transcript lands, this turn
@@ -342,7 +400,36 @@ export async function connectRealtimeSession(args: ConnectArgs): Promise<LiveSes
       clearFailClosedTimer();
       const transcript = str(event.transcript);
       if (transcript.trim().length > 0) {
-        transcriptGate.apply(args.gateTranscript(transcript));
+        const decision = args.gateTranscript(transcript);
+        if (decision.kind === "intercept") {
+          // Safety decisions are synchronous and always win. Never wait on a
+          // lookup before stopping an intercepted turn.
+          transcriptGate.apply(decision);
+        } else if (!args.beforeRespondToTranscript) {
+          // Preserve the existing /food path: speech_started already injected
+          // its context, so an ordinary safe turn can respond immediately.
+          transcriptGate.apply(decision);
+        } else {
+          const beforeRespondToTranscript = args.beforeRespondToTranscript;
+          void (async () => {
+            const preparation = await waitForTranscriptPreparation(beforeRespondToTranscript, transcript);
+            if (preparation === "unavailable" && !closed && !transcriptGate.isLatched()) {
+              args.onEvent({
+                type: "error",
+                message: "I couldn't update those food details in time. I'm using the last camera result.",
+                fatal: false
+              });
+            }
+            if (closed || transcriptGate.isLatched()) {
+              return;
+            }
+            // speech_started injected the camera context available at that
+            // moment. Inject it again after deterministic refinement so the
+            // response is based on the newly resolved food, not stale pizza.
+            injectContext();
+            transcriptGate.apply(decision);
+          })();
+        }
       }
     }
     if (event.type === "response.function_call_arguments.done" && (args.tools ?? []).length > 0) {
@@ -412,6 +499,11 @@ export async function connectRealtimeSession(args: ConnectArgs): Promise<LiveSes
       send({ type: "conversation.item.create", item: { type: "message", role: "user", content: [{ type: "input_text", text }] } });
       // Typed live turns run the same gate as spoken turns before any answer.
       transcriptGate.apply(decision);
+    },
+    requestContextResponse: () => {
+      if (closed || transcriptGate.isLatched()) return;
+      contextResponsePending = true;
+      flushContextResponse();
     },
     updateInstructions: (instructions: string) => {
       if (closed || transcriptGate.isLatched()) return;

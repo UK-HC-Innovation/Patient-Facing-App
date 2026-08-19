@@ -16,39 +16,53 @@ import {
 } from "@/ai/compass-instructions";
 import { toCompassContext } from "@/domain/compass-context";
 import { blankCompassState } from "@/domain/fixtures";
-import { parseFoodOrderIntent } from "@/domain/food-order-intent";
+import {
+  foodOrderIntentToLookupText,
+  mergePizzaOrderRefinement,
+  parseFoodOrderIntent,
+  type FoodOrderIntent
+} from "@/domain/food-order-intent";
 import type { NotScoreableReason } from "@/domain/food-compass";
 import type { LiveSessionContext } from "@/ai/types";
+import { speak, stopSpeaking } from "@/voice/tts";
 import { COMPASS_PAGE_TITLE } from "./title";
 
-const ORDER_EXAMPLE = "I am ordering a pepperoni and sausage pizza from Papa John's";
-const TRY_CHIPS = [
-  { label: "Papa John's order", query: ORDER_EXAMPLE },
-  { label: "pizza", query: "pizza" },
-  { label: "Caesar salad", query: "Caesar salad" },
-  { label: "latte", query: "latte" }
-];
 const PROTOTYPE_STEPS = [
-  ["1", "Scan or describe"],
-  ["2", "Review the score"],
-  ["3", "Ask a question"]
+  ["1", "Point the camera"],
+  ["2", "Talk naturally"],
+  ["3", "Compare options"]
 ] as const;
 const LANGUAGE = "en" as const;
 
 type FoodCandidate = { code: string; description: string; fcs: number };
 type SortMode = "score" | "density";
 
-type TypedResult =
-  | { kind: "match"; match: LiveMatch; candidates: FoodCandidate[]; input: string }
+type ConversationResult =
+  | { kind: "match"; match: LiveMatch; candidates: FoodCandidate[]; input: string; cameraFoodCode: string | null }
   | { kind: "carve_out"; reason: NotScoreableReason }
   | { kind: "none" };
+
+type ConversationTurn = {
+  id: string;
+  role: "patient" | "assistant";
+  text: string;
+  scripted?: boolean;
+};
 
 function sentenceCase(value: string): string {
   return value.length > 0 ? `${value[0].toUpperCase()}${value.slice(1)}` : value;
 }
 
+function scriptedOpening(match: LiveMatch): string {
+  if (/\bpizza\b/i.test(match.food.description)) {
+    return `I see ${match.food.description}. Do you know which restaurant it came from and what toppings, crust, or size it has?`;
+  }
+  return `I see ${match.food.description}. Its published Food Compass score is ${match.score.fcs} out of 100. What would you like to know about it?`;
+}
+
 export default function CompassPage() {
   const camera = useFoodCamera();
+  const { grabFrame, start: startCamera, stop: stopCamera } = camera;
   const passcode = useMemo(
     () => (typeof window === "undefined" ? undefined : new URLSearchParams(window.location.search).get("k") ?? undefined),
     []
@@ -60,41 +74,48 @@ export default function CompassPage() {
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  const [query, setQuery] = useState(ORDER_EXAMPLE);
-  const [typed, setTyped] = useState<TypedResult | null>(null);
-  const [typedLoading, setTypedLoading] = useState(false);
+  const [refinement, setRefinement] = useState<ConversationResult | null>(null);
+  const [refinementLoading, setRefinementLoading] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>("score");
-  const [cameraExpanded, setCameraExpanded] = useState(true);
-  const [voiceExampleActive, setVoiceExampleActive] = useState(false);
-  const queryRef = useRef<HTMLTextAreaElement | null>(null);
-  const resultRef = useRef<HTMLDivElement | null>(null);
+  const [conversationTurns, setConversationTurns] = useState<ConversationTurn[]>([]);
+  const lastAutoConversationFoodRef = useRef<string | null>(null);
+  const shownRef = useRef<ConversationResult | null>(null);
+  const voiceResultRef = useRef<ConversationResult | null>(null);
+  const pizzaIntentRef = useRef<FoodOrderIntent | null>(null);
 
   const live = useLiveFoodScore({
     videoRef: camera.videoRef,
     grabFrame: camera.grabFrame,
-    cameraActive: camera.status === "active" && cameraExpanded && typed === null,
+    cameraActive: camera.status === "active",
     barcodeActive: false,
     passcode
   });
 
-  // A typed answer is an explicit request and outranks whatever the camera happens to see.
-  const shown = useMemo<TypedResult | null>(() => {
-    if (typed) {
-      return typed;
+  // A spoken refinement is explicit and outranks the raw camera match until the
+  // lens has held on a different food long enough to establish a new scene.
+  const shown = useMemo<ConversationResult | null>(() => {
+    if (refinement) {
+      return refinement;
     }
     if (live.match) {
-      return { kind: "match", match: live.match, candidates: [], input: "" };
+      return { kind: "match", match: live.match, candidates: [], input: "", cameraFoodCode: live.match.food.code };
     }
     return live.carveOut ? { kind: "carve_out", reason: live.carveOut } : null;
-  }, [typed, live.match, live.carveOut]);
+  }, [refinement, live.match, live.carveOut]);
+  shownRef.current = shown;
 
   const runQuery = useCallback(
-    async (text: string, requestedSort: SortMode = sortMode, foodId?: string) => {
+    async (
+      text: string,
+      requestedSort: SortMode = sortMode,
+      foodId?: string,
+      cameraFoodCode: string | null = live.match?.food.code ?? null
+    ) => {
       const trimmed = text.trim();
       if (trimmed.length === 0) {
-        return;
+        return null;
       }
-      setTypedLoading(true);
+      setRefinementLoading(true);
       try {
         const response = await fetch("/api/food/identify", {
           method: "POST",
@@ -113,25 +134,35 @@ export default function CompassPage() {
           match?: LiveMatch;
           candidates?: FoodCandidate[];
         };
+        let next: ConversationResult;
         if (json.mode === "carve_out" && json.reason) {
-          setTyped({ kind: "carve_out", reason: json.reason });
+          next = { kind: "carve_out", reason: json.reason };
         } else if (json.mode === "match" && json.match) {
-          setTyped({
+          next = {
             kind: "match",
             match: json.match,
             candidates: json.candidates ?? [],
-            input: trimmed
-          });
+            input: trimmed,
+            cameraFoodCode
+          };
         } else {
-          setTyped({ kind: "none" });
+          next = { kind: "none" };
         }
+        voiceResultRef.current = next;
+        shownRef.current = next;
+        setRefinement(next);
+        return next;
       } catch {
-        setTyped({ kind: "none" });
+        const next: ConversationResult = { kind: "none" };
+        voiceResultRef.current = next;
+        shownRef.current = next;
+        setRefinement(next);
+        return next;
       } finally {
-        setTypedLoading(false);
+        setRefinementLoading(false);
       }
     },
-    [passcode, sortMode]
+    [live.match?.food.code, passcode, sortMode]
   );
 
   // Re-run so the selected, mutually exclusive sort mode updates the visible alternatives.
@@ -142,57 +173,92 @@ export default function CompassPage() {
       }
       setSortMode(next);
       if (shown?.kind === "match") {
-        const input = typed?.kind === "match" ? typed.input : shown.match.food.description;
-        void runQuery(input, next, shown.match.food.code);
+        const input = refinement?.kind === "match" ? refinement.input : shown.match.food.description;
+        const cameraFoodCode =
+          refinement?.kind === "match" ? refinement.cameraFoodCode : live.match?.food.code ?? null;
+        void runQuery(input, next, shown.match.food.code, cameraFoodCode);
       }
     },
-    [runQuery, shown, sortMode, typed]
+    [live.match?.food.code, refinement, runQuery, shown, sortMode]
   );
 
   const handleVoiceTranscript = useCallback(
     (role: "patient" | "assistant", text: string) => {
-      if (role !== "patient" || !parseFoodOrderIntent(text)) {
+      setConversationTurns((turns) => [
+        ...turns.slice(-7),
+        { id: crypto.randomUUID(), role, text }
+      ]);
+    },
+    []
+  );
+
+  const prepareVoiceResponse = useCallback(
+    async (text: string) => {
+      const current = voiceResultRef.current ?? shownRef.current;
+      const currentFoodName = current?.kind === "match" ? current.match.food.description : "";
+      const hasPizzaContext = pizzaIntentRef.current !== null || /\bpizza\b/i.test(currentFoodName);
+      const parsed = parseFoodOrderIntent(text);
+      const intent = hasPizzaContext
+        ? mergePizzaOrderRefinement(text, pizzaIntentRef.current)
+        : parsed;
+      if (!intent) {
         return;
       }
-      setVoiceExampleActive(false);
-      setQuery(text);
-      setTyped(null);
-      void runQuery(text);
+      if (intent.item === "pizza") {
+        pizzaIntentRef.current = intent;
+      }
+      const cameraFoodCode = current?.kind === "match" ? current.cameraFoodCode : live.match?.food.code ?? null;
+      await runQuery(foodOrderIntentToLookupText(intent), sortMode, undefined, cameraFoodCode);
     },
-    [runQuery]
+    [live.match?.food.code, runQuery, sortMode]
   );
 
   const getContext = useCallback(
-    (): LiveSessionContext => ({
-      frameDataUrl: camera.grabFrame(),
-      identifiedFood: null,
-      flagTexts: [],
-      compass:
-        shown?.kind === "carve_out"
-          ? { kind: "carve_out", reason: shown.reason }
-          : shown?.kind === "match"
-            ? toCompassContext(shown.match.score, shown.match.alternatives)
-            : null
-    }),
-    [camera, shown]
+    (): LiveSessionContext => {
+      const current = voiceResultRef.current ?? shownRef.current;
+      return {
+        // Once conversational details override the raw camera match, avoid pairing
+        // a later frame with a restaurant-specific interpretation it may not depict.
+        frameDataUrl: voiceResultRef.current ? null : grabFrame(),
+        identifiedFood: null,
+        flagTexts: [],
+        compass:
+          current?.kind === "carve_out"
+            ? { kind: "carve_out", reason: current.reason }
+            : current?.kind === "match"
+              ? toCompassContext(current.match.score, current.match.alternatives)
+              : null
+      };
+    },
+    [grabFrame]
   );
+
+  const buildVoiceContext = useCallback((context: LiveSessionContext) => {
+    const current = voiceResultRef.current ?? shownRef.current;
+    return buildCompassVoiceContext(
+      context.compass ?? null,
+      current?.kind === "match" ? current.match.food.description : null,
+      current?.kind === "match" ? current.match.provenance : undefined
+    );
+  }, []);
 
   const voice = useFoodVoiceSession({
     language: LANGUAGE,
     getState: () => stateRef.current,
     getContext,
     onFinalTranscript: handleVoiceTranscript,
-    onSafetyIntercept: () => {},
+    beforePatientResponse: prepareVoiceResponse,
+    onSafetyIntercept: (intercept) => {
+      setConversationTurns((turns) => [
+        ...turns.slice(-7),
+        { id: crypto.randomUUID(), role: "assistant", text: intercept.content }
+      ]);
+    },
     // Without this the voice control below can never appear: it renders only when
     // mode === "live", and mode only leaves "unknown" inside start().
     probeOnMount: true,
     buildInstructions: () => buildCompassInstructions(),
-    buildContext: (context) =>
-      buildCompassVoiceContext(
-        context.compass ?? null,
-        shown?.kind === "match" ? shown.match.food.description : null,
-        shown?.kind === "match" ? shown.match.provenance : undefined
-      ),
+    buildContext: buildVoiceContext,
     tools: [
       {
         ...LOOKUP_FOOD_SCORE_TOOL,
@@ -201,74 +267,93 @@ export default function CompassPage() {
       }
     ]
   });
+  const {
+    mode: voiceMode,
+    requestContextResponse,
+    startWithContextResponse,
+    status: voiceStatus,
+    stop: stopVoice
+  } = voice;
 
-  // In mock or locked mode the on-device coach speaks in a patient-care-plan voice, which is
-  // wrong for this surface — so the voice button is hidden rather than mislabelled. Typed
-  // scoring and alternatives still work fully, which IS the no-passcode shareable demo.
-  const voiceAvailable = voice.mode === "live";
-  const voiceCanStart = voice.status === "idle" || voice.status === "closed" || voice.status === "error";
-  const handleVoiceAction = () => {
-    if (voiceCanStart) {
-      void voice.start();
-      return;
-    }
-    voice.stop();
-  };
+  // In mock or locked mode the patient-oriented local coach is not used on this public surface.
+  // A deterministic spoken opening still demonstrates the intended automatic handoff.
+  const voiceAvailable = voiceMode === "live";
+  const voiceCanStart = voiceStatus === "idle" || voiceStatus === "closed" || voiceStatus === "error";
   const correctionCandidates =
     shown?.kind === "match" && shown.match.interpretation
       ? shown.candidates.filter((candidate) => candidate.code !== shown.match.food.code).slice(0, 4)
       : [];
 
-  const resultKey = typed
-    ? typed.kind === "match"
-      ? `typed:${typed.input}:${typed.match.food.code}`
-      : `typed:${typed.kind}`
-    : live.match
-      ? `live:${live.match.food.code}`
-      : live.carveOut
-        ? `live:carve-out:${live.carveOut}`
-        : null;
-
-  const focusResult = useCallback(() => {
-    setCameraExpanded(false);
-    window.requestAnimationFrame(() => {
-      resultRef.current?.focus({ preventScroll: true });
-      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  }, []);
-
-  const focusQuery = useCallback(() => {
-    queryRef.current?.focus({ preventScroll: true });
-    queryRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, []);
-
-  const handleCompassPrompt = useCallback(() => {
-    if (shown?.kind === "none" || query.trim().length === 0) {
-      focusQuery();
-      return;
-    }
-    setVoiceExampleActive(false);
-    setTyped(null);
-    void runQuery(query);
-  }, [focusQuery, query, runQuery, shown?.kind]);
+  const liveFoodCode = live.match?.food.code ?? null;
 
   useEffect(() => {
-    if (!resultKey) {
+    if (!refinement || refinement.kind !== "match" || !refinement.cameraFoodCode || !liveFoodCode) {
       return;
     }
-    focusResult();
-  }, [focusResult, resultKey]);
+    if (refinement.cameraFoodCode === liveFoodCode) {
+      return;
+    }
+    // Require a different camera match to remain stable before returning control
+    // to the lens; a single vision wobble must not erase conversational details.
+    const timer = window.setTimeout(() => {
+      voiceResultRef.current = null;
+      pizzaIntentRef.current = null;
+      setRefinement(null);
+    }, 5_000);
+    return () => window.clearTimeout(timer);
+  }, [liveFoodCode, refinement]);
 
   useEffect(() => {
-    void camera.start();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const match = live.match;
+    if (!match || refinement || !liveFoodCode || voiceMode === "unknown") {
+      return;
+    }
+    if (lastAutoConversationFoodRef.current === liveFoodCode) {
+      return;
+    }
+
+    if (!voiceAvailable) {
+      const opening = scriptedOpening(match);
+      lastAutoConversationFoodRef.current = liveFoodCode;
+      setConversationTurns((turns) => [
+        ...turns.slice(-7),
+        { id: crypto.randomUUID(), role: "assistant", text: opening, scripted: true }
+      ]);
+      void speak(opening, { language: LANGUAGE });
+      return;
+    }
+
+    if (voiceStatus === "connecting" || voiceStatus === "thinking" || voiceStatus === "speaking") {
+      return;
+    }
+
+    lastAutoConversationFoodRef.current = liveFoodCode;
+    if (voiceStatus === "listening") {
+      requestContextResponse();
+    } else {
+      void startWithContextResponse();
+    }
+  }, [
+    live.match,
+    liveFoodCode,
+    refinement,
+    requestContextResponse,
+    startWithContextResponse,
+    voiceMode,
+    voiceStatus,
+    voiceAvailable
+  ]);
+
+  useEffect(() => {
+    void startCamera();
+  }, [startCamera]);
 
   useEffect(() => {
     const onHidden = () => {
       if (document.hidden) {
-        camera.stop();
-        voice.stop();
+        stopCamera();
+        stopVoice();
+        stopSpeaking();
       }
     };
     document.addEventListener("visibilitychange", onHidden);
@@ -277,15 +362,15 @@ export default function CompassPage() {
       document.removeEventListener("visibilitychange", onHidden);
       window.removeEventListener("pagehide", onHidden);
     };
-  }, [camera, voice]);
+  }, [stopCamera, stopVoice]);
 
   return (
     <main className="mx-auto grid max-w-2xl gap-4 p-4 [&>*]:min-w-0">
       <header className="grid gap-3">
         <h1 className="text-xl font-semibold">{COMPASS_PAGE_TITLE}</h1>
         <p className="text-sm text-ink/65">
-          Point the camera at a food, or describe what you are ordering. We match the details to a published Food
-          Compass 2.0 category without inventing a brand-specific score.
+          Point the camera at a food and Food Lens starts the conversation. Add restaurant, topping, crust, or size
+          details naturally while you talk; the demo never invents a brand-specific score.
         </p>
         <ol aria-label="Prototype flow" className="grid grid-cols-3 gap-2 text-xs font-semibold text-ink/70">
           {PROTOTYPE_STEPS.map(([step, label]) => (
@@ -299,66 +384,119 @@ export default function CompassPage() {
       </header>
 
       <section className="grid gap-2" aria-label="Food camera">
-        <div className={cameraExpanded ? "block" : "hidden"}>
-          <FoodViewfinder
-            cameraStatus={camera.status}
-            demoPreview
-            idleLabel={shown?.kind === "match" ? "Tap start to ask about this food." : "Tap start and describe your order."}
-            language={LANGUAGE}
-            onScoreTap={focusResult}
-            onVoiceStatusTap={voiceAvailable && voiceCanStart ? handleVoiceAction : undefined}
-            scanChip={shown?.kind === "match" ? shown.match.food.description : null}
-            scoreBadge={
-              !cameraExpanded
-                ? "hidden"
-                : shown?.kind === "match"
-                ? "score"
-                : shown?.kind === "carve_out"
-                  ? "carve_out"
-                  : live.badge
-            }
-            scoreBand={shown?.kind === "match" ? shown.match.score.band : undefined}
-            scoreFcs={shown?.kind === "match" ? shown.match.score.fcs : undefined}
-            scoreName={shown?.kind === "match" ? shown.match.food.description : undefined}
-            scoreTier={shown?.kind === "match" ? shown.match.score.tier : undefined}
-            sessionStatus={voice.status}
-            showVoiceStatus={voiceAvailable}
-            videoRef={camera.videoRef}
-          />
+        <FoodViewfinder
+          cameraStatus={camera.status}
+          demoPreview
+          idleLabel={
+            voice.status === "closed"
+              ? "Conversation ended. Restart below or point at a new food."
+              : shown?.kind === "match"
+                ? voiceAvailable
+                  ? "Starting a conversation about this food…"
+                  : "Demo conversation started automatically."
+                : "Conversation starts when a food is identified."
+          }
+          language={LANGUAGE}
+          scanChip={shown?.kind === "match" ? shown.match.food.description : null}
+          scoreBadge={
+            shown?.kind === "match" ? "score" : shown?.kind === "carve_out" ? "carve_out" : live.badge
+          }
+          scoreBand={shown?.kind === "match" ? shown.match.score.band : undefined}
+          scoreFcs={shown?.kind === "match" ? shown.match.score.fcs : undefined}
+          scoreName={shown?.kind === "match" ? shown.match.food.description : undefined}
+          scoreTier={shown?.kind === "match" ? shown.match.score.tier : undefined}
+          sessionStatus={voice.status}
+          showVoiceStatus
+          videoRef={camera.videoRef}
+        />
+      </section>
+
+      <section
+        aria-label="Automatic food conversation"
+        className="grid gap-3 rounded-control border border-care/20 bg-calm/40 p-3"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold">Automatic food conversation</h2>
+            <p className="text-xs text-ink/70">
+              {voiceAvailable
+                ? "No text box: identify the food, then add details or ask questions out loud."
+                : "Scripted preview: with live voice connected, the user continues out loud."}
+            </p>
+          </div>
+          <FoodGuidanceSource kind="general" />
         </div>
 
-        {!cameraExpanded ? (
+        <div aria-live="polite" className="grid gap-2" role="log">
+          {conversationTurns.length > 0 ? (
+            conversationTurns.map((turn) => (
+              <article
+                className={`rounded-control px-3 py-2 text-sm leading-6 ${
+                  turn.role === "assistant" ? "bg-white" : "bg-care/10"
+                }`}
+                key={turn.id}
+              >
+                <p>
+                  <span className="font-semibold">{turn.role === "assistant" ? "Food Lens" : "You"}:</span>{" "}
+                  {turn.text}
+                </p>
+                {turn.scripted ? (
+                  <p className="mt-1 text-[11px] text-ink/70">Scripted fallback for the functional prototype.</p>
+                ) : null}
+              </article>
+            ))
+          ) : shown?.kind === "match" ? (
+            <p className="rounded-control bg-white px-3 py-2 text-sm text-ink/70">
+              Starting a conversation about {shown.match.food.description}…
+            </p>
+          ) : (
+            <p className="rounded-control bg-white px-3 py-2 text-sm text-ink/70">
+              Waiting for the camera to identify a food.
+            </p>
+          )}
+          {voice.partialAssistantText ? (
+            <article className="rounded-control bg-white px-3 py-2 text-sm leading-6 text-ink/70">
+              <p>
+                <span className="font-semibold">Food Lens:</span> {voice.partialAssistantText}
+              </p>
+            </article>
+          ) : null}
+        </div>
+
+        {voiceAvailable && !voiceCanStart ? (
           <button
-            className="flex min-h-20 w-full min-w-0 items-center justify-between gap-4 rounded-control bg-ink px-4 py-3 text-left text-white"
-            onClick={() => setCameraExpanded(true)}
+            className="min-h-12 rounded-control border border-care bg-white px-4 py-2 font-semibold text-care"
+            onClick={voice.stop}
             type="button"
           >
-            <span className="min-w-0">
-              <span className="block text-xs font-semibold uppercase tracking-wide text-white/60">Camera collapsed</span>
-              <span className="block truncate text-sm font-semibold">
-                {shown?.kind === "match" ? shown.match.food.description : "Food camera"}
-              </span>
-            </span>
-            <span className="shrink-0 rounded-control bg-white px-3 py-2 text-sm font-semibold text-ink">Expand camera</span>
+            End conversation
           </button>
-        ) : shown ? (
+        ) : null}
+        {voiceAvailable && voice.status === "error" ? (
           <button
-            className="justify-self-end rounded-control border border-ink/15 bg-white px-3 py-2 text-sm font-semibold text-ink/70"
-            onClick={focusResult}
+            className="min-h-12 rounded-control border border-care bg-white px-4 py-2 font-semibold text-care"
+            onClick={() => void voice.startWithContextResponse()}
             type="button"
           >
-            Back to result
+            Try automatic conversation again
+          </button>
+        ) : null}
+        {voiceAvailable && voice.status === "closed" ? (
+          <button
+            className="min-h-12 rounded-control border border-care bg-white px-4 py-2 font-semibold text-care"
+            onClick={() => void voice.startWithContextResponse()}
+            type="button"
+          >
+            Start conversation again
           </button>
         ) : null}
       </section>
 
       <NutritionCompass
         foodName={shown?.kind === "match" ? shown.match.food.description : null}
-        onRequestFood={handleCompassPrompt}
-        requestLabel={shown?.kind === "none" ? "Try another food name" : query.trim().length > 0 ? "Plot this order" : "Describe a food"}
         score={shown?.kind === "match" ? shown.match.score : null}
         state={
-          typedLoading || (!shown && live.badge === "pending")
+          refinementLoading || (!shown && live.badge === "pending")
             ? "pending"
             : shown?.kind === "none"
               ? "no_match"
@@ -367,85 +505,6 @@ export default function CompassPage() {
                 : "idle"
         }
       />
-
-      <form
-        className="grid gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setVoiceExampleActive(false);
-          setTyped(null);
-          void runQuery(query);
-        }}
-      >
-        <label className="text-sm font-medium text-ink/75" htmlFor="compass-query">
-          Describe a food or order
-        </label>
-        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-          <textarea
-            autoComplete="off"
-            className="min-h-20 w-full resize-none rounded-control border border-ink/15 px-3 py-2 text-base text-ink placeholder:text-ink/65"
-            id="compass-query"
-            onChange={(event) => {
-              setVoiceExampleActive(false);
-              setQuery(event.target.value);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                event.currentTarget.form?.requestSubmit();
-              }
-            }}
-            placeholder="Describe a food or restaurant order"
-            ref={queryRef}
-            rows={2}
-            value={query}
-          />
-          <button
-            className="min-h-12 rounded-control bg-care px-4 font-semibold text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-ink/10 disabled:text-ink/65"
-            disabled={typedLoading || query.trim().length === 0}
-            type="submit"
-          >
-            {typedLoading ? "Matching…" : "Find score"}
-          </button>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {TRY_CHIPS.map((chip) => (
-            <button
-              className="rounded-control border border-ink/15 bg-white px-3 py-2 text-sm font-medium"
-              key={chip.label}
-              onClick={() => {
-                setVoiceExampleActive(false);
-                setQuery(chip.query);
-                setTyped(null);
-                void runQuery(chip.query);
-              }}
-              type="button"
-            >
-              {chip.label}
-            </button>
-          ))}
-        </div>
-      </form>
-
-      <section className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-care/20 bg-calm/50 p-3" aria-label="Voice example control">
-        <div>
-          <h2 className="text-sm font-semibold">Voice flow example</h2>
-          <p className="text-xs text-ink/70">Canned for this prototype, so developers can see the intended exchange.</p>
-        </div>
-        <button
-          className="rounded-control border border-care bg-white px-3 py-2 text-sm font-semibold text-care disabled:opacity-40"
-          disabled={typedLoading && voiceExampleActive}
-          onClick={() => {
-            setVoiceExampleActive(true);
-            setQuery(ORDER_EXAMPLE);
-            setTyped(null);
-            void runQuery(ORDER_EXAMPLE);
-          }}
-          type="button"
-        >
-          {typedLoading && voiceExampleActive ? "Playing example…" : voiceExampleActive ? "Replay voice example" : "Play voice example"}
-        </button>
-      </section>
 
       <fieldset className="grid gap-2 rounded-control border border-ink/10 p-3">
         <legend className="px-1 text-sm font-medium text-ink/75">Sort better options by</legend>
@@ -472,7 +531,7 @@ export default function CompassPage() {
       </fieldset>
 
       {shown ? (
-        <div aria-label="Food result" className="min-w-0 outline-none" ref={resultRef} role="region" tabIndex={-1}>
+        <div aria-label="Food result" className="min-w-0" role="region">
           {shown.kind === "carve_out" ? <CompassCarveOut language={LANGUAGE} reason={shown.reason} /> : null}
 
           {shown.kind === "none" ? (
@@ -483,23 +542,6 @@ export default function CompassPage() {
 
           {shown.kind === "match" ? (
             <section className="grid min-w-0 gap-3 rounded-control border border-ink/10 bg-white p-4 shadow-sm [&>*]:min-w-0">
-          {voiceExampleActive ? (
-            <div aria-label="Canned voice transcript" className="grid gap-2 rounded-control border border-care/20 bg-white p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-care">Voice example · canned demo</p>
-                <FoodGuidanceSource kind="general" />
-              </div>
-              <p className="rounded-control bg-calm px-3 py-2 text-sm">
-                <span className="font-semibold">You:</span> {ORDER_EXAMPLE}.
-              </p>
-              <p className="rounded-control bg-care/5 px-3 py-2 text-sm">
-                <span className="font-semibold">Food Lens:</span> I found the closest published category: {shown.match.food.description}. Its Food
-                Compass score is {shown.match.score.fcs} out of 100.
-                {shown.match.provenance ? ` ${shown.match.provenance.note}` : ""}
-              </p>
-            </div>
-          ) : null}
-
           <FoodGuidanceSource kind="general" />
           {shown.match.interpretation && shown.match.provenance ? (
             <div aria-label="Order interpretation" className="grid min-w-0 gap-3 rounded-control bg-calm/60 p-3 [&>*]:min-w-0">
@@ -555,9 +597,11 @@ export default function CompassPage() {
                     {correctionCandidates.map((candidate) => (
                       <button
                         className="max-w-full break-words rounded-control border border-care/25 bg-white px-3 py-2 text-left text-xs font-medium text-care disabled:opacity-40"
-                        disabled={typedLoading}
+                        disabled={refinementLoading}
                         key={candidate.code}
-                        onClick={() => void runQuery(shown.input, undefined, candidate.code)}
+                        onClick={() =>
+                          void runQuery(shown.input, undefined, candidate.code, shown.cameraFoodCode)
+                        }
                         type="button"
                       >
                         {candidate.description} · {candidate.fcs}
@@ -618,25 +662,12 @@ export default function CompassPage() {
         </div>
       ) : null}
 
-      {voiceAvailable ? (
-        <button
-          className="min-h-14 w-full rounded-control border border-care bg-white px-4 py-2 font-semibold text-care"
-          onClick={handleVoiceAction}
-          type="button"
-        >
-          {voice.status === "error"
-            ? "Try voice again"
-            : voiceCanStart
-            ? shown?.kind === "match"
-              ? `Ask about ${shown.match.food.description}`
-              : "Describe an order by voice"
-            : "End"}
-        </button>
-      ) : null}
-
       {voiceAvailable && voice.error ? (
         <p className="rounded-control border border-pulse/30 bg-pulse/5 px-3 py-2 text-sm text-pulse" role="alert">
-          {voice.error} Tap “Try voice again” to retry.
+          {voice.error}{" "}
+          {voice.status === "error"
+            ? "Use “Try automatic conversation again” to retry."
+            : "You can keep talking or say the details again."}
         </p>
       ) : null}
 

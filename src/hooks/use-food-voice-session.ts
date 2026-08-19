@@ -40,6 +40,7 @@ export function useFoodVoiceSession(args: {
   // /food behaves exactly as before.
   buildInstructions?: (state: AppState) => string;
   buildContext?: (context: LiveSessionContext) => string;
+  beforePatientResponse?: (text: string) => Promise<void>;
   tools?: RealtimeTool[];
   /**
    * Resolve `mode` on mount instead of waiting for the first start().
@@ -58,8 +59,10 @@ export function useFoodVoiceSession(args: {
   partialAssistantText: string;
   error: string | null;
   start: () => Promise<void>;
+  startWithContextResponse: () => Promise<void>;
   stop: () => void;
   sendUserText: (text: string) => void;
+  requestContextResponse: () => void;
 } {
   const { language, getState, getContext, onFinalTranscript, onSafetyIntercept } = args;
   // Held in refs, not read from the closure: /compass rebuilds these every render (its
@@ -69,11 +72,13 @@ export function useFoodVoiceSession(args: {
   const overridesRef = useRef({
     buildInstructions: args.buildInstructions,
     buildContext: args.buildContext,
+    beforePatientResponse: args.beforePatientResponse,
     tools: args.tools
   });
   overridesRef.current = {
     buildInstructions: args.buildInstructions,
     buildContext: args.buildContext,
+    beforePatientResponse: args.beforePatientResponse,
     tools: args.tools
   };
   const onInterceptRef = useRef(onSafetyIntercept);
@@ -85,6 +90,7 @@ export function useFoodVoiceSession(args: {
   const [partialAssistantText, setPartialAssistantText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const handleRef = useRef<LiveSessionHandle | null>(null);
+  const startGenerationRef = useRef(0);
   const safetyLatchedRef = useRef(false);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onFinalRef = useRef(onFinalTranscript);
@@ -99,6 +105,7 @@ export function useFoodVoiceSession(args: {
   }, []);
 
   const stop = useCallback(() => {
+    startGenerationRef.current += 1;
     clearIdleTimer();
     handleRef.current?.close();
     handleRef.current = null;
@@ -169,7 +176,8 @@ export function useFoodVoiceSession(args: {
     [getState, language]
   );
 
-  const start = useCallback(async () => {
+  const startSession = useCallback(async (requestContextResponse: boolean) => {
+    const generation = ++startGenerationRef.current;
     setError(null);
     safetyLatchedRef.current = false;
 
@@ -196,6 +204,10 @@ export function useFoodVoiceSession(args: {
       token = (await response.json()) as TokenResponse;
     } catch {
       token = { mode: "mock", reason: "fetch_failed" };
+    }
+
+    if (generation !== startGenerationRef.current) {
+      return;
     }
 
     const state = getState();
@@ -227,6 +239,7 @@ export function useFoodVoiceSession(args: {
         };
       };
       try {
+        const hasBeforePatientResponse = Boolean(overridesRef.current.beforePatientResponse);
         const handle = await connectRealtimeSession({
           clientSecret: token.clientSecret,
           model: token.model,
@@ -236,18 +249,33 @@ export function useFoodVoiceSession(args: {
           tools: overridesRef.current.tools,
           language,
           buildContextMessage,
-          onEvent: handleEvent,
-          gateTranscript
+          onEvent: (event) => {
+            if (generation === startGenerationRef.current) {
+              handleEvent(event);
+            }
+          },
+          gateTranscript,
+          ...(hasBeforePatientResponse
+            ? {
+                beforeRespondToTranscript: (text: string) =>
+                  overridesRef.current.beforePatientResponse?.(text) ?? Promise.resolve()
+              }
+            : {})
         });
-        if (safetyLatchedRef.current) {
+        if (generation !== startGenerationRef.current || safetyLatchedRef.current) {
           handle.close();
         } else {
           handleRef.current = handle;
+          if (requestContextResponse) {
+            handle.requestContextResponse?.();
+          }
           armIdleTimer();
         }
       } catch {
-        setError("Could not start the voice session.");
-        setStatus("error");
+        if (generation === startGenerationRef.current) {
+          setError("Could not start the voice session.");
+          setStatus("error");
+        }
       }
       return;
     }
@@ -259,18 +287,33 @@ export function useFoodVoiceSession(args: {
     const resolvedDataMode = aiDataModeForVoiceTransport(token);
     setDataMode(resolvedDataMode);
     const handle = await openLocalCoachSession(
-      { language, getState, getContext, onEvent: handleEvent },
+      {
+        language,
+        getState,
+        getContext,
+        onEvent: (event) => {
+          if (generation === startGenerationRef.current) {
+            handleEvent(event);
+          }
+        }
+      },
       resolvedDataMode === "on_device"
         ? new MockHealthAiProvider()
         : new OpenAiVisionProvider({ passcode })
     );
-    if (safetyLatchedRef.current) {
+    if (generation !== startGenerationRef.current || safetyLatchedRef.current) {
       handle.close();
     } else {
       handleRef.current = handle;
+      if (requestContextResponse) {
+        handle.requestContextResponse?.();
+      }
       armIdleTimer();
     }
   }, [armIdleTimer, gateTranscript, getContext, getState, handleEvent, language]);
+
+  const start = useCallback(() => startSession(false), [startSession]);
+  const startWithContextResponse = useCallback(() => startSession(true), [startSession]);
 
   useEffect(() => {
     if (!probeOnMount) {
@@ -305,13 +348,29 @@ export function useFoodVoiceSession(args: {
     handleRef.current?.sendUserText(text);
   }, []);
 
+  const requestContextResponse = useCallback(() => {
+    handleRef.current?.requestContextResponse?.();
+  }, []);
+
   useEffect(() => {
     return () => {
+      startGenerationRef.current += 1;
       clearIdleTimer();
       handleRef.current?.close();
       handleRef.current = null;
     };
   }, [clearIdleTimer]);
 
-  return { mode, dataMode, status, partialAssistantText, error, start, stop, sendUserText };
+  return {
+    mode,
+    dataMode,
+    status,
+    partialAssistantText,
+    error,
+    start,
+    startWithContextResponse,
+    stop,
+    sendUserText,
+    requestContextResponse
+  };
 }

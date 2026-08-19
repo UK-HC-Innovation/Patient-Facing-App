@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   buildFoodMatchProvenance,
+  foodOrderIntentToLookupText,
   foodOrderCorrectionQueries,
+  mergePizzaOrderRefinement,
   parseFoodOrderIntent
 } from "./food-order-intent";
 
@@ -27,6 +29,38 @@ describe("parseFoodOrderIntent", () => {
       size: "large",
       crust: "thin",
       matchQuery: "Pizza with pepperoni, from restaurant or fast food, thin crust"
+    });
+  });
+
+  it("understands restaurant and topping details added conversationally after the camera finds pizza", () => {
+    expect(parseFoodOrderIntent("This came from Papa John's. It is a pepperoni and sausage pizza.")).toMatchObject({
+      restaurant: "Papa John's",
+      item: "pizza",
+      toppings: ["pepperoni", "sausage"],
+      matchQuery: "Pizza with pepperoni, from restaurant or fast food, NS as to type of crust"
+    });
+  });
+
+  it("merges restaurant and topping details when speech recognition splits them into separate turns", () => {
+    const restaurantTurn = mergePizzaOrderRefinement("This came from Papa John's.");
+    expect(restaurantTurn).toMatchObject({ restaurant: "Papa John's", item: "pizza", toppings: [] });
+
+    const toppingTurn = mergePizzaOrderRefinement("It is pepperoni and sausage.", restaurantTurn);
+    expect(toppingTurn).toMatchObject({
+      restaurant: "Papa John's",
+      item: "pizza",
+      toppings: ["pepperoni", "sausage"]
+    });
+    expect(foodOrderIntentToLookupText(toppingTurn!)).toBe(
+      "I am ordering a pepperoni and sausage pizza from Papa John's"
+    );
+  });
+
+  it("accepts a terse pizza-context follow-up without making the global parser infer pizza", () => {
+    expect(parseFoodOrderIntent("Papa John's, pepperoni and sausage")).toBeNull();
+    expect(mergePizzaOrderRefinement("Papa John's, pepperoni and sausage")).toMatchObject({
+      restaurant: "Papa John's",
+      toppings: ["pepperoni", "sausage"]
     });
   });
 

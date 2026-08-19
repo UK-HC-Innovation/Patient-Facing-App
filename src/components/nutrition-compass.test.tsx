@@ -1,11 +1,11 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { CompassScore } from "@/domain/food-compass";
 import {
   NutritionCompass,
   calorieDensityPlotPosition,
+  nutritionQuadrant,
   nutritionScorePlotPosition
 } from "./nutrition-compass";
 
@@ -21,29 +21,28 @@ const bananaScore: CompassScore = {
 };
 
 describe("NutritionCompass", () => {
-  it("shows a readable action before a food is identified", async () => {
-    const onRequestFood = vi.fn();
-    render(<NutritionCompass onRequestFood={onRequestFood} requestLabel="Plot this order" />);
+  it("shows a camera-first waiting state before a food is identified", () => {
+    render(<NutritionCompass />);
 
-    expect(screen.getByRole("region", { name: "Nutrition compass" })).toBeInTheDocument();
-    expect(screen.getByText("Point at a food or type one to place it on the compass.")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Food Compass score vs calorie density" })).toBeInTheDocument();
+    expect(screen.getByText("Point the camera at a food to place it on the chart.")).toBeInTheDocument();
     expect(screen.queryByTestId("nutrition-compass-marker")).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Plot this order" }));
-    expect(onRequestFood).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("plots calorie density on X and nutrition score on Y with a visible text equivalent", () => {
+  it("plots nutrition score on X and calorie density on Y with four-quadrant guidance", () => {
     render(<NutritionCompass foodName="Banana, raw" score={bananaScore} />);
 
     const marker = screen.getByTestId("nutrition-compass-marker");
-    expect(marker).toHaveAttribute("data-x-percent", "33.1");
-    expect(marker).toHaveAttribute("data-y-percent", "82.8");
+    expect(marker).toHaveAttribute("data-x-percent", "83");
+    expect(marker).toHaveAttribute("data-y-percent", "9.9");
+    expect(marker).toHaveAttribute("data-quadrant", "choose_often");
     expect(
-      screen.getByText(/Banana, raw: 83 \/ 100 nutrition score · Encourage · Low calorie density · 89 kcal \/ 100 g/)
+      screen.getByText(/Banana, raw: 83 \/ 100 Food Compass score · 0.89 kcal\/g \(89 kcal \/ 100 g\) · Choose often quadrant/)
     ).toBeInTheDocument();
   });
 
-  it("does not invent an X position when calorie density is unavailable", () => {
+  it("does not invent a Y position when calorie density is unavailable", () => {
     render(
       <NutritionCompass
         foodName="Published legacy food"
@@ -53,16 +52,19 @@ describe("NutritionCompass", () => {
 
     expect(screen.queryByTestId("nutrition-compass-marker")).not.toBeInTheDocument();
     expect(screen.getByText("Calorie density unavailable")).toBeInTheDocument();
-    expect(screen.getByText(/Published legacy food: 83 \/ 100 nutrition score · calorie density unavailable/)).toBeInTheDocument();
+    expect(screen.getByText(/Published legacy food: 83 \/ 100 Food Compass score · calorie density unavailable/)).toBeInTheDocument();
   });
 
-  it("keeps markers inside the plot while preserving density-band boundaries", () => {
-    expect(calorieDensityPlotPosition(-10)).toBe(5);
-    expect(calorieDensityPlotPosition(60)).toBe(25);
-    expect(calorieDensityPlotPosition(150)).toBe(50);
-    expect(calorieDensityPlotPosition(400)).toBe(75);
-    expect(calorieDensityPlotPosition(1_000)).toBe(95);
-    expect(nutritionScorePlotPosition(-10)).toBe(5);
-    expect(nutritionScorePlotPosition(100)).toBe(95);
+  it("keeps markers inside the 0–9 kcal/g plot and classifies all four quadrants", () => {
+    expect(calorieDensityPlotPosition(-10)).toBe(4);
+    expect(calorieDensityPlotPosition(225)).toBe(25);
+    expect(calorieDensityPlotPosition(900)).toBe(96);
+    expect(calorieDensityPlotPosition(1_000)).toBe(96);
+    expect(nutritionScorePlotPosition(-10)).toBe(4);
+    expect(nutritionScorePlotPosition(100)).toBe(96);
+    expect(nutritionQuadrant(69, 250)).toBe("limit");
+    expect(nutritionQuadrant(70, 250)).toBe("moderate");
+    expect(nutritionQuadrant(69, 249)).toBe("be_mindful");
+    expect(nutritionQuadrant(70, 249)).toBe("choose_often");
   });
 });

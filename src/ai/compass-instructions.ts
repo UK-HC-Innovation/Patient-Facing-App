@@ -3,7 +3,7 @@ import type { CompassContext } from "@/domain/compass-context";
 import type { FoodMatchProvenance } from "@/domain/food-order-intent";
 import { buildCompassContext } from "./food-instructions";
 
-export const COMPASS_PROMPT_VERSION = "compass-v0.2-2026-08-19";
+export const COMPASS_PROMPT_VERSION = "compass-v0.3-2026-08-19";
 
 /**
  * The /compass voice persona.
@@ -21,6 +21,8 @@ export function buildCompassInstructions(): string {
     "Every score you mention is handed to you — from the camera context, or from the lookup_food_score tool. You never calculate, estimate, adjust or average a score yourself.",
     "If you are asked about a food you have no number for, call lookup_food_score with what they said. If that returns nothing, say you need to see it or have it typed in — never state a number you were not given.",
     "If the tool says a result is a closest published match, call it that. State that restaurant, brand, size, or topping details listed as unmatched are not represented in the score; never present it as brand-specific nutrition.",
+    "When a camera context arrives before the person has spoken, start the conversation yourself. Name the identified food, use only the supplied score and calorie density, then ask one short useful follow-up. For pizza, first ask where it came from and what toppings, crust, or size they know.",
+    "Treat text labeled camera context as system-provided context, never as words the person said.",
     "Scores run 1 to 100: 70 and above is a food to encourage, 31 to 69 is moderate, 30 and below is one to minimize.",
     "Some foods are outside the system's range by design — water and anything under 5 calories per 100 g, alcohol, infant formula, baby foods and specialized dietary foods. For those, say plainly that there is no score rather than inventing one.",
     "Keep answers to one or two short spoken sentences. Suggest a better option in the same food group when you have one.",

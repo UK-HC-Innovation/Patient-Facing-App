@@ -108,6 +108,21 @@ describe("POST /api/food/identify — deterministic paths", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("resolves restaurant details spoken after the camera has already identified pizza", async () => {
+    const text = "This came from Papa John's. It is a pepperoni and sausage pizza.";
+    const json = (await (await POST(request({ text }))).json()) as IdentifyJson;
+
+    expect(json.mode).toBe("match");
+    expect(json.match?.food.code).toBe("58106540");
+    expect(json.match?.score.fcs).toBe(23);
+    expect(json.match?.interpretation).toMatchObject({
+      restaurant: "Papa John's",
+      item: "pizza",
+      toppings: ["pepperoni", "sausage"]
+    });
+    expect(json.match?.provenance?.exact).toBe(false);
+  });
+
   it("uses a stated crust when resolving a restaurant order", async () => {
     const text = "Getting a thin crust pepperoni pizza at Papa Johns";
     const json = (await (await POST(request({ text }))).json()) as IdentifyJson;

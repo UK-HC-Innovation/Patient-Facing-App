@@ -1,42 +1,33 @@
 import React from "react";
-import type { CalorieDensityBand, CompassBand, CompassScore } from "@/domain/food-compass";
+import type { CompassScore } from "@/domain/food-compass";
 
-const DENSITY_SEGMENTS = [
-  { min: 0, max: 60, start: 0, end: 25 },
-  { min: 60, max: 150, start: 25, end: 50 },
-  { min: 150, max: 400, start: 50, end: 75 },
-  { min: 400, max: 900, start: 75, end: 100 }
-] as const;
+const FCS_QUADRANT_THRESHOLD = 70;
+const DENSITY_QUADRANT_THRESHOLD_KCAL_PER_G = 2.5;
+const DENSITY_PLOT_MAX_KCAL_PER_G = 9;
+const MARKER_EDGE_INSET = 4;
+const LOWER_QUADRANT_HEIGHT =
+  (DENSITY_QUADRANT_THRESHOLD_KCAL_PER_G / DENSITY_PLOT_MAX_KCAL_PER_G) * 100;
 
-const DENSITY_LABELS = ["Very low", "Low", "Medium", "High"] as const;
-const MARKER_EDGE_INSET = 5;
+export type NutritionQuadrant = "limit" | "moderate" | "be_mindful" | "choose_often";
 
-const MARKER_COLOR: Record<CompassBand, string> = {
-  encourage: "bg-emerald-700",
-  moderate: "bg-amber-800",
-  minimize: "bg-pulse"
-};
-
-const BAND_LABEL: Record<CompassBand, string> = {
-  encourage: "Encourage",
+const QUADRANT_LABEL: Record<NutritionQuadrant, string> = {
+  limit: "Limit",
   moderate: "Moderate",
-  minimize: "Minimize"
+  be_mindful: "Be mindful",
+  choose_often: "Choose often"
 };
 
-const DENSITY_BAND_LABEL: Record<CalorieDensityBand, string> = {
-  very_low: "Very low",
-  low: "Low",
-  medium: "Medium",
-  high: "High",
-  unknown: "Unknown"
+const MARKER_COLOR: Record<NutritionQuadrant, string> = {
+  limit: "bg-rose-700",
+  moderate: "bg-amber-700",
+  be_mindful: "bg-orange-700",
+  choose_often: "bg-emerald-700"
 };
 
 type NutritionCompassState = "idle" | "pending" | "no_match" | "carve_out";
 
 type NutritionCompassProps = {
   foodName?: string | null;
-  onRequestFood?: () => void;
-  requestLabel?: string;
   score?: CompassScore | null;
   state?: NutritionCompassState;
 };
@@ -49,73 +40,64 @@ function roundPosition(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
-/**
- * Maps the four published calorie-density bands to equal visual widths, while
- * retaining the food's position inside its band. The visible band labels make
- * the categorical scale explicit instead of implying equal numeric intervals.
- */
-export function calorieDensityPlotPosition(kcalPer100g: number): number {
-  const density = clamp(kcalPer100g, DENSITY_SEGMENTS[0].min, DENSITY_SEGMENTS.at(-1)?.max ?? 900);
-  const segment = DENSITY_SEGMENTS.find(({ max }) => density <= max) ?? DENSITY_SEGMENTS.at(-1);
-  if (!segment) {
-    return 50;
-  }
-  const progress = (density - segment.min) / (segment.max - segment.min);
-  const rawPosition = segment.start + progress * (segment.end - segment.start);
-  return roundPosition(clamp(rawPosition, MARKER_EDGE_INSET, 100 - MARKER_EDGE_INSET));
+export function calorieDensityKcalPerGram(kcalPer100g: number): number {
+  return kcalPer100g / 100;
 }
 
-export function nutritionScorePlotPosition(fcs: number): number {
-  const normalized = ((clamp(fcs, 1, 100) - 1) / 99) * 100;
+/** Plot 0–9 kcal/g linearly, matching the prototype reference. Values above 9 remain factual in the caption. */
+export function calorieDensityPlotPosition(kcalPer100g: number): number {
+  const densityPerGram = clamp(calorieDensityKcalPerGram(kcalPer100g), 0, DENSITY_PLOT_MAX_KCAL_PER_G);
+  const normalized = (densityPerGram / DENSITY_PLOT_MAX_KCAL_PER_G) * 100;
   return roundPosition(clamp(normalized, MARKER_EDGE_INSET, 100 - MARKER_EDGE_INSET));
 }
 
+export function nutritionScorePlotPosition(fcs: number): number {
+  const normalized = (clamp(fcs, 0, 100) / 100) * 100;
+  return roundPosition(clamp(normalized, MARKER_EDGE_INSET, 100 - MARKER_EDGE_INSET));
+}
+
+export function nutritionQuadrant(fcs: number, kcalPer100g: number): NutritionQuadrant {
+  const higherScore = fcs >= FCS_QUADRANT_THRESHOLD;
+  const lowerDensity = calorieDensityKcalPerGram(kcalPer100g) < DENSITY_QUADRANT_THRESHOLD_KCAL_PER_G;
+  if (higherScore && lowerDensity) return "choose_often";
+  if (higherScore) return "moderate";
+  if (lowerDensity) return "be_mindful";
+  return "limit";
+}
+
 function stateMessage(state: NutritionCompassState): string {
-  if (state === "pending") {
-    return "Finding this food's place on the compass…";
-  }
-  if (state === "no_match") {
-    return "No published match to plot yet. Try a simpler food name.";
-  }
+  if (state === "pending") return "Updating this food's place on the chart…";
+  if (state === "no_match") return "No published match to plot yet. Add more detail in the conversation.";
   if (state === "carve_out") {
     return "This food is outside the Food Compass scoring range, so it is not plotted.";
   }
-  return "Point at a food or type one to place it on the compass.";
+  return "Point the camera at a food to place it on the chart.";
 }
 
 function plotStateMessage(state: NutritionCompassState): string {
-  if (state === "pending") {
-    return "Finding its place…";
-  }
-  if (state === "no_match") {
-    return "No point to plot yet";
-  }
-  if (state === "carve_out") {
-    return "Outside score range";
-  }
-  return "Waiting for a food";
+  if (state === "pending") return "Finding its place…";
+  if (state === "no_match") return "No point to plot yet";
+  if (state === "carve_out") return "Outside score range";
+  return "Waiting for the camera";
 }
 
-export function NutritionCompass({
-  foodName,
-  onRequestFood,
-  requestLabel = "Describe a food",
-  score,
-  state = "idle"
-}: NutritionCompassProps) {
-  const density = score?.calorieDensity.kcalPer100g ?? null;
-  const hasPlotPoint = Boolean(score && density !== null);
-  const position = score && density !== null
+export function NutritionCompass({ foodName, score, state = "idle" }: NutritionCompassProps) {
+  const densityPer100g = score?.calorieDensity.kcalPer100g ?? null;
+  const densityPerGram = densityPer100g === null ? null : calorieDensityKcalPerGram(densityPer100g);
+  const quadrant = score && densityPer100g !== null ? nutritionQuadrant(score.fcs, densityPer100g) : null;
+  const position = score && densityPer100g !== null
     ? {
-        x: calorieDensityPlotPosition(density),
-        y: nutritionScorePlotPosition(score.fcs)
+        x: nutritionScorePlotPosition(score.fcs),
+        y: calorieDensityPlotPosition(densityPer100g)
       }
     : null;
 
   const summary = score
-    ? density === null
-      ? `${foodName ?? "This food"}: ${score.fcs} / 100 nutrition score · calorie density unavailable.`
-      : `${foodName ?? "This food"}: ${score.fcs} / 100 nutrition score · ${BAND_LABEL[score.band]} · ${DENSITY_BAND_LABEL[score.calorieDensity.band]} calorie density · ${density} kcal / 100 g.`
+    ? densityPer100g === null || densityPerGram === null || quadrant === null
+      ? `${foodName ?? "This food"}: ${score.fcs} / 100 Food Compass score · calorie density unavailable.`
+      : `${foodName ?? "This food"}: ${score.fcs} / 100 Food Compass score · ${densityPerGram.toFixed(
+          2
+        )} kcal/g (${densityPer100g} kcal / 100 g) · ${QUADRANT_LABEL[quadrant]} quadrant.`
     : stateMessage(state);
 
   return (
@@ -128,9 +110,9 @@ export function NutritionCompass({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold" id="nutrition-compass-title">
-            Nutrition compass
+            Food Compass score vs calorie density
           </h2>
-          <p className="text-xs text-ink/75">X: calorie density · Y: Food Compass nutrition score</p>
+          <p className="text-xs text-ink/75">X: Food Compass score · Y: calorie density (kcal/g)</p>
         </div>
         {score ? (
           <span className="shrink-0 rounded-control bg-calm px-2 py-1 text-xs font-semibold text-care">
@@ -140,41 +122,69 @@ export function NutritionCompass({
       </div>
 
       <figure className="mt-3">
-        <p aria-hidden="true" className="mb-1 pl-7 text-[11px] font-semibold uppercase tracking-wide text-ink/75">
-          Higher nutrition score ↑
-        </p>
-        <div className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-1">
-          <div aria-hidden="true" className="flex h-36 flex-col justify-between py-0.5 text-right text-[11px] font-medium text-ink/75">
-            <span>100</span>
-            <span>50</span>
-            <span>1</span>
+        <div className="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-1">
+          <div
+            aria-hidden="true"
+            className="flex h-64 flex-col justify-between py-0.5 text-right text-[11px] font-medium text-ink/75 sm:h-80"
+          >
+            <span>9</span>
+            <span>6</span>
+            <span>3</span>
+            <span>0</span>
           </div>
 
-          <div className="relative h-36 overflow-hidden rounded-control border border-ink/15 bg-white" data-testid="nutrition-compass-plot">
-            <div aria-hidden="true" className="absolute inset-x-0 top-0 h-[30%] bg-emerald-50/80" />
-            <div aria-hidden="true" className="absolute inset-x-0 top-[30%] h-[40%] bg-amber-50/80" />
-            <div aria-hidden="true" className="absolute inset-x-0 bottom-0 h-[30%] bg-pulse/5" />
+          <div
+            className="relative h-64 overflow-hidden rounded-control border border-ink/25 bg-white sm:h-80"
+            data-testid="nutrition-compass-plot"
+          >
+            <div
+              aria-hidden="true"
+              className="absolute left-0 top-0 w-[70%] bg-rose-100"
+              style={{ height: `${100 - LOWER_QUADRANT_HEIGHT}%` }}
+            />
+            <div
+              aria-hidden="true"
+              className="absolute right-0 top-0 w-[30%] bg-amber-100"
+              style={{ height: `${100 - LOWER_QUADRANT_HEIGHT}%` }}
+            />
+            <div
+              aria-hidden="true"
+              className="absolute bottom-0 left-0 w-[70%] bg-orange-100"
+              style={{ height: `${LOWER_QUADRANT_HEIGHT}%` }}
+            />
+            <div
+              aria-hidden="true"
+              className="absolute bottom-0 right-0 w-[30%] bg-emerald-100"
+              style={{ height: `${LOWER_QUADRANT_HEIGHT}%` }}
+            />
 
-            <div aria-hidden="true" className="absolute inset-y-0 left-1/4 border-l border-dashed border-ink/15" />
-            <div aria-hidden="true" className="absolute inset-y-0 left-1/2 border-l border-ink/20" />
-            <div aria-hidden="true" className="absolute inset-y-0 left-3/4 border-l border-dashed border-ink/15" />
-            <div aria-hidden="true" className="absolute inset-x-0 top-[30%] border-t border-dashed border-ink/15" />
-            <div aria-hidden="true" className="absolute inset-x-0 top-[70%] border-t border-dashed border-ink/15" />
+            <div aria-hidden="true" className="absolute inset-y-0 left-[70%] border-l border-ink/25" />
+            <div
+              aria-hidden="true"
+              className="absolute inset-x-0 border-t border-ink/25"
+              style={{ bottom: `${LOWER_QUADRANT_HEIGHT}%` }}
+            />
+            <div aria-hidden="true" className="absolute inset-x-0 top-1/3 border-t border-dashed border-ink/15" />
+            <div aria-hidden="true" className="absolute inset-x-0 top-2/3 border-t border-dashed border-ink/15" />
 
-            <span aria-hidden="true" className="absolute right-2 top-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
-              Encourage
+            <span aria-hidden="true" className="absolute left-2 top-2 text-[10px] font-bold uppercase tracking-wide text-rose-800">
+              Limit
             </span>
-            <span aria-hidden="true" className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold uppercase tracking-wide text-amber-900">
+            <span aria-hidden="true" className="absolute right-2 top-2 text-[10px] font-bold uppercase tracking-wide text-amber-900">
               Moderate
             </span>
-            <span aria-hidden="true" className="absolute bottom-1 right-2 text-[10px] font-semibold uppercase tracking-wide text-pulse">
-              Minimize
+            <span aria-hidden="true" className="absolute bottom-[22%] left-2 text-[10px] font-bold uppercase tracking-wide text-orange-900">
+              Be mindful
+            </span>
+            <span aria-hidden="true" className="absolute bottom-[22%] right-2 text-[10px] font-bold uppercase tracking-wide text-emerald-900">
+              Choose often
             </span>
 
-            {position ? (
+            {position && quadrant ? (
               <span
                 aria-hidden="true"
-                className={`absolute z-10 grid h-8 w-8 -translate-x-1/2 translate-y-1/2 place-items-center rounded-full border-2 border-white text-[11px] font-bold text-white shadow-md ${MARKER_COLOR[score?.band ?? "moderate"]}`}
+                className={`absolute z-10 grid h-8 w-8 -translate-x-1/2 translate-y-1/2 place-items-center rounded-full border-2 border-white text-[11px] font-bold text-white shadow-md ${MARKER_COLOR[quadrant]}`}
+                data-quadrant={quadrant}
                 data-testid="nutrition-compass-marker"
                 data-x-percent={position.x}
                 data-y-percent={position.y}
@@ -182,37 +192,35 @@ export function NutritionCompass({
               >
                 {score?.fcs}
               </span>
-            ) : onRequestFood && !score && (state === "idle" || state === "no_match") ? (
-              <button
-                className="absolute left-1/2 top-1/2 min-h-12 max-w-[80%] -translate-x-1/2 -translate-y-1/2 rounded-control border-2 border-care/35 bg-white px-4 py-2 text-center text-sm font-semibold text-care shadow-sm transition hover:bg-calm active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care"
-                onClick={onRequestFood}
-                type="button"
-              >
-                {requestLabel}
-              </button>
             ) : (
-              <span className="absolute left-1/2 top-1/2 max-w-[75%] -translate-x-1/2 -translate-y-1/2 rounded-control border border-dashed border-ink/30 bg-white px-3 py-2 text-center text-xs font-semibold text-ink/75">
-                {score && !hasPlotPoint ? "Calorie density unavailable" : plotStateMessage(state)}
+              <span className="absolute left-1/2 top-1/2 max-w-[75%] -translate-x-1/2 -translate-y-1/2 rounded-control border border-dashed border-ink/30 bg-white/95 px-3 py-2 text-center text-xs font-semibold text-ink/75">
+                {score ? "Calorie density unavailable" : plotStateMessage(state)}
               </span>
             )}
           </div>
 
           <span aria-hidden="true" />
-          <div aria-hidden="true" className="grid grid-cols-4 text-center text-[10px] font-medium text-ink/75">
-            {DENSITY_LABELS.map((label) => (
-              <span key={label}>{label}</span>
-            ))}
+          <div aria-hidden="true" className="relative h-5 text-[11px] font-medium text-ink/75">
+            <span className="absolute left-0">0</span>
+            <span className="absolute left-[70%] -translate-x-1/2">70</span>
+            <span className="absolute right-0">100</span>
           </div>
         </div>
 
         <div aria-hidden="true" className="ml-7 mt-1 flex items-center justify-between gap-2 text-[11px] font-semibold text-ink/75">
           <span>Lower</span>
-          <span>Calorie density →</span>
+          <span>Food Compass score →</span>
           <span>Higher</span>
         </div>
+        <p aria-hidden="true" className="mt-1 text-center text-[11px] font-semibold text-ink/75">
+          ↑ Higher calorie density
+        </p>
         <figcaption aria-live="polite" className="mt-2 text-xs font-medium text-ink/70">
           {summary}
         </figcaption>
+        <p className="mt-1 text-[11px] text-ink/70">
+          The four quadrants combine two separate measures for this prototype; they do not change the published score.
+        </p>
       </figure>
     </section>
   );

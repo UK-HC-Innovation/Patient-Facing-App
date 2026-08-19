@@ -45,11 +45,11 @@ export function FoodViewfinder({
   scoreTier?: "T1" | "T2";
   scoreName?: string;
   onScoreTap?: () => void;
-  /** Makes idle "Tap start" copy a real, touch-sized control. */
+  /** Makes an actionable voice-status message a real, touch-sized control. */
   onVoiceStatusTap?: () => void;
   /**
-   * The pill reads "Tap start to talk about this food". On a surface with no voice
-   * control it points at a button that is not on screen, so it is suppressed there.
+   * Some surfaces use an actionable voice pill. Others, including the automatic
+   * Compass conversation, keep this as a status announcement only.
    */
   showVoiceStatus?: boolean;
   /** Replaces food-specific idle copy before a food has been identified. */
@@ -98,7 +98,7 @@ export function FoodViewfinder({
           </span>
           <span aria-hidden="true" className="absolute inset-x-8 top-1/2 h-0.5 animate-pulse bg-emerald-300/90 shadow-[0_0_18px_rgba(110,231,183,0.9)] motion-reduce:animate-none" />
           <p className="absolute inset-x-4 bottom-16 rounded-control bg-black/80 px-3 py-2 text-center text-xs font-medium text-white">
-            Camera unavailable in this preview — choose a sample or describe your food below.
+            Camera unavailable in this preview — allow camera access to try the automatic food conversation.
           </p>
         </div>
       ) : null}

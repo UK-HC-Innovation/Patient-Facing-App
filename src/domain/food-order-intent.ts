@@ -25,6 +25,8 @@ const ORDER_PREFIXES = [
 ];
 
 const RESTAURANT_SUFFIX = /\s+(?:from|at)\s+([a-z0-9][a-z0-9&.'’\-\s]*?)[.!?]*$/i;
+const CONVERSATIONAL_RESTAURANT =
+  /\b(?:this|it)\s+(?:came|comes|is|was)\s+from\s+([a-z0-9][a-z0-9&.'’\-\s]*?)(?=[.!?](?:\s|$)|$)/i;
 
 const TOPPINGS = [
   { name: "pepperoni", pattern: /\bpepperoni\b/i },
@@ -50,6 +52,12 @@ const RESTAURANT_ALIASES: Array<{ pattern: RegExp; name: string }> = [
   { pattern: /^pizza\s+hut$/i, name: "Pizza Hut" }
 ];
 
+const RESTAURANT_MENTIONS: Array<{ pattern: RegExp; name: string }> = [
+  { pattern: /\bpapa\s+john['’]?s\b/i, name: "Papa John's" },
+  { pattern: /\bdomino['’]?s\b/i, name: "Domino's" },
+  { pattern: /\bpizza\s+hut\b/i, name: "Pizza Hut" }
+];
+
 function canonicalRestaurant(value: string): string {
   const trimmed = value.trim().replace(/[.!?]+$/g, "");
   return RESTAURANT_ALIASES.find((alias) => alias.pattern.test(trimmed))?.name ?? trimmed;
@@ -65,6 +73,13 @@ function stripOrderPrefix(value: string): { itemText: string; hadOrderPrefix: bo
     }
   }
   return { itemText: value.trim(), hadOrderPrefix: false };
+}
+
+function stripConversationalFoodLead(value: string): string {
+  return value
+    .replace(/^[\s,.!?;:]+/, "")
+    .replace(/^(?:(?:and\s+)?(?:it|this)(?:\s+is|['’]s)\s+)(?:a|an|the|some)?\s*/i, "")
+    .trim();
 }
 
 function extractCrust(value: string): string | null {
@@ -120,10 +135,15 @@ export function parseFoodOrderIntent(text: string): FoodOrderIntent | null {
     return null;
   }
 
-  const restaurantMatch = RESTAURANT_SUFFIX.exec(originalText);
+  const restaurantMatch = CONVERSATIONAL_RESTAURANT.exec(originalText) ?? RESTAURANT_SUFFIX.exec(originalText);
   const restaurant = restaurantMatch ? canonicalRestaurant(restaurantMatch[1]) : null;
-  const beforeRestaurant = restaurantMatch ? originalText.slice(0, restaurantMatch.index) : originalText;
-  const { itemText, hadOrderPrefix } = stripOrderPrefix(beforeRestaurant);
+  const withoutRestaurant = restaurantMatch
+    ? `${originalText.slice(0, restaurantMatch.index)} ${originalText.slice(
+        restaurantMatch.index + restaurantMatch[0].length
+      )}`.trim()
+    : originalText;
+  const { itemText: prefixedItemText, hadOrderPrefix } = stripOrderPrefix(withoutRestaurant);
+  const itemText = stripConversationalFoodLead(prefixedItemText);
   if (!restaurant && !hadOrderPrefix) {
     return null;
   }
@@ -146,6 +166,60 @@ export function parseFoodOrderIntent(text: string): FoodOrderIntent | null {
     crust,
     matchQuery: isPizza ? pizzaMatchQuery(toppings, restaurant, crust) : itemText
   };
+}
+
+/**
+ * Merge short follow-up turns after the camera has already established that the
+ * food is pizza. This deliberately lives outside the general parser: "pepperoni"
+ * alone must not globally imply pizza, but it is useful context inside that one
+ * active camera conversation.
+ */
+export function mergePizzaOrderRefinement(
+  text: string,
+  previous: FoodOrderIntent | null = null
+): FoodOrderIntent | null {
+  const trimmed = text.trim().slice(0, 200);
+  if (!trimmed) return null;
+
+  const parsed = parseFoodOrderIntent(trimmed);
+  const mentionedRestaurant = RESTAURANT_MENTIONS.find((entry) => entry.pattern.test(trimmed))?.name ?? null;
+  const mentionedToppings = TOPPINGS.filter((entry) => entry.pattern.test(trimmed)).map((entry) => entry.name);
+  const mentionedCrust = extractCrust(trimmed);
+  const mentionedSize = extractSize(trimmed);
+  const hasNewDetail = Boolean(
+    parsed || mentionedRestaurant || mentionedToppings.length > 0 || mentionedCrust || mentionedSize
+  );
+  if (!hasNewDetail) return null;
+
+  const restaurant = parsed?.restaurant ?? mentionedRestaurant ?? previous?.restaurant ?? null;
+  const toppings = [
+    ...new Set([...(previous?.toppings ?? []), ...(parsed?.toppings ?? []), ...mentionedToppings])
+  ];
+  const crust = parsed?.crust ?? mentionedCrust ?? previous?.crust ?? null;
+  const size = parsed?.size ?? mentionedSize ?? previous?.size ?? null;
+  const originalText = [previous?.originalText, trimmed].filter(Boolean).join(" ");
+
+  return {
+    kind: "food_order",
+    originalText,
+    restaurant,
+    item: "pizza",
+    toppings,
+    size,
+    crust,
+    matchQuery: pizzaMatchQuery(toppings, restaurant, crust)
+  };
+}
+
+/** Canonical text that the existing identify route can parse deterministically. */
+export function foodOrderIntentToLookupText(intent: FoodOrderIntent): string {
+  const details = [
+    intent.size,
+    intent.crust ? `${intent.crust} crust` : null,
+    intent.toppings.length > 0 ? intent.toppings.join(" and ") : null,
+    intent.item
+  ].filter((detail): detail is string => Boolean(detail));
+  return `I am ordering a ${details.join(" ")}${intent.restaurant ? ` from ${intent.restaurant}` : ""}`;
 }
 
 function sameCrust(description: string, crust: string): boolean {

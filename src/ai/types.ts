@@ -63,6 +63,8 @@ export type LiveSessionInit = {
 
 export type LiveSessionHandle = {
   sendUserText(text: string): void;
+  /** Ask the assistant to respond to the latest injected camera context without fabricating a patient turn. */
+  requestContextResponse?(): void;
   updateInstructions(instructions: string): void;
   close(): void;
   getStatus(): LiveSessionStatus;

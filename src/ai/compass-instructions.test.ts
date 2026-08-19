@@ -79,6 +79,13 @@ describe("buildCompassInstructions", () => {
   it("says outright that it knows nothing about the person", () => {
     expect(buildCompassInstructions()).toContain("no medical history, no medications, no test results");
   });
+
+  it("opens the conversation from camera context without pretending the patient spoke", () => {
+    const instructions = buildCompassInstructions();
+    expect(instructions).toContain("start the conversation yourself");
+    expect(instructions).toContain("never as words the person said");
+    expect(instructions).toContain("For pizza, first ask where it came from");
+  });
 });
 
 describe("buildCompassVoiceContext", () => {
