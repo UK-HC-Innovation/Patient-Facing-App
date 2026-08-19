@@ -39,14 +39,14 @@ externally-routable ingress into the workstation and are not used here):
 **Primary — the hosted build (recommended).** Open the Vercel URL on the S25 in
 Chrome:
 
-- Typed / mock mode: `https://patient-centered.vercel.app/food`
-- Live voice: `https://patient-centered.vercel.app/food?k=<DEMO_PASSCODE>`
+- `https://patient-centered.vercel.app/food` — live voice, no passcode needed.
 
-Production live voice requires `HEALTH_AI_PROVIDER=openai`, a configured
-`HEALTH_AI_API_KEY`, and a configured `DEMO_PASSCODE`. An absent or incorrect
-passcode intentionally falls back to typed / mock mode. The passcode appears in
-the URL: use a temporary demo secret, never share or screenshot the complete
-URL, and rotate the secret after the demo.
+**Superseded 2026-08-19.** This page used to read: live voice requires
+`HEALTH_AI_PROVIDER=openai`, `HEALTH_AI_API_KEY` *and* `DEMO_PASSCODE`, with `?k=…` in the
+URL and the secret rotated after each demo. `DEMO_PASSCODE` has since been removed from the
+production environment, so live voice needs only the provider and the key, `?k=…` is
+ignored, and there is no demo secret left to leak or rotate. The spend cap now lives in the
+OpenAI dashboard instead — see the One Good Choice section at the end of this file.
 
 Real HTTPS (camera works, no cert warning), served over the phone's own cellular
 so venue Wi-Fi filtering is irrelevant. When a reviewed release is ready, deploy
@@ -158,18 +158,28 @@ A standalone, shareable page that scores a food 1–100 with the published Food 
 system and suggests better options in the same food group. No patient chrome, no patient
 data — it is the page to send to someone outside the project.
 
-**Links**
+**Link:** `https://patient-centered.vercel.app/compass` — everything works, no passcode.
 
-- Shareable, no passcode: `https://patient-centered.vercel.app/compass`
-- Full demo with the live camera and voice: `https://patient-centered.vercel.app/compass?k=<DEMO_PASSCODE>`
+## The passcode gate is off (2026-08-19)
 
-## What works without a passcode
+`DEMO_PASSCODE` was removed from the Vercel production environment, so every AI route
+answers without a passcode: realtime voice, the live camera scoring loop, vision Q&A, the
+coach, the router and screening extract. The `?k=…` parameter is now ignored; old links
+still work, they just do not need it.
 
-Typed scoring, the alternatives list, the recipe links, both sort toggles, and every
-carve-out. This is the whole deterministic half of the product and it costs nothing to run.
-The live camera loop and the voice button are hidden, not broken: the loop needs a live
-provider, and the on-device fallback voice speaks in a patient-care-plan register that is
-wrong for this surface.
+**What that costs.** Realtime voice is billed per minute of audio in and out and is by far
+the most expensive path here. The camera loop is about $0.50 per hour per active viewer
+(one low-detail frame every 2.5 s, skipped when the scene has not moved, off after three
+idle minutes). Both are open to anyone who has the URL, so the spend cap belongs in the
+OpenAI dashboard under Settings → Limits, not in the app.
+
+**What did NOT open.** Ladder's family AI uses `DEMO_PASSCODE` as its invite code and
+requires it to be *present*, so removing it keeps that surface fully on-device —
+`/api/family/session` returns `{"authorized":false}` and `/api/family/consent` returns
+`{"capability":null}` in production. Safety is unaffected either way: the crisis gate, the
+voice output guard and grounding all run regardless of the passcode.
+
+To put the gate back: `vercel env add DEMO_PASSCODE production`, then redeploy.
 
 ## The five-minute script
 
@@ -183,7 +193,7 @@ wrong for this surface.
    prototype produce nonsense.
 4. **Type `banana`.** 83, green. That number is the published Table S5 value for
    `63107010`, not a recomputation — the point being that the model never calculates.
-5. **With `?k=…`, point the camera at a banana.** The badge fills in within a few seconds.
+5. **Point the camera at a banana.** The badge fills in within a few seconds.
    Say *"what about peanut butter?"* — the spoken number comes from the `lookup_food_score`
    tool, a table lookup, not from the model's memory.
 
