@@ -157,9 +157,11 @@ export function computeFoodFlags(
     flags.push(...medDietFlags(food, state.medications, lens.medDietRules, language));
   }
 
-  const trend = bpTrendFlag(state.readings, language);
-  if (trend) {
-    flags.push(trend);
+  if (food) {
+    const trend = bpTrendFlag(state.readings, language);
+    if (trend) {
+      flags.push(trend);
+    }
   }
 
   return flags.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);

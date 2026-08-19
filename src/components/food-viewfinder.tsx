@@ -29,7 +29,9 @@ export function FoodViewfinder({
   scoreTier,
   scoreName,
   onScoreTap,
-  showVoiceStatus = true
+  showVoiceStatus = true,
+  idleLabel,
+  demoPreview = false
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
   cameraStatus: CameraStatus;
@@ -47,17 +49,42 @@ export function FoodViewfinder({
    * control it points at a button that is not on screen, so it is suppressed there.
    */
   showVoiceStatus?: boolean;
+  /** Replaces food-specific idle copy before a food has been identified. */
+  idleLabel?: string;
+  /** Shows a deterministic sample scan instead of an empty panel when camera access is unavailable. */
+  demoPreview?: boolean;
 }) {
+  const voiceStatus =
+    idleLabel && (sessionStatus === "idle" || sessionStatus === "closed")
+      ? idleLabel
+      : t(language, statusKey[sessionStatus]);
+
   return (
     <div className="relative overflow-hidden rounded-control border border-ink/10 bg-ink" style={{ height: "55vh" }}>
       <video ref={videoRef} className="h-full w-full object-cover" muted playsInline aria-label={t(language, "viewfinderHint")} />
 
-      {cameraStatus === "denied" ? (
+      {demoPreview && cameraStatus !== "active" ? (
+        <div
+          aria-label="Sample pizza camera preview"
+          className="absolute inset-0 flex items-center justify-center overflow-hidden bg-gradient-to-br from-slate-800 via-slate-900 to-black"
+          role="img"
+        >
+          <span aria-hidden="true" className="select-none text-8xl drop-shadow-2xl">
+            🍕
+          </span>
+          <span aria-hidden="true" className="absolute inset-x-8 top-1/2 h-0.5 animate-pulse bg-emerald-300/90 shadow-[0_0_18px_rgba(110,231,183,0.9)] motion-reduce:animate-none" />
+          <p className="absolute inset-x-4 bottom-16 rounded-control bg-black/60 px-3 py-2 text-center text-xs font-medium text-white">
+            Camera unavailable in this preview — choose a sample or describe your food below.
+          </p>
+        </div>
+      ) : null}
+
+      {!demoPreview && cameraStatus === "denied" ? (
         <div className="absolute inset-0 flex items-center justify-center bg-ink/80 p-6 text-center text-sm text-white">
           {t(language, "cameraDenied")}
         </div>
       ) : null}
-      {cameraStatus === "unavailable" ? (
+      {!demoPreview && cameraStatus === "unavailable" ? (
         <div className="absolute inset-0 flex items-center justify-center bg-ink/80 p-6 text-center text-sm text-white">
           {t(language, "cameraUnavailable")}
         </div>
@@ -82,23 +109,23 @@ export function FoodViewfinder({
       />
 
       {showVoiceStatus ? (
-      <div className="absolute inset-x-0 bottom-3 flex justify-center">
-        <div className="flex items-center gap-2 rounded-control bg-white/90 px-4 py-2 text-sm font-semibold text-ink">
-          <span
-            aria-hidden="true"
-            className={`h-3 w-3 rounded-full ${
-              sessionStatus === "listening"
-                ? "animate-pulse bg-care"
-                : sessionStatus === "speaking"
-                  ? "bg-care"
-                  : sessionStatus === "error"
-                    ? "bg-pulse"
-                    : "bg-ink/30"
-            }`}
-          />
-          {t(language, statusKey[sessionStatus])}
+        <div className="absolute inset-x-0 bottom-3 flex justify-center">
+          <div className="flex items-center gap-2 rounded-control bg-white/90 px-4 py-2 text-sm font-semibold text-ink">
+            <span
+              aria-hidden="true"
+              className={`h-3 w-3 rounded-full ${
+                sessionStatus === "listening"
+                  ? "animate-pulse bg-care"
+                  : sessionStatus === "speaking"
+                    ? "bg-care"
+                    : sessionStatus === "error"
+                      ? "bg-pulse"
+                      : "bg-ink/30"
+              }`}
+            />
+            {voiceStatus}
+          </div>
         </div>
-      </div>
       ) : null}
     </div>
   );

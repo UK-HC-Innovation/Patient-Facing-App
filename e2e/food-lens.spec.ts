@@ -24,6 +24,33 @@ async function stubFoodLens(page: import("@playwright/test").Page) {
   );
 }
 
+async function stubEmptyFoodLens(page: import("@playwright/test").Page) {
+  await page.addInitScript(() => {
+    window.localStorage.clear();
+  });
+  await page.route("**/api/realtime/token", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ mode: "mock", reason: "provider_mock" }) })
+  );
+  await page.route("**/api/food/identify", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ mode: "none", candidates: [] }) })
+  );
+}
+
+test("labels the personalized route without inventing a current-food recommendation", async ({ page }) => {
+  await stubEmptyFoodLens(page);
+  await page.goto("/food");
+
+  await expect(page.getByRole("heading", { name: "Food Lens" })).toBeVisible();
+  await expect(page.locator('[data-guidance-scope="personalized"]').first()).toContainText(
+    "considers your recent readings and health profile"
+  );
+  await expect(page.getByText("Tap start and describe your food.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Tap start to talk about this food.", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "This food" })).toHaveCount(0);
+  await expect(page.getByText(/Your recent readings are trending up/i)).toHaveCount(0);
+  await expect(page.locator('[data-guidance-scope="general"]')).toHaveCount(0);
+});
+
 test("scans a food, asks a typed question, logs the meal, and persists it", async ({ page }) => {
   await stubFoodLens(page);
 
@@ -33,6 +60,7 @@ test("scans a food, asks a typed question, logs the meal, and persists it", asyn
 
   await expect(page.getByRole("heading", { name: /Chicken Noodle Soup/ })).toBeVisible();
   await expect(page.getByText(/mg sodium/)).toBeVisible();
+  await expect(page.locator('[data-guidance-scope="personalized"]').first()).toBeVisible();
 
   await page.getByRole("button", { name: "Start" }).click();
   await page.getByLabel("Ask about this food…").fill("Can I have this for lunch?");
@@ -43,6 +71,7 @@ test("scans a food, asks a typed question, logs the meal, and persists it", asyn
 
   // spec 23: the Food Compass score sits above the flag chips, badged as a label estimate.
   await expect(page.getByText("Food Compass score")).toBeVisible();
+  await expect(page.locator('[data-guidance-scope="general"]')).toContainText("Food Compass only");
   // Shown twice on purpose: the viewfinder badge and the score row on the card.
   await expect(page.getByText("Estimate from label")).toHaveCount(2);
   await expect(page.getByText("Better options")).toBeVisible();

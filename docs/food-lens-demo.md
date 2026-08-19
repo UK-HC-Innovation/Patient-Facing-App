@@ -152,7 +152,7 @@ answer quality on real packaging under kitchen lighting.
 
 ---
 
-# One Good Choice (`/compass`) — Food Compass demo runbook
+# Food Lens functional prototype (`/compass`) — demo runbook
 
 A standalone, shareable page that scores a food 1–100 with the published Food Compass 2.0
 system and suggests better options in the same food group. No patient chrome, no patient
@@ -183,22 +183,40 @@ To put the gate back: `vercel env add DEMO_PASSCODE production`, then redeploy.
 
 ## The five-minute script
 
-1. **Type `pizza`.** Score in the low 20s, red band, and three better pizzas — vegetable,
+1. **Orient to the three-step flow and source chip.** The header says exactly what developers
+   should test: scan or describe, review the score, then ask a question. The persistent chip
+   says this standalone route uses Food Compass only — no patient profile or recent readings.
+2. **Click “Play voice example.”** A canned transcript makes the intended voice interaction
+   observable even in a silent room: one spoken order, one deterministic answer, and the
+   exact source badge used for that answer.
+3. **Say or tap the Papa John's example:** *"I am ordering a pepperoni and sausage pizza
+   from Papa John's."* The demo extracts the restaurant, food and toppings, then scores the
+   closest published restaurant category at 23. It says plainly that Papa John's and the
+   sausage-specific topping are not represented; pick a correction chip to show that the
+   user, not the model, controls the database match. The camera collapses and the result is
+   focused automatically; “Expand camera” is the only camera action in that state.
+4. **Type `pizza`.** Score in the low 20s, red band, and three better pizzas — vegetable,
    whole-wheat thin crust, gluten-free — each with a recipe search link.
-2. **Tick "Lowest calorie density first".** The same three qualifying foods reorder. The
-   toggles never widen the set, only reorder it.
-3. **Type `water`.** No number at all: *"Water is the best choice there is — it's outside
+5. **Choose "Lowest calorie density first".** It is a radio choice, so the two sort modes
+   cannot be active together. The alternatives heading repeats the active ordering.
+6. **Type `water`.** No number at all: *"Water is the best choice there is — it's outside
    this score's range."* Food Compass excludes anything under 5 kcal per 100 g by
    definition, and running the formula on water anyway is exactly what made the original
    prototype produce nonsense.
-4. **Type `banana`.** 83, green. That number is the published Table S5 value for
+7. **Type `banana`.** 83, green. That number is the published Table S5 value for
    `63107010`, not a recomputation — the point being that the model never calculates.
-5. **Point the camera at a banana.** The badge fills in within a few seconds.
-   Say *"what about peanut butter?"* — the spoken number comes from the `lookup_food_score`
-   tool, a table lookup, not from the model's memory.
+8. **Show the camera fallback.** Without camera permission, the viewfinder displays a
+   deterministic sample-food still with a scan animation instead of a blank black panel.
+   With a real camera, point it at a banana; the badge fills in and the result transition is
+   the same as typed input. Ask *"what about peanut butter?"* — the spoken number comes from
+   the `lookup_food_score` tool, a table lookup, not from the model's memory.
 
 ## Known rough edges, so they do not surprise you live
 
+- **Restaurant orders use a closest published category, not chain nutrition.** The local
+  Table S5 asset has no Papa John's row and no combined pepperoni-and-sausage row. The UI
+  preserves those details and labels what the selected score does not represent; it never
+  calls 23 a Papa John's-specific score.
 - **Bare `doritos` lands on the cool-ranch row (12), not nacho cheese (19).** Both rows
   score identically for that query and both are red; type `nacho cheese doritos` for the
   19. Nothing in the published data prefers one flavour over the other.

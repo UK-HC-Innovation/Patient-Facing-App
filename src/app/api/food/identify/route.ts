@@ -6,7 +6,13 @@ import {
   type CompassScore,
   type FcsFood
 } from "@/domain/food-compass";
-import { matchFood } from "@/domain/food-compass-search";
+import { matchFood, type FoodMatch, type FoodSearchIndex } from "@/domain/food-compass-search";
+import {
+  buildFoodMatchProvenance,
+  foodOrderCorrectionQueries,
+  parseFoodOrderIntent,
+  type FoodOrderIntent
+} from "@/domain/food-order-intent";
 import { findFoodByCode, loadFoodCompassData } from "@/server/food-compass-data";
 
 export const dynamic = "force-dynamic";
@@ -59,7 +65,12 @@ async function readBody(request: Request): Promise<IdentifyBody> {
   return {};
 }
 
-function buildMatch(food: FcsFood, body: IdentifyBody, candidates: Candidate[]): Response {
+function buildMatch(
+  food: FcsFood,
+  body: IdentifyBody,
+  candidates: Candidate[],
+  interpretation: FoodOrderIntent | null = null
+): Response {
   const data = loadFoodCompassData();
   const siblings = data.byCode.get(food.code) ?? [food];
   const nutrients = data.nutrients[food.code] ?? null;
@@ -77,7 +88,13 @@ function buildMatch(food: FcsFood, body: IdentifyBody, candidates: Candidate[]):
         tier: "T1",
         score,
         alternatives,
-        nutrients
+        nutrients,
+        ...(interpretation
+          ? {
+              interpretation,
+              provenance: buildFoodMatchProvenance(interpretation, food.description)
+            }
+          : {})
       },
       candidates
     },
@@ -87,6 +104,36 @@ function buildMatch(food: FcsFood, body: IdentifyBody, candidates: Candidate[]):
 
 function toCandidates(matches: { food: FcsFood }[]): Candidate[] {
   return matches.map((m) => ({ code: m.food.code, description: m.food.description, fcs: m.food.fcs2 }));
+}
+
+function resolveTextCandidates(
+  index: FoodSearchIndex,
+  query: string,
+  interpretation: FoodOrderIntent | null
+): FoodMatch[] {
+  const primary = matchFood(index, query, CANDIDATE_LIMIT).candidates;
+  if (!interpretation || primary.length === 0) {
+    return primary;
+  }
+
+  // Keep the best match first, then add one deterministic result for each correction
+  // category before filling the rest with the ordinary fuzzy-search candidates.
+  const correctionMatches = foodOrderCorrectionQueries(interpretation).flatMap(
+    (candidateQuery) => matchFood(index, candidateQuery, 1).candidates
+  );
+  const ordered: FoodMatch[] = [];
+  const seen = new Set<string>();
+  for (const candidate of [primary[0], ...correctionMatches, ...primary.slice(1)]) {
+    if (!candidate || seen.has(candidate.food.code)) {
+      continue;
+    }
+    seen.add(candidate.food.code);
+    ordered.push(candidate);
+    if (ordered.length === CANDIDATE_LIMIT) {
+      break;
+    }
+  }
+  return ordered;
 }
 
 async function askModel(args: {
@@ -147,6 +194,8 @@ function parseJson(content: string | null): Record<string, unknown> | null {
 export async function POST(request: Request): Promise<Response> {
   const body = await readBody(request);
   const data = loadFoodCompassData();
+  const text = typeof body.text === "string" ? body.text.slice(0, MAX_TEXT_CHARS).trim() : "";
+  const interpretation = text ? parseFoodOrderIntent(text) : null;
 
   // --- foodId: a correction-chip tap re-scores an exact row. Fully deterministic. ---
   if (typeof body.foodId === "string" && body.foodId.length > 0) {
@@ -154,27 +203,30 @@ export async function POST(request: Request): Promise<Response> {
     if (!food) {
       return Response.json({ mode: "none", candidates: [] });
     }
-    return buildMatch(food, body, []);
+    const candidates = interpretation
+      ? resolveTextCandidates(data.index, interpretation.matchQuery, interpretation)
+      : [];
+    return buildMatch(food, body, toCandidates(candidates), interpretation);
   }
 
-  const text = typeof body.text === "string" ? body.text.slice(0, MAX_TEXT_CHARS).trim() : "";
   const hasImage =
     typeof body.image === "string" && body.image.startsWith("data:image/") && body.image.length <= MAX_IMAGE_CHARS;
 
   // --- text: served BEFORE the provider and passcode checks. No model spend, so this is
   // the path that works in mock/locked mode and under Playwright. ---
   if (text.length > 0 && !hasImage) {
-    const carveOut = classifyQueryScoreability(text);
+    const searchText = interpretation?.matchQuery ?? text;
+    const carveOut = classifyQueryScoreability(searchText);
     if (carveOut && !carveOut.scoreable) {
       return Response.json({ mode: "carve_out", reason: carveOut.reason });
     }
-    const { candidates } = matchFood(data.index, text, CANDIDATE_LIMIT);
+    const candidates = resolveTextCandidates(data.index, searchText, interpretation);
     if (candidates.length === 0) {
       return Response.json({ mode: "none", candidates: [] });
     }
     // A typed query always resolves to the best-ranked row: the user can see the
     // alternatives list and re-pick, which is cheaper and more honest than a model call.
-    return buildMatch(candidates[0].food, body, toCandidates(candidates));
+    return buildMatch(candidates[0].food, body, toCandidates(candidates), interpretation);
   }
 
   if (!hasImage) {

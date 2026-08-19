@@ -46,6 +46,7 @@ describe("FoodFactsCard", () => {
     render(<FoodFactsCard food={soup} flags={flags} logged={false} canLog onLog={() => {}} language="en" {...portionProps} />);
     expect(screen.getByText("Campbell's Chicken Noodle Soup")).toBeInTheDocument();
     expect(screen.getByText(/890 mg sodium/)).toBeInTheDocument();
+    expect(screen.getByText(/Personalized: considers your recent readings and health profile/)).toBeInTheDocument();
   });
 
   it("calls onLog when the log button is pressed", async () => {
@@ -148,6 +149,7 @@ describe("FoodFactsCard — Food Compass row", () => {
 
     expect(screen.getByText("19")).toBeInTheDocument();
     expect(screen.getByText("Minimize")).toBeInTheDocument();
+    expect(screen.getByText(/General nutrition: Food Compass only/)).toBeInTheDocument();
     expect(screen.getByText("Estimate from label")).toBeInTheDocument();
     expect(screen.getByText(/Not scored from this label: D2, D4/)).toBeInTheDocument();
     // score 19 with no closer better option: saying "already one of the best" would be a lie

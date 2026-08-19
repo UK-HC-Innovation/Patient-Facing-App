@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { CompassAlternative, CompassScore, FnddsRecord, NotScoreableReason } from "@/domain/food-compass";
+import type { FoodMatchProvenance, FoodOrderIntent } from "@/domain/food-order-intent";
 
 export const LIVE_INTERVAL_MS = 2_500;
 /** Mean absolute difference (0-255) between two 32x32 grayscale frames that counts as a new scene. */
@@ -18,6 +19,8 @@ export type LiveMatch = {
   score: CompassScore;
   alternatives: CompassAlternative[];
   nutrients: FnddsRecord | null;
+  interpretation?: FoodOrderIntent;
+  provenance?: FoodMatchProvenance;
 };
 
 export type LiveScoreBadge = "hidden" | "idle" | "pending" | "score" | "carve_out";

@@ -154,10 +154,9 @@ describe("computeFoodFlags", () => {
     expect(flags.some((flag) => flag.id === "med-ace_arb_potassium-pattern")).toBe(true);
   });
 
-  it("returns only the trend flag when there is no food", () => {
+  it("does not show a patient trend before a food is identified", () => {
     const flags = computeFoodFlags(null, hypertensionLens, { medications: [], readings: risingReadings }, "en");
-    expect(flags).toHaveLength(1);
-    expect(flags[0].id).toBe("bp-trend");
+    expect(flags).toEqual([]);
   });
 
   it("orders warnings before cautions before info", () => {

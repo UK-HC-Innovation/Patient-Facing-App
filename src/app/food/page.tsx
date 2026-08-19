@@ -5,6 +5,7 @@ import { AppShell } from "@/components/app-shell";
 import { FoodAskBar } from "@/components/food-ask-bar";
 import { FoodConversation } from "@/components/food-conversation";
 import { FoodFactsCard } from "@/components/food-facts-card";
+import { FoodGuidanceSource } from "@/components/food-guidance-source";
 import { FoodViewfinder } from "@/components/food-viewfinder";
 import { PantryRecipes } from "@/components/pantry-recipes";
 import { MealLogList } from "@/components/meal-log-list";
@@ -319,6 +320,7 @@ export default function FoodPage() {
           videoRef={camera.videoRef}
           cameraStatus={camera.status}
           sessionStatus={voice.status}
+          idleLabel={identifiedFood ? undefined : t(language, "statusIdleNoFood")}
           scanChip={scanChip}
           language={language}
           scoreBadge={badgeState}
@@ -338,6 +340,8 @@ export default function FoodPage() {
             </div>
           </div>
         ) : null}
+
+        <FoodGuidanceSource kind="personalized" language={language} />
 
         <FoodAskBar
           mode={voice.mode}

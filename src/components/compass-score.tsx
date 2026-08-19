@@ -240,8 +240,8 @@ export function CompassViewfinderBadge({
     return null;
   }
 
-  return (
-    <button className={`${shell} flex items-center gap-2 text-left`} onClick={onTap} type="button">
+  const content = (
+    <>
       <CompassDial band={band} fcs={fcs} size={40} />
       <span className="min-w-0">
         <span className="block truncate text-xs font-semibold text-ink">{name ?? ""}</span>
@@ -250,6 +250,19 @@ export function CompassViewfinderBadge({
           {tier === "T2" ? ` · ${t(language, "compassEstimateBadge")}` : ""}
         </span>
       </span>
+    </>
+  );
+
+  return onTap ? (
+    <button
+      aria-label={`Show score details for ${name ?? "identified food"}`}
+      className={`${shell} flex items-center gap-2 text-left`}
+      onClick={onTap}
+      type="button"
+    >
+      {content}
     </button>
+  ) : (
+    <div className={`${shell} flex items-center gap-2 text-left`}>{content}</div>
   );
 }

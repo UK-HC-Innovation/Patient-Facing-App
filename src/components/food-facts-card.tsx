@@ -6,6 +6,7 @@ import type { FoodFlag, FoodFlagSeverity } from "@/domain/food-flags";
 import type { IdentifiedFood, NutritionFacts } from "@/domain/types";
 import type { CompassAlternative, CompassScore, NotScoreableReason } from "@/domain/food-compass";
 import { CompassAlternatives, CompassCarveOut, CompassScoreRow } from "./compass-score";
+import { FoodGuidanceSource } from "./food-guidance-source";
 
 const severityClass: Record<FoodFlagSeverity, string> = {
   warning: "bg-pulse/10 text-pulse",
@@ -132,6 +133,12 @@ export function FoodFactsCard({
         </div>
       ) : null}
 
+      {compassCarveOut || compassScore ? (
+        <div className="mt-3">
+          <FoodGuidanceSource kind="general" language={language} />
+        </div>
+      ) : null}
+
       {compassCarveOut ? (
         <div className="mt-3">
           <CompassCarveOut language={language} reason={compassCarveOut} />
@@ -153,13 +160,16 @@ export function FoodFactsCard({
       ) : null}
 
       {flags.length > 0 ? (
-        <ul className="mt-3 grid gap-2">
-          {flags.map((flag) => (
-            <li key={flag.id} className={`rounded-control px-3 py-2 text-sm font-medium ${severityClass[flag.severity]}`}>
-              {flag.text}
-            </li>
-          ))}
-        </ul>
+        <div className="mt-3 grid gap-2">
+          <FoodGuidanceSource kind="personalized" language={language} />
+          <ul className="grid gap-2">
+            {flags.map((flag) => (
+              <li key={flag.id} className={`rounded-control px-3 py-2 text-sm font-medium ${severityClass[flag.severity]}`}>
+                {flag.text}
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
 
       <div className="mt-4">

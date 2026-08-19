@@ -12,6 +12,22 @@ type IdentifyJson = {
     tier: string;
     score: { fcs: number; band: string; tier: string };
     alternatives: Array<{ fcs: number; recipeSearchUrl: string; description: string }>;
+    interpretation?: {
+      kind: string;
+      restaurant: string | null;
+      item: string;
+      toppings: string[];
+      size: string | null;
+      crust: string | null;
+      matchQuery: string;
+    };
+    provenance?: {
+      kind: string;
+      exact: boolean;
+      matchedAs: string;
+      unmatchedDetails: string[];
+      note: string;
+    };
   };
 };
 
@@ -66,6 +82,41 @@ describe("POST /api/food/identify — deterministic paths", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("understands a branded restaurant order without inventing brand-specific nutrition", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const text = "I am ordering a pepperoni and sausage pizza from Papa John's";
+    const json = (await (await POST(request({ text }))).json()) as IdentifyJson;
+
+    expect(json.mode).toBe("match");
+    expect(json.match?.food.code).toBe("58106540");
+    expect(json.match?.score.fcs).toBe(23);
+    expect(json.match?.interpretation).toMatchObject({
+      kind: "food_order",
+      restaurant: "Papa John's",
+      item: "pizza",
+      toppings: ["pepperoni", "sausage"],
+      size: null,
+      crust: null
+    });
+    expect(json.match?.provenance).toMatchObject({
+      kind: "published_closest_match",
+      exact: false,
+      matchedAs: "Pizza with pepperoni, from restaurant or fast food, NS as to type of crust",
+      unmatchedDetails: ["Papa John's exact menu item", "sausage-specific topping"]
+    });
+    expect(json.candidates?.some((candidate) => /meat other than pepperoni/i.test(candidate.description))).toBe(true);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("uses a stated crust when resolving a restaurant order", async () => {
+    const text = "Getting a thin crust pepperoni pizza at Papa Johns";
+    const json = (await (await POST(request({ text }))).json()) as IdentifyJson;
+
+    expect(json.match?.food.code).toBe("58106550");
+    expect(json.match?.score.fcs).toBe(24);
+    expect(json.match?.interpretation?.crust).toBe("thin");
+  });
+
   it("returns the carve-out for plain water instead of a flavoured-water score", async () => {
     const json = (await (await POST(request({ text: "water" }))).json()) as IdentifyJson;
     expect(json.mode).toBe("carve_out");
@@ -87,6 +138,15 @@ describe("POST /api/food/identify — deterministic paths", () => {
     const json = (await (await POST(request({ foodId: "63107010" }))).json()) as IdentifyJson;
     expect(json.mode).toBe("match");
     expect(json.match?.score.fcs).toBe(83);
+  });
+
+  it("preserves the order interpretation when a correction chip selects an exact row", async () => {
+    const text = "Pepperoni and sausage pizza from Papa John's";
+    const json = (await (await POST(request({ text, foodId: "58106610" }))).json()) as IdentifyJson;
+
+    expect(json.match?.food.code).toBe("58106610");
+    expect(json.match?.interpretation?.restaurant).toBe("Papa John's");
+    expect(json.match?.provenance?.unmatchedDetails).toContain("pepperoni topping");
   });
 
   it("reports a code it does not know rather than guessing", async () => {

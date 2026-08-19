@@ -73,6 +73,7 @@ describe("buildCompassInstructions", () => {
     expect(instructions).toContain("never state a number you were not given");
     expect(instructions).toContain("lookup_food_score");
     expect(instructions).toContain("You never calculate, estimate, adjust or average a score yourself");
+    expect(instructions).toContain("never present it as brand-specific nutrition");
   });
 
   it("says outright that it knows nothing about the person", () => {
@@ -100,6 +101,20 @@ describe("buildCompassVoiceContext", () => {
 
   it("says nothing was identified rather than naming a food it does not have", () => {
     expect(buildCompassVoiceContext(null, null)).toContain("none identified yet");
+  });
+
+  it("carries closest-match provenance into later voice turns", () => {
+    const context = buildCompassVoiceContext(null, "Pizza with pepperoni", {
+      kind: "published_closest_match",
+      exact: false,
+      matchedAs: "Pizza with pepperoni, from restaurant or fast food, crust not specified",
+      unmatchedDetails: ["Papa John's exact menu item", "sausage-specific topping"],
+      note: "This is not Papa John's nutrition."
+    });
+
+    expect(context).toContain("closest published category");
+    expect(context).toContain("Papa John's exact menu item");
+    expect(context).toContain("sausage-specific topping");
   });
 });
 
@@ -149,6 +164,36 @@ describe("lookupFoodScore", () => {
       found: false,
       reason: "not_scoreable",
       explanation: "outside the score's range — it provides essentially no calories"
+    });
+  });
+
+  it("returns closest-match provenance so voice cannot imply a branded score", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        json: () =>
+          Promise.resolve({
+            mode: "match",
+            match: {
+              food: { description: "Pizza with pepperoni, from restaurant or fast food" },
+              score: { fcs: 23, band: "minimize" },
+              alternatives: [],
+              provenance: {
+                matchedAs: "Pizza with pepperoni, from restaurant or fast food",
+                unmatchedDetails: ["Papa John's exact menu item", "sausage-specific topping"],
+                note: "This is the closest published restaurant category, not Papa John's nutrition."
+              }
+            }
+          })
+      })
+    );
+
+    await expect(lookupFoodScore("Pepperoni and sausage pizza from Papa John's")).resolves.toMatchObject({
+      found: true,
+      fcs: 23,
+      closestMatch: {
+        unmatchedDetails: ["Papa John's exact menu item", "sausage-specific topping"]
+      }
     });
   });
 

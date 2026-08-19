@@ -10,6 +10,7 @@ export type FoodLensStringKey =
   | "statusThinking"
   | "statusSpeaking"
   | "statusIdle"
+  | "statusIdleNoFood"
   | "statusError"
   | "tapToStart"
   | "endSession"
@@ -96,15 +97,16 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     statusThinking: "Thinking…",
     statusSpeaking: "Speaking…",
     statusIdle: "Tap start to talk about this food.",
+    statusIdleNoFood: "Tap start and describe your food.",
     statusError: "Something went wrong.",
     tapToStart: "Start",
     endSession: "End",
     resume: "Resume",
     retry: "Try again",
     switchToTyped: "Switch to typed mode",
-    cameraDenied: "Camera access is off. Turn it on in Chrome site settings to scan foods.",
+    cameraDenied: "Camera unavailable in this preview. You can still use the typed controls below.",
     micDenied: "Microphone access is off. You can still type your question below.",
-    cameraUnavailable: "Camera is not available on this device.",
+    cameraUnavailable: "Camera unavailable in this preview. You can still use the typed controls below.",
     fallbackNotice: "Type your question about what's in the camera and I'll answer.",
     askPlaceholder: "Ask about this food…",
     askButton: "Ask",
@@ -181,15 +183,16 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     statusThinking: "Pensando…",
     statusSpeaking: "Hablando…",
     statusIdle: "Toca empezar para hablar de esta comida.",
+    statusIdleNoFood: "Toca empezar y describe tu comida.",
     statusError: "Algo salió mal.",
     tapToStart: "Empezar",
     endSession: "Terminar",
     resume: "Continuar",
     retry: "Intentar de nuevo",
     switchToTyped: "Cambiar a modo escrito",
-    cameraDenied: "El acceso a la cámara está desactivado. Actívalo en la configuración de Chrome para escanear comidas.",
+    cameraDenied: "La cámara no está disponible en esta vista previa. Aún puedes usar los controles escritos abajo.",
     micDenied: "El acceso al micrófono está desactivado. Aún puedes escribir tu pregunta abajo.",
-    cameraUnavailable: "La cámara no está disponible en este dispositivo.",
+    cameraUnavailable: "La cámara no está disponible en esta vista previa. Aún puedes usar los controles escritos abajo.",
     fallbackNotice: "Escribe tu pregunta sobre lo que ves en la cámara y te respondo.",
     askPlaceholder: "Pregunta sobre esta comida…",
     askButton: "Preguntar",
