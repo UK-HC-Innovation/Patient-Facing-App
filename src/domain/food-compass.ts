@@ -9,7 +9,7 @@
 // Reference unit: per 100 kcal. Pure functions only, data injected by the caller, so
 // the ~5 MB of lookup assets never reach a client bundle.
 
-import type { NutritionFacts } from "./types";
+import type { IdentifiedFood, NutritionFacts } from "./types";
 
 export type CompassBand = "encourage" | "moderate" | "minimize";
 export type CompassTier = "T1" | "T2";
@@ -882,4 +882,25 @@ export function computeFullScore(record: FnddsRecord, context: FullScoreContext)
 
   const raw = domains.reduce((sum, d) => sum + d.value, 0);
   return { fcs: rawToFcs(raw), raw, domains };
+}
+
+/**
+ * A published-lookup food as an IdentifiedFood, so a T1 match can flow through the same
+ * card, flags and meal log as a barcode scan.
+ *
+ * The source is `fndds_lookup`, deliberately not `vision_estimate`: the estimate badge is
+ * keyed to that value and a published score is not an estimate. FNDDS rows are per 100 g,
+ * which the serving size states outright.
+ */
+export function toIdentifiedFood(food: FcsFood, nutrients: FnddsRecord | null): IdentifiedFood {
+  return {
+    id: `fndds:${food.code}`,
+    barcode: null,
+    name: food.description,
+    brand: null,
+    category: food.group,
+    nutrition: nutrients ? nutrientsToFacts(nutrients) : null,
+    source: "fndds_lookup",
+    ingredientText: null
+  };
 }

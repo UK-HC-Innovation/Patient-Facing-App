@@ -20,6 +20,8 @@ import { useFoodCamera } from "@/hooks/use-food-camera";
 import { useBarcodeScan } from "@/hooks/use-barcode-scan";
 import { useFoodVoiceSession, type VoiceSafetyIntercept } from "@/hooks/use-food-voice-session";
 import { useCompassScore } from "@/hooks/use-compass-score";
+import { useLiveFoodScore } from "@/hooks/use-live-food-score";
+import { toIdentifiedFood } from "@/domain/food-compass";
 import { toCompassContext } from "@/domain/compass-context";
 import { useHealthState } from "@/state/store";
 import type { AiMessage, IdentifiedFood, PantryResult } from "@/domain/types";
@@ -45,9 +47,31 @@ export default function FoodPage() {
     () => (typeof window === "undefined" ? undefined : new URLSearchParams(window.location.search).get("k") ?? undefined),
     []
   );
-  const [identifiedFood, setIdentifiedFood] = useState<IdentifiedFood | null>(null);
+  const [barcodeFood, setBarcodeFood] = useState<IdentifiedFood | null>(null);
   const [portionServings, setPortionServings] = useState(1);
   const [logged, setLogged] = useState(false);
+  const { activeBarcode } = useBarcodeScan({
+    videoRef: camera.videoRef,
+    enabled: camera.status === "active",
+    onBarcode: () => setLogged(false)
+  });
+
+  const live = useLiveFoodScore({
+    videoRef: camera.videoRef,
+    grabFrame: camera.grabFrame,
+    cameraActive: camera.status === "active",
+    barcodeActive: activeBarcode !== null,
+    passcode
+  });
+
+  // A barcode is authoritative while it is on screen; otherwise the live vision match is.
+  const identifiedFood = useMemo<IdentifiedFood | null>(() => {
+    if (barcodeFood) {
+      return barcodeFood;
+    }
+    return live.match ? toIdentifiedFood({ ...live.match.food, fcs2: live.match.score.fcs, fcs1: 0, nova: 1, hsr: 0, nutriScore: "C", ambiguous: live.match.score.ambiguous }, live.match.nutrients) : null;
+  }, [barcodeFood, live.match]);
+
   const identifiedFoodId = identifiedFood?.id ?? null;
   const scaledFood = useMemo<IdentifiedFood | null>(() => {
     if (!identifiedFood?.nutrition) {
@@ -56,16 +80,22 @@ export default function FoodPage() {
     return { ...identifiedFood, nutrition: scaleNutrition(identifiedFood.nutrition, portionServings) };
   }, [identifiedFood, portionServings]);
 
-  const { activeBarcode } = useBarcodeScan({
-    videoRef: camera.videoRef,
-    enabled: camera.status === "active",
-    onBarcode: () => setLogged(false)
-  });
-
   // Scored from identifiedFood, not scaledFood: scaleNutrition rounds to integers, and a
   // per-100-kcal score recomputed off rounded values would wobble as portions change.
   // The score is a property of the food; the flags are a property of the portion.
-  const compass = useCompassScore(identifiedFood, { passcode });
+  const labelCompass = useCompassScore(barcodeFood, { passcode });
+  const compass = useMemo(
+    () =>
+      live.match && !barcodeFood
+        ? {
+            score: live.match.score,
+            carveOut: null,
+            alternatives: live.match.alternatives,
+            alternativesLoading: false
+          }
+        : { ...labelCompass, carveOut: labelCompass.carveOut ?? live.carveOut },
+    [barcodeFood, labelCompass, live.carveOut, live.match]
+  );
   const compassRef = useRef(compass);
   compassRef.current = compass;
 
@@ -199,7 +229,9 @@ export default function FoodPage() {
   useEffect(() => {
     let cancelled = false;
     if (!activeBarcode) {
-      setIdentifiedFood(null);
+      // Only the barcode's own identification is cleared here. A vision match lives in
+      // the live-score hook, which owns preemption and the 60 s restore window.
+      setBarcodeFood(null);
       return;
     }
     void fetch(`/api/food/lookup?barcode=${activeBarcode}`)
@@ -209,12 +241,12 @@ export default function FoodPage() {
           return;
         }
         const parsed = foodLookupResponseSchema.safeParse(json);
-        setIdentifiedFood(parsed.success && parsed.data.found ? parsed.data.food : null);
+        setBarcodeFood(parsed.success && parsed.data.found ? parsed.data.food : null);
         setLogged(false);
       })
       .catch(() => {
         if (!cancelled) {
-          setIdentifiedFood(null);
+          setBarcodeFood(null);
         }
       });
     return () => {
@@ -267,6 +299,16 @@ export default function FoodPage() {
     setLogged(true);
   }, [dispatch, language]);
 
+  // The barcode's own score is computed locally, so the badge reflects it directly rather
+  // than waiting for the vision loop that stood down while the barcode is on screen.
+  const badgeState = barcodeFood
+    ? compass.carveOut
+      ? ("carve_out" as const)
+      : compass.score
+        ? ("score" as const)
+        : ("idle" as const)
+    : live.badge;
+
   const recentMeals = state.mealLog.slice(-5).reverse();
   const scanChip = identifiedFood ? (identifiedFood.brand ? `${identifiedFood.brand} ${identifiedFood.name}` : identifiedFood.name) : activeBarcode;
 
@@ -279,6 +321,11 @@ export default function FoodPage() {
           sessionStatus={voice.status}
           scanChip={scanChip}
           language={language}
+          scoreBadge={badgeState}
+          scoreBand={compass.score?.band}
+          scoreFcs={compass.score?.fcs}
+          scoreName={identifiedFood?.name}
+          scoreTier={compass.score?.tier}
         />
 
         {voice.error ? (

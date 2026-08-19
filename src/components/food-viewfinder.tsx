@@ -4,6 +4,8 @@ import React, { type RefObject } from "react";
 import { t, type Language } from "@/i18n/strings";
 import type { CameraStatus } from "@/hooks/use-food-camera";
 import type { LiveSessionStatus } from "@/ai/types";
+import type { CompassBand } from "@/domain/food-compass";
+import { CompassViewfinderBadge } from "./compass-score";
 
 const statusKey: Record<LiveSessionStatus, Parameters<typeof t>[1]> = {
   idle: "statusIdle",
@@ -20,13 +22,25 @@ export function FoodViewfinder({
   cameraStatus,
   sessionStatus,
   scanChip,
-  language
+  language,
+  scoreBadge = "hidden",
+  scoreFcs,
+  scoreBand,
+  scoreTier,
+  scoreName,
+  onScoreTap
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
   cameraStatus: CameraStatus;
   sessionStatus: LiveSessionStatus;
   scanChip: string | null;
   language: Language;
+  scoreBadge?: "hidden" | "idle" | "pending" | "score" | "carve_out";
+  scoreFcs?: number;
+  scoreBand?: CompassBand;
+  scoreTier?: "T1" | "T2";
+  scoreName?: string;
+  onScoreTap?: () => void;
 }) {
   return (
     <div className="relative overflow-hidden rounded-control border border-ink/10 bg-ink" style={{ height: "55vh" }}>
@@ -50,6 +64,16 @@ export function FoodViewfinder({
           {t(language, "scanHint")}
         </div>
       )}
+
+      <CompassViewfinderBadge
+        badge={scoreBadge}
+        band={scoreBand}
+        fcs={scoreFcs}
+        language={language}
+        name={scoreName}
+        onTap={onScoreTap}
+        tier={scoreTier}
+      />
 
       <div className="absolute inset-x-0 bottom-3 flex justify-center">
         <div className="flex items-center gap-2 rounded-control bg-white/90 px-4 py-2 text-sm font-semibold text-ink">
