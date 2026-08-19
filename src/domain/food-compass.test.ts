@@ -52,7 +52,7 @@ function facts(overrides: Partial<NutritionFacts> = {}): NutritionFacts {
 function record(overrides: Partial<FnddsRecord> = {}): FnddsRecord {
   const empty = {
     desc: "Test food",
-    wweia: null,
+    wweia: null as string | null,
     kcal: 100,
     protein: null,
     carb: null,
@@ -422,21 +422,39 @@ describe("computeLabelScore", () => {
 
 describe("findAlternatives", () => {
   const catalogue: FcsFood[] = [
-    food({ code: "1", description: "Doritos", group: "9000_SavorySweet", fcs2: 19 }),
-    food({ code: "2", description: "Popcorn, air popped", group: "9000_SavorySweet", fcs2: 78 }),
-    food({ code: "3", description: "Pretzels", group: "9000_SavorySweet", fcs2: 35 }),
-    food({ code: "4", description: "Candy", group: "9000_SavorySweet", fcs2: 12 }),
-    food({ code: "5", description: "Banana, raw", group: "2000_Fruit", fcs2: 83 }),
-    food({ code: "6", description: "Ambiguous snack", group: "9000_SavorySweet", fcs2: 90, ambiguous: true })
+    food({ code: "1", description: "Tortilla chips, nacho cheese flavor", group: "9000_SavorySweet", fcs2: 19 }),
+    food({ code: "2", description: "Bean chips", group: "9000_SavorySweet", fcs2: 72 }),
+    food({ code: "3", description: "Sweet potato chips", group: "9000_SavorySweet", fcs2: 59 }),
+    food({ code: "4", description: "Candy, hard", group: "9000_SavorySweet", fcs2: 12 }),
+    food({ code: "5", description: "Chocolate cake", group: "9000_SavorySweet", fcs2: 40 }),
+    food({ code: "6", description: "Ambiguous chips", group: "9000_SavorySweet", fcs2: 90, ambiguous: true }),
+    food({ code: "7", description: "Banana, raw", group: "2000_Fruit", fcs2: 83 })
   ];
+  // Codes 1-4 share the WWEIA chip category; 5 is in the same coarse S5 group but a
+  // different category, and 7 is neither.
   const nutrients: Record<string, FnddsRecord | undefined> = {
-    "2": record({ kcal: 387 }),
-    "3": record({ kcal: 380 })
+    "1": record({ kcal: 490, wweia: "Tortilla, corn, other chips" }),
+    "2": record({ kcal: 470, wweia: "Tortilla, corn, other chips" }),
+    "3": record({ kcal: 520, wweia: "Tortilla, corn, other chips" }),
+    "4": record({ kcal: 390, wweia: "Tortilla, corn, other chips" }),
+    "5": record({ kcal: 380, wweia: "Cakes and pies" }),
+    "6": record({ kcal: 400, wweia: "Tortilla, corn, other chips" }),
+    "7": record({ kcal: 89, wweia: "Bananas" })
   };
 
-  it("suggests only same-group foods that are meaningfully better, never an ambiguous row", () => {
+  it("suggests foods from the same WWEIA category, not the far coarser S5 food group", () => {
     const alternatives = findAlternatives(catalogue[0], catalogue, nutrients);
-    expect(alternatives.map((a) => a.description)).toEqual(["Popcorn, air popped", "Pretzels"]);
+    expect(alternatives.map((a) => a.description)).toEqual(["Bean chips", "Sweet potato chips"]);
+    // Chocolate cake is in the same S5 group and scores higher, but it is not a chip.
+    expect(alternatives.map((a) => a.description)).not.toContain("Chocolate cake");
+  });
+
+  it("never suggests an ambiguous, twice-listed row", () => {
+    expect(findAlternatives(catalogue[0], catalogue, nutrients).map((a) => a.code)).not.toContain("6");
+  });
+
+  it("carries a recipe link for every suggestion", () => {
+    const alternatives = findAlternatives(catalogue[0], catalogue, nutrients);
     expect(alternatives.every((a) => a.recipeSearchUrl.startsWith("https://www.google.com/search?q="))).toBe(true);
   });
 
@@ -445,11 +463,28 @@ describe("findAlternatives", () => {
     expect(findAlternatives(best, [...catalogue, best], nutrients)).toEqual([]);
   });
 
+  it("returns nothing when the category holds nothing meaningfully better", () => {
+    expect(findAlternatives(catalogue[6], catalogue, nutrients)).toEqual([]);
+  });
+
   it("reorders the qualifying set when the lower-calorie-density toggle is on", () => {
     const byScore = findAlternatives(catalogue[0], catalogue, nutrients, { preferHigherScore: true });
     const byDensity = findAlternatives(catalogue[0], catalogue, nutrients, { preferLowerCalorieDensity: true });
-    expect(byScore[0].description).toBe("Popcorn, air popped");
-    expect(byDensity[0].description).toBe("Pretzels");
+    expect(byScore[0].description).toBe("Bean chips");
+    expect(byDensity[0].description).toBe("Bean chips"); // 470 kcal/100 g beats 520
+    expect(byDensity.map((a) => a.calorieDensity.kcalPer100g)).toEqual([470, 520]);
+  });
+
+  it("falls back to shared words within the food group when a food predates FNDDS 2017-18", () => {
+    // About a third of Table S5 has no WWEIA category. Without the shared-word rule this
+    // would answer "taco burger" with whatever scores highest in 8000_Mixed.
+    const legacy: FcsFood[] = [
+      food({ code: "10", description: "Taco burger, on bun", group: "8000_Mixed", fcs2: 18 }),
+      food({ code: "11", description: "Turkey or chicken burger, on wheat bun", group: "8000_Mixed", fcs2: 62 }),
+      food({ code: "12", description: "Ceviche", group: "8000_Mixed", fcs2: 100 })
+    ];
+    const alternatives = findAlternatives(legacy[0], legacy, {});
+    expect(alternatives.map((a) => a.description)).toEqual(["Turkey or chicken burger, on wheat bun"]);
   });
 });
 

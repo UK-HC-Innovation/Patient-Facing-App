@@ -146,7 +146,7 @@ export function FoodFactsCard({
               {t(language, "compassBetterOptions")}
             </summary>
             <div className="mt-2">
-              <CompassAlternatives alternatives={compassAlternatives} language={language} />
+              <CompassAlternatives alternatives={compassAlternatives} currentFcs={compassScore.fcs} language={language} />
             </div>
           </details>
         </div>

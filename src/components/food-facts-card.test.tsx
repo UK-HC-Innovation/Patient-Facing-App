@@ -150,7 +150,8 @@ describe("FoodFactsCard — Food Compass row", () => {
     expect(screen.getByText("Minimize")).toBeInTheDocument();
     expect(screen.getByText("Estimate from label")).toBeInTheDocument();
     expect(screen.getByText(/Not scored from this label: D2, D4/)).toBeInTheDocument();
-    expect(screen.getByText(/Already one of the best choices/)).toBeInTheDocument();
+    // score 19 with no closer better option: saying "already one of the best" would be a lie
+    expect(screen.getByText(/No closer option with a higher score/)).toBeInTheDocument();
   });
 
   it("shows carve-out copy and no number at all for a food outside the score's range", () => {

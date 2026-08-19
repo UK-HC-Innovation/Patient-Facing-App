@@ -621,11 +621,47 @@ export function recipeSearchUrl(description: string): string {
 
 const MIN_IMPROVEMENT = 10;
 
+// Words that carry no food identity; dropped before comparing two descriptions.
+const DESCRIPTION_STOPWORDS = new Set([
+  "with", "and", "or", "no", "not", "added", "fat", "from", "the", "as", "to", "ns", "nfs",
+  "made", "cooked", "fresh", "type", "other", "in", "on", "of", "for", "its", "any", "all"
+]);
+
+function contentTokens(description: string): Set<string> {
+  return new Set(
+    description
+      .toLowerCase()
+      .replace(/[^a-z0-9 ]/g, " ")
+      .split(/\s+/)
+      .filter((token) => token.length > 2 && !DESCRIPTION_STOPWORDS.has(token))
+  );
+}
+
+function sharedTokenCount(a: Set<string>, b: Set<string>): number {
+  let count = 0;
+  for (const token of b) {
+    if (a.has(token)) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
 /**
- * Deterministic: same Table S5 food group, at least 10 points better, never an ambiguous
- * (twice-listed) row, and never another food pinned at the tail the current food already
- * sits at — recommending a different food that is also exactly 100 is not a suggestion.
- * The two toggles only reorder the qualifying set; they never widen it.
+ * Deterministic, published-data only: no model decides what a better option is.
+ *
+ * The candidate pool is the WWEIA category the food belongs to, not its Table S5 food
+ * group. The S5 groups are far too coarse to suggest a swap with — 8000_Mixed alone holds
+ * 2,551 foods, so a group-ranked answer to "pizza" is "Ceviche, 100", which is true and
+ * useless. WWEIA is the USDA's own 148-category grouping and comes from the same joined
+ * data, so "pizza" answers with a better pizza and "nacho cheese Doritos" answers with
+ * bean chips. About a third of Table S5 predates FNDDS 2017-18 and has no WWEIA category;
+ * those fall back to the S5 group narrowed to candidates that share a content word, which
+ * turns "taco burger" into a turkey burger rather than a grapefruit.
+ *
+ * Never an ambiguous (twice-listed) row, never another food pinned at the tail the current
+ * food already sits at, and always at least 10 points better. The toggles only reorder the
+ * qualifying set; they never widen it.
  */
 export function findAlternatives(
   food: FcsFood,
@@ -638,58 +674,74 @@ export function findAlternatives(
     return [];
   }
 
+  const category = nutrientsByCode[food.code]?.wweia ?? null;
+  const foodTokens = contentTokens(food.description);
   const seen = new Set<string>();
-  const candidates = all.filter((candidate) => {
+
+  const candidates: { food: FcsFood; overlap: number }[] = [];
+  for (const candidate of all) {
     if (candidate.ambiguous || candidate.code === food.code) {
-      return false;
-    }
-    if (candidate.group !== food.group) {
-      return false;
+      continue;
     }
     if (candidate.fcs2 < food.fcs2 + MIN_IMPROVEMENT) {
-      return false;
+      continue;
     }
     if (food.fcs2 === 1 && candidate.fcs2 === 1) {
-      return false;
+      continue;
+    }
+    const overlap = sharedTokenCount(foodTokens, contentTokens(candidate.description));
+    if (category !== null) {
+      if ((nutrientsByCode[candidate.code]?.wweia ?? null) !== category) {
+        continue;
+      }
+    } else if (candidate.group !== food.group || overlap === 0) {
+      continue;
     }
     const key = candidate.description.toLowerCase();
     if (seen.has(key)) {
-      return false;
+      continue;
     }
     seen.add(key);
-    return true;
-  });
+    candidates.push({ food: candidate, overlap });
+  }
 
   const densityOf = (code: string): number => {
-    const record = nutrientsByCode[code];
-    const value = record?.kcal;
+    const value = nutrientsByCode[code]?.kcal;
     // Foods with no joined nutrient panel sort last rather than pretending to be light.
     return value === null || value === undefined ? Number.POSITIVE_INFINITY : value;
   };
 
-  // Both toggles are observable and all four combinations are defined: density leads
-  // unless the user also asked for the highest score, in which case score leads.
+  // All four toggle combinations are distinct and observable. Default is the nearest
+  // better swap; "highest score" makes the score the primary key; "lowest calorie density"
+  // makes density the primary key unless the score toggle is also on.
   const densityFirst = preferences.preferLowerCalorieDensity === true && preferences.preferHigherScore !== true;
+  const scoreFirst = preferences.preferHigherScore === true;
+
   const sorted = [...candidates].sort((a, b) => {
     if (densityFirst) {
-      const diff = densityOf(a.code) - densityOf(b.code);
+      const diff = densityOf(a.food.code) - densityOf(b.food.code);
       if (diff !== 0) {
         return diff;
       }
+    } else if (!scoreFirst && b.overlap !== a.overlap) {
+      return b.overlap - a.overlap;
     }
-    if (b.fcs2 !== a.fcs2) {
-      return b.fcs2 - a.fcs2;
+    if (b.food.fcs2 !== a.food.fcs2) {
+      return b.food.fcs2 - a.food.fcs2;
     }
     if (preferences.preferLowerCalorieDensity) {
-      const diff = densityOf(a.code) - densityOf(b.code);
+      const diff = densityOf(a.food.code) - densityOf(b.food.code);
       if (diff !== 0) {
         return diff;
       }
     }
-    return a.description.localeCompare(b.description);
+    if (b.overlap !== a.overlap) {
+      return b.overlap - a.overlap;
+    }
+    return a.food.description.localeCompare(b.food.description);
   });
 
-  return sorted.slice(0, limit).map((candidate) => {
+  return sorted.slice(0, limit).map(({ food: candidate }) => {
     const record = nutrientsByCode[candidate.code];
     return {
       code: candidate.code,

@@ -147,13 +147,20 @@ export function CompassScoreRow({
 
 export function CompassAlternatives({
   alternatives,
-  language
+  language,
+  currentFcs
 }: {
   alternatives: CompassAlternative[];
   language: Language;
+  currentFcs?: number;
 }) {
   if (alternatives.length === 0) {
-    return <p className="text-sm text-ink/65">{t(language, "compassAlreadyBest")}</p>;
+    // "Already one of the best" is only true near the top of the scale. For a food scoring
+    // 18 with nothing close and better in its category, saying that would be a lie.
+    const alreadyGood = currentFcs === undefined || currentFcs >= 70;
+    return (
+      <p className="text-sm text-ink/65">{t(language, alreadyGood ? "compassAlreadyBest" : "compassNoCloseMatch")}</p>
+    );
   }
 
   return (

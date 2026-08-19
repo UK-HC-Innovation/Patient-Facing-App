@@ -149,3 +149,61 @@ hear itself); autoplay unlock via the Start tap; Spanish speech quality;
 backgrounding the tab releasing camera + mic (OS indicators off); ~10-minute
 thermal/battery behavior; self-signed cert acceptance on the hotspot path;
 answer quality on real packaging under kitchen lighting.
+
+---
+
+# One Good Choice (`/compass`) — Food Compass demo runbook
+
+A standalone, shareable page that scores a food 1–100 with the published Food Compass 2.0
+system and suggests better options in the same food group. No patient chrome, no patient
+data — it is the page to send to someone outside the project.
+
+**Links**
+
+- Shareable, no passcode: `https://patient-centered.vercel.app/compass`
+- Full demo with the live camera and voice: `https://patient-centered.vercel.app/compass?k=<DEMO_PASSCODE>`
+
+## What works without a passcode
+
+Typed scoring, the alternatives list, the recipe links, both sort toggles, and every
+carve-out. This is the whole deterministic half of the product and it costs nothing to run.
+The live camera loop and the voice button are hidden, not broken: the loop needs a live
+provider, and the on-device fallback voice speaks in a patient-care-plan register that is
+wrong for this surface.
+
+## The five-minute script
+
+1. **Type `pizza`.** Score in the low 20s, red band, and three better pizzas — vegetable,
+   whole-wheat thin crust, gluten-free — each with a recipe search link.
+2. **Tick "Lowest calorie density first".** The same three qualifying foods reorder. The
+   toggles never widen the set, only reorder it.
+3. **Type `water`.** No number at all: *"Water is the best choice there is — it's outside
+   this score's range."* Food Compass excludes anything under 5 kcal per 100 g by
+   definition, and running the formula on water anyway is exactly what made the original
+   prototype produce nonsense.
+4. **Type `banana`.** 83, green. That number is the published Table S5 value for
+   `63107010`, not a recomputation — the point being that the model never calculates.
+5. **With `?k=…`, point the camera at a banana.** The badge fills in within a few seconds.
+   Say *"what about peanut butter?"* — the spoken number comes from the `lookup_food_score`
+   tool, a table lookup, not from the model's memory.
+
+## Known rough edges, so they do not surprise you live
+
+- **Bare `doritos` lands on the cool-ranch row (12), not nacho cheese (19).** Both rows
+  score identically for that query and both are red; type `nacho cheese doritos` for the
+  19. Nothing in the published data prefers one flavour over the other.
+- **Barcode scores are estimates and read low.** A Nutrition Facts panel carries none of
+  the vitamin, food-group or phytochemical domains, so a label-derived score is biased
+  downward by roughly 17 points and is badged accordingly. Published (typed or camera)
+  scores have no such bias.
+- **About a third of the published foods have no nutrient panel.** Table S5 spans FNDDS
+  2001–2018 while the joined nutrient workbook covers 2017–18 only, so those foods show a
+  score with no panel underneath it. That is stated on screen, not hidden.
+
+## What the numbers are
+
+Scores come from Table S5 of the Food Compass 2.0 supplement (9,273 published rows) or from
+a deterministic TypeScript engine for label-only foods. The engine agrees with the published
+scores at r = 0.966 on a subset where the comparison is clean; see
+`docs/qa/2026-08-18-fcs-validation.md` for the full validation, including the three domains
+that have no input data and what that costs.

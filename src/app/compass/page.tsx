@@ -322,7 +322,11 @@ export default function CompassPage() {
           <div>
             <h3 className="text-sm font-semibold text-ink/75">Better options in the same food group</h3>
             <div className="mt-2">
-              <CompassAlternatives alternatives={shown.match.alternatives} language={LANGUAGE} />
+              <CompassAlternatives
+                alternatives={shown.match.alternatives}
+                currentFcs={shown.match.score.fcs}
+                language={LANGUAGE}
+              />
             </div>
           </div>
         </section>

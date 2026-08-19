@@ -72,6 +72,7 @@ export type FoodLensStringKey =
   | "compassDensityUnknown"
   | "compassBetterOptions"
   | "compassAlreadyBest"
+  | "compassNoCloseMatch"
   | "compassRecipeLink"
   | "compassCarveOutZeroCalorie"
   | "compassCarveOutBelow5"
@@ -157,6 +158,7 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     compassDensityUnknown: "Serving weight unknown",
     compassBetterOptions: "Better options",
     compassAlreadyBest: "Already one of the best choices in its group.",
+    compassNoCloseMatch: "No closer option with a higher score in this category.",
     compassRecipeLink: "Recipe ideas",
     compassCarveOutZeroCalorie: "Water is the best choice there is - it's outside this score's range.",
     compassCarveOutBelow5: "Under 5 calories per 100 g, so this sits outside the score's range.",
@@ -241,6 +243,7 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     compassDensityUnknown: "Peso de la porcion desconocido",
     compassBetterOptions: "Mejores opciones",
     compassAlreadyBest: "Ya es una de las mejores opciones de su grupo.",
+    compassNoCloseMatch: "No hay una opcion parecida con mejor puntaje en esta categoria.",
     compassRecipeLink: "Ideas de recetas",
     compassCarveOutZeroCalorie: "El agua es la mejor opcion que existe: queda fuera del rango de este puntaje.",
     compassCarveOutBelow5: "Menos de 5 calorias por 100 g, asi que queda fuera del rango del puntaje.",
