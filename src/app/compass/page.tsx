@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { FoodViewfinder } from "@/components/food-viewfinder";
 import { FoodGuidanceSource } from "@/components/food-guidance-source";
 import { CompassAlternatives, CompassCarveOut, CompassScoreRow } from "@/components/compass-score";
+import { NutritionCompass } from "@/components/nutrition-compass";
 import { useFoodCamera } from "@/hooks/use-food-camera";
 import { useLiveFoodScore, type LiveMatch } from "@/hooks/use-live-food-score";
 import { useFoodVoiceSession } from "@/hooks/use-food-voice-session";
@@ -59,12 +60,13 @@ export default function CompassPage() {
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(ORDER_EXAMPLE);
   const [typed, setTyped] = useState<TypedResult | null>(null);
   const [typedLoading, setTypedLoading] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>("score");
   const [cameraExpanded, setCameraExpanded] = useState(true);
   const [voiceExampleActive, setVoiceExampleActive] = useState(false);
+  const queryRef = useRef<HTMLTextAreaElement | null>(null);
   const resultRef = useRef<HTMLDivElement | null>(null);
 
   const live = useLiveFoodScore({
@@ -204,6 +206,14 @@ export default function CompassPage() {
   // wrong for this surface — so the voice button is hidden rather than mislabelled. Typed
   // scoring and alternatives still work fully, which IS the no-passcode shareable demo.
   const voiceAvailable = voice.mode === "live";
+  const voiceCanStart = voice.status === "idle" || voice.status === "closed" || voice.status === "error";
+  const handleVoiceAction = () => {
+    if (voiceCanStart) {
+      void voice.start();
+      return;
+    }
+    voice.stop();
+  };
   const correctionCandidates =
     shown?.kind === "match" && shown.match.interpretation
       ? shown.candidates.filter((candidate) => candidate.code !== shown.match.food.code).slice(0, 4)
@@ -226,6 +236,21 @@ export default function CompassPage() {
       resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   }, []);
+
+  const focusQuery = useCallback(() => {
+    queryRef.current?.focus({ preventScroll: true });
+    queryRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, []);
+
+  const handleCompassPrompt = useCallback(() => {
+    if (shown?.kind === "none" || query.trim().length === 0) {
+      focusQuery();
+      return;
+    }
+    setVoiceExampleActive(false);
+    setTyped(null);
+    void runQuery(query);
+  }, [focusQuery, query, runQuery, shown?.kind]);
 
   useEffect(() => {
     if (!resultKey) {
@@ -281,6 +306,7 @@ export default function CompassPage() {
             idleLabel={shown?.kind === "match" ? "Tap start to ask about this food." : "Tap start and describe your order."}
             language={LANGUAGE}
             onScoreTap={focusResult}
+            onVoiceStatusTap={voiceAvailable && voiceCanStart ? handleVoiceAction : undefined}
             scanChip={shown?.kind === "match" ? shown.match.food.description : null}
             scoreBadge={
               !cameraExpanded
@@ -326,6 +352,22 @@ export default function CompassPage() {
         ) : null}
       </section>
 
+      <NutritionCompass
+        foodName={shown?.kind === "match" ? shown.match.food.description : null}
+        onRequestFood={handleCompassPrompt}
+        requestLabel={shown?.kind === "none" ? "Try another food name" : query.trim().length > 0 ? "Plot this order" : "Describe a food"}
+        score={shown?.kind === "match" ? shown.match.score : null}
+        state={
+          typedLoading || (!shown && live.badge === "pending")
+            ? "pending"
+            : shown?.kind === "none"
+              ? "no_match"
+              : shown?.kind === "carve_out"
+                ? "carve_out"
+                : "idle"
+        }
+      />
+
       <form
         className="grid gap-2"
         onSubmit={(event) => {
@@ -338,20 +380,28 @@ export default function CompassPage() {
         <label className="text-sm font-medium text-ink/75" htmlFor="compass-query">
           Describe a food or order
         </label>
-        <div className="flex gap-2">
-          <input
+        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <textarea
             autoComplete="off"
-            className="min-h-12 flex-1 rounded-control border border-ink/15 px-3 text-base"
+            className="min-h-20 w-full resize-none rounded-control border border-ink/15 px-3 py-2 text-base text-ink placeholder:text-ink/65"
             id="compass-query"
             onChange={(event) => {
               setVoiceExampleActive(false);
               setQuery(event.target.value);
             }}
-            placeholder="Pepperoni and sausage pizza from Papa John's"
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                event.currentTarget.form?.requestSubmit();
+              }
+            }}
+            placeholder="Describe a food or restaurant order"
+            ref={queryRef}
+            rows={2}
             value={query}
           />
           <button
-            className="min-h-12 rounded-control bg-care px-4 font-semibold text-white disabled:opacity-40"
+            className="min-h-12 rounded-control bg-care px-4 font-semibold text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-ink/10 disabled:text-ink/65"
             disabled={typedLoading || query.trim().length === 0}
             type="submit"
           >
@@ -380,7 +430,7 @@ export default function CompassPage() {
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-care/20 bg-calm/50 p-3" aria-label="Voice example control">
         <div>
           <h2 className="text-sm font-semibold">Voice flow example</h2>
-          <p className="text-xs text-ink/60">Canned for this prototype, so developers can see the intended exchange.</p>
+          <p className="text-xs text-ink/70">Canned for this prototype, so developers can see the intended exchange.</p>
         </div>
         <button
           className="rounded-control border border-care bg-white px-3 py-2 text-sm font-semibold text-care disabled:opacity-40"
@@ -457,15 +507,15 @@ export default function CompassPage() {
                 <p className="text-xs font-semibold uppercase tracking-wide text-care">We heard</p>
                 <dl className="mt-2 grid min-w-0 grid-cols-2 gap-2 text-sm [&>*]:min-w-0">
                   <div>
-                    <dt className="text-xs text-ink/55">Restaurant</dt>
+                    <dt className="text-xs text-ink/70">Restaurant</dt>
                     <dd className="break-words font-semibold">{shown.match.interpretation.restaurant ?? "Not specified"}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-ink/55">Food</dt>
+                    <dt className="text-xs text-ink/70">Food</dt>
                     <dd className="break-words font-semibold">{sentenceCase(shown.match.interpretation.item)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-ink/55">Toppings</dt>
+                    <dt className="text-xs text-ink/70">Toppings</dt>
                     <dd className="break-words font-semibold">
                       {shown.match.interpretation.toppings.length > 0
                         ? shown.match.interpretation.toppings.map(sentenceCase).join(", ")
@@ -473,14 +523,14 @@ export default function CompassPage() {
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-ink/55">Crust</dt>
+                    <dt className="text-xs text-ink/70">Crust</dt>
                     <dd className="break-words font-semibold">
                       {shown.match.interpretation.crust ? sentenceCase(shown.match.interpretation.crust) : "Not specified"}
                     </dd>
                   </div>
                   {shown.match.interpretation.size ? (
                     <div>
-                      <dt className="text-xs text-ink/55">Size</dt>
+                      <dt className="text-xs text-ink/70">Size</dt>
                       <dd className="break-words font-semibold">{sentenceCase(shown.match.interpretation.size)}</dd>
                     </div>
                   ) : null}
@@ -537,7 +587,7 @@ export default function CompassPage() {
                 .filter(([, value]) => value !== null)
                 .map(([label, value, unit]) => (
                   <div className="rounded-control bg-calm/60 px-3 py-2" key={label}>
-                    <dt className="text-xs font-medium text-ink/60">{label}</dt>
+                    <dt className="text-xs font-medium text-ink/70">{label}</dt>
                     <dd className="font-semibold">
                       {value} {unit}
                     </dd>
@@ -546,7 +596,7 @@ export default function CompassPage() {
             </dl>
           ) : (
             // ~1/3 of published foods predate FNDDS 2017-18, so there is no panel to show.
-            <p className="text-xs text-ink/55">
+            <p className="text-xs text-ink/70">
               No nutrient panel for this food — its published score comes from an earlier survey cycle.
             </p>
           )}
@@ -571,10 +621,12 @@ export default function CompassPage() {
       {voiceAvailable ? (
         <button
           className="min-h-14 w-full rounded-control border border-care bg-white px-4 py-2 font-semibold text-care"
-          onClick={() => (voice.status === "idle" || voice.status === "closed" ? void voice.start() : voice.stop())}
+          onClick={handleVoiceAction}
           type="button"
         >
-          {voice.status === "idle" || voice.status === "closed"
+          {voice.status === "error"
+            ? "Try voice again"
+            : voiceCanStart
             ? shown?.kind === "match"
               ? `Ask about ${shown.match.food.description}`
               : "Describe an order by voice"
@@ -582,7 +634,13 @@ export default function CompassPage() {
         </button>
       ) : null}
 
-      <footer className="border-t border-ink/10 pt-3 text-xs text-ink/55">
+      {voiceAvailable && voice.error ? (
+        <p className="rounded-control border border-pulse/30 bg-pulse/5 px-3 py-2 text-sm text-pulse" role="alert">
+          {voice.error} Tap “Try voice again” to retry.
+        </p>
+      ) : null}
+
+      <footer className="border-t border-ink/10 pt-3 text-xs text-ink/70">
         <details className="rounded-control border border-ink/10 bg-white p-3">
           <summary className="cursor-pointer font-semibold text-care">How scoring works</summary>
           <div className="mt-2 grid gap-1">

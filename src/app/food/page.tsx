@@ -321,6 +321,7 @@ export default function FoodPage() {
           cameraStatus={camera.status}
           sessionStatus={voice.status}
           idleLabel={identifiedFood ? undefined : t(language, "statusIdleNoFood")}
+          onVoiceStatusTap={voice.status === "idle" || voice.status === "closed" ? () => void voice.start() : undefined}
           scanChip={scanChip}
           language={language}
           scoreBadge={badgeState}

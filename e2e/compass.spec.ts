@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+const ORDER_EXAMPLE = "I am ordering a pepperoni and sausage pizza from Papa John's";
+
 // Playwright forces HEALTH_AI_PROVIDER=mock, so nothing here stubs an identify response:
 // the typed path is served before the provider and passcode checks and is fully
 // deterministic against the published Table S5 asset. That is the point of the gate order.
@@ -13,6 +15,37 @@ async function stubRealtime(page: import("@playwright/test").Page) {
   );
 }
 
+async function fillCompassQuery(page: import("@playwright/test").Page, value: string) {
+  const query = page.getByLabel("Describe a food or order");
+  // The textarea is server-rendered with a useful example. Wait for hydration
+  // before replacing it so an eager browser action cannot race the streamed text.
+  await expect(query).toHaveValue(ORDER_EXAMPLE);
+  await query.fill(value);
+  await expect(query).toHaveValue(value);
+}
+
+test("starts with a readable order example that can be scored in one tap", async ({ page }) => {
+  await stubRealtime(page);
+  await page.goto("/compass");
+
+  await expect(page.getByLabel("Describe a food or order")).toHaveValue(ORDER_EXAMPLE);
+  await expect(page.getByRole("button", { name: "Find score" })).toBeEnabled();
+  await page.getByRole("button", { name: "Find score" }).click();
+
+  await expect(page.getByLabel("Order interpretation")).toContainText("Papa John's");
+  await expect(page.getByRole("region", { name: "Food result" })).toBeFocused();
+});
+
+test("the empty nutrition compass offers a working plot action", async ({ page }) => {
+  await stubRealtime(page);
+  await page.goto("/compass");
+
+  await page.getByRole("button", { name: "Plot this order" }).click();
+
+  await expect(page.getByLabel("Order interpretation")).toContainText("Papa John's");
+  await expect(page.getByRole("region", { name: "Food result" })).toBeFocused();
+});
+
 test("scores a typed food from the published table and offers better options", async ({ page }) => {
   await stubRealtime(page);
   await page.goto("/compass");
@@ -21,13 +54,22 @@ test("scores a typed food from the published table and offers better options", a
   await expect(page.getByRole("list", { name: "Prototype flow" })).toContainText("1Scan or describe2Review the score3Ask a question");
   await expect(page.getByLabel("Guidance source").first()).toContainText("General nutrition: Food Compass only");
   await expect(page.locator('[data-guidance-scope="personalized"]')).toHaveCount(0);
+  await expect(
+    page.locator('section[aria-label="Food camera"] + section[aria-labelledby="nutrition-compass-title"]')
+  ).toHaveCount(1);
+  await expect(page.locator('section[aria-labelledby="nutrition-compass-title"] + form')).toHaveCount(1);
+  await expect(page.getByRole("region", { name: "Nutrition compass" })).toContainText(
+    "Point at a food or type one to place it on the compass."
+  );
 
-  await page.getByLabel("Describe a food or order").fill("pizza");
+  await fillCompassQuery(page, "pizza");
   await page.getByRole("button", { name: "Find score" }).click();
 
   await expect(page.getByRole("heading", { name: /^Pizza,/ })).toBeVisible();
   await expect(page.getByRole("region", { name: "Food result" })).toBeFocused();
   await expect(page.getByText("Food Compass score")).toBeVisible();
+  await expect(page.getByTestId("nutrition-compass-marker")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Nutrition compass" })).toContainText(/Pizza.*nutrition score.*calorie density/i);
   // A published score is not an estimate, so the label badge must not appear.
   await expect(page.getByText("Estimate from label")).toHaveCount(0);
 
@@ -75,15 +117,16 @@ test("a live camera identification also collapses the camera and focuses the res
   await expect(page.getByRole("heading", { name: "Banana, raw" })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByRole("region", { name: "Food result" })).toBeFocused();
   await expect(page.getByRole("button", { name: /Expand camera/ })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Nutrition compass" })).toContainText(
+    "Banana, raw: 83 / 100 nutrition score · Encourage · Low calorie density · 89 kcal / 100 g."
+  );
 });
 
 test("understands a restaurant order and labels the closest published match honestly", async ({ page }) => {
   await stubRealtime(page);
   await page.goto("/compass");
 
-  await page
-    .getByLabel("Describe a food or order")
-    .fill("I am ordering a pepperoni and sausage pizza from Papa John's");
+  await fillCompassQuery(page, ORDER_EXAMPLE);
   await page.getByRole("button", { name: "Find score" }).click();
 
   await expect(page.getByLabel("Order interpretation")).toBeVisible();
@@ -112,7 +155,7 @@ test("the sort control is exclusive and labels the active ordering", async ({ pa
   await stubRealtime(page);
   await page.goto("/compass");
 
-  await page.getByLabel("Describe a food or order").fill("latte");
+  await fillCompassQuery(page, "latte");
   await page.getByRole("button", { name: "Find score" }).click();
   await expect(page.getByRole("heading", { name: /Latte/i })).toBeVisible();
 
@@ -147,7 +190,7 @@ test("water gets the carve-out copy and no number at all", async ({ page }) => {
   await stubRealtime(page);
   await page.goto("/compass");
 
-  await page.getByLabel("Describe a food or order").fill("water");
+  await fillCompassQuery(page, "water");
   await page.getByRole("button", { name: "Find score" }).click();
 
   // The camera collapses, so the carve-out appears once in the focused result instead of behind the fold too.
@@ -170,10 +213,11 @@ test("shows the voice control as soon as the token route reports a live provider
   );
   await page.goto("/compass?k=anything");
 
+  await expect(page.getByRole("button", { name: "Tap start and describe your order." })).toBeVisible();
   await expect(page.getByRole("button", { name: "Describe an order by voice" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Ask about/ })).toHaveCount(0);
 
-  await page.getByLabel("Describe a food or order").fill("banana");
+  await fillCompassQuery(page, "banana");
   await page.getByRole("button", { name: "Find score" }).click();
   await expect(page.getByRole("button", { name: "Ask about Banana, raw" })).toBeVisible();
 });
@@ -200,7 +244,7 @@ test("typed scoring still works with a passcode in the URL", async ({ page }) =>
   await stubRealtime(page);
   await page.goto("/compass?k=anything");
 
-  await page.getByLabel("Describe a food or order").fill("banana");
+  await fillCompassQuery(page, "banana");
   await page.getByRole("button", { name: "Find score" }).click();
 
   // 83 is the published Table S5 value for Banana, raw. The number IS the test.

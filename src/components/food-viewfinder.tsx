@@ -29,6 +29,7 @@ export function FoodViewfinder({
   scoreTier,
   scoreName,
   onScoreTap,
+  onVoiceStatusTap,
   showVoiceStatus = true,
   idleLabel,
   demoPreview = false
@@ -44,6 +45,8 @@ export function FoodViewfinder({
   scoreTier?: "T1" | "T2";
   scoreName?: string;
   onScoreTap?: () => void;
+  /** Makes idle "Tap start" copy a real, touch-sized control. */
+  onVoiceStatusTap?: () => void;
   /**
    * The pill reads "Tap start to talk about this food". On a surface with no voice
    * control it points at a button that is not on screen, so it is suppressed there.
@@ -58,6 +61,27 @@ export function FoodViewfinder({
     idleLabel && (sessionStatus === "idle" || sessionStatus === "closed")
       ? idleLabel
       : t(language, statusKey[sessionStatus]);
+  const voiceStatusClassName =
+    "flex min-h-12 max-w-[calc(100%_-_1.5rem)] items-center gap-2 rounded-control border border-white/70 bg-white px-4 py-2 text-sm font-semibold text-ink shadow-lg";
+  const voiceStatusContent = (
+    <>
+      <span
+        aria-hidden="true"
+        className={`h-3 w-3 shrink-0 rounded-full ${
+          sessionStatus === "listening"
+            ? "animate-pulse bg-care"
+            : sessionStatus === "speaking"
+              ? "bg-care"
+              : sessionStatus === "error"
+                ? "bg-pulse"
+                : onVoiceStatusTap
+                  ? "bg-care"
+                  : "bg-ink/45"
+        }`}
+      />
+      <span>{voiceStatus}</span>
+    </>
+  );
 
   return (
     <div className="relative overflow-hidden rounded-control border border-ink/10 bg-ink" style={{ height: "55vh" }}>
@@ -73,7 +97,7 @@ export function FoodViewfinder({
             🍕
           </span>
           <span aria-hidden="true" className="absolute inset-x-8 top-1/2 h-0.5 animate-pulse bg-emerald-300/90 shadow-[0_0_18px_rgba(110,231,183,0.9)] motion-reduce:animate-none" />
-          <p className="absolute inset-x-4 bottom-16 rounded-control bg-black/60 px-3 py-2 text-center text-xs font-medium text-white">
+          <p className="absolute inset-x-4 bottom-16 rounded-control bg-black/80 px-3 py-2 text-center text-xs font-medium text-white">
             Camera unavailable in this preview — choose a sample or describe your food below.
           </p>
         </div>
@@ -93,7 +117,7 @@ export function FoodViewfinder({
       {scanChip ? (
         <div className="absolute left-3 top-3 rounded-control bg-white/90 px-3 py-1 text-xs font-semibold text-ink">{scanChip}</div>
       ) : (
-        <div className="absolute left-3 top-3 rounded-control bg-black/40 px-3 py-1 text-xs font-medium text-white">
+        <div className="absolute left-3 top-3 rounded-control bg-black/75 px-3 py-1 text-xs font-medium text-white">
           {t(language, "scanHint")}
         </div>
       )}
@@ -109,22 +133,20 @@ export function FoodViewfinder({
       />
 
       {showVoiceStatus ? (
-        <div className="absolute inset-x-0 bottom-3 flex justify-center">
-          <div className="flex items-center gap-2 rounded-control bg-white/90 px-4 py-2 text-sm font-semibold text-ink">
-            <span
-              aria-hidden="true"
-              className={`h-3 w-3 rounded-full ${
-                sessionStatus === "listening"
-                  ? "animate-pulse bg-care"
-                  : sessionStatus === "speaking"
-                    ? "bg-care"
-                    : sessionStatus === "error"
-                      ? "bg-pulse"
-                      : "bg-ink/30"
-              }`}
-            />
-            {voiceStatus}
-          </div>
+        <div aria-live="polite" className="absolute inset-x-0 bottom-3 flex justify-center">
+          {onVoiceStatusTap ? (
+            <button
+              className={`${voiceStatusClassName} cursor-pointer transition hover:bg-calm active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white`}
+              onClick={onVoiceStatusTap}
+              type="button"
+            >
+              {voiceStatusContent}
+            </button>
+          ) : (
+            <div className={voiceStatusClassName} role="status">
+              {voiceStatusContent}
+            </div>
+          )}
         </div>
       ) : null}
     </div>

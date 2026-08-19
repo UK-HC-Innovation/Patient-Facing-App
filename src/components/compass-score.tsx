@@ -21,8 +21,8 @@ const BAND_LABEL: Record<CompassBand, FoodLensStringKey> = {
 };
 
 const BAND_RING: Record<CompassBand, string> = {
-  encourage: "text-emerald-600",
-  moderate: "text-amber-500",
+  encourage: "text-emerald-700",
+  moderate: "text-amber-800",
   minimize: "text-pulse"
 };
 
@@ -106,7 +106,7 @@ export function CompassScoreRow({
       <div className="flex items-center gap-3">
         <CompassDial band={score.band} fcs={score.fcs} size={compact ? 48 : 56} />
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium text-ink/60">
+          <p className="text-xs font-medium text-ink/70">
             {t(language, "compassScoreLabel")} · {t(language, "compassOutOf100")}
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -139,7 +139,7 @@ export function CompassScoreRow({
       ) : null}
 
       {missing.length > 0 ? (
-        <p className="text-xs text-ink/55">{t(language, "compassMissingDomains", { domains: missing.join(", ") })}</p>
+        <p className="text-xs text-ink/70">{t(language, "compassMissingDomains", { domains: missing.join(", ") })}</p>
       ) : null}
     </div>
   );
@@ -172,7 +172,7 @@ export function CompassAlternatives({
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold">{alternative.description}</p>
               {alternative.calorieDensity.kcalPer100g !== null ? (
-                <p className="text-xs text-ink/60">{alternative.calorieDensity.kcalPer100g} kcal / 100 g</p>
+                <p className="text-xs text-ink/70">{alternative.calorieDensity.kcalPer100g} kcal / 100 g</p>
               ) : null}
               <a
                 className="mt-1 inline-block text-xs font-semibold text-care underline"
@@ -220,13 +220,13 @@ export function CompassViewfinderBadge({
 
   if (badge === "idle") {
     return (
-      <div className={`${shell} text-xs font-medium text-ink/60`}>{t(language, "compassPointAtFood")}</div>
+      <div className={`${shell} text-xs font-medium text-ink/70`}>{t(language, "compassPointAtFood")}</div>
     );
   }
 
   if (badge === "pending") {
     return (
-      <div className={`${shell} text-xs font-medium text-ink/60`} role="status">
+      <div className={`${shell} text-xs font-medium text-ink/70`} role="status">
         <span className="animate-pulse">{t(language, "compassScoring")}</span>
       </div>
     );
@@ -245,7 +245,7 @@ export function CompassViewfinderBadge({
       <CompassDial band={band} fcs={fcs} size={40} />
       <span className="min-w-0">
         <span className="block truncate text-xs font-semibold text-ink">{name ?? ""}</span>
-        <span className="block text-[11px] font-medium text-ink/60">
+        <span className="block text-[11px] font-medium text-ink/70">
           {t(language, BAND_LABEL[band])}
           {tier === "T2" ? ` · ${t(language, "compassEstimateBadge")}` : ""}
         </span>

@@ -26,6 +26,25 @@ describe("FoodViewfinder demo states", () => {
     expect(screen.queryByText(/Chrome site settings/i)).not.toBeInTheDocument();
   });
 
+  it("makes tap-start voice copy a real control when a voice action is available", async () => {
+    const onVoiceStatusTap = vi.fn();
+    render(
+      <FoodViewfinder
+        cameraStatus="denied"
+        demoPreview
+        idleLabel="Tap start and describe your order."
+        language="en"
+        onVoiceStatusTap={onVoiceStatusTap}
+        scanChip={null}
+        sessionStatus="idle"
+        videoRef={videoRef}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Tap start and describe your order." }));
+    expect(onVoiceStatusTap).toHaveBeenCalledTimes(1);
+  });
+
   it("makes a score badge actionable only when score details have an action", async () => {
     const onScoreTap = vi.fn();
     const { rerender } = render(
