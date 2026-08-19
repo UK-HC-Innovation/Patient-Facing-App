@@ -20,6 +20,9 @@ async function fillCompassQuery(page: import("@playwright/test").Page, value: st
   // The textarea is server-rendered with a useful example. Wait for hydration
   // before replacing it so an eager browser action cannot race the streamed text.
   await expect(query).toHaveValue(ORDER_EXAMPLE);
+  if (value === ORDER_EXAMPLE) {
+    return;
+  }
   await query.fill(value);
   await expect(query).toHaveValue(value);
 }
