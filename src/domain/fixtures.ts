@@ -589,9 +589,19 @@ export const brentState: AppState = {
           saturatedFatG: 0,
           fiberG: 0,
           proteinG: 0,
-          carbsG: 65
+          carbsG: 65,
+          totalFatG: null,
+          monoFatG: null,
+          polyFatG: null,
+          transFatG: null,
+          cholesterolMg: null,
+          calciumMg: null,
+          ironMg: null,
+          servingGrams: null,
+          basis: "per_serving"
         },
-        source: "barcode_off"
+        source: "barcode_off",
+        ingredientText: null
       },
       flags: ["65 g added sugars — 260% of your 25 g daily limit"],
       assistantSummary:
@@ -617,9 +627,19 @@ export const brentState: AppState = {
           saturatedFatG: 0.1,
           fiberG: 3.1,
           proteinG: 1,
-          carbsG: 27
+          carbsG: 27,
+          totalFatG: null,
+          monoFatG: null,
+          polyFatG: null,
+          transFatG: null,
+          cholesterolMg: null,
+          calciumMg: null,
+          ironMg: null,
+          servingGrams: null,
+          basis: "per_serving"
         },
-        source: "vision_estimate"
+        source: "vision_estimate",
+        ingredientText: null
       },
       flags: [
         "High in potassium — check with your care team first because you take Lisinopril",
@@ -648,9 +668,19 @@ export const brentState: AppState = {
           saturatedFatG: 0.7,
           fiberG: 6,
           proteinG: 7,
-          carbsG: 40
+          carbsG: 40,
+          totalFatG: null,
+          monoFatG: null,
+          polyFatG: null,
+          transFatG: null,
+          cholesterolMg: null,
+          calciumMg: null,
+          ironMg: null,
+          servingGrams: null,
+          basis: "per_serving"
         },
-        source: "vision_estimate"
+        source: "vision_estimate",
+        ingredientText: null
       },
       flags: ["6 g fiber — good for your heart"],
       assistantSummary:
@@ -676,9 +706,19 @@ export const brentState: AppState = {
           saturatedFatG: 1.5,
           fiberG: 2,
           proteinG: 9,
-          carbsG: 22
+          carbsG: 22,
+          totalFatG: null,
+          monoFatG: null,
+          polyFatG: null,
+          transFatG: null,
+          cholesterolMg: null,
+          calciumMg: null,
+          ironMg: null,
+          servingGrams: null,
+          basis: "per_serving"
         },
-        source: "barcode_off"
+        source: "barcode_off",
+        ingredientText: null
       },
       flags: [
         "890 mg sodium — 59% of your 1500 mg daily limit",
@@ -707,9 +747,19 @@ export const brentState: AppState = {
           saturatedFatG: 3,
           fiberG: 2,
           proteinG: 8,
-          carbsG: 55
+          carbsG: 55,
+          totalFatG: null,
+          monoFatG: null,
+          polyFatG: null,
+          transFatG: null,
+          cholesterolMg: null,
+          calciumMg: null,
+          ironMg: null,
+          servingGrams: null,
+          basis: "per_serving"
         },
-        source: "vision_estimate"
+        source: "vision_estimate",
+        ingredientText: null
       },
       flags: ["55 g carbs — 28% of your 200 g daily limit"],
       assistantSummary:
@@ -735,9 +785,19 @@ export const brentState: AppState = {
           saturatedFatG: 3,
           fiberG: 0,
           proteinG: 12,
-          carbsG: 6
+          carbsG: 6,
+          totalFatG: null,
+          monoFatG: null,
+          polyFatG: null,
+          transFatG: null,
+          cholesterolMg: null,
+          calciumMg: null,
+          ironMg: null,
+          servingGrams: null,
+          basis: "per_serving"
         },
-        source: "vision_estimate"
+        source: "vision_estimate",
+        ingredientText: null
       },
       flags: [],
       assistantSummary:
@@ -763,9 +823,19 @@ export const brentState: AppState = {
           saturatedFatG: 0.5,
           fiberG: 1,
           proteinG: 6,
-          carbsG: 50
+          carbsG: 50,
+          totalFatG: null,
+          monoFatG: null,
+          polyFatG: null,
+          transFatG: null,
+          cholesterolMg: null,
+          calciumMg: null,
+          ironMg: null,
+          servingGrams: null,
+          basis: "per_serving"
         },
-        source: "vision_estimate"
+        source: "vision_estimate",
+        ingredientText: null
       },
       flags: ["50 g carbs — 25% of your 200 g daily limit"],
       assistantSummary:
@@ -791,9 +861,19 @@ export const brentState: AppState = {
           saturatedFatG: 2,
           fiberG: 5,
           proteinG: 20,
-          carbsG: 15
+          carbsG: 15,
+          totalFatG: null,
+          monoFatG: null,
+          polyFatG: null,
+          transFatG: null,
+          cholesterolMg: null,
+          calciumMg: null,
+          ironMg: null,
+          servingGrams: null,
+          basis: "per_serving"
         },
-        source: "vision_estimate"
+        source: "vision_estimate",
+        ingredientText: null
       },
       flags: ["5 g fiber — good for your heart"],
       assistantSummary:
@@ -819,9 +899,19 @@ export const brentState: AppState = {
           saturatedFatG: 0,
           fiberG: 0,
           proteinG: 0,
-          carbsG: 60
+          carbsG: 60,
+          totalFatG: null,
+          monoFatG: null,
+          polyFatG: null,
+          transFatG: null,
+          cholesterolMg: null,
+          calciumMg: null,
+          ironMg: null,
+          servingGrams: null,
+          basis: "per_serving"
         },
-        source: "barcode_off"
+        source: "barcode_off",
+        ingredientText: null
       },
       flags: ["39 g added sugars — 156% of your 25 g daily limit"],
       assistantSummary:
@@ -847,9 +937,19 @@ export const brentState: AppState = {
           saturatedFatG: 4,
           fiberG: 4,
           proteinG: 35,
-          carbsG: 12
+          carbsG: 12,
+          totalFatG: null,
+          monoFatG: null,
+          polyFatG: null,
+          transFatG: null,
+          cholesterolMg: null,
+          calciumMg: null,
+          ironMg: null,
+          servingGrams: null,
+          basis: "per_serving"
         },
-        source: "vision_estimate"
+        source: "vision_estimate",
+        ingredientText: null
       },
       flags: ["4 g fiber — good for your heart"],
       assistantSummary:

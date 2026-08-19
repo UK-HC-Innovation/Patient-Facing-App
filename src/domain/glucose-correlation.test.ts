@@ -23,9 +23,19 @@ function food(carbsG: number | null): IdentifiedFood {
             saturatedFatG: null,
             fiberG: null,
             proteinG: null,
-            carbsG
+            carbsG,
+            totalFatG: null,
+            monoFatG: null,
+            polyFatG: null,
+            transFatG: null,
+            cholesterolMg: null,
+            calciumMg: null,
+            ironMg: null,
+            servingGrams: null,
+            basis: "per_serving" as const
           },
-    source: "vision_estimate"
+    source: "vision_estimate",
+    ingredientText: null
   };
 }
 

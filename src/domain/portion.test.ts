@@ -12,7 +12,16 @@ const nutrition: NutritionFacts = {
   saturatedFatG: 1.25,
   fiberG: 1.5,
   proteinG: 5,
-  carbsG: 22
+  carbsG: 22,
+  totalFatG: null,
+  monoFatG: null,
+  polyFatG: null,
+  transFatG: null,
+  cholesterolMg: null,
+  calciumMg: null,
+  ironMg: null,
+  servingGrams: null,
+  basis: "per_serving"
 };
 
 describe("parsePortionServings", () => {
@@ -50,7 +59,16 @@ describe("scaleNutrition", () => {
       saturatedFatG: 2.5,
       fiberG: 3,
       proteinG: 10,
-      carbsG: 44
+      carbsG: 44,
+      totalFatG: null,
+      monoFatG: null,
+      polyFatG: null,
+      transFatG: null,
+      cholesterolMg: null,
+      calciumMg: null,
+      ironMg: null,
+      servingGrams: null,
+      basis: "per_serving"
     });
   });
 

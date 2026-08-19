@@ -10,7 +10,8 @@ function seedFood(barcode: string, source: IdentifiedFood["source"] = "barcode_s
     brand: null,
     category: null,
     nutrition: null,
-    source
+    source,
+    ingredientText: null
   };
 }
 

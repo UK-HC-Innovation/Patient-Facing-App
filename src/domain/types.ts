@@ -181,8 +181,19 @@ export type AuditEvent = {
   createdAt: string;
 };
 
+// Numeric basis of the amounts below. Sources disagree: OpenFoodFacts and the demo
+// seed report per declared serving, USDA FDC reports per 100 g. Anything derived per
+// 100 kcal (nutrient ratios, %-energy gates) is basis-invariant, but calorie density
+// is not -- it needs either basis "per_100g" or a known servingGrams.
+export type NutritionBasis = "per_serving" | "per_100g";
+
+// null means "the source did not report this", never zero. The single documented
+// exception is `(transFatG ?? 0)` inside the unsaturated-fat subtraction fallback in
+// the Food Compass engine, where a missing trans figure is negligible by construction.
 export type NutritionFacts = {
   servingSize: string;
+  servingGrams: number | null;
+  basis: NutritionBasis;
   calories: number | null;
   sodiumMg: number | null;
   potassiumMg: number | null;
@@ -192,9 +203,16 @@ export type NutritionFacts = {
   fiberG: number | null;
   proteinG: number | null;
   carbsG: number | null;
+  totalFatG: number | null;
+  monoFatG: number | null;
+  polyFatG: number | null;
+  transFatG: number | null;
+  cholesterolMg: number | null;
+  calciumMg: number | null;
+  ironMg: number | null;
 };
 
-export type FoodSource = "barcode_off" | "barcode_fdc" | "barcode_seed" | "vision_estimate";
+export type FoodSource = "barcode_off" | "barcode_fdc" | "barcode_seed" | "vision_estimate" | "fndds_lookup";
 
 export type IdentifiedFood = {
   id: string;
@@ -204,6 +222,7 @@ export type IdentifiedFood = {
   category: string | null;
   nutrition: NutritionFacts | null;
   source: FoodSource;
+  ingredientText: string | null;
 };
 
 export type MealLogEntry = {

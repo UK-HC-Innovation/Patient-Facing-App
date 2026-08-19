@@ -164,9 +164,19 @@ describe("MockHealthAiProvider", () => {
           saturatedFatG: 0.5,
           fiberG: 1,
           proteinG: 3,
-          carbsG: 8
+          carbsG: 8,
+          totalFatG: null,
+          monoFatG: null,
+          polyFatG: null,
+          transFatG: null,
+          cholesterolMg: null,
+          calciumMg: null,
+          ironMg: null,
+          servingGrams: null,
+          basis: "per_serving"
         },
-        source: "barcode_seed"
+        source: "barcode_seed",
+        ingredientText: null
       }
     });
 

@@ -77,14 +77,18 @@ const UNITS_BY_LANGUAGE: Record<Language, ReadonlySet<string>> = {
   es: UNITS
 };
 
-const INTEGER_FIELDS = ["calories", "sodiumMg", "potassiumMg"] as const;
+const INTEGER_FIELDS = ["calories", "sodiumMg", "potassiumMg", "cholesterolMg", "calciumMg", "ironMg"] as const;
 const GRAM_FIELDS = [
   "totalSugarsG",
   "addedSugarsG",
   "saturatedFatG",
   "fiberG",
   "proteinG",
-  "carbsG"
+  "carbsG",
+  "totalFatG",
+  "monoFatG",
+  "polyFatG",
+  "transFatG"
 ] as const;
 
 function normalize(text: string): string[] {
@@ -147,7 +151,8 @@ export function parsePortionServings(text: string, language: Language): number |
 export function scaleNutrition(nutrition: NutritionFacts, servings: number): NutritionFacts {
   const scaled: NutritionFacts = {
     ...nutrition,
-    servingSize: servings === 1 ? nutrition.servingSize : `${formatServings(servings)} x ${nutrition.servingSize}`
+    servingSize: servings === 1 ? nutrition.servingSize : `${formatServings(servings)} x ${nutrition.servingSize}`,
+    servingGrams: nutrition.servingGrams === null ? null : roundOneDecimal(nutrition.servingGrams * servings)
   };
 
   for (const field of INTEGER_FIELDS) {

@@ -1312,6 +1312,46 @@ describe("storage", () => {
     expect(loaded.readings).toHaveLength(demoState.readings.length);
   });
 
+  it("migrates a pre-spec-23 meal log entry instead of dropping the patient's history", () => {
+    const legacyEntry = {
+      id: "meal-legacy",
+      patientId: "patient-1",
+      loggedAt: "2026-07-05T12:00:00.000Z",
+      food: {
+        id: "1",
+        barcode: "1",
+        name: "Soup",
+        brand: null,
+        category: null,
+        source: "barcode_seed",
+        nutrition: {
+          servingSize: "1 cup",
+          calories: 60,
+          sodiumMg: 890,
+          potassiumMg: 100,
+          totalSugarsG: 1,
+          addedSugarsG: 0,
+          saturatedFatG: 0.5,
+          fiberG: 1,
+          proteinG: 3,
+          carbsG: 8
+        }
+      },
+      flags: ["890 mg sodium"],
+      assistantSummary: "High in sodium."
+    };
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...demoState, mealLog: [legacyEntry] }));
+
+    const loaded = loadStoredState();
+
+    expect(loaded.mealLog).toHaveLength(1);
+    expect(loaded.mealLog[0].food.ingredientText).toBeNull();
+    expect(loaded.mealLog[0].food.nutrition?.basis).toBe("per_serving");
+    expect(loaded.mealLog[0].food.nutrition?.totalFatG).toBeNull();
+    // values that were already stored survive the migration untouched
+    expect(loaded.mealLog[0].food.nutrition?.sodiumMg).toBe(890);
+  });
+
   it("drops malformed meal log entries while keeping the rest of the state", () => {
     const validEntry = {
       id: "meal-1",

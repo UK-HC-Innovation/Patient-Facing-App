@@ -20,7 +20,8 @@ const food: IdentifiedFood = {
   brand: "Demo",
   category: "soup",
   nutrition: null,
-  source: "barcode_seed"
+  source: "barcode_seed",
+  ingredientText: null
 };
 
 describe("useFoodVoiceSession context injection", () => {

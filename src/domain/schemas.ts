@@ -57,7 +57,16 @@ export const nutritionFactsSchema = z.object({
   saturatedFatG: nullableNumber,
   fiberG: nullableNumber,
   proteinG: nullableNumber,
-  carbsG: nullableNumber
+  carbsG: nullableNumber,
+  totalFatG: nullableNumber,
+  monoFatG: nullableNumber,
+  polyFatG: nullableNumber,
+  transFatG: nullableNumber,
+  cholesterolMg: nullableNumber,
+  calciumMg: nullableNumber,
+  ironMg: nullableNumber,
+  servingGrams: nullableNumber,
+  basis: z.enum(["per_serving", "per_100g"])
 });
 
 export const identifiedFoodSchema = z.object({
@@ -67,7 +76,8 @@ export const identifiedFoodSchema = z.object({
   brand: z.string().nullable(),
   category: z.string().nullable(),
   nutrition: nutritionFactsSchema.nullable(),
-  source: z.enum(["barcode_off", "barcode_fdc", "barcode_seed", "vision_estimate"])
+  source: z.enum(["barcode_off", "barcode_fdc", "barcode_seed", "vision_estimate", "fndds_lookup"]),
+  ingredientText: z.string().nullable()
 });
 
 export const foodLookupResponseSchema = z.discriminatedUnion("found", [
@@ -81,7 +91,15 @@ export const mealLogEntrySchema = z.object({
   loggedAt: z.string().min(1),
   food: identifiedFoodSchema,
   flags: z.array(z.string()),
-  assistantSummary: z.string().max(280)
+  assistantSummary: z.string().max(280),
+  // Optional and migration-safe: entries logged before spec 23 simply have no score.
+  compassScore: z
+    .object({
+      fcs: z.number().int().min(1).max(100),
+      band: z.enum(["encourage", "moderate", "minimize"]),
+      tier: z.enum(["T1", "T2"])
+    })
+    .optional()
 });
 
 // Validates the JSON the vision model returns for a pantry scan. Kept lenient on

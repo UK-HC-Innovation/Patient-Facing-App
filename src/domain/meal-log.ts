@@ -35,7 +35,8 @@ export function buildMealLogEntry(args: {
     brand: null,
     category: null,
     nutrition: null,
-    source: "vision_estimate"
+    source: "vision_estimate",
+    ingredientText: null
   };
 
   return {

@@ -1637,7 +1637,7 @@ describe("healthReducer", () => {
         id: "meal-1",
         patientId: "patient-1",
         loggedAt: "2026-07-05T12:00:00.000Z",
-        food: { id: "1", barcode: "1", name: "Soup", brand: null, category: null, nutrition: null, source: "barcode_seed" },
+        food: { id: "1", barcode: "1", name: "Soup", brand: null, category: null, nutrition: null, source: "barcode_seed", ingredientText: null },
         flags: ["890 mg sodium"],
         assistantSummary: "High in sodium."
       }
@@ -1768,7 +1768,7 @@ describe("healthReducer", () => {
         medicationName: "Lisinopril",
         dateOfService: "2026-06-01",
         daysSupply: 30,
-        source: "patient_reported"
+        source: "patient_reported",
       }
     });
 

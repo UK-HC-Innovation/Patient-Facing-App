@@ -11,7 +11,8 @@ const soup: IdentifiedFood = {
   brand: "Campbell's",
   category: "Soups",
   nutrition: null,
-  source: "barcode_seed"
+  source: "barcode_seed",
+  ingredientText: null
 };
 
 const flags: FoodFlag[] = [{ id: "nutrient-sodiumMg", severity: "warning", text: "890 mg sodium — 59% of your 1500 mg daily limit" }];

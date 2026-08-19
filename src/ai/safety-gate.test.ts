@@ -24,9 +24,19 @@ const soupFood = {
     saturatedFatG: 1.5,
     fiberG: 2,
     proteinG: 9,
-    carbsG: 22
+    carbsG: 22,
+    totalFatG: null,
+    monoFatG: null,
+    polyFatG: null,
+    transFatG: null,
+    cholesterolMg: null,
+    calciumMg: null,
+    ironMg: null,
+    servingGrams: null,
+    basis: "per_serving" as const
   },
-  source: "barcode_off" as const
+  source: "barcode_off" as const,
+  ingredientText: null
 };
 
 const dangerousReadingAtNow = {

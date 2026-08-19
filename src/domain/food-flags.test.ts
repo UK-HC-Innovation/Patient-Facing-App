@@ -23,6 +23,15 @@ function nutrition(overrides: Partial<NutritionFacts> = {}): NutritionFacts {
     fiberG: null,
     proteinG: null,
     carbsG: null,
+    totalFatG: null,
+    monoFatG: null,
+    polyFatG: null,
+    transFatG: null,
+    cholesterolMg: null,
+    calciumMg: null,
+    ironMg: null,
+    servingGrams: null,
+    basis: "per_serving",
     ...overrides
   };
 }
@@ -36,6 +45,7 @@ function food(overrides: Partial<IdentifiedFood> = {}): IdentifiedFood {
     category: null,
     nutrition: nutrition(),
     source: "barcode_seed",
+    ingredientText: null,
     ...overrides
   };
 }

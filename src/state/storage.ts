@@ -367,12 +367,27 @@ function isNutritionFacts(value: unknown): value is NutritionFacts {
     hasNumberOrNull(value, "saturatedFatG") &&
     hasNumberOrNull(value, "fiberG") &&
     hasNumberOrNull(value, "proteinG") &&
-    hasNumberOrNull(value, "carbsG")
+    hasNumberOrNull(value, "carbsG") &&
+    hasNumberOrNull(value, "totalFatG") &&
+    hasNumberOrNull(value, "monoFatG") &&
+    hasNumberOrNull(value, "polyFatG") &&
+    hasNumberOrNull(value, "transFatG") &&
+    hasNumberOrNull(value, "cholesterolMg") &&
+    hasNumberOrNull(value, "calciumMg") &&
+    hasNumberOrNull(value, "ironMg") &&
+    hasNumberOrNull(value, "servingGrams") &&
+    (value.basis === "per_serving" || value.basis === "per_100g")
   );
 }
 
 function isFoodSource(value: unknown): value is FoodSource {
-  return value === "barcode_off" || value === "barcode_fdc" || value === "barcode_seed" || value === "vision_estimate";
+  return (
+    value === "barcode_off" ||
+    value === "barcode_fdc" ||
+    value === "barcode_seed" ||
+    value === "vision_estimate" ||
+    value === "fndds_lookup"
+  );
 }
 
 function isIdentifiedFood(value: unknown): value is IdentifiedFood {
@@ -384,7 +399,25 @@ function isIdentifiedFood(value: unknown): value is IdentifiedFood {
     (value.brand === null || typeof value.brand === "string") &&
     (value.category === null || typeof value.category === "string") &&
     (value.nutrition === null || isNutritionFacts(value.nutrition)) &&
+    (value.ingredientText === null || typeof value.ingredientText === "string") &&
     isFoodSource(value.source)
+  );
+}
+
+// Optional field added by spec 23: absent on every entry logged before it, so
+// "missing" must stay valid or the whole meal log would be dropped on rehydrate.
+function isCompassScoreOrAbsent(value: unknown): boolean {
+  if (value === undefined) {
+    return true;
+  }
+  return (
+    isObject(value) &&
+    typeof value.fcs === "number" &&
+    Number.isInteger(value.fcs) &&
+    value.fcs >= 1 &&
+    value.fcs <= 100 &&
+    (value.band === "encourage" || value.band === "moderate" || value.band === "minimize") &&
+    (value.tier === "T1" || value.tier === "T2")
   );
 }
 
@@ -396,7 +429,8 @@ function isMealLogEntry(value: unknown): value is MealLogEntry {
     hasString(value, "loggedAt") &&
     isIdentifiedFood(value.food) &&
     isArrayOfStrings(value.flags) &&
-    hasString(value, "assistantSummary")
+    hasString(value, "assistantSummary") &&
+    isCompassScoreOrAbsent(value.compassScore)
   );
 }
 
@@ -1335,12 +1369,45 @@ function sanitizeTasks(tasks: unknown): TaskItem[] {
   return tasks.filter(isTask);
 }
 
+// spec 23 widened NutritionFacts (7 extra nutrients + servingGrams + basis) and added
+// IdentifiedFood.ingredientText. Entries persisted before that carry the old shape, so
+// the rehydration guard would reject every one of them and silently wipe a patient's
+// meal history. Fill the new fields with null ("unavailable") before the guard runs;
+// stored values always win over the defaults.
+function migrateStoredFood(food: Record<string, unknown>): Record<string, unknown> {
+  const migrated: Record<string, unknown> = { ingredientText: null, ...food };
+  if (isObject(food.nutrition)) {
+    migrated.nutrition = {
+      totalFatG: null,
+      monoFatG: null,
+      polyFatG: null,
+      transFatG: null,
+      cholesterolMg: null,
+      calciumMg: null,
+      ironMg: null,
+      servingGrams: null,
+      basis: "per_serving",
+      ...food.nutrition
+    };
+  }
+  return migrated;
+}
+
+function migrateMealLogEntry(entry: unknown): unknown {
+  if (!isObject(entry) || !isObject(entry.food)) {
+    return entry;
+  }
+  return { ...entry, food: migrateStoredFood(entry.food) };
+}
+
 function sanitizeMealLog(mealLog: unknown, patientId: string): MealLogEntry[] {
   if (!Array.isArray(mealLog)) {
     return [];
   }
 
-  return mealLog.filter((entry): entry is MealLogEntry => isMealLogEntry(entry) && entry.patientId === patientId);
+  return mealLog
+    .map(migrateMealLogEntry)
+    .filter((entry): entry is MealLogEntry => isMealLogEntry(entry) && entry.patientId === patientId);
 }
 
 function sanitizeGlucoseReadings(glucoseReadings: unknown, patientId: string): GlucoseReading[] {

@@ -17,9 +17,19 @@ export const demoFoodSeed: Record<string, IdentifiedFood> = {
       saturatedFatG: 0.5,
       fiberG: 1,
       proteinG: 3,
-      carbsG: 8
+      carbsG: 8,
+      totalFatG: null,
+      monoFatG: null,
+      polyFatG: null,
+      transFatG: null,
+      cholesterolMg: null,
+      calciumMg: null,
+      ironMg: null,
+      servingGrams: 126,
+      basis: "per_serving"
     },
-    source: "barcode_seed"
+    source: "barcode_seed",
+    ingredientText: null
   },
   "024600017008": {
     id: "024600017008",
@@ -37,9 +47,19 @@ export const demoFoodSeed: Record<string, IdentifiedFood> = {
       saturatedFatG: 0,
       fiberG: 0,
       proteinG: 0,
-      carbsG: 0
+      carbsG: 0,
+      totalFatG: null,
+      monoFatG: null,
+      polyFatG: null,
+      transFatG: null,
+      cholesterolMg: null,
+      calciumMg: null,
+      ironMg: null,
+      servingGrams: 1.4,
+      basis: "per_serving"
     },
-    source: "barcode_seed"
+    source: "barcode_seed",
+    ingredientText: null
   },
   "030000010204": {
     id: "030000010204",
@@ -57,8 +77,18 @@ export const demoFoodSeed: Record<string, IdentifiedFood> = {
       saturatedFatG: 0.5,
       fiberG: 4,
       proteinG: 5,
-      carbsG: 27
+      carbsG: 27,
+      totalFatG: null,
+      monoFatG: null,
+      polyFatG: null,
+      transFatG: null,
+      cholesterolMg: null,
+      calciumMg: null,
+      ironMg: null,
+      servingGrams: 40,
+      basis: "per_serving"
     },
-    source: "barcode_seed"
+    source: "barcode_seed",
+    ingredientText: null
   }
 };

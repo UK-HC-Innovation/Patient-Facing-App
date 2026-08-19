@@ -1,4 +1,4 @@
-import type { FoodSource, IdentifiedFood, NutritionFacts } from "./types";
+import type { FoodSource, IdentifiedFood, NutritionBasis, NutritionFacts } from "./types";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -16,7 +16,7 @@ export function saltGramsToSodiumMg(saltG: number): number {
   return Math.round(saltG * 400);
 }
 
-function emptyNutrition(servingSize: string): NutritionFacts {
+function emptyNutrition(servingSize: string, basis: NutritionBasis, servingGrams: number | null): NutritionFacts {
   return {
     servingSize,
     calories: null,
@@ -27,7 +27,16 @@ function emptyNutrition(servingSize: string): NutritionFacts {
     saturatedFatG: null,
     fiberG: null,
     proteinG: null,
-    carbsG: null
+    carbsG: null,
+    totalFatG: null,
+    monoFatG: null,
+    polyFatG: null,
+    transFatG: null,
+    cholesterolMg: null,
+    calciumMg: null,
+    ironMg: null,
+    servingGrams,
+    basis
   };
 }
 
@@ -98,7 +107,16 @@ export function normalizeOffProduct(barcode: string, json: unknown): IdentifiedF
     saturatedFatG: offMassG(nutriments, "saturated-fat", servingQuantity),
     fiberG: offMassG(nutriments, "fiber", servingQuantity),
     proteinG: offMassG(nutriments, "proteins", servingQuantity),
-    carbsG: offMassG(nutriments, "carbohydrates", servingQuantity)
+    carbsG: offMassG(nutriments, "carbohydrates", servingQuantity),
+    totalFatG: offMassG(nutriments, "fat", servingQuantity),
+    monoFatG: offMassG(nutriments, "monounsaturated-fat", servingQuantity),
+    polyFatG: offMassG(nutriments, "polyunsaturated-fat", servingQuantity),
+    transFatG: offMassG(nutriments, "trans-fat", servingQuantity),
+    cholesterolMg: offMassMg(nutriments, "cholesterol", servingQuantity),
+    calciumMg: offMassMg(nutriments, "calcium", servingQuantity),
+    ironMg: offMassMg(nutriments, "iron", servingQuantity),
+    servingGrams: servingQuantity,
+    basis: "per_serving"
   };
 
   return {
@@ -108,11 +126,12 @@ export function normalizeOffProduct(barcode: string, json: unknown): IdentifiedF
     brand: str(product.brands),
     category: str(product.categories),
     nutrition,
-    source: "barcode_off"
+    source: "barcode_off",
+    ingredientText: str(product.ingredients_text)
   };
 }
 
-type NumericNutritionKey = Exclude<keyof NutritionFacts, "servingSize">;
+type NumericNutritionKey = Exclude<keyof NutritionFacts, "servingSize" | "basis">;
 
 const FDC_NUTRIENT_NUMBERS: Record<string, NumericNutritionKey> = {
   "208": "calories",
@@ -123,7 +142,14 @@ const FDC_NUTRIENT_NUMBERS: Record<string, NumericNutritionKey> = {
   "606": "saturatedFatG",
   "291": "fiberG",
   "203": "proteinG",
-  "205": "carbsG"
+  "205": "carbsG",
+  "204": "totalFatG",
+  "645": "monoFatG",
+  "646": "polyFatG",
+  "605": "transFatG",
+  "601": "cholesterolMg",
+  "301": "calciumMg",
+  "303": "ironMg"
 };
 
 export function normalizeFdcFood(barcode: string, json: unknown): IdentifiedFood | null {
@@ -144,7 +170,7 @@ export function normalizeFdcFood(barcode: string, json: unknown): IdentifiedFood
     return null;
   }
 
-  const nutrition = emptyNutrition("per 100 g");
+  const nutrition = emptyNutrition("per 100 g", "per_100g", 100);
   if (Array.isArray(match.foodNutrients)) {
     for (const entry of match.foodNutrients) {
       if (!isRecord(entry)) {
@@ -166,7 +192,8 @@ export function normalizeFdcFood(barcode: string, json: unknown): IdentifiedFood
     brand: str(match.brandOwner) ?? str(match.brandName),
     category: str(match.foodCategory) ?? str(match.brandedFoodCategory),
     nutrition,
-    source: "barcode_fdc"
+    source: "barcode_fdc",
+    ingredientText: str(match.ingredients)
   };
 }
 

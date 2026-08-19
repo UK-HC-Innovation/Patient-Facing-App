@@ -9,7 +9,7 @@ function entry(id: string, name: string): MealLogEntry {
     id,
     patientId: "patient-1",
     loggedAt: "2026-07-05T12:00:00.000Z",
-    food: { id, barcode: null, name, brand: null, category: null, nutrition: null, source: "barcode_seed" },
+    food: { id, barcode: null, name, brand: null, category: null, nutrition: null, source: "barcode_seed", ingredientText: null },
     flags: ["890 mg sodium — 59% of your 1500 mg daily limit"],
     assistantSummary: "High in sodium."
   };

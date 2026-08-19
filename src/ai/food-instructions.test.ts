@@ -54,7 +54,7 @@ describe("buildPerAskContext", () => {
 
   it("embeds the food JSON and flags", () => {
     const context = buildPerAskContext(
-      { id: "1", barcode: "1", name: "Soup", brand: "Campbell's", category: "Soups", nutrition: null, source: "barcode_seed" },
+      { id: "1", barcode: "1", name: "Soup", brand: "Campbell's", category: "Soups", nutrition: null, source: "barcode_seed", ingredientText: null },
       flags
     );
     expect(context).toContain("Soup");

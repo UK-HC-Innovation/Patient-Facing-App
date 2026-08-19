@@ -1,7 +1,7 @@
 import type { FoodLensStringKey } from "@/i18n/strings";
 import type { CarePlan, Condition, NutritionFacts } from "./types";
 
-export type NumericNutrient = Exclude<keyof NutritionFacts, "servingSize">;
+export type NumericNutrient = Exclude<keyof NutritionFacts, "servingSize" | "basis">;
 
 export type NutrientRule = {
   nutrient: NumericNutrient;
