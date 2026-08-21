@@ -139,12 +139,11 @@ test("scans a food, asks a typed question, logs the meal, and persists it", asyn
   await expect(page.getByText(/mg sodium/)).toBeVisible();
   await expect(page.locator('[data-guidance-scope="personalized"]').first()).toBeVisible();
 
-  await page.getByRole("button", { name: "Start", exact: true }).click();
   await page.getByLabel("Ask about this food…").fill("Can I have this for lunch?");
   await page.getByRole("button", { name: "Ask" }).click();
 
-  await expect(page.getByText(/Chicken Noodle Soup/).first()).toBeVisible();
-  await expect(page.getByText(/890/).first()).toBeVisible();
+  await expect(page.getByText("Can I have this for lunch?", { exact: true })).toBeVisible();
+  await expect(page.getByText(/has 890 mg of sodium/)).toBeVisible();
 
   // spec 23: the Food Compass score sits above the flag chips, badged as a label estimate.
   await expect(page.getByText("Food Compass score")).toBeVisible();
@@ -227,7 +226,6 @@ test("keeps existing state when migrating a pre-mealLog save", async ({ page }) 
   await expect(page.getByText("137/86")).toBeVisible();
 
   await page.goto("/food");
-  await page.getByRole("button", { name: "Start", exact: true }).click();
   await page.getByLabel("Ask about this food…").fill("Is this okay?");
   await page.getByRole("button", { name: "Ask" }).click();
   await page.getByRole("button", { name: "Log this" }).click();
