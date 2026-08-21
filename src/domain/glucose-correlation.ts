@@ -18,6 +18,43 @@ export type GlucoseFoodInsight = {
 
 type TimedReading = { time: number; value: number };
 
+/** Newest unpaired meal between one and three hours ago. Later array order wins exact ties. */
+export function postMealCheckDue(
+  mealLog: MealLogEntry[],
+  glucoseReadings: GlucoseReading[],
+  now: Date
+): MealLogEntry | null {
+  const nowMs = now.valueOf();
+  if (!Number.isFinite(nowMs)) {
+    return null;
+  }
+  const readingTimes = glucoseReadings
+    .map((reading) => new Date(reading.measuredAt).valueOf())
+    .filter(Number.isFinite);
+  let best: { entry: MealLogEntry; time: number; index: number } | null = null;
+
+  for (let index = 0; index < mealLog.length; index += 1) {
+    const entry = mealLog[index];
+    const mealTime = new Date(entry.loggedAt).valueOf();
+    const age = nowMs - mealTime;
+    if (!Number.isFinite(mealTime) || age < HOUR_MS || age > DEFAULT_POST_MEAL_WINDOW_HOURS * HOUR_MS) {
+      continue;
+    }
+    const alreadyChecked = readingTimes.some((readingTime) => {
+      const afterMeal = readingTime - mealTime;
+      return afterMeal > 0 && afterMeal <= DEFAULT_POST_MEAL_WINDOW_HOURS * HOUR_MS && readingTime <= nowMs;
+    });
+    if (alreadyChecked) {
+      continue;
+    }
+    if (!best || mealTime > best.time || (mealTime === best.time && index > best.index)) {
+      best = { entry, time: mealTime, index };
+    }
+  }
+
+  return best?.entry ?? null;
+}
+
 // The lens's own carb caution line (diabetesLens: 200 g * 20% = 40 g), so the
 // "higher-carb" cut matches what the food lens already shows the patient.
 function carbLineFor(lens: ConditionLens): number {

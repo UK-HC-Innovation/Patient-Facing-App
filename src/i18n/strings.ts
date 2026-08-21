@@ -50,6 +50,17 @@ export type FoodLensStringKey =
   | "recentMealsTitle"
   | "noMealsYet"
   | "foodNotThis"
+  | "weekInFoodTitle"
+  | "weekMealsLogged"
+  | "weekAverageItemScore"
+  | "weekBandMix"
+  | "weekBest"
+  | "weekRoom"
+  | "weekOpenFood"
+  | "postMealNudgeTitle"
+  | "postMealNudgeBody"
+  | "postMealNudgeCta"
+  | "postMealNudgeDismiss"
   | "mealAteEarlier"
   | "mealTimeReason"
   | "mealThirtyMinutesAgo"
@@ -160,6 +171,17 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     recentMealsTitle: "Recent meals",
     noMealsYet: "No meals logged yet.",
     foodNotThis: "Not this?",
+    weekInFoodTitle: "Week in Food",
+    weekMealsLogged: "{count} meals logged in the last 7 days",
+    weekAverageItemScore: "average item score",
+    weekBandMix: "Band mix",
+    weekBest: "Best: {food} ({score})",
+    weekRoom: "Room to improve: {food} ({score})",
+    weekOpenFood: "Open Food Lens",
+    postMealNudgeTitle: "Check your blood sugar",
+    postMealNudgeBody: "About {hours} hours since your {food} — a good time to check your blood sugar.",
+    postMealNudgeCta: "Log a reading",
+    postMealNudgeDismiss: "Dismiss",
     mealAteEarlier: "I ate this earlier",
     mealTimeReason: "Post-meal pairing uses the time you ate.",
     mealThirtyMinutesAgo: "30 min ago",
@@ -269,6 +291,17 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     recentMealsTitle: "Comidas recientes",
     noMealsYet: "Aún no hay comidas guardadas.",
     foodNotThis: "¿No es esto?",
+    weekInFoodTitle: "Semana de Comidas",
+    weekMealsLogged: "{count} comidas registradas en los últimos 7 días",
+    weekAverageItemScore: "promedio por alimento",
+    weekBandMix: "Mezcla de categorías",
+    weekBest: "Mejor: {food} ({score})",
+    weekRoom: "Para mejorar: {food} ({score})",
+    weekOpenFood: "Abrir Lente de Comida",
+    postMealNudgeTitle: "Revisa tu azúcar en sangre",
+    postMealNudgeBody: "Han pasado unas {hours} horas desde {food}; es un buen momento para revisar tu azúcar en sangre.",
+    postMealNudgeCta: "Registrar una lectura",
+    postMealNudgeDismiss: "Descartar",
     mealAteEarlier: "Comí esto más temprano",
     mealTimeReason: "La relación con una lectura después de comer usa la hora en que comiste.",
     mealThirtyMinutesAgo: "Hace 30 min",

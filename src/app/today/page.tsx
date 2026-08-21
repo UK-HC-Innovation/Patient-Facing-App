@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import Link from "next/link";
 import { ArrowRight, Eye } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
@@ -8,6 +9,8 @@ import { DoseReminderCard } from "@/components/dose-reminder-card";
 import { HomeComposer } from "@/components/home-composer";
 import { LanguageToggle } from "@/components/language-toggle";
 import { TodayGreeting } from "@/components/today-greeting";
+import { PostMealNudge } from "@/components/post-meal-nudge";
+import { WeekInFoodCard } from "@/components/week-in-food-card";
 import {
   getAdherenceStreak,
   getAdherenceRate,
@@ -18,6 +21,9 @@ import {
   type TrendSummary
 } from "@/domain/adherence";
 import { isDiabetesMedication, pickFeaturedMedication } from "@/domain/featured-medication";
+import { activeConditions } from "@/domain/condition-lens";
+import { summarizeWeekInFood } from "@/domain/food-week";
+import { postMealCheckDue } from "@/domain/glucose-correlation";
 import { isDoseReminderDue } from "@/domain/reminders";
 import { screeningLens, screeningLensHref, screeningLensLine } from "@/domain/screening-status";
 import { buildTodayTasks } from "@/domain/tasks";
@@ -60,6 +66,10 @@ export default function TodayPage() {
   // all-clear) and only renders when there is something to say.
   const eyeLens = screeningLens(state, now);
   const eyeLensHref = eyeLens ? screeningLensHref(eyeLens) : null;
+  const weekInFood = summarizeWeekInFood(state.mealLog, now);
+  const postMealNudge = activeConditions(state.carePlan).includes("diabetes")
+    ? postMealCheckDue(state.mealLog, state.glucoseReadings, now)
+    : null;
 
   function recordDose(status: DoseEvent["status"], barrier: MedicationBarrier | null) {
     if (!featuredMedication) {
@@ -90,6 +100,8 @@ export default function TodayPage() {
         </div>
         <TodayGreeting patientName={state.patient.preferredName} tasks={tasks} language={state.patient.language} />
         <HomeComposer />
+        {weekInFood ? <WeekInFoodCard summary={weekInFood} language={state.patient.language} /> : null}
+        {postMealNudge ? <PostMealNudge meal={postMealNudge} language={state.patient.language} now={now} /> : null}
         {featuredMedication ? (
           <>
             <DoseCard

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { diabetesLens } from "./condition-lens";
-import { summarizeFoodGlucoseLink } from "./glucose-correlation";
+import { postMealCheckDue, summarizeFoodGlucoseLink } from "./glucose-correlation";
 import type { GlucoseReading, IdentifiedFood, MealLogEntry } from "./types";
 
 function food(carbsG: number | null): IdentifiedFood {
@@ -154,5 +154,33 @@ describe("summarizeFoodGlucoseLink", () => {
     expect(insight?.higherCarbSamples).toBe(1);
     expect(insight?.otherSamples).toBe(1);
     expect(insight?.deltaMgDl).toBe(50);
+  });
+});
+
+describe("postMealCheckDue", () => {
+  const now = new Date("2026-07-05T15:00:00.000Z");
+
+  it("returns the newest meal in the one-to-three-hour window without a following reading", () => {
+    const older = meal("2026-07-05T12:30:00.000Z", 20);
+    const newer = meal("2026-07-05T13:00:00.000Z", 20);
+    expect(postMealCheckDue([older, newer], [], now)?.id).toBe(newer.id);
+  });
+
+  it("does not nudge after a reading already followed the meal", () => {
+    const due = meal("2026-07-05T13:00:00.000Z", 20);
+    expect(postMealCheckDue([due], [reading("2026-07-05T14:00:00.000Z", 150)], now)).toBeNull();
+  });
+
+  it("uses later array order to break identical plate-sibling times", () => {
+    const first = { ...meal("2026-07-05T13:00:00.000Z", 20), id: "plate-first", mealId: "plate-1" };
+    const second = { ...meal("2026-07-05T13:00:00.000Z", 20), id: "plate-second", mealId: "plate-1" };
+    expect(postMealCheckDue([first, second], [], now)?.id).toBe("plate-second");
+  });
+
+  it("includes the exact one- and three-hour boundaries", () => {
+    const oneHour = meal("2026-07-05T14:00:00.000Z", 20);
+    const threeHours = meal("2026-07-05T12:00:00.000Z", 20);
+    expect(postMealCheckDue([threeHours, oneHour], [], now)?.id).toBe(oneHour.id);
+    expect(postMealCheckDue([threeHours], [], now)?.id).toBe(threeHours.id);
   });
 });

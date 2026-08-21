@@ -4,10 +4,11 @@ import { AppShell } from "@/components/app-shell";
 import { GlucoseInsights } from "@/components/glucose-insights";
 import { GlucoseLogForm } from "@/components/glucose-log-form";
 import { GlucoseReadingRow } from "@/components/glucose-reading-row";
+import { PostMealNudge } from "@/components/post-meal-nudge";
 import { interpretGlucose } from "@/domain/blood-glucose";
 import { summarizeGlucoseTrend } from "@/domain/adherence";
 import { activeConditions, selectLenses } from "@/domain/condition-lens";
-import { summarizeFoodGlucoseLink } from "@/domain/glucose-correlation";
+import { postMealCheckDue, summarizeFoodGlucoseLink } from "@/domain/glucose-correlation";
 import { annotateGlucoseWithMedContext } from "@/domain/glucose-med-context";
 import { computeTimeInRange } from "@/domain/glucose-range";
 import type { GlucoseReading } from "@/domain/types";
@@ -25,6 +26,10 @@ export default function GlucosePage() {
     state.glucoseReadings,
     selectLenses(activeConditions(state.carePlan))
   );
+  const now = new Date();
+  const postMealNudge = activeConditions(state.carePlan).includes("diabetes")
+    ? postMealCheckDue(state.mealLog, state.glucoseReadings, now)
+    : null;
   const medContextByReadingId = new Map(
     annotateGlucoseWithMedContext(state.glucoseReadings, state.doseEvents, state.medications).map((context) => [
       context.reading.id,
@@ -47,12 +52,13 @@ export default function GlucosePage() {
   return (
     <AppShell title="My Blood Sugar">
       <div className="grid gap-5">
-        <section>
+        <section id="log-blood-sugar">
           <h2 className="text-xl font-semibold">Log blood sugar</h2>
           <p className="mt-1 text-sm leading-6 text-ink/75">
             Use the number from your meter. The app helps you notice patterns and prepare for visits.
           </p>
         </section>
+        {postMealNudge ? <PostMealNudge meal={postMealNudge} language={state.patient.language} now={now} /> : null}
         <VoiceCaptureCard
           kind="glucose"
           language={state.patient.language}
