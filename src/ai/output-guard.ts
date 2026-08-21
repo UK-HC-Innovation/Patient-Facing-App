@@ -10,7 +10,7 @@ const directConditionClaim = new RegExp(
   "iu"
 );
 
-const specificNumberAssertions = [
+export const specificNumberAssertions = [
   /\b(?:your|su|tu)\s+(?:blood pressure|bp|presi[oó]n arterial)\s+(?:is|was|reads?|reading is|es|fue|marca)\s+\d{2,3}\s*(?:\/|over|sobre)\s*\d{2,3}\b/iu,
   /\b(?:your|su|tu)\s+a1c\s+(?:is|was|es|fue)\s+\d{1,2}(?:\.\d+)?\s*%?/iu,
   /\b(?:your|su|tu)\s+(?:blood sugar|glucose|az[uú]car en sangre|glucosa)\s+(?:is|was|reads?|reading is|es|fue|marca)\s+\d{2,4}(?:\s*mg\s*\/?\s*dL)?\b/iu

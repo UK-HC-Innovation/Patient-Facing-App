@@ -73,7 +73,9 @@ export function FoodFactsCard({
   onCorrection,
   compassScore = null,
   compassCarveOut = null,
-  compassAlternatives = []
+  compassAlternatives = [],
+  history = null,
+  showGlucoseHistory = false
 }: {
   food: IdentifiedFood | null;
   flags: FoodFlag[];
@@ -89,6 +91,8 @@ export function FoodFactsCard({
   compassScore?: CompassScore | null;
   compassCarveOut?: NotScoreableReason | null;
   compassAlternatives?: CompassAlternative[];
+  history?: { date: string; postMealReading: number | null } | null;
+  showGlucoseHistory?: boolean;
 }) {
   const title = food ? (food.brand ? `${food.brand} ${food.name}` : food.name) : t(language, "unknownFood");
   const portionLabel = formatServingCount(portionServings);
@@ -153,6 +157,15 @@ export function FoodFactsCard({
                 </div>
               ))}
             </dl>
+          ) : null}
+        </div>
+      ) : null}
+
+      {history ? (
+        <div className="mt-3 rounded-control border border-care/20 bg-calm px-3 py-2 text-sm leading-6">
+          <p>{t(language, "foodHistoryLogged", { date: history.date })}</p>
+          {showGlucoseHistory && history.postMealReading !== null ? (
+            <p>{t(language, "foodHistoryReading", { value: history.postMealReading })}</p>
           ) : null}
         </div>
       ) : null}

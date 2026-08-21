@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { diabetesLens } from "./condition-lens";
-import { postMealCheckDue, summarizeFoodGlucoseLink } from "./glucose-correlation";
+import { defaultDemoState } from "./fixtures";
+import {
+  foodHistoryVoiceLine,
+  lastTimeYouAte,
+  postMealCheckDue,
+  summarizeFoodGlucoseLink,
+  summarizeScoreGlucoseLink
+} from "./glucose-correlation";
 import type { GlucoseReading, IdentifiedFood, MealLogEntry } from "./types";
 
 function food(carbsG: number | null): IdentifiedFood {
@@ -47,6 +54,18 @@ function meal(loggedAt: string, carbsG: number | null): MealLogEntry {
     food: food(carbsG),
     flags: [],
     assistantSummary: ""
+  };
+}
+
+function withScore(
+  entry: MealLogEntry,
+  band: "encourage" | "moderate" | "minimize",
+  overrides: Partial<MealLogEntry> = {}
+): MealLogEntry {
+  return {
+    ...entry,
+    compassScore: { fcs: band === "minimize" ? 20 : 75, band, tier: "T1" },
+    ...overrides
   };
 }
 
@@ -154,6 +173,117 @@ describe("summarizeFoodGlucoseLink", () => {
     expect(insight?.higherCarbSamples).toBe(1);
     expect(insight?.otherSamples).toBe(1);
     expect(insight?.deltaMgDl).toBe(50);
+  });
+
+  it("groups plate siblings, sums their carbs, and pairs the plate only once", () => {
+    const highPlate = [
+      { ...meal("2026-07-01T12:00:00.000Z", 20), id: "high-a", mealId: "plate-high" },
+      { ...meal("2026-07-01T12:00:00.000Z", 20), id: "high-b", mealId: "plate-high" },
+      { ...meal("2026-07-01T12:00:00.000Z", 20), id: "high-c", mealId: "plate-high" }
+    ];
+    const other = meal("2026-07-02T12:00:00.000Z", 20);
+    const insight = summarizeFoodGlucoseLink(
+      [...highPlate, other],
+      [reading("2026-07-01T13:00:00.000Z", 210), reading("2026-07-02T13:00:00.000Z", 150)],
+      diabetesLens,
+      { minSamplesPerBucket: 1 }
+    );
+
+    expect(insight?.higherCarbSamples).toBe(1);
+    expect(insight?.otherSamples).toBe(1);
+  });
+});
+
+describe("summarizeScoreGlucoseLink", () => {
+  it("buckets scored meals by band and applies the delta floor", () => {
+    const meals: MealLogEntry[] = [];
+    const readings: GlucoseReading[] = [];
+    for (const day of ["01", "02", "03"]) {
+      meals.push(withScore(meal(`2026-07-${day}T12:00:00.000Z`, 20), "minimize"));
+      readings.push(reading(`2026-07-${day}T13:00:00.000Z`, 210));
+    }
+    for (const day of ["04", "05", "06"]) {
+      meals.push(withScore(meal(`2026-07-${day}T12:00:00.000Z`, 20), "encourage"));
+      readings.push(reading(`2026-07-${day}T13:00:00.000Z`, 150));
+    }
+
+    const insight = summarizeScoreGlucoseLink(meals, readings);
+    expect(insight).toMatchObject({
+      minimizeMeanMgDl: 210,
+      otherMeanMgDl: 150,
+      deltaMgDl: 60,
+      minimizeSamples: 3,
+      otherSamples: 3
+    });
+    expect(insight?.message).toContain("minimize-band item");
+    expect(insight?.message).toContain("not a diagnosis");
+    expect(summarizeScoreGlucoseLink(meals, readings, { deltaFloorMgDl: 61 })).toBeNull();
+  });
+
+  it("uses minimize-if-any and pairs a three-item plate once", () => {
+    const plateTime = "2026-07-01T12:00:00.000Z";
+    const plate = [
+      withScore(meal(plateTime, 10), "encourage", { id: "plate-a", mealId: "plate-1" }),
+      withScore(meal(plateTime, 10), "minimize", { id: "plate-b", mealId: "plate-1" }),
+      withScore(meal(plateTime, 10), "moderate", { id: "plate-c", mealId: "plate-1" })
+    ];
+    const other = withScore(meal("2026-07-02T12:00:00.000Z", 20), "encourage");
+    const insight = summarizeScoreGlucoseLink(
+      [...plate, other],
+      [reading("2026-07-01T13:00:00.000Z", 210), reading("2026-07-02T13:00:00.000Z", 150)],
+      { minSamplesPerBucket: 1 }
+    );
+
+    expect(insight?.minimizeSamples).toBe(1);
+    expect(insight?.otherSamples).toBe(1);
+  });
+
+  it("skips groups without any score", () => {
+    const minimize = withScore(meal("2026-07-01T12:00:00.000Z", 20), "minimize");
+    const unscored = meal("2026-07-02T12:00:00.000Z", 20);
+    expect(
+      summarizeScoreGlucoseLink(
+        [minimize, unscored],
+        [reading("2026-07-01T13:00:00.000Z", 210), reading("2026-07-02T13:00:00.000Z", 150)],
+        { minSamplesPerBucket: 1 }
+      )
+    ).toBeNull();
+  });
+});
+
+describe("lastTimeYouAte", () => {
+  it("returns the newest prior full-id match and its nearest post-meal reading", () => {
+    const older = { ...meal("2026-07-01T12:00:00.000Z", 20), id: "older", food: { ...food(20), id: "fndds:123" } };
+    const latest = { ...meal("2026-07-03T12:00:00.000Z", 20), id: "latest", food: { ...food(20), id: "fndds:123" } };
+    const sameNameWrongId = {
+      ...meal("2026-07-04T12:00:00.000Z", 20),
+      id: "wrong-id",
+      food: { ...food(20), id: "fndds:999" }
+    };
+    const history = lastTimeYouAte(
+      "fndds:123",
+      [older, latest, sameNameWrongId],
+      [
+        reading("2026-07-03T14:00:00.000Z", 178),
+        reading("2026-07-03T13:00:00.000Z", 170)
+      ]
+    );
+
+    expect(history).toEqual({ loggedAt: latest.loggedAt, postMealReading: 170 });
+    expect(foodHistoryVoiceLine(history!, "Jul 3")).not.toContain("170");
+  });
+
+  it("does not treat a current unlogged scan as history", () => {
+    expect(lastTimeYouAte("fndds:today", [], [])).toBeNull();
+  });
+});
+
+describe("default demo correlation", () => {
+  it("ships with enough paired scored meals for both flagship insights", () => {
+    expect(
+      summarizeFoodGlucoseLink(defaultDemoState.mealLog, defaultDemoState.glucoseReadings, diabetesLens)
+    ).not.toBeNull();
+    expect(summarizeScoreGlucoseLink(defaultDemoState.mealLog, defaultDemoState.glucoseReadings)).not.toBeNull();
   });
 });
 

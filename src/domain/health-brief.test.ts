@@ -72,7 +72,8 @@ function pairedDiabetesState(): AppState {
       loggedAt: `2026-07-${day}T12:00:00.000Z`,
       food: carbFood(60),
       flags: [],
-      assistantSummary: ""
+      assistantSummary: "",
+      compassScore: { fcs: 20, band: "minimize", tier: "T1" }
     });
     glucoseReadings.push({
       id: `g-high-${day}`,
@@ -90,7 +91,8 @@ function pairedDiabetesState(): AppState {
       loggedAt: `2026-07-${day}T12:00:00.000Z`,
       food: carbFood(20),
       flags: [],
-      assistantSummary: ""
+      assistantSummary: "",
+      compassScore: { fcs: 80, band: "encourage", tier: "T1" }
     });
     glucoseReadings.push({
       id: `g-low-${day}`,
@@ -259,6 +261,8 @@ describe("buildHealthBrief", () => {
     expect(section).toBeDefined();
     expect(section?.status).toBe("inferred");
     expect(section?.items.join(" ")).toContain("higher-carb meals");
+    expect(section?.items.join(" ")).toContain("minimize-band item");
+    expect(section?.items).toHaveLength(2);
     expect(section?.items.join(" ")).toContain("not a diagnosis");
   });
 

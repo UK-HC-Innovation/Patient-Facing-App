@@ -8,7 +8,11 @@ import { PostMealNudge } from "@/components/post-meal-nudge";
 import { interpretGlucose } from "@/domain/blood-glucose";
 import { summarizeGlucoseTrend } from "@/domain/adherence";
 import { activeConditions, selectLenses } from "@/domain/condition-lens";
-import { postMealCheckDue, summarizeFoodGlucoseLink } from "@/domain/glucose-correlation";
+import {
+  postMealCheckDue,
+  summarizeFoodGlucoseLink,
+  summarizeScoreGlucoseLink
+} from "@/domain/glucose-correlation";
 import { annotateGlucoseWithMedContext } from "@/domain/glucose-med-context";
 import { computeTimeInRange } from "@/domain/glucose-range";
 import type { GlucoseReading } from "@/domain/types";
@@ -26,6 +30,9 @@ export default function GlucosePage() {
     state.glucoseReadings,
     selectLenses(activeConditions(state.carePlan))
   );
+  const scoreInsight = summarizeScoreGlucoseLink(state.mealLog, state.glucoseReadings, {
+    language: state.patient.language
+  });
   const now = new Date();
   const postMealNudge = activeConditions(state.carePlan).includes("diabetes")
     ? postMealCheckDue(state.mealLog, state.glucoseReadings, now)
@@ -80,7 +87,7 @@ export default function GlucosePage() {
             <p className="mt-2 text-sm leading-6">{trend.message}</p>
           </section>
         ) : null}
-        <GlucoseInsights timeInRange={timeInRange} foodInsight={foodInsight} />
+        <GlucoseInsights timeInRange={timeInRange} foodInsight={foodInsight} scoreInsight={scoreInsight} />
         <section className="grid gap-2">
           <h2 className="text-lg font-semibold">Recent readings</h2>
           <p className="text-sm leading-6 text-ink/65">

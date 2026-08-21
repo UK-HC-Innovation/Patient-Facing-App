@@ -118,6 +118,39 @@ describe("FoodFactsCard", () => {
     expect(screen.getByText("120")).toBeInTheDocument();
   });
 
+  it("shows prior-food history and keeps the paired number diabetes-only", () => {
+    const { rerender } = render(
+      <FoodFactsCard
+        food={soup}
+        flags={[]}
+        history={{ date: "Jan 12", postMealReading: 178 }}
+        logged={false}
+        canLog
+        onLog={() => {}}
+        language="en"
+        {...portionProps}
+      />
+    );
+
+    expect(screen.getByText("You logged this on Jan 12.")).toBeInTheDocument();
+    expect(screen.queryByText(/178 mg\/dL/)).not.toBeInTheDocument();
+
+    rerender(
+      <FoodFactsCard
+        food={soup}
+        flags={[]}
+        history={{ date: "Jan 12", postMealReading: 178 }}
+        showGlucoseHistory
+        logged={false}
+        canLog
+        onLog={() => {}}
+        language="en"
+        {...portionProps}
+      />
+    );
+    expect(screen.getByText(/178 mg\/dL/)).toHaveTextContent("not a diagnosis");
+  });
+
   it("discloses the spoken-size serving assumption", () => {
     render(
       <FoodFactsCard

@@ -800,7 +800,8 @@ export const brentState: AppState = {
       },
       flags: ["55 g carbs — 28% of your 200 g daily limit"],
       assistantSummary:
-        "Pancakes with syrup are high in fast carbs, which tend to push blood sugar up. If you enjoy them, a smaller stack with some protein on the side is gentler."
+        "Pancakes with syrup are high in fast carbs, which tend to push blood sugar up. If you enjoy them, a smaller stack with some protein on the side is gentler.",
+      compassScore: { fcs: 24, band: "minimize", tier: "T1" }
     },
     {
       id: "meal-brent-eggs",
@@ -838,7 +839,8 @@ export const brentState: AppState = {
       },
       flags: [],
       assistantSummary:
-        "Eggs are low in carbs and a good source of protein — an easy choice that keeps blood sugar steadier."
+        "Eggs are low in carbs and a good source of protein — an easy choice that keeps blood sugar steadier.",
+      compassScore: { fcs: 55, band: "moderate", tier: "T1" }
     },
     {
       id: "meal-brent-rice",
@@ -876,7 +878,8 @@ export const brentState: AppState = {
       },
       flags: ["50 g carbs — 25% of your 200 g daily limit"],
       assistantSummary:
-        "A big bowl of white rice is a lot of fast carbs at once. Half the rice with more vegetables, or brown rice, keeps the same meal gentler on your blood sugar."
+        "A big bowl of white rice is a lot of fast carbs at once. Half the rice with more vegetables, or brown rice, keeps the same meal gentler on your blood sugar.",
+      compassScore: { fcs: 28, band: "minimize", tier: "T1" }
     },
     {
       id: "meal-brent-salad",
@@ -914,7 +917,8 @@ export const brentState: AppState = {
       },
       flags: ["5 g fiber — good for your heart"],
       assistantSummary:
-        "A salad with lean protein is low in carbs and high in fiber — a steady choice for blood sugar."
+        "A salad with lean protein is low in carbs and high in fiber — a steady choice for blood sugar.",
+      compassScore: { fcs: 76, band: "encourage", tier: "T1" }
     },
     {
       id: "meal-brent-soda",
@@ -952,7 +956,8 @@ export const brentState: AppState = {
       },
       flags: ["39 g added sugars — 156% of your 25 g daily limit"],
       assistantSummary:
-        "A regular soda is fast sugar with nothing to slow it down, so blood sugar climbs quickly. Water or unsweetened tea is the easier everyday swap."
+        "A regular soda is fast sugar with nothing to slow it down, so blood sugar climbs quickly. Water or unsweetened tea is the easier everyday swap.",
+      compassScore: { fcs: 12, band: "minimize", tier: "T1" }
     },
     {
       id: "meal-brent-chicken",
@@ -990,7 +995,8 @@ export const brentState: AppState = {
       },
       flags: ["4 g fiber — good for your heart"],
       assistantSummary:
-        "Grilled chicken with greens is low in carbs and filling — the kind of dinner that keeps blood sugar steadier overnight."
+        "Grilled chicken with greens is low in carbs and filling — the kind of dinner that keeps blood sugar steadier overnight.",
+      compassScore: { fcs: 72, band: "encourage", tier: "T1" }
     }
   ],
   doseEvents: [

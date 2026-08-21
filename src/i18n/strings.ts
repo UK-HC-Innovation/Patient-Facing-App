@@ -61,6 +61,9 @@ export type FoodLensStringKey =
   | "postMealNudgeBody"
   | "postMealNudgeCta"
   | "postMealNudgeDismiss"
+  | "scoreGlucosePattern"
+  | "foodHistoryLogged"
+  | "foodHistoryReading"
   | "mealAteEarlier"
   | "mealTimeReason"
   | "mealThirtyMinutesAgo"
@@ -182,6 +185,9 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     postMealNudgeBody: "About {hours} hours since your {food} — a good time to check your blood sugar.",
     postMealNudgeCta: "Log a reading",
     postMealNudgeDismiss: "Dismiss",
+    scoreGlucosePattern: "We noticed your blood-sugar readings after meals with a Food Compass minimize-band item averaged about {delta} mg/dL higher than after your other scored meals. This is an observation from your own logs, not a diagnosis — a good thing to mention to your care team.",
+    foodHistoryLogged: "You logged this on {date}.",
+    foodHistoryReading: "Your reading about 2 hours later was {value} mg/dL. This is an observation from your own logs, not a diagnosis.",
     mealAteEarlier: "I ate this earlier",
     mealTimeReason: "Post-meal pairing uses the time you ate.",
     mealThirtyMinutesAgo: "30 min ago",
@@ -302,6 +308,9 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     postMealNudgeBody: "Han pasado unas {hours} horas desde {food}; es un buen momento para revisar tu azúcar en sangre.",
     postMealNudgeCta: "Registrar una lectura",
     postMealNudgeDismiss: "Descartar",
+    scoreGlucosePattern: "Notamos que tus lecturas de azúcar en sangre después de comidas con un alimento en la banda Minimizar de Food Compass promediaron unos {delta} mg/dL más que después de tus otras comidas con puntaje. Esta es una observación de tus propios registros, no un diagnóstico; conviene mencionársela a tu equipo de atención.",
+    foodHistoryLogged: "Registraste esto el {date}.",
+    foodHistoryReading: "Tu lectura aproximadamente 2 horas después fue de {value} mg/dL. Esta es una observación de tus propios registros, no un diagnóstico.",
     mealAteEarlier: "Comí esto más temprano",
     mealTimeReason: "La relación con una lectura después de comer usa la hora en que comiste.",
     mealThirtyMinutesAgo: "Hace 30 min",

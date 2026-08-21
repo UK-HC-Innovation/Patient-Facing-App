@@ -52,6 +52,7 @@ export type LiveSessionContext = {
   identifiedFood: IdentifiedFood | null;
   flagTexts: string[];
   compass?: CompassContext | null;
+  historyLine?: string;
 };
 
 export type LiveSessionInit = {

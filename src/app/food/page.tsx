@@ -13,6 +13,7 @@ import { createSafeAiResponse } from "@/ai/safety-gate";
 import { PantryProvider, PANTRY_REQUEST_TEXT } from "@/ai/pantry-provider";
 import { activeConditions, selectLenses } from "@/domain/condition-lens";
 import { computeFoodFlags, type FoodFlag } from "@/domain/food-flags";
+import { foodHistoryVoiceLine, lastTimeYouAte } from "@/domain/glucose-correlation";
 import { buildMealLogEntry } from "@/domain/meal-log";
 import { resolvePortionServings, scaleNutrition } from "@/domain/portion";
 import { foodLookupResponseSchema, mealLogEntrySchema } from "@/domain/schemas";
@@ -57,6 +58,7 @@ export default function FoodPage() {
   const [portionServings, setPortionServings] = useState(1);
   const [spokenSize, setSpokenSize] = useState<SpokenFoodSize | null>(null);
   const [logged, setLogged] = useState(false);
+  const loggedEntryIdRef = useRef<string | null>(null);
   const { activeBarcode } = useBarcodeScan({
     videoRef: camera.videoRef,
     enabled: camera.status === "active",
@@ -111,11 +113,34 @@ export default function FoodPage() {
     () => computeFoodFlags(scaledFood, lens, { medications: state.medications, readings: state.readings }, language),
     [scaledFood, lens, state.medications, state.readings, language]
   );
+  const foodHistory = useMemo(() => {
+    if (!identifiedFoodId) {
+      return null;
+    }
+    const currentEntryId = logged ? loggedEntryIdRef.current : null;
+    return lastTimeYouAte(
+      identifiedFoodId,
+      currentEntryId ? state.mealLog.filter((entry) => entry.id !== currentEntryId) : state.mealLog,
+      state.glucoseReadings
+    );
+  }, [identifiedFoodId, logged, state.glucoseReadings, state.mealLog]);
+  const historyDate = useMemo(() => {
+    if (!foodHistory) {
+      return null;
+    }
+    return new Intl.DateTimeFormat(language === "es" ? "es-US" : "en-US", {
+      month: "short",
+      day: "numeric"
+    }).format(new Date(foodHistory.loggedAt));
+  }, [foodHistory, language]);
+  const historyLine = foodHistory && historyDate ? foodHistoryVoiceLine(foodHistory, historyDate) : undefined;
 
   const foodRef = useRef<IdentifiedFood | null>(null);
   foodRef.current = scaledFood;
   const flagsRef = useRef<FoodFlag[]>([]);
   flagsRef.current = flags;
+  const historyLineRef = useRef<string | undefined>(undefined);
+  historyLineRef.current = historyLine;
   const lastAssistantRef = useRef<string | null>(null);
   const lastPortionFoodIdRef = useRef<string | null>(null);
   const stateRef = useRef(state);
@@ -127,6 +152,7 @@ export default function FoodPage() {
       frameDataUrl: camera.grabFrame(),
       identifiedFood: foodRef.current,
       flagTexts: flagsRef.current.map((flag) => flag.text),
+      historyLine: historyLineRef.current,
       compass: current.carveOut
         ? { kind: "carve_out", reason: current.carveOut }
         : toCompassContext(current.score, current.alternatives)
@@ -333,6 +359,7 @@ export default function FoodPage() {
       return;
     }
     dispatch({ type: "addMealLogEntry", entry });
+    loggedEntryIdRef.current = entry.id;
     setLogged(true);
   }, [dispatch, language, portionServings]);
 
@@ -412,6 +439,8 @@ export default function FoodPage() {
             compassScore={compass.score}
             food={scaledFood}
             flags={flags}
+            history={foodHistory && historyDate ? { ...foodHistory, date: historyDate } : null}
+            showGlucoseHistory={activeConditions(state.carePlan).includes("diabetes")}
             correctionCandidates={!barcodeFood ? live.match?.candidates ?? [] : []}
             logged={logged}
             canLog={canLog}

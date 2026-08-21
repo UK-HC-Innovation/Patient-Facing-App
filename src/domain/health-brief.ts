@@ -1,6 +1,6 @@
 import { summarizeGlucoseTrend } from "./adherence";
 import { activeConditions, selectLenses } from "./condition-lens";
-import { summarizeFoodGlucoseLink } from "./glucose-correlation";
+import { summarizeFoodGlucoseLink, summarizeScoreGlucoseLink } from "./glucose-correlation";
 import { computeTimeInRange } from "./glucose-range";
 import { getPdcToDate } from "./medication-fills";
 import { screeningLens, screeningLensLine } from "./screening-status";
@@ -45,11 +45,18 @@ function bloodSugarSection(state: AppState): BriefSection | null {
 // carry enough paired data. Omitted when null (below the sample or delta floor).
 function foodPatternSection(state: AppState): BriefSection | null {
   const lens = selectLenses(activeConditions(state.carePlan));
-  const insight = summarizeFoodGlucoseLink(state.mealLog, state.glucoseReadings, lens);
-  if (!insight) {
+  const carbInsight = summarizeFoodGlucoseLink(state.mealLog, state.glucoseReadings, lens);
+  const scoreInsight = summarizeScoreGlucoseLink(state.mealLog, state.glucoseReadings, {
+    language: state.patient.language
+  });
+  if (!carbInsight && !scoreInsight) {
     return null;
   }
-  return { title: "Food & blood-sugar pattern", items: [insight.message], status: "inferred" };
+  return {
+    title: "Food & blood-sugar pattern",
+    items: [carbInsight?.message, scoreInsight?.message].filter((item): item is string => Boolean(item)),
+    status: "inferred"
+  };
 }
 
 // Provider-legible adherence: refill-based diabetes coverage (the honest PDC

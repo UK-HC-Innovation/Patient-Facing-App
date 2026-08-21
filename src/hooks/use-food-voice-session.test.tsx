@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { demoState } from "@/domain/fixtures";
 import type { IdentifiedFood } from "@/domain/types";
 import type { ConnectArgs } from "@/ai/realtime-session";
+import { specificNumberAssertions } from "@/ai/output-guard";
 import { useFoodVoiceSession } from "./use-food-voice-session";
 
 const mocks = vi.hoisted(() => ({
@@ -51,7 +52,9 @@ describe("useFoodVoiceSession context injection", () => {
     const getContext = () => ({
       frameDataUrl: "data:image/jpeg;base64,abc",
       identifiedFood: food,
-      flagTexts: ["High sodium"]
+      flagTexts: ["High sodium"],
+      historyLine:
+        "The patient has logged this same food before (Jan 12); a glucose reading followed within the usual window — the number is on their screen."
     });
     const { result } = renderHook(() => useFoodVoiceSession({
       language: "en",
@@ -68,6 +71,9 @@ describe("useFoodVoiceSession context injection", () => {
     expect(first.imageDataUrl).toBe("data:image/jpeg;base64,abc");
     expect(first.text).toContain(JSON.stringify(food));
     expect(first.text).toContain("Precomputed flags: High sodium.");
+    expect(first.text).toContain(getContext().historyLine);
+    expect(first.text.endsWith("Use the numbers above exactly; do not recompute them.")).toBe(true);
+    expect(specificNumberAssertions.some((pattern) => pattern.test(getContext().historyLine))).toBe(false);
     expect(repeat.text).toContain('{"foodData":"unchanged"}');
 
     act(() => result.current.stop());
