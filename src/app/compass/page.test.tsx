@@ -116,6 +116,9 @@ describe("CompassPage camera-first conversation", () => {
     render(<CompassPage />);
 
     expect(screen.getByRole("region", { name: "Food camera" })).toBeInTheDocument();
+    expect(screen.getByRole("main").lastElementChild).toBe(
+      screen.getByRole("region", { name: "Automatic food conversation" })
+    );
     expect(screen.queryByLabelText("Describe a food or order")).not.toBeInTheDocument();
     expect(mocks.onFinalTranscript).not.toBeNull();
 

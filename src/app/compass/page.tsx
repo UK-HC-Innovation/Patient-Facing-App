@@ -411,87 +411,6 @@ export default function CompassPage() {
         />
       </section>
 
-      <section
-        aria-label="Automatic food conversation"
-        className="grid gap-3 rounded-control border border-care/20 bg-calm/40 p-3"
-      >
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold">Automatic food conversation</h2>
-            <p className="text-xs text-ink/70">
-              {voiceAvailable
-                ? "No text box: identify the food, then add details or ask questions out loud."
-                : "Scripted preview: with live voice connected, the user continues out loud."}
-            </p>
-          </div>
-          <FoodGuidanceSource kind="general" />
-        </div>
-
-        <div aria-live="polite" className="grid gap-2" role="log">
-          {conversationTurns.length > 0 ? (
-            conversationTurns.map((turn) => (
-              <article
-                className={`rounded-control px-3 py-2 text-sm leading-6 ${
-                  turn.role === "assistant" ? "bg-white" : "bg-care/10"
-                }`}
-                key={turn.id}
-              >
-                <p>
-                  <span className="font-semibold">{turn.role === "assistant" ? "Food Lens" : "You"}:</span>{" "}
-                  {turn.text}
-                </p>
-                {turn.scripted ? (
-                  <p className="mt-1 text-[11px] text-ink/70">Scripted fallback for the functional prototype.</p>
-                ) : null}
-              </article>
-            ))
-          ) : shown?.kind === "match" ? (
-            <p className="rounded-control bg-white px-3 py-2 text-sm text-ink/70">
-              Starting a conversation about {shown.match.food.description}…
-            </p>
-          ) : (
-            <p className="rounded-control bg-white px-3 py-2 text-sm text-ink/70">
-              Waiting for the camera to identify a food.
-            </p>
-          )}
-          {voice.partialAssistantText ? (
-            <article className="rounded-control bg-white px-3 py-2 text-sm leading-6 text-ink/70">
-              <p>
-                <span className="font-semibold">Food Lens:</span> {voice.partialAssistantText}
-              </p>
-            </article>
-          ) : null}
-        </div>
-
-        {voiceAvailable && !voiceCanStart ? (
-          <button
-            className="min-h-12 rounded-control border border-care bg-white px-4 py-2 font-semibold text-care"
-            onClick={voice.stop}
-            type="button"
-          >
-            End conversation
-          </button>
-        ) : null}
-        {voiceAvailable && voice.status === "error" ? (
-          <button
-            className="min-h-12 rounded-control border border-care bg-white px-4 py-2 font-semibold text-care"
-            onClick={() => void voice.startWithContextResponse()}
-            type="button"
-          >
-            Try automatic conversation again
-          </button>
-        ) : null}
-        {voiceAvailable && voice.status === "closed" ? (
-          <button
-            className="min-h-12 rounded-control border border-care bg-white px-4 py-2 font-semibold text-care"
-            onClick={() => void voice.startWithContextResponse()}
-            type="button"
-          >
-            Start conversation again
-          </button>
-        ) : null}
-      </section>
-
       <NutritionCompass
         foodName={shown?.kind === "match" ? shown.match.food.description : null}
         score={shown?.kind === "match" ? shown.match.score : null}
@@ -662,15 +581,6 @@ export default function CompassPage() {
         </div>
       ) : null}
 
-      {voiceAvailable && voice.error ? (
-        <p className="rounded-control border border-pulse/30 bg-pulse/5 px-3 py-2 text-sm text-pulse" role="alert">
-          {voice.error}{" "}
-          {voice.status === "error"
-            ? "Use “Try automatic conversation again” to retry."
-            : "You can keep talking or say the details again."}
-        </p>
-      ) : null}
-
       <footer className="border-t border-ink/10 pt-3 text-xs text-ink/70">
         <details className="rounded-control border border-ink/10 bg-white p-3">
           <summary className="cursor-pointer font-semibold text-care">How scoring works</summary>
@@ -686,6 +596,95 @@ export default function CompassPage() {
           </div>
         </details>
       </footer>
+
+      <section
+        aria-label="Automatic food conversation"
+        className="grid gap-3 rounded-control border border-care/20 bg-calm/40 p-3"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold">Automatic food conversation</h2>
+            <p className="text-xs text-ink/70">
+              {voiceAvailable
+                ? "No text box: identify the food, then add details or ask questions out loud."
+                : "Scripted preview: with live voice connected, the user continues out loud."}
+            </p>
+          </div>
+          <FoodGuidanceSource kind="general" />
+        </div>
+
+        <div aria-live="polite" className="grid gap-2" role="log">
+          {conversationTurns.length > 0 ? (
+            conversationTurns.map((turn) => (
+              <article
+                className={`rounded-control px-3 py-2 text-sm leading-6 ${
+                  turn.role === "assistant" ? "bg-white" : "bg-care/10"
+                }`}
+                key={turn.id}
+              >
+                <p>
+                  <span className="font-semibold">{turn.role === "assistant" ? "Food Lens" : "You"}:</span>{" "}
+                  {turn.text}
+                </p>
+                {turn.scripted ? (
+                  <p className="mt-1 text-[11px] text-ink/70">Scripted fallback for the functional prototype.</p>
+                ) : null}
+              </article>
+            ))
+          ) : shown?.kind === "match" ? (
+            <p className="rounded-control bg-white px-3 py-2 text-sm text-ink/70">
+              Starting a conversation about {shown.match.food.description}…
+            </p>
+          ) : (
+            <p className="rounded-control bg-white px-3 py-2 text-sm text-ink/70">
+              Waiting for the camera to identify a food.
+            </p>
+          )}
+          {voice.partialAssistantText ? (
+            <article className="rounded-control bg-white px-3 py-2 text-sm leading-6 text-ink/70">
+              <p>
+                <span className="font-semibold">Food Lens:</span> {voice.partialAssistantText}
+              </p>
+            </article>
+          ) : null}
+        </div>
+
+        {voiceAvailable && voice.error ? (
+          <p className="rounded-control border border-pulse/30 bg-pulse/5 px-3 py-2 text-sm text-pulse" role="alert">
+            {voice.error}{" "}
+            {voice.status === "error"
+              ? "Use “Try automatic conversation again” to retry."
+              : "You can keep talking or say the details again."}
+          </p>
+        ) : null}
+        {voiceAvailable && !voiceCanStart ? (
+          <button
+            className="min-h-12 rounded-control border border-care bg-white px-4 py-2 font-semibold text-care"
+            onClick={voice.stop}
+            type="button"
+          >
+            End conversation
+          </button>
+        ) : null}
+        {voiceAvailable && voice.status === "error" ? (
+          <button
+            className="min-h-12 rounded-control border border-care bg-white px-4 py-2 font-semibold text-care"
+            onClick={() => void voice.startWithContextResponse()}
+            type="button"
+          >
+            Try automatic conversation again
+          </button>
+        ) : null}
+        {voiceAvailable && voice.status === "closed" ? (
+          <button
+            className="min-h-12 rounded-control border border-care bg-white px-4 py-2 font-semibold text-care"
+            onClick={() => void voice.startWithContextResponse()}
+            type="button"
+          >
+            Start conversation again
+          </button>
+        ) : null}
+      </section>
     </main>
   );
 }
