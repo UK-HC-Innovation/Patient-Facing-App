@@ -16,6 +16,8 @@ export type FoodLensStringKey =
   | "endSession"
   | "resume"
   | "retry"
+  | "cameraRetry"
+  | "scanAgain"
   | "switchToTyped"
   | "cameraDenied"
   | "micDenied"
@@ -24,9 +26,18 @@ export type FoodLensStringKey =
   | "askPlaceholder"
   | "askButton"
   | "holdToTalkHint"
+  | "liveTypedHint"
   | "visionEstimateBadge"
   | "unknownFood"
   | "portionAssuming"
+  | "portionSizeAssumption"
+  | "sizePersonal"
+  | "sizeSmall"
+  | "sizeMedium"
+  | "sizeRegular"
+  | "sizeLarge"
+  | "sizeExtraLarge"
+  | "sizeFamily"
   | "portionLabel"
   | "portionDecrease"
   | "portionIncrease"
@@ -38,6 +49,7 @@ export type FoodLensStringKey =
   | "loggedConfirmation"
   | "recentMealsTitle"
   | "noMealsYet"
+  | "foodNotThis"
   | "mealAteEarlier"
   | "mealTimeReason"
   | "mealThirtyMinutesAgo"
@@ -114,6 +126,8 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     endSession: "End",
     resume: "Resume",
     retry: "Try again",
+    cameraRetry: "Retry camera",
+    scanAgain: "Scan again",
     switchToTyped: "Switch to typed mode",
     cameraDenied: "Camera unavailable in this preview. You can still use the typed controls below.",
     micDenied: "Microphone access is off. You can still type your question below.",
@@ -122,9 +136,18 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     askPlaceholder: "Ask about this food…",
     askButton: "Ask",
     holdToTalkHint: "Speak your question out loud.",
+    liveTypedHint: "You can also type while the voice conversation is live.",
     visionEstimateBadge: "Estimate from photo",
     unknownFood: "This food",
     portionAssuming: "Assuming {servings} serving(s) - tap to change.",
+    portionSizeAssumption: "{size} ≈ {servings} servings — adjust?",
+    sizePersonal: "personal",
+    sizeSmall: "small",
+    sizeMedium: "medium",
+    sizeRegular: "regular",
+    sizeLarge: "large",
+    sizeExtraLarge: "extra-large",
+    sizeFamily: "family",
     portionLabel: "Servings",
     portionDecrease: "Decrease servings",
     portionIncrease: "Increase servings",
@@ -136,6 +159,7 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     loggedConfirmation: "Added to your meals",
     recentMealsTitle: "Recent meals",
     noMealsYet: "No meals logged yet.",
+    foodNotThis: "Not this?",
     mealAteEarlier: "I ate this earlier",
     mealTimeReason: "Post-meal pairing uses the time you ate.",
     mealThirtyMinutesAgo: "30 min ago",
@@ -211,6 +235,8 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     endSession: "Terminar",
     resume: "Continuar",
     retry: "Intentar de nuevo",
+    cameraRetry: "Reintentar cámara",
+    scanAgain: "Escanear de nuevo",
     switchToTyped: "Cambiar a modo escrito",
     cameraDenied: "La cámara no está disponible en esta vista previa. Aún puedes usar los controles escritos abajo.",
     micDenied: "El acceso al micrófono está desactivado. Aún puedes escribir tu pregunta abajo.",
@@ -219,9 +245,18 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     askPlaceholder: "Pregunta sobre esta comida…",
     askButton: "Preguntar",
     holdToTalkHint: "Di tu pregunta en voz alta.",
+    liveTypedHint: "También puedes escribir mientras la conversación por voz está activa.",
     visionEstimateBadge: "Estimado por la foto",
     unknownFood: "Esta comida",
     portionAssuming: "Suponiendo {servings} porcion(es) - toca para cambiar.",
+    portionSizeAssumption: "{size} ≈ {servings} porciones — ¿ajustar?",
+    sizePersonal: "personal",
+    sizeSmall: "pequeña",
+    sizeMedium: "mediana",
+    sizeRegular: "regular",
+    sizeLarge: "grande",
+    sizeExtraLarge: "extra grande",
+    sizeFamily: "familiar",
     portionLabel: "Porciones",
     portionDecrease: "Disminuir porciones",
     portionIncrease: "Aumentar porciones",
@@ -233,6 +268,7 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     loggedConfirmation: "Agregado a tus comidas",
     recentMealsTitle: "Comidas recientes",
     noMealsYet: "Aún no hay comidas guardadas.",
+    foodNotThis: "¿No es esto?",
     mealAteEarlier: "Comí esto más temprano",
     mealTimeReason: "La relación con una lectura después de comer usa la hora en que comiste.",
     mealThirtyMinutesAgo: "Hace 30 min",

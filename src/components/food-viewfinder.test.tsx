@@ -85,4 +85,41 @@ describe("FoodViewfinder demo states", () => {
     await userEvent.click(screen.getByRole("button", { name: "Show score details for Banana, raw" }));
     expect(onScoreTap).toHaveBeenCalledTimes(1);
   });
+
+  it("offers a camera retry on the /food overlays", async () => {
+    const onCameraRetry = vi.fn();
+    render(
+      <FoodViewfinder
+        cameraStatus="denied"
+        language="en"
+        onCameraRetry={onCameraRetry}
+        scanChip={null}
+        sessionStatus="idle"
+        showVoiceStatus={false}
+        videoRef={videoRef}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Retry camera" }));
+    expect(onCameraRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders idle disarm as a tappable scan-again chip", async () => {
+    const onScanAgain = vi.fn();
+    render(
+      <FoodViewfinder
+        cameraStatus="active"
+        language="en"
+        onScoreTap={onScanAgain}
+        scanChip="Banana, raw"
+        scoreBadge="scan_again"
+        sessionStatus="idle"
+        showVoiceStatus={false}
+        videoRef={videoRef}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Scan again" }));
+    expect(onScanAgain).toHaveBeenCalledTimes(1);
+  });
 });

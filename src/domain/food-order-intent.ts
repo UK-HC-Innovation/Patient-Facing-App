@@ -1,3 +1,7 @@
+import type { Language } from "@/i18n/strings";
+
+export type SpokenFoodSize = "personal" | "small" | "medium" | "regular" | "large" | "extra large" | "family";
+
 export type FoodOrderIntent = {
   kind: "food_order";
   originalText: string;
@@ -94,12 +98,50 @@ function extractCrust(value: string): string | null {
   return cases.find((entry) => entry.pattern.test(value))?.crust ?? null;
 }
 
-function extractSize(value: string): string | null {
-  const match = /\b(extra[- ]large|xl|personal|small|medium|large)\b(?!\s+crust)/i.exec(value);
-  if (!match) {
-    return null;
+export function parseSpokenSize(value: string, language: Language): SpokenFoodSize | null {
+  const patterns: Array<{ size: SpokenFoodSize; pattern: RegExp }> =
+    language === "es"
+      ? [
+          { size: "extra large", pattern: /\b(?:extra[- ]?grande|extra[- ]?grandes|xl)\b/i },
+          { size: "family", pattern: /\b(?:tamano\s+familiar|tamaño\s+familiar|familiar)\b/i },
+          { size: "personal", pattern: /\b(?:personal|individual)\b/i },
+          { size: "small", pattern: /\bpeque(?:n|ñ)[oa]s?\b/i },
+          { size: "medium", pattern: /\bmedian[oa]s?\b/i },
+          { size: "regular", pattern: /\b(?:regular|normal)\b/i },
+          { size: "large", pattern: /\bgrandes?\b/i }
+        ]
+      : [
+          { size: "extra large", pattern: /\b(?:extra[- ]?large|xl)\b/i },
+          { size: "family", pattern: /\bfamily(?:[- ]siz(?:e|ed))?\b/i },
+          { size: "personal", pattern: /\b(?:personal|individual)\b/i },
+          { size: "small", pattern: /\bsmall\b/i },
+          { size: "medium", pattern: /\bmedium\b(?!\s+crust)/i },
+          { size: "regular", pattern: /\b(?:regular|normal)\b/i },
+          { size: "large", pattern: /\blarge\b/i }
+        ];
+  return patterns.find(({ pattern }) => pattern.test(value))?.size ?? null;
+}
+
+export function servingsForSize(size: SpokenFoodSize | null): number | null {
+  switch (size) {
+    case "personal":
+    case "small":
+      return 0.75;
+    case "medium":
+    case "regular":
+      return 1;
+    case "large":
+      return 1.5;
+    case "extra large":
+    case "family":
+      return 2;
+    default:
+      return null;
   }
-  return match[1].toLowerCase().replace("-", " ").replace("xl", "extra large");
+}
+
+function extractSize(value: string): SpokenFoodSize | null {
+  return parseSpokenSize(value, "en");
 }
 
 function pizzaCategory(toppings: string[]): string {

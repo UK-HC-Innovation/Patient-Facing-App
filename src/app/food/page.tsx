@@ -14,19 +14,24 @@ import { PantryProvider, PANTRY_REQUEST_TEXT } from "@/ai/pantry-provider";
 import { activeConditions, selectLenses } from "@/domain/condition-lens";
 import { computeFoodFlags, type FoodFlag } from "@/domain/food-flags";
 import { buildMealLogEntry } from "@/domain/meal-log";
-import { parsePortionServings, scaleNutrition } from "@/domain/portion";
+import { resolvePortionServings, scaleNutrition } from "@/domain/portion";
 import { foodLookupResponseSchema, mealLogEntrySchema } from "@/domain/schemas";
 import { t } from "@/i18n/strings";
 import { useFoodCamera } from "@/hooks/use-food-camera";
 import { useBarcodeScan } from "@/hooks/use-barcode-scan";
 import { useFoodVoiceSession, type VoiceSafetyIntercept } from "@/hooks/use-food-voice-session";
 import { useCompassScore } from "@/hooks/use-compass-score";
-import { useLiveFoodScore } from "@/hooks/use-live-food-score";
+import {
+  useLiveFoodScore,
+  type LiveCandidate,
+  type LiveMatch
+} from "@/hooks/use-live-food-score";
 import { toIdentifiedFood } from "@/domain/food-compass";
 import { toCompassContext } from "@/domain/compass-context";
 import { useHealthState } from "@/state/store";
 import type { AiMessage, IdentifiedFood, PantryResult } from "@/domain/types";
 import type { LiveSessionContext } from "@/ai/types";
+import type { SpokenFoodSize } from "@/domain/food-order-intent";
 
 export default function FoodPage() {
   const { state, dispatch } = useHealthState();
@@ -50,6 +55,7 @@ export default function FoodPage() {
   );
   const [barcodeFood, setBarcodeFood] = useState<IdentifiedFood | null>(null);
   const [portionServings, setPortionServings] = useState(1);
+  const [spokenSize, setSpokenSize] = useState<SpokenFoodSize | null>(null);
   const [logged, setLogged] = useState(false);
   const { activeBarcode } = useBarcodeScan({
     videoRef: camera.videoRef,
@@ -64,6 +70,7 @@ export default function FoodPage() {
     barcodeActive: activeBarcode !== null,
     passcode
   });
+  const adoptLiveMatch = live.adoptMatch;
 
   // A barcode is authoritative while it is on screen; otherwise the live vision match is.
   const identifiedFood = useMemo<IdentifiedFood | null>(() => {
@@ -259,17 +266,20 @@ export default function FoodPage() {
     if (!identifiedFoodId) {
       lastPortionFoodIdRef.current = null;
       setPortionServings(1);
+      setSpokenSize(null);
       return;
     }
-    const parsedPortion = parsePortionServings(latestPatientUtterance, language);
-    if (parsedPortion !== null) {
-      setPortionServings(parsedPortion);
+    const resolvedPortion = resolvePortionServings(latestPatientUtterance, language);
+    if (resolvedPortion !== null) {
+      setPortionServings(resolvedPortion.servings);
+      setSpokenSize(resolvedPortion.spokenSize);
       setLogged(false);
       lastPortionFoodIdRef.current = identifiedFoodId;
       return;
     }
     if (lastPortionFoodIdRef.current !== identifiedFoodId) {
       setPortionServings(1);
+      setSpokenSize(null);
       setLogged(false);
       lastPortionFoodIdRef.current = identifiedFoodId;
     }
@@ -277,8 +287,33 @@ export default function FoodPage() {
 
   const handlePortionChange = useCallback((servings: number) => {
     setPortionServings(servings);
+    setSpokenSize(null);
     setLogged(false);
   }, []);
+
+  const correctCameraMatch = useCallback(
+    async (foodId: string) => {
+      try {
+        const response = await fetch("/api/food/identify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ foodId, passcode })
+        });
+        const json = (await response.json()) as {
+          mode: string;
+          match?: Omit<LiveMatch, "candidates">;
+          candidates?: LiveCandidate[];
+        };
+        if (json.mode === "match" && json.match) {
+          adoptLiveMatch({ ...json.match, candidates: json.candidates ?? [] });
+          setLogged(false);
+        }
+      } catch {
+        // Keep the current, still-grounded match when a deterministic correction request fails.
+      }
+    },
+    [adoptLiveMatch, passcode]
+  );
 
   const canLog = scaledFood !== null || lastAssistantRef.current !== null;
 
@@ -322,6 +357,8 @@ export default function FoodPage() {
           cameraStatus={camera.status}
           sessionStatus={voice.status}
           idleLabel={identifiedFood ? undefined : t(language, "statusIdleNoFood")}
+          onCameraRetry={() => void camera.start()}
+          onScoreTap={badgeState === "scan_again" ? live.rearm : undefined}
           onVoiceStatusTap={voice.status === "idle" || voice.status === "closed" ? () => void voice.start() : undefined}
           scanChip={scanChip}
           language={language}
@@ -375,11 +412,14 @@ export default function FoodPage() {
             compassScore={compass.score}
             food={scaledFood}
             flags={flags}
+            correctionCandidates={!barcodeFood ? live.match?.candidates ?? [] : []}
             logged={logged}
             canLog={canLog}
+            onCorrection={!barcodeFood ? (foodId) => void correctCameraMatch(foodId) : undefined}
             onLog={onLog}
             language={language}
             portionServings={portionServings}
+            spokenSize={spokenSize}
             onPortionChange={handlePortionChange}
           />
         ) : null}

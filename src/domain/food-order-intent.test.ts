@@ -4,7 +4,9 @@ import {
   foodOrderIntentToLookupText,
   foodOrderCorrectionQueries,
   mergePizzaOrderRefinement,
-  parseFoodOrderIntent
+  parseFoodOrderIntent,
+  parseSpokenSize,
+  servingsForSize
 } from "./food-order-intent";
 
 describe("parseFoodOrderIntent", () => {
@@ -67,6 +69,20 @@ describe("parseFoodOrderIntent", () => {
   it("leaves ordinary short food searches on the existing path", () => {
     expect(parseFoodOrderIntent("pizza")).toBeNull();
     expect(parseFoodOrderIntent("banana")).toBeNull();
+  });
+});
+
+describe("spoken food sizes", () => {
+  it("recognizes conversational English and Spanish sizes outside order syntax", () => {
+    expect(parseSpokenSize("large pepperoni pizza", "en")).toBe("large");
+    expect(parseSpokenSize("pizza de tamaño familiar", "es")).toBe("family");
+  });
+
+  it("uses the locked serving assumptions", () => {
+    expect(servingsForSize("personal")).toBe(0.75);
+    expect(servingsForSize("regular")).toBe(1);
+    expect(servingsForSize("large")).toBe(1.5);
+    expect(servingsForSize("extra large")).toBe(2);
   });
 });
 

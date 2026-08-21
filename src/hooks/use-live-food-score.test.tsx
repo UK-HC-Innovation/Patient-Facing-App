@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AUTO_DISARM_MS,
+  CORRECTION_PIN_MS,
   LIVE_INTERVAL_MS,
   SCENE_CHANGE_THRESHOLD,
   VISION_RESTORE_MS,
@@ -23,7 +24,15 @@ const MATCH: LiveMatch = {
     coverage: null
   },
   alternatives: [],
-  nutrients: null
+  nutrients: null,
+  candidates: []
+};
+
+const CORRECTED_MATCH: LiveMatch = {
+  ...MATCH,
+  food: { code: "63107020", description: "Plantain, raw", group: "2000_Fruit" },
+  score: { ...MATCH.score, fcs: 61, band: "moderate" },
+  candidates: []
 };
 
 // testing-library's waitFor polls on real timers, which deadlocks against vi.useFakeTimers.
@@ -163,11 +172,85 @@ describe("useLiveFoodScore", () => {
 
     await flush();
     expect(result.current.badge).toBe("hidden");
+    expect(result.current.disarmReason).toBe("provider");
+    act(() => result.current.rearm());
+    expect(result.current.disarmReason).toBe("provider");
     await act(async () => {
       vi.advanceTimersByTime(LIVE_INTERVAL_MS * 5);
     });
     // The first call was the probe; there is no second.
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps four correction candidates after dropping the matched code", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        mode: "match",
+        match: MATCH,
+        candidates: [
+          { code: MATCH.food.code, description: MATCH.food.description, fcs: 83 },
+          { code: "1", description: "One", fcs: 10 },
+          { code: "2", description: "Two", fcs: 20 },
+          { code: "3", description: "Three", fcs: 30 },
+          { code: "4", description: "Four", fcs: 40 },
+          { code: "5", description: "Five", fcs: 50 }
+        ]
+      })
+    );
+    const { result } = setup();
+    await flush();
+
+    expect(result.current.match?.candidates.map((candidate) => candidate.code)).toEqual(["1", "2", "3", "4"]);
+  });
+
+  it("pins an adopted correction and preserves re-correction candidates", async () => {
+    const clock = { value: 1_000 };
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        mode: "match",
+        match: MATCH,
+        candidates: [
+          { code: CORRECTED_MATCH.food.code, description: CORRECTED_MATCH.food.description, fcs: 61 },
+          { code: "63107030", description: "Plantain, cooked", fcs: 52 }
+        ]
+      })
+    );
+    const { result } = setup({}, clock);
+    await flush();
+
+    act(() => result.current.adoptMatch(CORRECTED_MATCH));
+    expect(result.current.match?.food.code).toBe(CORRECTED_MATCH.food.code);
+    expect(result.current.match?.candidates.map((candidate) => candidate.code)).toEqual(["63107030"]);
+
+    const callsAtCorrection = fetchMock.mock.calls.length;
+    clock.value += CORRECTION_PIN_MS - 1;
+    await act(async () => {
+      vi.advanceTimersByTime(LIVE_INTERVAL_MS);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(callsAtCorrection);
+    expect(result.current.match?.food.code).toBe(CORRECTED_MATCH.food.code);
+
+    clock.value += 2;
+    await act(async () => {
+      vi.advanceTimersByTime(LIVE_INTERVAL_MS);
+    });
+    await flush();
+    expect(result.current.match?.food.code).toBe(MATCH.food.code);
+  });
+
+  it("restores the corrected stash after barcode preemption", async () => {
+    const clock = { value: 1_000 };
+    const { result, rerender } = setup({}, clock);
+    await flush();
+    act(() => result.current.adoptMatch(CORRECTED_MATCH));
+
+    await act(async () => rerender({ barcodeActive: true }));
+    expect(result.current.match).toBeNull();
+
+    fetchMock.mockImplementation(() => new Promise<Response>(() => {}));
+    clock.value += VISION_RESTORE_MS - 1_000;
+    await act(async () => rerender({ barcodeActive: false }));
+    expect(result.current.match?.food.code).toBe(CORRECTED_MATCH.food.code);
   });
 
   it("shows a carve-out with no number at all", async () => {
@@ -230,7 +313,7 @@ describe("useLiveFoodScore", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("skips the call when the scene has not changed, and gives up after three minutes", async () => {
+  it("keeps a pinned match on idle disarm and rearms with one immediate identify", async () => {
     // Give jsdom a canvas that always returns the same pixels: a camera held still.
     const constantPixels = new Uint8ClampedArray(32 * 32 * 4).fill(120);
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
@@ -264,18 +347,33 @@ describe("useLiveFoodScore", () => {
     }
     expect(fetchMock).toHaveBeenCalledTimes(2); // only the first tick, which had no previous signature
 
-    clock.value += AUTO_DISARM_MS;
+    clock.value = LIVE_INTERVAL_MS + AUTO_DISARM_MS - 30_000;
+    await act(async () => {
+      vi.advanceTimersByTime(LIVE_INTERVAL_MS);
+    });
+    act(() => result.current.adoptMatch({ ...MATCH, candidates: [] }));
+
+    clock.value += 30_001;
     await act(async () => {
       vi.advanceTimersByTime(LIVE_INTERVAL_MS);
     });
     await flush();
-    expect(result.current.badge).toBe("hidden");
+    expect(result.current.badge).toBe("scan_again");
+    expect(result.current.disarmReason).toBe("idle");
+    expect(result.current.match?.food.code).toBe(MATCH.food.code);
 
-    // Disarmed for good: no further spend even if the scene later changes.
+    // No further spend until the user explicitly asks to scan again.
     constantPixels.fill(10);
     await act(async () => {
       vi.advanceTimersByTime(LIVE_INTERVAL_MS * 3);
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    fetchMock.mockImplementation(() => new Promise<Response>(() => {}));
+    act(() => result.current.rearm());
+    expect(result.current.disarmReason).toBeNull();
+    expect(result.current.match).toBeNull();
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });

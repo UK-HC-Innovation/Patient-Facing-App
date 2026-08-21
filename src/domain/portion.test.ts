@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsePortionServings, scaleNutrition } from "./portion";
+import { parsePortionServings, resolvePortionServings, scaleNutrition } from "./portion";
 import type { NutritionFacts } from "./types";
 
 const nutrition: NutritionFacts = {
@@ -44,6 +44,30 @@ describe("parsePortionServings", () => {
 
   it("caps large serving counts at 20", () => {
     expect(parsePortionServings("500 slices", "en")).toBe(20);
+  });
+});
+
+describe("resolvePortionServings", () => {
+  it("gives an explicit numeric portion precedence over a size word", () => {
+    expect(resolvePortionServings("large pizza, two slices", "en")).toEqual({ servings: 2, spokenSize: null });
+  });
+
+  it("maps a conversational size when no numeric portion is present", () => {
+    expect(resolvePortionServings("large pepperoni pizza", "en")).toEqual({
+      servings: 1.5,
+      spokenSize: "large"
+    });
+  });
+
+  it("leaves an utterance without a portion cue unresolved", () => {
+    expect(resolvePortionServings("banana", "en")).toBeNull();
+  });
+
+  it("parses Spanish size phrasing", () => {
+    expect(resolvePortionServings("una pizza extra grande", "es")).toEqual({
+      servings: 2,
+      spokenSize: "extra large"
+    });
   });
 });
 

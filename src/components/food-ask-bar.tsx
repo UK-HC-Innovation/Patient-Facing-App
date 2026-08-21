@@ -26,6 +26,16 @@ export function FoodAskBar({
 }) {
   const [text, setText] = useState("");
 
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const trimmed = text.trim();
+    if (trimmed.length === 0) {
+      return;
+    }
+    onSendText(trimmed);
+    setText("");
+  };
+
   if (mode === "unknown") {
     return (
       <div className="grid gap-2">
@@ -39,25 +49,34 @@ export function FoodAskBar({
 
   if (mode === "live") {
     return (
-      <div className="grid gap-2">
+      <form className="grid gap-2" onSubmit={submit}>
         <AiDataDisclosure compact language={language} mode={dataMode} />
         <p className="text-sm text-ink/70">{t(language, "holdToTalkHint")}</p>
-        <button className="min-h-14 w-full rounded-control border border-care px-4 py-2 font-semibold text-care" onClick={onStop} type="button">
+        <p className="text-sm text-ink/70">{t(language, "liveTypedHint")}</p>
+        <input
+          aria-label={t(language, "askPlaceholder")}
+          className="min-h-14 rounded-control border border-ink/20 px-3 py-2"
+          onChange={(event) => setText(event.target.value)}
+          placeholder={t(language, "askPlaceholder")}
+          value={text}
+        />
+        <button
+          className="min-h-14 w-full rounded-control bg-care px-4 py-2 font-semibold text-white disabled:opacity-40"
+          disabled={status === "thinking"}
+          type="submit"
+        >
+          {t(language, "askButton")}
+        </button>
+        <button
+          className="min-h-14 w-full rounded-control border border-care px-4 py-2 font-semibold text-care"
+          onClick={onStop}
+          type="button"
+        >
           {t(language, "endSession")}
         </button>
-      </div>
+      </form>
     );
   }
-
-  const submit = (event: React.FormEvent) => {
-    event.preventDefault();
-    const trimmed = text.trim();
-    if (trimmed.length === 0) {
-      return;
-    }
-    onSendText(trimmed);
-    setText("");
-  };
 
   return (
     <form className="grid gap-2" onSubmit={submit}>

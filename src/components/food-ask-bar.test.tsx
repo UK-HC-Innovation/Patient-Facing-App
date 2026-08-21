@@ -29,10 +29,16 @@ describe("FoodAskBar", () => {
     expect(screen.getByRole("button", { name: "Ask" })).toBeDisabled();
   });
 
-  it("shows the end button in live mode", () => {
-    render(<FoodAskBar mode="live" dataMode="live_voice" status="listening" onStart={() => {}} onStop={() => {}} onSendText={() => {}} language="en" />);
+  it("keeps typed questions on the gated live-session send handle", async () => {
+    const user = userEvent.setup();
+    const onSendText = vi.fn();
+    render(<FoodAskBar mode="live" dataMode="live_voice" status="listening" onStart={() => {}} onStop={() => {}} onSendText={onSendText} language="en" />);
     expect(screen.getByRole("button", { name: "End" })).toBeInTheDocument();
     expect(screen.getByText(/microphone audio, a current camera frame/i)).toBeInTheDocument();
     expect(screen.getByText(/sent to OpenAI/i)).toBeInTheDocument();
+    const input = screen.getByLabelText("Ask about this food…");
+    await user.type(input, "What should I notice?");
+    await user.click(screen.getByRole("button", { name: "Ask" }));
+    expect(onSendText).toHaveBeenCalledWith("What should I notice?");
   });
 });

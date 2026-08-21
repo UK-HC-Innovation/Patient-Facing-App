@@ -117,6 +117,61 @@ describe("FoodFactsCard", () => {
     expect(screen.getByText("Assuming 2 serving(s) - tap to change.")).toBeInTheDocument();
     expect(screen.getByText("120")).toBeInTheDocument();
   });
+
+  it("discloses the spoken-size serving assumption", () => {
+    render(
+      <FoodFactsCard
+        food={soup}
+        flags={[]}
+        logged={false}
+        canLog
+        onLog={() => {}}
+        language="en"
+        portionServings={1.5}
+        spokenSize="large"
+        onPortionChange={() => {}}
+      />
+    );
+
+    expect(screen.getByText("large ≈ 1.5 servings — adjust?")).toBeInTheDocument();
+  });
+
+  it("offers deterministic correction chips for camera matches only", async () => {
+    const user = userEvent.setup();
+    const onCorrection = vi.fn();
+    const candidates = [{ code: "123", description: "Plantain, cooked", fcs: 61 }];
+    const { rerender } = render(
+      <FoodFactsCard
+        food={{ ...soup, id: "fndds:63107010", source: "fndds_lookup" }}
+        flags={[]}
+        logged={false}
+        canLog
+        onCorrection={onCorrection}
+        correctionCandidates={candidates}
+        onLog={() => {}}
+        language="en"
+        {...portionProps}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Plantain, cooked" }));
+    expect(onCorrection).toHaveBeenCalledWith("123");
+
+    rerender(
+      <FoodFactsCard
+        food={soup}
+        flags={[]}
+        logged={false}
+        canLog
+        onCorrection={onCorrection}
+        correctionCandidates={candidates}
+        onLog={() => {}}
+        language="en"
+        {...portionProps}
+      />
+    );
+    expect(screen.queryByText("Not this?")).not.toBeInTheDocument();
+  });
 });
 
 describe("FoodFactsCard — Food Compass row", () => {

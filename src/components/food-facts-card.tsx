@@ -5,6 +5,8 @@ import { t, type FoodLensStringKey, type Language } from "@/i18n/strings";
 import type { FoodFlag, FoodFlagSeverity } from "@/domain/food-flags";
 import type { IdentifiedFood, NutritionFacts } from "@/domain/types";
 import type { CompassAlternative, CompassScore, NotScoreableReason } from "@/domain/food-compass";
+import type { SpokenFoodSize } from "@/domain/food-order-intent";
+import type { LiveCandidate } from "@/hooks/use-live-food-score";
 import { CompassAlternatives, CompassCarveOut, CompassScoreRow } from "./compass-score";
 import { FoodGuidanceSource } from "./food-guidance-source";
 
@@ -12,6 +14,16 @@ const severityClass: Record<FoodFlagSeverity, string> = {
   warning: "bg-pulse/10 text-pulse",
   caution: "bg-amber-100 text-amber-800",
   info: "bg-calm text-care"
+};
+
+const sizeLabelKey: Record<SpokenFoodSize, FoodLensStringKey> = {
+  personal: "sizePersonal",
+  small: "sizeSmall",
+  medium: "sizeMedium",
+  regular: "sizeRegular",
+  large: "sizeLarge",
+  "extra large": "sizeExtraLarge",
+  family: "sizeFamily"
 };
 
 type NutritionRow = {
@@ -55,7 +67,10 @@ export function FoodFactsCard({
   onLog,
   language,
   portionServings,
+  spokenSize = null,
   onPortionChange,
+  correctionCandidates = [],
+  onCorrection,
   compassScore = null,
   compassCarveOut = null,
   compassAlternatives = []
@@ -67,13 +82,22 @@ export function FoodFactsCard({
   onLog: () => void;
   language: Language;
   portionServings: number;
+  spokenSize?: SpokenFoodSize | null;
   onPortionChange: (servings: number) => void;
+  correctionCandidates?: LiveCandidate[];
+  onCorrection?: (foodId: string) => void;
   compassScore?: CompassScore | null;
   compassCarveOut?: NotScoreableReason | null;
   compassAlternatives?: CompassAlternative[];
 }) {
   const title = food ? (food.brand ? `${food.brand} ${food.name}` : food.name) : t(language, "unknownFood");
   const portionLabel = formatServingCount(portionServings);
+  const portionAssumption = spokenSize
+    ? t(language, "portionSizeAssumption", {
+        size: t(language, sizeLabelKey[spokenSize]),
+        servings: portionLabel
+      })
+    : t(language, "portionAssuming", { servings: portionLabel });
   const nutritionRows = food?.nutrition ? buildNutritionRows(food.nutrition).filter((row) => row.value !== null) : [];
 
   return (
@@ -92,7 +116,7 @@ export function FoodFactsCard({
         <div className="mt-3 grid gap-3 rounded-control bg-calm/60 p-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm font-medium text-ink/75">
-              {t(language, "portionAssuming", { servings: portionLabel })}
+              {portionAssumption}
             </p>
             <div className="flex items-center gap-2">
               <button
@@ -156,6 +180,22 @@ export function FoodFactsCard({
               <CompassAlternatives alternatives={compassAlternatives} currentFcs={compassScore.fcs} language={language} />
             </div>
           </details>
+        </div>
+      ) : null}
+
+      {food?.source === "fndds_lookup" && correctionCandidates.length > 0 && onCorrection ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-ink/70">{t(language, "foodNotThis")}</span>
+          {correctionCandidates.map((candidate) => (
+            <button
+              className="min-h-10 rounded-full border border-care/25 bg-white px-3 py-1 text-sm font-medium text-care"
+              key={candidate.code}
+              onClick={() => onCorrection(candidate.code)}
+              type="button"
+            >
+              {candidate.description}
+            </button>
+          ))}
         </div>
       ) : null}
 

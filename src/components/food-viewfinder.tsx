@@ -29,6 +29,7 @@ export function FoodViewfinder({
   scoreTier,
   scoreName,
   onScoreTap,
+  onCameraRetry,
   onVoiceStatusTap,
   showVoiceStatus = true,
   idleLabel,
@@ -39,12 +40,14 @@ export function FoodViewfinder({
   sessionStatus: LiveSessionStatus;
   scanChip: string | null;
   language: Language;
-  scoreBadge?: "hidden" | "idle" | "pending" | "score" | "carve_out";
+  scoreBadge?: "hidden" | "idle" | "pending" | "score" | "carve_out" | "scan_again";
   scoreFcs?: number;
   scoreBand?: CompassBand;
   scoreTier?: "T1" | "T2";
   scoreName?: string;
   onScoreTap?: () => void;
+  /** /food can retry camera permission or acquisition; /compass intentionally keeps its preview fallback. */
+  onCameraRetry?: () => void;
   /** Makes an actionable voice-status message a real, touch-sized control. */
   onVoiceStatusTap?: () => void;
   /**
@@ -104,13 +107,23 @@ export function FoodViewfinder({
       ) : null}
 
       {!demoPreview && cameraStatus === "denied" ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-ink/80 p-6 text-center text-sm text-white">
-          {t(language, "cameraDenied")}
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-ink/80 p-6 text-center text-sm text-white">
+          <p>{t(language, "cameraDenied")}</p>
+          {onCameraRetry ? (
+            <button className="min-h-11 rounded-control bg-white px-4 py-2 font-semibold text-care" onClick={onCameraRetry} type="button">
+              {t(language, "cameraRetry")}
+            </button>
+          ) : null}
         </div>
       ) : null}
       {!demoPreview && cameraStatus === "unavailable" ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-ink/80 p-6 text-center text-sm text-white">
-          {t(language, "cameraUnavailable")}
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-ink/80 p-6 text-center text-sm text-white">
+          <p>{t(language, "cameraUnavailable")}</p>
+          {onCameraRetry ? (
+            <button className="min-h-11 rounded-control bg-white px-4 py-2 font-semibold text-care" onClick={onCameraRetry} type="button">
+              {t(language, "cameraRetry")}
+            </button>
+          ) : null}
         </div>
       ) : null}
 

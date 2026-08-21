@@ -191,9 +191,9 @@ export function CompassAlternatives({
 }
 
 /**
- * The viewfinder overlay, top-right. Five states, and the ones that matter are the two
+ * The viewfinder overlay, top-right. Six states, and the ones that matter are the three
  * that show no number: "hidden" when the loop is off or locked, and the carve-out chip
- * for a food outside the score's range.
+ * for a food outside the score's range, plus an actionable idle-recovery chip.
  */
 export function CompassViewfinderBadge({
   badge,
@@ -204,7 +204,7 @@ export function CompassViewfinderBadge({
   language,
   onTap
 }: {
-  badge: "hidden" | "idle" | "pending" | "score" | "carve_out";
+  badge: "hidden" | "idle" | "pending" | "score" | "carve_out" | "scan_again";
   fcs?: number;
   band?: CompassBand;
   tier?: "T1" | "T2";
@@ -217,6 +217,16 @@ export function CompassViewfinderBadge({
   }
 
   const shell = "absolute right-3 top-3 max-w-[55%] rounded-control bg-white/92 px-3 py-2 shadow-sm";
+
+  if (badge === "scan_again") {
+    return onTap ? (
+      <button className={`${shell} min-h-11 text-xs font-semibold text-care`} onClick={onTap} type="button">
+        {t(language, "scanAgain")}
+      </button>
+    ) : (
+      <div className={`${shell} text-xs font-semibold text-care`}>{t(language, "scanAgain")}</div>
+    );
+  }
 
   if (badge === "idle") {
     return (

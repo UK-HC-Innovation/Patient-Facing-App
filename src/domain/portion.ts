@@ -1,4 +1,5 @@
 import type { Language } from "@/i18n/strings";
+import { parseSpokenSize, servingsForSize, type SpokenFoodSize } from "./food-order-intent";
 import type { NutritionFacts } from "./types";
 
 const MAX_SERVINGS = 20;
@@ -146,6 +147,19 @@ export function parsePortionServings(text: string, language: Language): number |
   }
 
   return null;
+}
+
+export type PortionResolution = { servings: number; spokenSize: SpokenFoodSize | null };
+
+/** Numeric portions are explicit and therefore win over conversational size words. */
+export function resolvePortionServings(text: string, language: Language): PortionResolution | null {
+  const numeric = parsePortionServings(text, language);
+  if (numeric !== null) {
+    return { servings: numeric, spokenSize: null };
+  }
+  const spokenSize = parseSpokenSize(text, language);
+  const servings = servingsForSize(spokenSize);
+  return servings === null ? null : { servings, spokenSize };
 }
 
 export function scaleNutrition(nutrition: NutritionFacts, servings: number): NutritionFacts {
