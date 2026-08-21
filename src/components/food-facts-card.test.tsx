@@ -78,6 +78,25 @@ describe("FoodFactsCard", () => {
     expect(screen.getByText("Estimate from photo")).toBeInTheDocument();
   });
 
+  it("badges label-photo food and keeps the transcribed numbers visible for verification", () => {
+    render(
+      <FoodFactsCard
+        food={{ ...soup, source: "label_vision" }}
+        flags={[]}
+        logged={false}
+        canLog
+        onLog={() => {}}
+        language="en"
+        {...portionProps}
+      />
+    );
+
+    expect(screen.getByText("Estimate from label photo")).toBeInTheDocument();
+    expect(screen.getByText("Read from the label photo — check the numbers below.")).toBeInTheDocument();
+    expect(screen.getByText("Calories").nextElementSibling).toHaveTextContent("60");
+    expect(screen.getByText("Sodium").nextElementSibling).toHaveTextContent("890 mg");
+  });
+
   it("renders Spanish strings", () => {
     render(<FoodFactsCard food={soup} flags={[]} logged={false} canLog onLog={() => {}} language="es" {...portionProps} />);
     expect(screen.getByRole("button", { name: "Guardar" })).toBeInTheDocument();

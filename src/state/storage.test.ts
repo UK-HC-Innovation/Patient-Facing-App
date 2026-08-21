@@ -1409,6 +1409,33 @@ describe("storage", () => {
     expect(loaded.patient.id).toBe("patient-1");
   });
 
+  it("rehydrates a meal whose food came from label vision", () => {
+    const labelEntry = {
+      id: "meal-label-vision",
+      patientId: "patient-1",
+      loggedAt: "2026-08-21T12:00:00.000Z",
+      food: {
+        id: "label:000000000001",
+        barcode: "000000000001",
+        name: "Plain yogurt",
+        brand: null,
+        category: null,
+        nutrition: null,
+        source: "label_vision",
+        ingredientText: "Cultured milk"
+      },
+      flags: [],
+      assistantSummary: "Label photo transcription."
+    };
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...demoState, mealLog: [labelEntry] }));
+
+    const loaded = loadStoredState();
+
+    expect(loaded.mealLog).toHaveLength(1);
+    expect(loaded.mealLog[0].food.source).toBe("label_vision");
+    expect(loaded.mealLog[0].food.ingredientText).toBe("Cultured milk");
+  });
+
   const validGlucose = {
     id: "glucose-1",
     patientId: "patient-1",

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { bpReadingInputSchema, careContextInputSchema } from "./schemas";
+import {
+  bpReadingInputSchema,
+  careContextInputSchema,
+  identifiedFoodSchema
+} from "./schemas";
+import { labelExtractionSchema } from "./label-extraction-schema";
 
 describe("domain schemas", () => {
   it("accepts a valid blood pressure reading", () => {
@@ -55,5 +60,34 @@ describe("domain schemas", () => {
         sourceLabel: "Portal"
       })
     ).toThrow();
+  });
+
+  it("accepts the label-vision source in the identified-food contract", () => {
+    expect(
+      identifiedFoodSchema.parse({
+        id: "label:000000000001",
+        barcode: "000000000001",
+        name: "Plain yogurt",
+        brand: null,
+        category: null,
+        nutrition: null,
+        source: "label_vision",
+        ingredientText: null
+      }).source
+    ).toBe("label_vision");
+  });
+
+  it("turns non-finite and out-of-range label values into null independently", () => {
+    const parsed = labelExtractionSchema.parse({
+      calories: Number.POSITIVE_INFINITY,
+      sodiumMg: 10_001,
+      fiberG: -1,
+      proteinG: 7
+    });
+
+    expect(parsed.calories).toBeNull();
+    expect(parsed.sodiumMg).toBeNull();
+    expect(parsed.fiberG).toBeNull();
+    expect(parsed.proteinG).toBe(7);
   });
 });

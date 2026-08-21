@@ -8,12 +8,14 @@ import { useFoodVoiceSession } from "./use-food-voice-session";
 
 const mocks = vi.hoisted(() => ({
   connect: vi.fn(),
+  openLocal: vi.fn(),
   close: vi.fn(),
-  requestContextResponse: vi.fn()
+  requestContextResponse: vi.fn(),
+  sendUserText: vi.fn()
 }));
 
 vi.mock("@/ai/realtime-session", () => ({ connectRealtimeSession: mocks.connect }));
-vi.mock("@/ai/local-coach-session", () => ({ openLocalCoachSession: vi.fn() }));
+vi.mock("@/ai/local-coach-session", () => ({ openLocalCoachSession: mocks.openLocal }));
 
 const food: IdentifiedFood = {
   id: "food-1",
@@ -30,14 +32,18 @@ describe("useFoodVoiceSession context injection", () => {
   beforeEach(() => {
     mocks.close.mockClear();
     mocks.requestContextResponse.mockClear();
+    mocks.sendUserText.mockClear();
     mocks.connect.mockReset();
-    mocks.connect.mockResolvedValue({
-      sendUserText: vi.fn(),
+    mocks.openLocal.mockReset();
+    const session = {
+      sendUserText: mocks.sendUserText,
       requestContextResponse: mocks.requestContextResponse,
       updateInstructions: vi.fn(),
       close: mocks.close,
       getStatus: () => "listening"
-    });
+    };
+    mocks.connect.mockResolvedValue(session);
+    mocks.openLocal.mockResolvedValue(session);
     vi.stubGlobal("fetch", vi.fn().mockImplementation(() => Promise.resolve(
       new Response(JSON.stringify({ mode: "live", clientSecret: "secret", model: "gpt-realtime-2", expiresAt: null }))
     )));
@@ -134,6 +140,74 @@ describe("useFoodVoiceSession context injection", () => {
 
     act(() => result.current.requestContextResponse());
     expect(mocks.requestContextResponse).toHaveBeenCalledTimes(2);
+  });
+
+  it("opens the probed transport before sending the first typed question", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ mode: "mock", reason: "provider_mock" }))
+    ));
+    const { result } = renderHook(() => useFoodVoiceSession({
+      language: "en",
+      getState: () => demoState,
+      getContext: () => ({ frameDataUrl: null, identifiedFood: food, flagTexts: [] }),
+      onFinalTranscript: vi.fn(),
+      onSafetyIntercept: vi.fn(),
+      probeOnMount: true
+    }));
+
+    await waitFor(() => expect(result.current.mode).toBe("mock"));
+    expect(mocks.openLocal).not.toHaveBeenCalled();
+
+    act(() => result.current.sendUserText("Can I have this for lunch?"));
+
+    await waitFor(() => expect(mocks.sendUserText).toHaveBeenCalledWith("Can I have this for lunch?"));
+    expect(mocks.openLocal).toHaveBeenCalledTimes(1);
+    expect(mocks.connect).not.toHaveBeenCalled();
+  });
+
+  it("does not deliver a queued typed question into a restarted session", async () => {
+    let resolveFirstConnection: ((handle: {
+      sendUserText: ReturnType<typeof vi.fn>;
+      requestContextResponse: ReturnType<typeof vi.fn>;
+      updateInstructions: ReturnType<typeof vi.fn>;
+      close: ReturnType<typeof vi.fn>;
+      getStatus: () => "listening";
+    }) => void) | null = null;
+    const staleSend = vi.fn();
+    const staleClose = vi.fn();
+    mocks.connect.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstConnection = resolve;
+        })
+    );
+    const { result } = renderHook(() => useFoodVoiceSession({
+      language: "en",
+      getState: () => demoState,
+      getContext: () => ({ frameDataUrl: null, identifiedFood: food, flagTexts: [] }),
+      onFinalTranscript: vi.fn(),
+      onSafetyIntercept: vi.fn()
+    }));
+
+    act(() => result.current.sendUserText("stale question"));
+    await waitFor(() => expect(mocks.connect).toHaveBeenCalledTimes(1));
+    act(() => result.current.stop());
+    await act(async () => result.current.start());
+
+    await act(async () => {
+      resolveFirstConnection?.({
+        sendUserText: staleSend,
+        requestContextResponse: vi.fn(),
+        updateInstructions: vi.fn(),
+        close: staleClose,
+        getStatus: () => "listening"
+      });
+      await Promise.resolve();
+    });
+
+    expect(staleClose).toHaveBeenCalledTimes(1);
+    expect(staleSend).not.toHaveBeenCalled();
+    expect(mocks.sendUserText).not.toHaveBeenCalled();
   });
 
   it("closes a session that finishes connecting after the user already stopped", async () => {

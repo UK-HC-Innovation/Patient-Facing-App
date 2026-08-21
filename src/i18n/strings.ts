@@ -28,6 +28,13 @@ export type FoodLensStringKey =
   | "holdToTalkHint"
   | "liveTypedHint"
   | "visionEstimateBadge"
+  | "labelPhotoRegion"
+  | "labelScoreFromPhoto"
+  | "labelReadingPhoto"
+  | "labelReadFailure"
+  | "labelPhotoEstimateBadge"
+  | "labelPhotoCheck"
+  | "labelServingUnknown"
   | "unknownFood"
   | "portionAssuming"
   | "portionSizeAssumption"
@@ -278,6 +285,13 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     holdToTalkHint: "Speak your question out loud.",
     liveTypedHint: "You can also type while the voice conversation is live.",
     visionEstimateBadge: "Estimate from photo",
+    labelPhotoRegion: "Nutrition label photo",
+    labelScoreFromPhoto: "Score from the label",
+    labelReadingPhoto: "Reading the label…",
+    labelReadFailure: "Couldn't read the label — try the barcode or better light.",
+    labelPhotoEstimateBadge: "Estimate from label photo",
+    labelPhotoCheck: "Read from the label photo — check the numbers below.",
+    labelServingUnknown: "Serving size not readable",
     unknownFood: "This food",
     portionAssuming: "Assuming {servings} serving(s) - tap to change.",
     portionSizeAssumption: "{size} ≈ {servings} servings — adjust?",
@@ -535,6 +549,13 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     holdToTalkHint: "Di tu pregunta en voz alta.",
     liveTypedHint: "También puedes escribir mientras la conversación por voz está activa.",
     visionEstimateBadge: "Estimado por la foto",
+    labelPhotoRegion: "Foto de la etiqueta nutricional",
+    labelScoreFromPhoto: "Calcular desde la etiqueta",
+    labelReadingPhoto: "Leyendo la etiqueta…",
+    labelReadFailure: "No pude leer la etiqueta; prueba el código de barras o una mejor iluminación.",
+    labelPhotoEstimateBadge: "Estimado desde la foto de la etiqueta",
+    labelPhotoCheck: "Leído de la foto de la etiqueta; revisa los números abajo.",
+    labelServingUnknown: "No se pudo leer el tamaño de la porción",
     unknownFood: "Esta comida",
     portionAssuming: "Suponiendo {servings} porcion(es) - toca para cambiar.",
     portionSizeAssumption: "{size} ≈ {servings} porciones — ¿ajustar?",

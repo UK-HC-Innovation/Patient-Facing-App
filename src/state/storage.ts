@@ -389,6 +389,7 @@ function isFoodSource(value: unknown): value is FoodSource {
     value === "barcode_fdc" ||
     value === "barcode_seed" ||
     value === "vision_estimate" ||
+    value === "label_vision" ||
     value === "fndds_lookup"
   );
 }

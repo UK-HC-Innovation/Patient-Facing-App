@@ -90,6 +90,7 @@ export function useFoodVoiceSession(args: {
   const [partialAssistantText, setPartialAssistantText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const handleRef = useRef<LiveSessionHandle | null>(null);
+  const sessionStartRef = useRef<Promise<void> | null>(null);
   const startGenerationRef = useRef(0);
   const safetyLatchedRef = useRef(false);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -106,6 +107,7 @@ export function useFoodVoiceSession(args: {
 
   const stop = useCallback(() => {
     startGenerationRef.current += 1;
+    sessionStartRef.current = null;
     clearIdleTimer();
     handleRef.current?.close();
     handleRef.current = null;
@@ -315,7 +317,24 @@ export function useFoodVoiceSession(args: {
     }
   }, [armIdleTimer, gateTranscript, getContext, getState, handleEvent, language]);
 
-  const start = useCallback(() => startSession(false), [startSession]);
+  const start = useCallback(() => {
+    if (handleRef.current) {
+      return Promise.resolve();
+    }
+    if (sessionStartRef.current) {
+      return sessionStartRef.current;
+    }
+
+    const pending = startSession(false);
+    sessionStartRef.current = pending;
+    const clearPending = () => {
+      if (sessionStartRef.current === pending) {
+        sessionStartRef.current = null;
+      }
+    };
+    void pending.then(clearPending, clearPending);
+    return pending;
+  }, [startSession]);
   const startWithContextResponse = useCallback(() => startSession(true), [startSession]);
 
   useEffect(() => {
@@ -348,8 +367,25 @@ export function useFoodVoiceSession(args: {
   }, [probeOnMount]);
 
   const sendUserText = useCallback((text: string) => {
-    handleRef.current?.sendUserText(text);
-  }, []);
+    const handle = handleRef.current;
+    if (handle) {
+      handle.sendUserText(text);
+      return;
+    }
+
+    // probeOnMount resolves the transport so the typed form can render without
+    // spending on a session. Open that session only when the person actually asks.
+    const pending = start();
+    const generation = startGenerationRef.current;
+    void pending.then(
+      () => {
+        if (generation === startGenerationRef.current) {
+          handleRef.current?.sendUserText(text);
+        }
+      },
+      () => undefined
+    );
+  }, [start]);
 
   const requestContextResponse = useCallback(() => {
     handleRef.current?.requestContextResponse?.();
@@ -358,6 +394,7 @@ export function useFoodVoiceSession(args: {
   useEffect(() => {
     return () => {
       startGenerationRef.current += 1;
+      sessionStartRef.current = null;
       clearIdleTimer();
       handleRef.current?.close();
       handleRef.current = null;

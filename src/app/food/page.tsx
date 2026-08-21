@@ -1,16 +1,13 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { AppShell } from "@/components/app-shell";
 import { FoodAskBar } from "@/components/food-ask-bar";
 import { FoodSavedPicks } from "@/components/food-saved-picks";
-import { FoodConversation } from "@/components/food-conversation";
-import { FoodFactsCard } from "@/components/food-facts-card";
 import { FoodGuidanceSource } from "@/components/food-guidance-source";
+import type { LabelFallbackState } from "@/components/food-label-fallback";
 import { FoodViewfinder } from "@/components/food-viewfinder";
-import { PantryRecipes } from "@/components/pantry-recipes";
-import { MealLogList } from "@/components/meal-log-list";
-import { PlateCard } from "@/components/plate-card";
 import { createSafeAiResponse } from "@/ai/safety-gate";
 import { PantryProvider, PANTRY_REQUEST_TEXT } from "@/ai/pantry-provider";
 import { activeConditions, selectLenses } from "@/domain/condition-lens";
@@ -39,6 +36,33 @@ import type { AiMessage, IdentifiedFood, PantryResult } from "@/domain/types";
 import type { LiveSessionContext } from "@/ai/types";
 import type { SpokenFoodSize } from "@/domain/food-order-intent";
 
+// These below-the-fold/after-action surfaces do not belong in the camera-first
+// critical bundle and load as independent client chunks.
+const PantryRecipes = dynamic(
+  () => import("@/components/pantry-recipes").then((module) => module.PantryRecipes),
+  { ssr: false }
+);
+const FoodFactsCard = dynamic(
+  () => import("@/components/food-facts-card").then((module) => module.FoodFactsCard),
+  { ssr: false }
+);
+const FoodLabelFallback = dynamic(
+  () => import("@/components/food-label-fallback").then((module) => module.FoodLabelFallback),
+  { ssr: false }
+);
+const FoodConversation = dynamic(
+  () => import("@/components/food-conversation").then((module) => module.FoodConversation),
+  { ssr: false }
+);
+const MealLogList = dynamic(
+  () => import("@/components/meal-log-list").then((module) => module.MealLogList),
+  { ssr: false }
+);
+const PlateCard = dynamic(
+  () => import("@/components/plate-card").then((module) => module.PlateCard),
+  { ssr: false }
+);
+
 export default function FoodPage() {
   const { state, dispatch } = useHealthState();
   const language = state.patient.language;
@@ -61,12 +85,17 @@ export default function FoodPage() {
     []
   );
   const [barcodeFood, setBarcodeFood] = useState<IdentifiedFood | null>(null);
+  const [labelFood, setLabelFood] = useState<IdentifiedFood | null>(null);
+  const [barcodeLookupMiss, setBarcodeLookupMiss] = useState(false);
+  const [labelFallbackState, setLabelFallbackState] = useState<LabelFallbackState>("idle");
   const [portionServings, setPortionServings] = useState(1);
   const [spokenSize, setSpokenSize] = useState<SpokenFoodSize | null>(null);
   const [plateItems, setPlateItems] = useState<PlateItem[]>([]);
   const [logged, setLogged] = useState(false);
   const loggedEntryIdRef = useRef<string | null>(null);
   const exactFoodRequestRef = useRef(0);
+  const labelRequestRef = useRef(0);
+  const labelReadingRef = useRef(false);
   const { activeBarcode } = useBarcodeScan({
     videoRef: camera.videoRef,
     enabled: camera.status === "active",
@@ -83,13 +112,16 @@ export default function FoodPage() {
   const adoptLiveMatch = live.adoptMatch;
   const rearmLiveScore = live.rearm;
 
-  // A barcode is authoritative while it is on screen; otherwise the live vision match is.
+  const scannedFood = barcodeFood ?? labelFood;
+
+  // A barcode or its one-shot label transcription is authoritative while it is
+  // on screen; otherwise the live vision match is.
   const identifiedFood = useMemo<IdentifiedFood | null>(() => {
-    if (barcodeFood) {
-      return barcodeFood;
+    if (scannedFood) {
+      return scannedFood;
     }
     return live.match ? toIdentifiedFood({ ...live.match.food, fcs2: live.match.score.fcs, fcs1: 0, nova: 1, hsr: 0, nutriScore: "C", ambiguous: live.match.score.ambiguous }, live.match.nutrients) : null;
-  }, [barcodeFood, live.match]);
+  }, [live.match, scannedFood]);
 
   const identifiedFoodId = identifiedFood?.id ?? null;
   const scaledFood = useMemo<IdentifiedFood | null>(() => {
@@ -110,10 +142,10 @@ export default function FoodPage() {
   // Scored from identifiedFood, not scaledFood: scaleNutrition rounds to integers, and a
   // per-100-kcal score recomputed off rounded values would wobble as portions change.
   // The score is a property of the food; the flags are a property of the portion.
-  const labelCompass = useCompassScore(barcodeFood, { passcode });
+  const labelCompass = useCompassScore(scannedFood, { passcode });
   const compass = useMemo(
     () =>
-      live.match && !barcodeFood
+      live.match && !scannedFood
         ? {
             score: live.match.score,
             carveOut: null,
@@ -122,7 +154,7 @@ export default function FoodPage() {
             alternativesLoading: false
           }
         : { ...labelCompass, carveOut: labelCompass.carveOut ?? live.carveOut, estimatedDomains: null },
-    [barcodeFood, labelCompass, live.carveOut, live.match]
+    [labelCompass, live.carveOut, live.match, scannedFood]
   );
   const compassRef = useRef(compass);
   compassRef.current = compass;
@@ -244,7 +276,8 @@ export default function FoodPage() {
     getState: () => stateRef.current,
     getContext,
     onFinalTranscript: appendMessage,
-    onSafetyIntercept: appendIntercept
+    onSafetyIntercept: appendIntercept,
+    probeOnMount: true
   });
 
   const [pantryResult, setPantryResult] = useState<PantryResult | null>(null);
@@ -305,12 +338,18 @@ export default function FoodPage() {
 
   useEffect(() => {
     let cancelled = false;
+    labelRequestRef.current += 1;
+    labelReadingRef.current = false;
+    setLabelFood(null);
+    setBarcodeLookupMiss(false);
+    setLabelFallbackState("idle");
     if (!activeBarcode) {
       // Only the barcode's own identification is cleared here. A vision match lives in
       // the live-score hook, which owns preemption and the 60 s restore window.
       setBarcodeFood(null);
       return;
     }
+    setBarcodeFood(null);
     void fetch(`/api/food/lookup?barcode=${activeBarcode}`)
       .then((response) => response.json())
       .then((json) => {
@@ -318,18 +357,65 @@ export default function FoodPage() {
           return;
         }
         const parsed = foodLookupResponseSchema.safeParse(json);
-        setBarcodeFood(parsed.success && parsed.data.found ? parsed.data.food : null);
+        if (parsed.success && parsed.data.found) {
+          setBarcodeFood(parsed.data.food);
+          setBarcodeLookupMiss(false);
+        } else {
+          setBarcodeFood(null);
+          // Only a validated `{ found:false }` may unlock the label-photo path.
+          setBarcodeLookupMiss(parsed.success && !parsed.data.found);
+        }
         setLogged(false);
       })
       .catch(() => {
         if (!cancelled) {
           setBarcodeFood(null);
+          setBarcodeLookupMiss(false);
         }
       });
     return () => {
       cancelled = true;
     };
   }, [activeBarcode]);
+
+  const readLabelPhoto = useCallback(async () => {
+    if (!activeBarcode || labelFallbackState !== "idle" || labelReadingRef.current) {
+      return;
+    }
+    labelReadingRef.current = true;
+    const requestId = ++labelRequestRef.current;
+    setLabelFallbackState("reading");
+    let result: Awaited<ReturnType<typeof import("@/ai/label-extraction")["extractNutritionLabel"]>>;
+    try {
+      // The transcription schema and provider are label-only; load them after the
+      // explicit action so the camera-first /food bundle stays inside its budget.
+      const { extractNutritionLabel } = await import("@/ai/label-extraction");
+      result = await extractNutritionLabel({
+        image: camera.grabFrame(),
+        barcode: activeBarcode,
+        patientId: stateRef.current.patient.id,
+        language,
+        passcode
+      });
+    } catch {
+      if (requestId === labelRequestRef.current) {
+        labelReadingRef.current = false;
+        setLabelFallbackState("error");
+      }
+      return;
+    }
+    if (requestId !== labelRequestRef.current) {
+      return;
+    }
+    labelReadingRef.current = false;
+    if (!result.ok) {
+      setLabelFallbackState("error");
+      return;
+    }
+    setLabelFood(result.food);
+    setBarcodeLookupMiss(false);
+    setLogged(false);
+  }, [activeBarcode, camera, labelFallbackState, language, passcode]);
 
   useEffect(() => {
     if (!identifiedFoodId) {
@@ -379,6 +465,8 @@ export default function FoodPage() {
           // A saved-food tap is an explicit choice and temporarily wins over a
           // barcode that happens to remain in frame, just like a correction chip.
           setBarcodeFood(null);
+          setLabelFood(null);
+          setBarcodeLookupMiss(false);
           setLogged(false);
         }
       } catch {
@@ -426,6 +514,8 @@ export default function FoodPage() {
     ]);
     rearmLiveScore();
     setBarcodeFood(null);
+    setLabelFood(null);
+    setBarcodeLookupMiss(false);
     setPortionServings(1);
     setSpokenSize(null);
     setLogged(false);
@@ -472,15 +562,20 @@ export default function FoodPage() {
     setLogged(false);
   }, [dayTotals, dispatch, language, lens, plateItems]);
 
-  // The barcode's own score is computed locally, so the badge reflects it directly rather
-  // than waiting for the vision loop that stood down while the barcode is on screen.
-  const badgeState = barcodeFood
+  // Barcode and label-photo scores are computed locally, so the badge reflects
+  // them directly while the vision loop stands down for the active barcode.
+  const badgeState = scannedFood
     ? compass.carveOut
       ? ("carve_out" as const)
       : compass.score
         ? ("score" as const)
         : ("idle" as const)
     : live.badge;
+  const labelProviderKnown = voice.dataMode === "live_voice" || live.liveIdentifySucceeded;
+  const showLabelFallback =
+    activeBarcode !== null &&
+    barcodeLookupMiss &&
+    (labelProviderKnown || labelFallbackState !== "idle");
 
   const recentMeals = state.mealLog.slice(-5).reverse();
   const savedRecents = useMemo(() => recentFoodPicks(state.mealLog), [state.mealLog]);
@@ -544,6 +639,14 @@ export default function FoodPage() {
 
         <FoodGuidanceSource kind="personalized" language={language} />
 
+        {showLabelFallback ? (
+          <FoodLabelFallback
+            language={language}
+            onRead={() => void readLabelPhoto()}
+            state={labelFallbackState}
+          />
+        ) : null}
+
         <FoodSavedPicks
           favorites={state.foodFavorites}
           recents={savedRecents}
@@ -586,10 +689,10 @@ export default function FoodPage() {
             dayTotals={visibleDayTotals}
             history={foodHistory && historyDate ? { ...foodHistory, date: historyDate } : null}
             showGlucoseHistory={conditions.includes("diabetes")}
-            correctionCandidates={!barcodeFood ? live.match?.candidates ?? [] : []}
+            correctionCandidates={!scannedFood ? live.match?.candidates ?? [] : []}
             logged={logged}
             canLog={canLog}
-            onCorrection={!barcodeFood ? (foodId) => void correctCameraMatch(foodId) : undefined}
+            onCorrection={!scannedFood ? (foodId) => void correctCameraMatch(foodId) : undefined}
             onToggleFavorite={favoriteFoodId ? toggleFavorite : undefined}
             onAddToPlate={onAddToPlate}
             onLog={onLog}

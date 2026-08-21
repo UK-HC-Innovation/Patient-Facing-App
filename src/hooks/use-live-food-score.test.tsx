@@ -99,9 +99,18 @@ describe("meanAbsoluteDifference", () => {
 
 describe("useLiveFoodScore", () => {
   it("fires once immediately on arm so the first score does not wait an interval", async () => {
-    setup();
+    const { result } = setup();
+    expect(result.current.liveIdentifySucceeded).toBe(false);
     await flush();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.current.liveIdentifySucceeded).toBe(true);
+  });
+
+  it("does not treat an adopted table match as proof of a live image provider", () => {
+    const { result } = setup({ cameraActive: false });
+
+    act(() => result.current.adoptMatch(CORRECTED_MATCH));
+    expect(result.current.liveIdentifySucceeded).toBe(false);
   });
 
   it("throttles to one call per interval", async () => {

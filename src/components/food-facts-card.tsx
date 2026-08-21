@@ -143,8 +143,10 @@ export function FoodFactsCard({
           {food?.nutrition ? <p className="text-sm text-ink/65">{food.nutrition.servingSize}</p> : null}
         </div>
         <div className="flex flex-col items-end gap-2">
-          {food && food.source === "vision_estimate" ? (
-            <span className="rounded-control bg-calm px-2 py-1 text-xs font-semibold text-care">{t(language, "visionEstimateBadge")}</span>
+          {food && (food.source === "vision_estimate" || food.source === "label_vision") ? (
+            <span className="rounded-control bg-calm px-2 py-1 text-xs font-semibold text-care">
+              {t(language, food.source === "label_vision" ? "labelPhotoEstimateBadge" : "visionEstimateBadge")}
+            </span>
           ) : null}
           {compassScore?.tier === "T1" && onToggleFavorite ? (
             <button
@@ -188,6 +190,9 @@ export function FoodFactsCard({
               </button>
             </div>
           </div>
+          {food.source === "label_vision" ? (
+            <p className="text-xs font-medium text-ink/70">{t(language, "labelPhotoCheck")}</p>
+          ) : null}
           {nutritionRows.length > 0 ? (
             <dl className="grid grid-cols-2 gap-2 text-sm">
               {nutritionRows.map((row) => (

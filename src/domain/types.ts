@@ -212,7 +212,13 @@ export type NutritionFacts = {
   ironMg: number | null;
 };
 
-export type FoodSource = "barcode_off" | "barcode_fdc" | "barcode_seed" | "vision_estimate" | "fndds_lookup";
+export type FoodSource =
+  | "barcode_off"
+  | "barcode_fdc"
+  | "barcode_seed"
+  | "vision_estimate"
+  | "label_vision"
+  | "fndds_lookup";
 
 export type IdentifiedFood = {
   id: string;

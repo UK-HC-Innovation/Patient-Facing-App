@@ -76,7 +76,7 @@ export const identifiedFoodSchema = z.object({
   brand: z.string().nullable(),
   category: z.string().nullable(),
   nutrition: nutritionFactsSchema.nullable(),
-  source: z.enum(["barcode_off", "barcode_fdc", "barcode_seed", "vision_estimate", "fndds_lookup"]),
+  source: z.enum(["barcode_off", "barcode_fdc", "barcode_seed", "vision_estimate", "label_vision", "fndds_lookup"]),
   ingredientText: z.string().nullable()
 });
 

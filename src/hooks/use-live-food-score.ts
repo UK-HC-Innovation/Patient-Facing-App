@@ -44,6 +44,8 @@ export type LiveScoreState = {
   carveOut: NotScoreableReason | null;
   armed: boolean;
   disarmReason: LiveDisarmReason;
+  /** A paid image-identify match has succeeded at least once during this mount. */
+  liveIdentifySucceeded: boolean;
   adoptMatch: (match: LiveMatch) => void;
   rearm: () => void;
 };
@@ -114,6 +116,7 @@ export function useLiveFoodScore(args: {
   const [carveOut, setCarveOut] = useState<NotScoreableReason | null>(null);
   const [inFlight, setInFlight] = useState(false);
   const [disarmReason, setDisarmReason] = useState<LiveDisarmReason>(null);
+  const [liveIdentifySucceeded, setLiveIdentifySucceeded] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const signatureRef = useRef<number[] | null>(null);
@@ -201,6 +204,10 @@ export function useLiveFoodScore(args: {
         match?: Omit<LiveMatch, "candidates">;
         candidates?: LiveCandidate[];
       };
+
+      if (json.mode === "match" && json.match) {
+        setLiveIdentifySucceeded(true);
+      }
 
       // A barcode may have taken over while this was in flight; its answer wins.
       if (barcodeActiveRef.current) {
@@ -343,5 +350,5 @@ export function useLiveFoodScore(args: {
           ? "pending"
           : "idle";
 
-  return { badge, match, carveOut, armed, disarmReason, adoptMatch, rearm };
+  return { badge, match, carveOut, armed, disarmReason, liveIdentifySucceeded, adoptMatch, rearm };
 }

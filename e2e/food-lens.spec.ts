@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 const SOUP_BARCODE = "051000012616";
 const OATS_BARCODE = "030000010204";
+const UNKNOWN_BARCODE = "000000000099";
 
 async function stubFoodLens(page: import("@playwright/test").Page) {
   await page.addInitScript((barcode) => {
@@ -76,6 +77,41 @@ async function stubEmptyFoodLens(page: import("@playwright/test").Page) {
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ mode: "none", candidates: [] }) })
   );
 }
+
+async function stubUnknownBarcode(page: import("@playwright/test").Page) {
+  await page.addInitScript((barcode) => {
+    window.localStorage.clear();
+    class FakeBarcodeDetector {
+      static getSupportedFormats() {
+        return Promise.resolve(["ean_13", "upc_a"]);
+      }
+      detect() {
+        return Promise.resolve([{ rawValue: barcode, format: "ean_13" }]);
+      }
+    }
+    (window as unknown as { BarcodeDetector: unknown }).BarcodeDetector = FakeBarcodeDetector;
+  }, UNKNOWN_BARCODE);
+  await page.route("**/api/realtime/token", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ mode: "mock", reason: "provider_mock" })
+    })
+  );
+  await page.route("**/api/food/lookup?*", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ found: false }) })
+  );
+}
+
+test("hides label-photo scoring when the provider probe is mocked", async ({ page }) => {
+  await stubUnknownBarcode(page);
+  await page.goto("/food");
+
+  await expect(page.getByText(UNKNOWN_BARCODE, { exact: true })).toBeVisible();
+  await page.waitForTimeout(750);
+  await expect(page.getByRole("button", { name: "Score from the label" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Nutrition label photo" })).toHaveCount(0);
+});
 
 test("labels the personalized route without inventing a current-food recommendation", async ({ page }) => {
   await stubEmptyFoodLens(page);
