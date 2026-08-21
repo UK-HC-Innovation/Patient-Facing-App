@@ -1688,6 +1688,57 @@ describe("healthReducer", () => {
     expect(next.auditEvents.at(-1)?.label).toBe("Meal deleted");
   });
 
+  it("toggles a bare-code favorite and removes it on the second toggle", () => {
+    const favorite = {
+      foodId: "fndds:63107010",
+      description: "Banana, raw",
+      fcs: 83,
+      band: "encourage" as const,
+      starredAt: "2026-08-21T12:00:00.000Z"
+    };
+
+    const added = healthReducer(demoState, { type: "toggleFoodFavorite", favorite });
+    expect(added.foodFavorites).toEqual([{ ...favorite, foodId: "63107010" }]);
+
+    const removed = healthReducer(added, { type: "toggleFoodFavorite", favorite });
+    expect(removed.foodFavorites).toEqual([]);
+  });
+
+  it("keeps favorites newest-first and capped at 24", () => {
+    let state = demoState;
+    for (let index = 0; index < 25; index += 1) {
+      state = healthReducer(state, {
+        type: "toggleFoodFavorite",
+        favorite: {
+          foodId: String(index).padStart(8, "0"),
+          description: `Food ${index}`,
+          fcs: 50,
+          band: "moderate",
+          starredAt: new Date(Date.UTC(2026, 7, 1, 0, 0, index)).toISOString()
+        }
+      });
+    }
+
+    expect(state.foodFavorites).toHaveLength(24);
+    expect(state.foodFavorites[0].foodId).toBe("00000024");
+    expect(state.foodFavorites.at(-1)?.foodId).toBe("00000001");
+  });
+
+  it("rejects a favorite id that the exact-code endpoint cannot re-score", () => {
+    const next = healthReducer(demoState, {
+      type: "toggleFoodFavorite",
+      favorite: {
+        foodId: "not-a-code",
+        description: "Unknown",
+        fcs: 50,
+        band: "moderate",
+        starredAt: "2026-08-21T12:00:00.000Z"
+      }
+    });
+
+    expect(next).toBe(demoState);
+  });
+
   it("returns the retinopathy-due demo state for a plain resetDemo action", () => {
     const modifiedState: AppState = {
       ...demoState,

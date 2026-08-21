@@ -86,6 +86,13 @@ describe("buildCompassInstructions", () => {
     expect(instructions).toContain("never as words the person said");
     expect(instructions).toContain("For pizza, first ask where it came from");
   });
+
+  it("declares the Spanish surface language without changing grounding rules", () => {
+    const instructions = buildCompassInstructions("es");
+    expect(instructions).toContain("active surface language is Spanish");
+    expect(instructions).toContain("Reply in Spanish");
+    expect(instructions).toContain("never state a number you were not given");
+  });
 });
 
 describe("buildCompassVoiceContext", () => {

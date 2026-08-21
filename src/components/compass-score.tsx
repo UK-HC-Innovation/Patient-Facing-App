@@ -150,7 +150,9 @@ export function CompassScoreRow({
       <p className="text-xs text-ink/65">
         {t(language, "compassCalorieDensity")}:{" "}
         <span className="font-semibold">{t(language, DENSITY_LABEL[density.band])}</span>
-        {density.kcalPer100g !== null ? ` · ${density.kcalPer100g} kcal / 100 g` : ""}
+        {density.kcalPer100g !== null
+          ? ` · ${t(language, "compassKcalPer100g", { calories: density.kcalPer100g })}`
+          : ""}
       </p>
 
       {score.ambiguous && score.range ? (
@@ -224,7 +226,9 @@ export function CompassAlternatives({
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold">{alternative.description}</p>
               {alternative.calorieDensity.kcalPer100g !== null ? (
-                <p className="text-xs text-ink/70">{alternative.calorieDensity.kcalPer100g} kcal / 100 g</p>
+                <p className="text-xs text-ink/70">
+                  {t(language, "compassKcalPer100g", { calories: alternative.calorieDensity.kcalPer100g })}
+                </p>
               ) : null}
               <a
                 className="mt-1 inline-block text-xs font-semibold text-care underline"
@@ -317,7 +321,9 @@ export function CompassViewfinderBadge({
 
   return onTap ? (
     <button
-      aria-label={`Show score details for ${name ?? "identified food"}`}
+      aria-label={t(language, "compassScoreDetails", {
+        food: name ?? t(language, "compassIdentifiedFood")
+      })}
       className={`${shell} flex items-center gap-2 text-left`}
       onClick={onTap}
       type="button"

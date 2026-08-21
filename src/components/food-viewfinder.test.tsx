@@ -26,6 +26,24 @@ describe("FoodViewfinder demo states", () => {
     expect(screen.queryByText(/Chrome site settings/i)).not.toBeInTheDocument();
   });
 
+  it("localizes the deterministic sample preview in Spanish", () => {
+    render(
+      <FoodViewfinder
+        cameraStatus="denied"
+        demoPreview
+        language="es"
+        scanChip={null}
+        sessionStatus="idle"
+        videoRef={videoRef}
+      />
+    );
+
+    expect(
+      screen.getByRole("img", { name: "Vista previa de la cámara con una pizza de muestra" })
+    ).toBeInTheDocument();
+    expect(screen.getByText(/La cámara no está disponible en esta vista previa/)).toBeInTheDocument();
+  });
+
   it("makes tap-start voice copy a real control when a voice action is available", async () => {
     const onVoiceStatusTap = vi.fn();
     render(

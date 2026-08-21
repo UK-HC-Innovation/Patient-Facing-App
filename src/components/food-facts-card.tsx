@@ -99,7 +99,9 @@ export function FoodFactsCard({
   compassAlternatives = [],
   history = null,
   showGlucoseHistory = false,
-  dayTotals = []
+  dayTotals = [],
+  favorite = false,
+  onToggleFavorite
 }: {
   food: IdentifiedFood | null;
   flags: FoodFlag[];
@@ -120,6 +122,8 @@ export function FoodFactsCard({
   history?: { date: string; postMealReading: number | null } | null;
   showGlucoseHistory?: boolean;
   dayTotals?: DayTotal[];
+  favorite?: boolean;
+  onToggleFavorite?: () => void;
 }) {
   const title = food ? (food.brand ? `${food.brand} ${food.name}` : food.name) : t(language, "unknownFood");
   const portionLabel = formatServingCount(portionServings);
@@ -138,9 +142,21 @@ export function FoodFactsCard({
           <h2 className="text-lg font-semibold">{title}</h2>
           {food?.nutrition ? <p className="text-sm text-ink/65">{food.nutrition.servingSize}</p> : null}
         </div>
-        {food && food.source === "vision_estimate" ? (
-          <span className="rounded-control bg-calm px-2 py-1 text-xs font-semibold text-care">{t(language, "visionEstimateBadge")}</span>
-        ) : null}
+        <div className="flex flex-col items-end gap-2">
+          {food && food.source === "vision_estimate" ? (
+            <span className="rounded-control bg-calm px-2 py-1 text-xs font-semibold text-care">{t(language, "visionEstimateBadge")}</span>
+          ) : null}
+          {compassScore?.tier === "T1" && onToggleFavorite ? (
+            <button
+              aria-label={t(language, favorite ? "favoriteRemove" : "favoriteAdd", { food: title })}
+              className="min-h-11 rounded-control border border-care/25 bg-white px-3 py-2 text-sm font-semibold text-care"
+              onClick={onToggleFavorite}
+              type="button"
+            >
+              {favorite ? "★" : "☆"} {t(language, favorite ? "favoriteRemoveShort" : "favoriteAddShort")}
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {food?.nutrition ? (

@@ -56,6 +56,7 @@ import type {
   DoseReminderPreference,
   DrReportExtraction,
   ExtractedFact,
+  FoodFavorite,
   FamilyAppointment,
   FamilyAppointmentBarrier,
   FamilyCheckinProbeAnswer,
@@ -113,6 +114,7 @@ export type HealthAction =
   | { type: "addMealLogEntry"; entry: MealLogEntry }
   | { type: "amendMealLogTime"; entryId: string; loggedAt: string }
   | { type: "deleteMealLogEntry"; entryId: string }
+  | { type: "toggleFoodFavorite"; favorite: FoodFavorite }
   | { type: "logDose"; event: DoseEvent }
   | { type: "undoDose"; medicationId: string; date: string }
   | { type: "setDoseReminder"; preference: DoseReminderPreference }
@@ -683,6 +685,22 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
         ...state,
         mealLog: state.mealLog.filter((entry) => entry.id !== action.entryId),
         auditEvents: [...state.auditEvents, recordAuditEvent(state.patient.id, "deleted", "Meal deleted")]
+      };
+    }
+    case "toggleFoodFavorite": {
+      const foodId = action.favorite.foodId.replace(/^fndds:/, "");
+      if (!/^\d{8}$/.test(foodId)) {
+        return state;
+      }
+      const existing = state.foodFavorites.some((favorite) => favorite.foodId === foodId);
+      return {
+        ...state,
+        foodFavorites: existing
+          ? state.foodFavorites.filter((favorite) => favorite.foodId !== foodId)
+          : [
+              { ...action.favorite, foodId },
+              ...state.foodFavorites.filter((favorite) => favorite.foodId !== foodId)
+            ].slice(0, 24)
       };
     }
     case "logDose": {

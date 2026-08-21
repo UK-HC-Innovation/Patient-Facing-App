@@ -87,6 +87,7 @@ export const demoState: AppState = {
   extractedFacts: [],
   aiMessages: [],
   auditEvents: [],
+  foodFavorites: [],
   mealLog: [],
   doseEvents: [
     {
@@ -155,6 +156,7 @@ export const deletedDemoState: AppState = {
   extractedFacts: [],
   aiMessages: [],
   auditEvents: [],
+  foodFavorites: [],
   mealLog: [],
   doseEvents: [],
   doseReminder: { ...DEFAULT_DOSE_REMINDER },
@@ -200,6 +202,7 @@ export function blankCompassState(): AppState {
     readings: [],
     glucoseReadings: [],
     aiMessages: [],
+    foodFavorites: [],
     mealLog: []
   };
 }
@@ -605,6 +608,7 @@ export const brentState: AppState = {
       createdAt: "2026-06-29T20:31:00.000Z"
     }
   ],
+  foodFavorites: [],
   mealLog: [
     {
       id: "meal-brent-cola",

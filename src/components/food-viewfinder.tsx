@@ -92,7 +92,7 @@ export function FoodViewfinder({
 
       {demoPreview && cameraStatus !== "active" ? (
         <div
-          aria-label="Sample pizza camera preview"
+          aria-label={t(language, "demoPizzaPreview")}
           className="absolute inset-0 flex items-center justify-center overflow-hidden bg-gradient-to-br from-slate-800 via-slate-900 to-black"
           role="img"
         >
@@ -101,7 +101,7 @@ export function FoodViewfinder({
           </span>
           <span aria-hidden="true" className="absolute inset-x-8 top-1/2 h-0.5 animate-pulse bg-emerald-300/90 shadow-[0_0_18px_rgba(110,231,183,0.9)] motion-reduce:animate-none" />
           <p className="absolute inset-x-4 bottom-16 rounded-control bg-black/80 px-3 py-2 text-center text-xs font-medium text-white">
-            Camera unavailable in this preview — allow camera access to try the automatic food conversation.
+            {t(language, "demoCameraUnavailable")}
           </p>
         </div>
       ) : null}

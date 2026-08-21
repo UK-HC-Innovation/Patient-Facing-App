@@ -245,6 +245,15 @@ export type MealLogEntry = {
   };
 };
 
+export type FoodFavorite = {
+  /** Bare FNDDS code; never the IdentifiedFood `fndds:` prefix. */
+  foodId: string;
+  description: string;
+  fcs: number;
+  band: "encourage" | "moderate" | "minimize";
+  starredAt: string;
+};
+
 // A condition-tailored recipe suggested from what the camera sees in the pantry.
 export type PantryRecipe = {
   title: string;
@@ -614,6 +623,7 @@ export type AppState = {
   extractedFacts: ExtractedFact[];
   aiMessages: AiMessage[];
   auditEvents: AuditEvent[];
+  foodFavorites: FoodFavorite[];
   mealLog: MealLogEntry[];
   doseEvents: DoseEvent[];
   doseReminder: DoseReminderPreference;

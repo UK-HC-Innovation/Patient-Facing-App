@@ -65,6 +65,7 @@ vi.mock("@/hooks/use-food-voice-session", () => ({
 
 describe("CompassPage camera-first conversation", () => {
   beforeEach(() => {
+    window.history.replaceState({}, "", "/compass");
     mocks.onFinalTranscript = null;
     mocks.beforePatientResponse = null;
     mocks.cameraStart.mockClear();
@@ -138,5 +139,22 @@ describe("CompassPage camera-first conversation", () => {
     expect(screen.getByText("Pepperoni, Sausage", { exact: true })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Food camera" })).toBeInTheDocument();
     expect(screen.queryByText("Camera collapsed")).not.toBeInTheDocument();
+  });
+
+  it("uses Spanish chrome from the mount-time query without adding a text input", () => {
+    window.history.replaceState({}, "", "/compass?lang=es");
+
+    render(<CompassPage />);
+
+    expect(screen.getByRole("heading", { name: "Prototipo funcional de Lente de Comida" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Cámara de alimentos" })).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Flujo del prototipo" })).toHaveTextContent(
+      "1Apunta la cámara2Habla naturalmente3Compara opciones"
+    );
+    expect(screen.getAllByText("22").length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText("Fuente de la orientación")[0]).toHaveTextContent("Nutrición general");
+    expect(screen.getByText("Lente de Comida:")).toBeInTheDocument();
+    expect(screen.getByText(/Veo Pizza, not further specified/)).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 });

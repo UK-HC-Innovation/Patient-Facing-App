@@ -16,7 +16,7 @@ describe("FoodGuidanceSource", () => {
   it("labels personalized guidance in Spanish", () => {
     render(<FoodGuidanceSource kind="personalized" language="es" />);
 
-    const source = screen.getByLabelText("Guidance source");
+    const source = screen.getByLabelText("Fuente de la orientación");
     expect(source).toHaveAttribute("data-guidance-scope", "personalized");
     expect(source).toHaveTextContent("considera tus lecturas recientes");
   });

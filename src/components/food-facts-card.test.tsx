@@ -339,6 +339,44 @@ describe("FoodFactsCard — Food Compass row", () => {
     expect(screen.getByText(/Only partly assessable: Additives, Phytochemicals/)).toBeInTheDocument();
   });
 
+  it("offers a localized favorite toggle for T1 scores only", async () => {
+    const onToggleFavorite = vi.fn();
+    const { rerender } = render(
+      <FoodFactsCard
+        canLog
+        compassScore={{ ...score, tier: "T1", domains: null, coverage: null }}
+        favorite={false}
+        flags={[]}
+        food={soup}
+        language="en"
+        logged={false}
+        onLog={() => {}}
+        onPortionChange={() => {}}
+        onToggleFavorite={onToggleFavorite}
+        portionServings={1}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Add Campbell's Chicken Noodle Soup to favorites" }));
+    expect(onToggleFavorite).toHaveBeenCalledOnce();
+
+    rerender(
+      <FoodFactsCard
+        canLog
+        compassScore={score}
+        flags={[]}
+        food={soup}
+        language="en"
+        logged={false}
+        onLog={() => {}}
+        onPortionChange={() => {}}
+        onToggleFavorite={onToggleFavorite}
+        portionServings={1}
+      />
+    );
+    expect(screen.queryByRole("button", { name: /favorites/i })).not.toBeInTheDocument();
+  });
+
   it("shows carve-out copy and no number at all for a food outside the score's range", () => {
     render(
       <FoodFactsCard

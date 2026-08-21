@@ -118,6 +118,22 @@ test("keeps general guidance explicit through the camera-first flow", async ({ p
   await expect(page.getByText(/Maria|Brent|blood pressure|lisinopril/i)).toHaveCount(0);
 });
 
+test("localizes the stateless camera-first flow in Spanish", async ({ page }) => {
+  await stubRealtime(page);
+  await stubCameraMatch(page);
+  await page.goto("/compass?lang=es");
+
+  await expect(page.getByRole("heading", { name: "Prototipo funcional de Lente de Comida" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Cámara de alimentos" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Flujo del prototipo" })).toContainText(
+    "1Apunta la cámara2Habla naturalmente3Compara opciones"
+  );
+  await expect(
+    page.getByRole("region", { name: "Puntaje Food Compass frente a densidad calórica" })
+  ).toContainText("83");
+  await expect(page.getByRole("textbox")).toHaveCount(0);
+});
+
 test("shows a carve-out without collapsing the camera or inventing a score", async ({ page }) => {
   await stubRealtime(page);
   await page.route("**/api/food/identify", async (route) => {

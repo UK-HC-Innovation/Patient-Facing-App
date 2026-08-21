@@ -1,5 +1,6 @@
 import React from "react";
 import type { CompassScore } from "@/domain/food-compass";
+import { t, type FoodLensStringKey, type Language } from "@/i18n/strings";
 
 const FCS_QUADRANT_THRESHOLD = 70;
 const DENSITY_QUADRANT_THRESHOLD_KCAL_PER_G = 2.5;
@@ -10,11 +11,11 @@ const LOWER_QUADRANT_HEIGHT =
 
 export type NutritionQuadrant = "limit" | "moderate" | "be_mindful" | "choose_often";
 
-const QUADRANT_LABEL: Record<NutritionQuadrant, string> = {
-  limit: "Limit",
-  moderate: "Moderate",
-  be_mindful: "Be mindful",
-  choose_often: "Choose often"
+const QUADRANT_LABEL: Record<NutritionQuadrant, FoodLensStringKey> = {
+  limit: "nutritionCompassQuadrantLimit",
+  moderate: "nutritionCompassQuadrantModerate",
+  be_mindful: "nutritionCompassQuadrantMindful",
+  choose_often: "nutritionCompassQuadrantOften"
 };
 
 const MARKER_COLOR: Record<NutritionQuadrant, string> = {
@@ -28,6 +29,7 @@ type NutritionCompassState = "idle" | "pending" | "no_match" | "carve_out";
 
 type NutritionCompassProps = {
   foodName?: string | null;
+  language?: Language;
   score?: CompassScore | null;
   state?: NutritionCompassState;
 };
@@ -65,23 +67,21 @@ export function nutritionQuadrant(fcs: number, kcalPer100g: number): NutritionQu
   return "limit";
 }
 
-function stateMessage(state: NutritionCompassState): string {
-  if (state === "pending") return "Updating this food's place on the chart…";
-  if (state === "no_match") return "No published match to plot yet. Add more detail in the conversation.";
-  if (state === "carve_out") {
-    return "This food is outside the Food Compass scoring range, so it is not plotted.";
-  }
-  return "Point the camera at a food to place it on the chart.";
+function stateMessage(language: Language, state: NutritionCompassState): string {
+  if (state === "pending") return t(language, "nutritionCompassStatePending");
+  if (state === "no_match") return t(language, "nutritionCompassStateNoMatch");
+  if (state === "carve_out") return t(language, "nutritionCompassStateCarveOut");
+  return t(language, "nutritionCompassStateIdle");
 }
 
-function plotStateMessage(state: NutritionCompassState): string {
-  if (state === "pending") return "Finding its place…";
-  if (state === "no_match") return "No point to plot yet";
-  if (state === "carve_out") return "Outside score range";
-  return "Waiting for the camera";
+function plotStateMessage(language: Language, state: NutritionCompassState): string {
+  if (state === "pending") return t(language, "nutritionCompassPlotPending");
+  if (state === "no_match") return t(language, "nutritionCompassPlotNoMatch");
+  if (state === "carve_out") return t(language, "nutritionCompassPlotCarveOut");
+  return t(language, "nutritionCompassPlotIdle");
 }
 
-export function NutritionCompass({ foodName, score, state = "idle" }: NutritionCompassProps) {
+export function NutritionCompass({ foodName, language = "en", score, state = "idle" }: NutritionCompassProps) {
   const densityPer100g = score?.calorieDensity.kcalPer100g ?? null;
   const densityPerGram = densityPer100g === null ? null : calorieDensityKcalPerGram(densityPer100g);
   const quadrant = score && densityPer100g !== null ? nutritionQuadrant(score.fcs, densityPer100g) : null;
@@ -94,11 +94,18 @@ export function NutritionCompass({ foodName, score, state = "idle" }: NutritionC
 
   const summary = score
     ? densityPer100g === null || densityPerGram === null || quadrant === null
-      ? `${foodName ?? "This food"}: ${score.fcs} / 100 Food Compass score · calorie density unavailable.`
-      : `${foodName ?? "This food"}: ${score.fcs} / 100 Food Compass score · ${densityPerGram.toFixed(
-          2
-        )} kcal/g (${densityPer100g} kcal / 100 g) · ${QUADRANT_LABEL[quadrant]} quadrant.`
-    : stateMessage(state);
+      ? t(language, "nutritionCompassSummaryNoDensity", {
+          food: foodName ?? t(language, "unknownFood"),
+          score: score.fcs
+        })
+      : t(language, "nutritionCompassSummary", {
+          food: foodName ?? t(language, "unknownFood"),
+          score: score.fcs,
+          density: densityPerGram.toFixed(2),
+          per100g: densityPer100g,
+          quadrant: t(language, QUADRANT_LABEL[quadrant])
+        })
+    : stateMessage(language, state);
 
   return (
     <section
@@ -110,9 +117,9 @@ export function NutritionCompass({ foodName, score, state = "idle" }: NutritionC
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold" id="nutrition-compass-title">
-            Food Compass score vs calorie density
+            {t(language, "nutritionCompassTitle")}
           </h2>
-          <p className="text-xs text-ink/75">X: Food Compass score · Y: calorie density (kcal/g)</p>
+          <p className="text-xs text-ink/75">{t(language, "nutritionCompassAxes")}</p>
         </div>
         {score ? (
           <span className="shrink-0 rounded-control bg-calm px-2 py-1 text-xs font-semibold text-care">
@@ -168,16 +175,16 @@ export function NutritionCompass({ foodName, score, state = "idle" }: NutritionC
             <div aria-hidden="true" className="absolute inset-x-0 top-2/3 border-t border-dashed border-ink/15" />
 
             <span aria-hidden="true" className="absolute left-2 top-2 text-[10px] font-bold uppercase tracking-wide text-rose-800">
-              Limit
+              {t(language, "nutritionCompassQuadrantLimit")}
             </span>
             <span aria-hidden="true" className="absolute right-2 top-2 text-[10px] font-bold uppercase tracking-wide text-amber-900">
-              Moderate
+              {t(language, "nutritionCompassQuadrantModerate")}
             </span>
             <span aria-hidden="true" className="absolute bottom-[22%] left-2 text-[10px] font-bold uppercase tracking-wide text-orange-900">
-              Be mindful
+              {t(language, "nutritionCompassQuadrantMindful")}
             </span>
             <span aria-hidden="true" className="absolute bottom-[22%] right-2 text-[10px] font-bold uppercase tracking-wide text-emerald-900">
-              Choose often
+              {t(language, "nutritionCompassQuadrantOften")}
             </span>
 
             {position && quadrant ? (
@@ -194,7 +201,7 @@ export function NutritionCompass({ foodName, score, state = "idle" }: NutritionC
               </span>
             ) : (
               <span className="absolute left-1/2 top-1/2 max-w-[75%] -translate-x-1/2 -translate-y-1/2 rounded-control border border-dashed border-ink/30 bg-white/95 px-3 py-2 text-center text-xs font-semibold text-ink/75">
-                {score ? "Calorie density unavailable" : plotStateMessage(state)}
+                {score ? t(language, "nutritionCompassDensityUnavailable") : plotStateMessage(language, state)}
               </span>
             )}
           </div>
@@ -208,18 +215,18 @@ export function NutritionCompass({ foodName, score, state = "idle" }: NutritionC
         </div>
 
         <div aria-hidden="true" className="ml-7 mt-1 flex items-center justify-between gap-2 text-[11px] font-semibold text-ink/75">
-          <span>Lower</span>
-          <span>Food Compass score →</span>
-          <span>Higher</span>
+          <span>{t(language, "nutritionCompassLower")}</span>
+          <span>{t(language, "nutritionCompassScoreAxis")}</span>
+          <span>{t(language, "nutritionCompassHigher")}</span>
         </div>
         <p aria-hidden="true" className="mt-1 text-center text-[11px] font-semibold text-ink/75">
-          ↑ Higher calorie density
+          {t(language, "nutritionCompassHigherDensity")}
         </p>
         <figcaption aria-live="polite" className="mt-2 text-xs font-medium text-ink/70">
           {summary}
         </figcaption>
         <p className="mt-1 text-[11px] text-ink/70">
-          The four quadrants combine two separate measures for this prototype; they do not change the published score.
+          {t(language, "nutritionCompassExplanation")}
         </p>
       </figure>
     </section>

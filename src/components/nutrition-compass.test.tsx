@@ -55,6 +55,19 @@ describe("NutritionCompass", () => {
     expect(screen.getByText(/Published legacy food: 83 \/ 100 Food Compass score · calorie density unavailable/)).toBeInTheDocument();
   });
 
+  it("localizes chart chrome and the deterministic caption in Spanish", () => {
+    render(<NutritionCompass foodName="Banana, raw" language="es" score={bananaScore} />);
+
+    const chart = screen.getByRole("region", {
+      name: "Puntaje Food Compass frente a densidad calórica"
+    });
+    expect(chart).toHaveTextContent("X: puntaje Food Compass · Y: densidad calórica (kcal/g)");
+    expect(chart).toHaveTextContent("Elige con frecuencia");
+    expect(chart).toHaveTextContent(
+      "Banana, raw: puntaje Food Compass 83 de 100 · 0.89 kcal/g (89 kcal / 100 g) · cuadrante Elige con frecuencia."
+    );
+  });
+
   it("keeps markers inside the 0–9 kcal/g plot and classifies all four quadrants", () => {
     expect(calorieDensityPlotPosition(-10)).toBe(4);
     expect(calorieDensityPlotPosition(225)).toBe(25);

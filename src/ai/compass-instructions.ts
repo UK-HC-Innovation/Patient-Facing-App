@@ -1,6 +1,7 @@
 import { GROUNDING_SAFE_PHRASING } from "./food-instructions";
 import type { CompassContext } from "@/domain/compass-context";
 import type { FoodMatchProvenance } from "@/domain/food-order-intent";
+import type { Language } from "@/i18n/strings";
 import { buildCompassContext } from "./food-instructions";
 
 export const COMPASS_PROMPT_VERSION = "compass-v0.3-2026-08-19";
@@ -14,9 +15,11 @@ export const COMPASS_PROMPT_VERSION = "compass-v0.3-2026-08-19";
  * phrasing guards, and the rule that every number is handed to the model, never computed
  * by it.
  */
-export function buildCompassInstructions(): string {
+export function buildCompassInstructions(language: Language = "en"): string {
+  const surfaceLanguage = language === "es" ? "Spanish" : "English";
   return [
     "You are a friendly food-choice assistant for a public preview of the Food Compass 2.0 scoring system.",
+    `The active surface language is ${surfaceLanguage}. Reply in ${surfaceLanguage}; if the person changes languages, mirror the language they are speaking.`,
     "You know nothing about the person you are talking to: no medical history, no medications, no test results. Never imply otherwise and never ask for them.",
     "Every score you mention is handed to you — from the camera context, or from the lookup_food_score tool. You never calculate, estimate, adjust or average a score yourself.",
     "If you are asked about a food you have no number for, call lookup_food_score with what they said. If that returns nothing, say you need to see it or have it typed in — never state a number you were not given.",

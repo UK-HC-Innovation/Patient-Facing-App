@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { FoodAskBar } from "@/components/food-ask-bar";
+import { FoodSavedPicks } from "@/components/food-saved-picks";
 import { FoodConversation } from "@/components/food-conversation";
 import { FoodFactsCard } from "@/components/food-facts-card";
 import { FoodGuidanceSource } from "@/components/food-guidance-source";
@@ -18,6 +19,7 @@ import { computeFoodFlags, type FoodFlag } from "@/domain/food-flags";
 import { foodHistoryVoiceLine, lastTimeYouAte } from "@/domain/glucose-correlation";
 import { buildMealLogEntry } from "@/domain/meal-log";
 import { buildPlateEntries, formatPlateContext, summarizePlate, type PlateItem } from "@/domain/plate";
+import { recentFoodPicks } from "@/domain/food-recents";
 import { resolvePortionServings, scaleNutrition } from "@/domain/portion";
 import { foodLookupResponseSchema, mealLogEntrySchema } from "@/domain/schemas";
 import { t } from "@/i18n/strings";
@@ -64,6 +66,7 @@ export default function FoodPage() {
   const [plateItems, setPlateItems] = useState<PlateItem[]>([]);
   const [logged, setLogged] = useState(false);
   const loggedEntryIdRef = useRef<string | null>(null);
+  const exactFoodRequestRef = useRef(0);
   const { activeBarcode } = useBarcodeScan({
     videoRef: camera.videoRef,
     enabled: camera.status === "active",
@@ -359,6 +362,7 @@ export default function FoodPage() {
 
   const correctCameraMatch = useCallback(
     async (foodId: string) => {
+      const requestId = ++exactFoodRequestRef.current;
       try {
         const response = await fetch("/api/food/identify", {
           method: "POST",
@@ -370,8 +374,11 @@ export default function FoodPage() {
           match?: Omit<LiveMatch, "candidates">;
           candidates?: LiveCandidate[];
         };
-        if (json.mode === "match" && json.match) {
+        if (requestId === exactFoodRequestRef.current && json.mode === "match" && json.match) {
           adoptLiveMatch({ ...json.match, candidates: json.candidates ?? [] });
+          // A saved-food tap is an explicit choice and temporarily wins over a
+          // barcode that happens to remain in frame, just like a correction chip.
+          setBarcodeFood(null);
           setLogged(false);
         }
       } catch {
@@ -476,6 +483,32 @@ export default function FoodPage() {
     : live.badge;
 
   const recentMeals = state.mealLog.slice(-5).reverse();
+  const savedRecents = useMemo(() => recentFoodPicks(state.mealLog), [state.mealLog]);
+  const favoriteFoodCandidate =
+    compass.score?.tier === "T1" && identifiedFood?.source === "fndds_lookup"
+      ? identifiedFood.id.replace(/^fndds:/, "")
+      : null;
+  const favoriteFoodId = favoriteFoodCandidate && /^\d{8}$/.test(favoriteFoodCandidate) ? favoriteFoodCandidate : null;
+  const isFavorite = favoriteFoodId
+    ? state.foodFavorites.some((favorite) => favorite.foodId === favoriteFoodId)
+    : false;
+  const toggleFavorite = useCallback(() => {
+    const score = compassRef.current.score;
+    const food = foodRef.current;
+    if (!favoriteFoodId || !food || score?.tier !== "T1") {
+      return;
+    }
+    dispatch({
+      type: "toggleFoodFavorite",
+      favorite: {
+        foodId: favoriteFoodId,
+        description: food.brand ? `${food.brand} ${food.name}` : food.name,
+        fcs: score.fcs,
+        band: score.band,
+        starredAt: new Date().toISOString()
+      }
+    });
+  }, [dispatch, favoriteFoodId]);
   const scanChip = identifiedFood ? (identifiedFood.brand ? `${identifiedFood.brand} ${identifiedFood.name}` : identifiedFood.name) : activeBarcode;
 
   return (
@@ -511,6 +544,13 @@ export default function FoodPage() {
 
         <FoodGuidanceSource kind="personalized" language={language} />
 
+        <FoodSavedPicks
+          favorites={state.foodFavorites}
+          recents={savedRecents}
+          language={language}
+          onSelect={(foodId) => void correctCameraMatch(foodId)}
+        />
+
         <FoodAskBar
           mode={voice.mode}
           dataMode={voice.dataMode}
@@ -542,6 +582,7 @@ export default function FoodPage() {
             estimatedDomains={compass.estimatedDomains}
             food={scaledFood}
             flags={flags}
+            favorite={isFavorite}
             dayTotals={visibleDayTotals}
             history={foodHistory && historyDate ? { ...foodHistory, date: historyDate } : null}
             showGlucoseHistory={conditions.includes("diabetes")}
@@ -549,6 +590,7 @@ export default function FoodPage() {
             logged={logged}
             canLog={canLog}
             onCorrection={!barcodeFood ? (foodId) => void correctCameraMatch(foodId) : undefined}
+            onToggleFavorite={favoriteFoodId ? toggleFavorite : undefined}
             onAddToPlate={onAddToPlate}
             onLog={onLog}
             language={language}

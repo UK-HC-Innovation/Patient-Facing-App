@@ -66,6 +66,14 @@ export type FoodLensStringKey =
   | "recentMealsTitle"
   | "noMealsYet"
   | "foodNotThis"
+  | "savedFoodsTitle"
+  | "favoritesTitle"
+  | "foodRecentsTitle"
+  | "savedFoodRescore"
+  | "favoriteAdd"
+  | "favoriteRemove"
+  | "favoriteAddShort"
+  | "favoriteRemoveShort"
   | "weekInFoodTitle"
   | "weekMealsLogged"
   | "weekAverageItemScore"
@@ -154,6 +162,91 @@ export type FoodLensStringKey =
   | "compassDomainD7"
   | "compassDomainD8"
   | "compassDomainD9"
+  | "guidanceSourceLabel"
+  | "guidanceGeneral"
+  | "guidancePersonalized"
+  | "demoPizzaPreview"
+  | "demoCameraUnavailable"
+  | "compassScoreDetails"
+  | "compassIdentifiedFood"
+  | "compassKcalPer100g"
+  | "compassPageTitle"
+  | "compassPageDescription"
+  | "compassPrototypeFlow"
+  | "compassStepCamera"
+  | "compassStepTalk"
+  | "compassStepCompare"
+  | "compassIdleEnded"
+  | "compassIdleStarting"
+  | "compassIdleDemo"
+  | "compassIdleAwaiting"
+  | "compassCameraRegion"
+  | "compassResultRegion"
+  | "compassSortLegend"
+  | "compassSortScore"
+  | "compassSortDensity"
+  | "compassNoPublishedScore"
+  | "compassOrderInterpretation"
+  | "compassWeHeard"
+  | "compassRestaurant"
+  | "compassFood"
+  | "compassToppings"
+  | "compassCrust"
+  | "compassSize"
+  | "compassNotSpecified"
+  | "compassClosestPublished"
+  | "compassNotRepresented"
+  | "compassChooseCloser"
+  | "nutritionProtein"
+  | "nutritionFiber"
+  | "nutritionPotassium"
+  | "compassPer100g"
+  | "compassNoNutrientPanel"
+  | "compassBetterOptionsSorted"
+  | "compassSortedScore"
+  | "compassSortedDensity"
+  | "compassHowScoringWorks"
+  | "compassScoreSource"
+  | "compassMethodology"
+  | "compassDisclaimer"
+  | "compassConversationRegion"
+  | "compassConversationTitle"
+  | "compassConversationLive"
+  | "compassConversationPreview"
+  | "compassRoleYou"
+  | "compassAssistantName"
+  | "compassScriptedFallback"
+  | "compassConversationStarting"
+  | "compassConversationWaiting"
+  | "compassRetryHint"
+  | "compassContinueHint"
+  | "compassEndConversation"
+  | "compassRetryConversation"
+  | "compassRestartConversation"
+  | "compassOpeningPizza"
+  | "compassOpeningFood"
+  | "nutritionCompassTitle"
+  | "nutritionCompassAxes"
+  | "nutritionCompassStatePending"
+  | "nutritionCompassStateNoMatch"
+  | "nutritionCompassStateCarveOut"
+  | "nutritionCompassStateIdle"
+  | "nutritionCompassPlotPending"
+  | "nutritionCompassPlotNoMatch"
+  | "nutritionCompassPlotCarveOut"
+  | "nutritionCompassPlotIdle"
+  | "nutritionCompassDensityUnavailable"
+  | "nutritionCompassSummaryNoDensity"
+  | "nutritionCompassSummary"
+  | "nutritionCompassQuadrantLimit"
+  | "nutritionCompassQuadrantModerate"
+  | "nutritionCompassQuadrantMindful"
+  | "nutritionCompassQuadrantOften"
+  | "nutritionCompassLower"
+  | "nutritionCompassHigher"
+  | "nutritionCompassScoreAxis"
+  | "nutritionCompassHigherDensity"
+  | "nutritionCompassExplanation"
   | "compassOutOf100";
 
 export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>> = {
@@ -223,6 +316,14 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     recentMealsTitle: "Recent meals",
     noMealsYet: "No meals logged yet.",
     foodNotThis: "Not this?",
+    savedFoodsTitle: "Favorites & recents",
+    favoritesTitle: "Favorites",
+    foodRecentsTitle: "Recent",
+    savedFoodRescore: "Score {food} again",
+    favoriteAdd: "Add {food} to favorites",
+    favoriteRemove: "Remove {food} from favorites",
+    favoriteAddShort: "Favorite",
+    favoriteRemoveShort: "Favorited",
     weekInFoodTitle: "Week in Food",
     weekMealsLogged: "{count} meals logged in the last 7 days",
     weekAverageItemScore: "average item score",
@@ -311,6 +412,99 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     compassDomainD7: "Specific fats",
     compassDomainD8: "Fiber and protein",
     compassDomainD9: "Phytochemicals",
+    guidanceSourceLabel: "Guidance source",
+    guidanceGeneral: "General nutrition: Food Compass only — no recent readings or health profile used.",
+    guidancePersonalized: "Personalized: considers your recent readings and health profile.",
+    demoPizzaPreview: "Sample pizza camera preview",
+    demoCameraUnavailable:
+      "Camera unavailable in this preview — allow camera access to try the automatic food conversation.",
+    compassScoreDetails: "Show score details for {food}",
+    compassIdentifiedFood: "identified food",
+    compassKcalPer100g: "{calories} kcal / 100 g",
+    compassPageTitle: "Food Lens functional prototype",
+    compassPageDescription:
+      "Point the camera at a food and Food Lens starts the conversation. Add restaurant, topping, crust, or size details naturally while you talk; the demo never invents a brand-specific score.",
+    compassPrototypeFlow: "Prototype flow",
+    compassStepCamera: "Point the camera",
+    compassStepTalk: "Talk naturally",
+    compassStepCompare: "Compare options",
+    compassIdleEnded: "Conversation ended. Restart below or point at a new food.",
+    compassIdleStarting: "Starting a conversation about this food…",
+    compassIdleDemo: "Demo conversation started automatically.",
+    compassIdleAwaiting: "Conversation starts when a food is identified.",
+    compassCameraRegion: "Food camera",
+    compassResultRegion: "Food result",
+    compassSortLegend: "Sort better options by",
+    compassSortScore: "Highest score first",
+    compassSortDensity: "Lowest calorie density first",
+    compassNoPublishedScore: "No published score for that one. Try a simpler name, or choose a sample.",
+    compassOrderInterpretation: "Order interpretation",
+    compassWeHeard: "We heard",
+    compassRestaurant: "Restaurant",
+    compassFood: "Food",
+    compassToppings: "Toppings",
+    compassCrust: "Crust",
+    compassSize: "Size",
+    compassNotSpecified: "Not specified",
+    compassClosestPublished: "Closest published match",
+    compassNotRepresented: "Not represented in this score: {details}.",
+    compassChooseCloser: "Choose a closer published category",
+    nutritionProtein: "Protein",
+    nutritionFiber: "Fiber",
+    nutritionPotassium: "Potassium",
+    compassPer100g: "per 100 g",
+    compassNoNutrientPanel:
+      "No nutrient panel for this food — its published score comes from an earlier survey cycle.",
+    compassBetterOptionsSorted: "Better options · {sort}",
+    compassSortedScore: "highest score first",
+    compassSortedDensity: "lowest calorie density first",
+    compassHowScoringWorks: "How scoring works",
+    compassScoreSource: "Scores: Food Compass 2.0 (Tufts University, used with permission)",
+    compassMethodology: "Methodology",
+    compassDisclaimer: "AI-assisted identification · Not medical advice — consult your care team.",
+    compassConversationRegion: "Automatic food conversation",
+    compassConversationTitle: "Automatic food conversation",
+    compassConversationLive: "No text box: identify the food, then add details or ask questions out loud.",
+    compassConversationPreview: "Scripted preview: with live voice connected, the user continues out loud.",
+    compassRoleYou: "You",
+    compassAssistantName: "Food Lens",
+    compassScriptedFallback: "Scripted fallback for the functional prototype.",
+    compassConversationStarting: "Starting a conversation about {food}…",
+    compassConversationWaiting: "Waiting for the camera to identify a food.",
+    compassRetryHint: "Use “Try automatic conversation again” to retry.",
+    compassContinueHint: "You can keep talking or say the details again.",
+    compassEndConversation: "End conversation",
+    compassRetryConversation: "Try automatic conversation again",
+    compassRestartConversation: "Start conversation again",
+    compassOpeningPizza:
+      "I see {food}. Do you know which restaurant it came from and what toppings, crust, or size it has?",
+    compassOpeningFood:
+      "I see {food}. Its published Food Compass score is {score} out of 100. What would you like to know about it?",
+    nutritionCompassTitle: "Food Compass score vs calorie density",
+    nutritionCompassAxes: "X: Food Compass score · Y: calorie density (kcal/g)",
+    nutritionCompassStatePending: "Updating this food's place on the chart…",
+    nutritionCompassStateNoMatch: "No published match to plot yet. Add more detail in the conversation.",
+    nutritionCompassStateCarveOut: "This food is outside the Food Compass scoring range, so it is not plotted.",
+    nutritionCompassStateIdle: "Point the camera at a food to place it on the chart.",
+    nutritionCompassPlotPending: "Finding its place…",
+    nutritionCompassPlotNoMatch: "No point to plot yet",
+    nutritionCompassPlotCarveOut: "Outside score range",
+    nutritionCompassPlotIdle: "Waiting for the camera",
+    nutritionCompassDensityUnavailable: "Calorie density unavailable",
+    nutritionCompassSummaryNoDensity:
+      "{food}: {score} / 100 Food Compass score · calorie density unavailable.",
+    nutritionCompassSummary:
+      "{food}: {score} / 100 Food Compass score · {density} kcal/g ({per100g} kcal / 100 g) · {quadrant} quadrant.",
+    nutritionCompassQuadrantLimit: "Limit",
+    nutritionCompassQuadrantModerate: "Moderate",
+    nutritionCompassQuadrantMindful: "Be mindful",
+    nutritionCompassQuadrantOften: "Choose often",
+    nutritionCompassLower: "Lower",
+    nutritionCompassHigher: "Higher",
+    nutritionCompassScoreAxis: "Food Compass score →",
+    nutritionCompassHigherDensity: "↑ Higher calorie density",
+    nutritionCompassExplanation:
+      "The four quadrants combine two separate measures for this prototype; they do not change the published score.",
     compassOutOf100: "out of 100"
   },
   es: {
@@ -379,6 +573,14 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     recentMealsTitle: "Comidas recientes",
     noMealsYet: "Aún no hay comidas guardadas.",
     foodNotThis: "¿No es esto?",
+    savedFoodsTitle: "Favoritos y recientes",
+    favoritesTitle: "Favoritos",
+    foodRecentsTitle: "Recientes",
+    savedFoodRescore: "Volver a puntuar {food}",
+    favoriteAdd: "Agregar {food} a favoritos",
+    favoriteRemove: "Quitar {food} de favoritos",
+    favoriteAddShort: "Favorito",
+    favoriteRemoveShort: "En favoritos",
     weekInFoodTitle: "Semana de Comidas",
     weekMealsLogged: "{count} comidas registradas en los últimos 7 días",
     weekAverageItemScore: "promedio por alimento",
@@ -467,6 +669,99 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     compassDomainD7: "Grasas específicas",
     compassDomainD8: "Fibra y proteína",
     compassDomainD9: "Fitoquímicos",
+    guidanceSourceLabel: "Fuente de la orientación",
+    guidanceGeneral: "Nutrición general: solo Food Compass — no usa lecturas recientes ni tu perfil de salud.",
+    guidancePersonalized: "Personalizado: considera tus lecturas recientes y tu perfil de salud.",
+    demoPizzaPreview: "Vista previa de la cámara con una pizza de muestra",
+    demoCameraUnavailable:
+      "La cámara no está disponible en esta vista previa; permite el acceso para probar la conversación automática sobre alimentos.",
+    compassScoreDetails: "Mostrar los detalles del puntaje de {food}",
+    compassIdentifiedFood: "alimento identificado",
+    compassKcalPer100g: "{calories} kcal / 100 g",
+    compassPageTitle: "Prototipo funcional de Lente de Comida",
+    compassPageDescription:
+      "Apunta la cámara a un alimento y Lente de Comida inicia la conversación. Agrega naturalmente el restaurante, los ingredientes, la masa o el tamaño mientras hablas; la demostración nunca inventa un puntaje específico de una marca.",
+    compassPrototypeFlow: "Flujo del prototipo",
+    compassStepCamera: "Apunta la cámara",
+    compassStepTalk: "Habla naturalmente",
+    compassStepCompare: "Compara opciones",
+    compassIdleEnded: "La conversación terminó. Reiníciala abajo o apunta a otro alimento.",
+    compassIdleStarting: "Iniciando una conversación sobre este alimento…",
+    compassIdleDemo: "La conversación de demostración comenzó automáticamente.",
+    compassIdleAwaiting: "La conversación empieza cuando se identifica un alimento.",
+    compassCameraRegion: "Cámara de alimentos",
+    compassResultRegion: "Resultado del alimento",
+    compassSortLegend: "Ordenar las mejores opciones por",
+    compassSortScore: "Mayor puntaje primero",
+    compassSortDensity: "Menor densidad calórica primero",
+    compassNoPublishedScore: "No hay un puntaje publicado para ese alimento. Prueba un nombre más sencillo o elige una muestra.",
+    compassOrderInterpretation: "Interpretación del pedido",
+    compassWeHeard: "Entendimos",
+    compassRestaurant: "Restaurante",
+    compassFood: "Alimento",
+    compassToppings: "Ingredientes",
+    compassCrust: "Masa",
+    compassSize: "Tamaño",
+    compassNotSpecified: "No especificado",
+    compassClosestPublished: "Coincidencia publicada más cercana",
+    compassNotRepresented: "No representado en este puntaje: {details}.",
+    compassChooseCloser: "Elige una categoría publicada más cercana",
+    nutritionProtein: "Proteína",
+    nutritionFiber: "Fibra",
+    nutritionPotassium: "Potasio",
+    compassPer100g: "por 100 g",
+    compassNoNutrientPanel:
+      "No hay una tabla de nutrientes para este alimento; su puntaje publicado proviene de un ciclo de encuesta anterior.",
+    compassBetterOptionsSorted: "Mejores opciones · {sort}",
+    compassSortedScore: "mayor puntaje primero",
+    compassSortedDensity: "menor densidad calórica primero",
+    compassHowScoringWorks: "Cómo funciona el puntaje",
+    compassScoreSource: "Puntajes: Food Compass 2.0 (Universidad de Tufts, usado con permiso)",
+    compassMethodology: "Metodología",
+    compassDisclaimer: "Identificación asistida por IA · No es consejo médico; consulta con tu equipo de atención.",
+    compassConversationRegion: "Conversación automática sobre alimentos",
+    compassConversationTitle: "Conversación automática sobre alimentos",
+    compassConversationLive: "Sin cuadro de texto: identifica el alimento y luego agrega detalles o haz preguntas en voz alta.",
+    compassConversationPreview: "Vista previa con guion: con la voz en vivo conectada, la persona continúa en voz alta.",
+    compassRoleYou: "Tú",
+    compassAssistantName: "Lente de Comida",
+    compassScriptedFallback: "Respuesta con guion para el prototipo funcional.",
+    compassConversationStarting: "Iniciando una conversación sobre {food}…",
+    compassConversationWaiting: "Esperando que la cámara identifique un alimento.",
+    compassRetryHint: "Usa “Intentar de nuevo la conversación automática” para reintentar.",
+    compassContinueHint: "Puedes seguir hablando o decir los detalles otra vez.",
+    compassEndConversation: "Terminar conversación",
+    compassRetryConversation: "Intentar de nuevo la conversación automática",
+    compassRestartConversation: "Iniciar la conversación de nuevo",
+    compassOpeningPizza:
+      "Veo {food}. ¿Sabes de qué restaurante viene y qué ingredientes, masa o tamaño tiene?",
+    compassOpeningFood:
+      "Veo {food}. Su puntaje Food Compass publicado es {score} de 100. ¿Qué te gustaría saber?",
+    nutritionCompassTitle: "Puntaje Food Compass frente a densidad calórica",
+    nutritionCompassAxes: "X: puntaje Food Compass · Y: densidad calórica (kcal/g)",
+    nutritionCompassStatePending: "Actualizando la posición de este alimento en la gráfica…",
+    nutritionCompassStateNoMatch: "Aún no hay una coincidencia publicada para graficar. Agrega más detalles en la conversación.",
+    nutritionCompassStateCarveOut: "Este alimento está fuera del rango de Food Compass, por lo que no se grafica.",
+    nutritionCompassStateIdle: "Apunta la cámara a un alimento para colocarlo en la gráfica.",
+    nutritionCompassPlotPending: "Buscando su posición…",
+    nutritionCompassPlotNoMatch: "Aún no hay un punto para graficar",
+    nutritionCompassPlotCarveOut: "Fuera del rango del puntaje",
+    nutritionCompassPlotIdle: "Esperando la cámara",
+    nutritionCompassDensityUnavailable: "Densidad calórica no disponible",
+    nutritionCompassSummaryNoDensity:
+      "{food}: puntaje Food Compass {score} de 100 · densidad calórica no disponible.",
+    nutritionCompassSummary:
+      "{food}: puntaje Food Compass {score} de 100 · {density} kcal/g ({per100g} kcal / 100 g) · cuadrante {quadrant}.",
+    nutritionCompassQuadrantLimit: "Limitar",
+    nutritionCompassQuadrantModerate: "Moderado",
+    nutritionCompassQuadrantMindful: "Ten cuidado",
+    nutritionCompassQuadrantOften: "Elige con frecuencia",
+    nutritionCompassLower: "Menor",
+    nutritionCompassHigher: "Mayor",
+    nutritionCompassScoreAxis: "Puntaje Food Compass →",
+    nutritionCompassHigherDensity: "↑ Mayor densidad calórica",
+    nutritionCompassExplanation:
+      "Los cuatro cuadrantes combinan dos medidas distintas para este prototipo; no cambian el puntaje publicado.",
     compassOutOf100: "de 100"
   }
 };

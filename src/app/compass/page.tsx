@@ -24,15 +24,14 @@ import {
 } from "@/domain/food-order-intent";
 import type { NotScoreableReason } from "@/domain/food-compass";
 import type { LiveSessionContext } from "@/ai/types";
+import { t, type FoodLensStringKey, type Language } from "@/i18n/strings";
 import { speak, stopSpeaking } from "@/voice/tts";
-import { COMPASS_PAGE_TITLE } from "./title";
 
-const PROTOTYPE_STEPS = [
-  ["1", "Point the camera"],
-  ["2", "Talk naturally"],
-  ["3", "Compare options"]
+const PROTOTYPE_STEPS: readonly [string, FoodLensStringKey][] = [
+  ["1", "compassStepCamera"],
+  ["2", "compassStepTalk"],
+  ["3", "compassStepCompare"]
 ] as const;
-const LANGUAGE = "en" as const;
 
 type FoodCandidate = { code: string; description: string; fcs: number };
 type SortMode = "score" | "density";
@@ -53,11 +52,11 @@ function sentenceCase(value: string): string {
   return value.length > 0 ? `${value[0].toUpperCase()}${value.slice(1)}` : value;
 }
 
-function scriptedOpening(match: LiveMatch): string {
+function scriptedOpening(match: LiveMatch, language: Language): string {
   if (/\bpizza\b/i.test(match.food.description)) {
-    return `I see ${match.food.description}. Do you know which restaurant it came from and what toppings, crust, or size it has?`;
+    return t(language, "compassOpeningPizza", { food: match.food.description });
   }
-  return `I see ${match.food.description}. Its published Food Compass score is ${match.score.fcs} out of 100. What would you like to know about it?`;
+  return t(language, "compassOpeningFood", { food: match.food.description, score: match.score.fcs });
 }
 
 export default function CompassPage() {
@@ -191,6 +190,13 @@ export default function CompassPage() {
     },
     []
   );
+  const language = useMemo<Language>(
+    () =>
+      typeof window !== "undefined" && new URLSearchParams(window.location.search).get("lang") === "es"
+        ? "es"
+        : "en",
+    []
+  );
 
   const prepareVoiceResponse = useCallback(
     async (text: string) => {
@@ -243,7 +249,7 @@ export default function CompassPage() {
   }, []);
 
   const voice = useFoodVoiceSession({
-    language: LANGUAGE,
+    language,
     getState: () => stateRef.current,
     getContext,
     onFinalTranscript: handleVoiceTranscript,
@@ -257,7 +263,7 @@ export default function CompassPage() {
     // Without this the voice control below can never appear: it renders only when
     // mode === "live", and mode only leaves "unknown" inside start().
     probeOnMount: true,
-    buildInstructions: () => buildCompassInstructions(),
+    buildInstructions: () => buildCompassInstructions(language),
     buildContext: buildVoiceContext,
     tools: [
       {
@@ -313,13 +319,13 @@ export default function CompassPage() {
     }
 
     if (!voiceAvailable) {
-      const opening = scriptedOpening(match);
+      const opening = scriptedOpening(match, language);
       lastAutoConversationFoodRef.current = liveFoodCode;
       setConversationTurns((turns) => [
         ...turns.slice(-7),
         { id: crypto.randomUUID(), role: "assistant", text: opening, scripted: true }
       ]);
-      void speak(opening, { language: LANGUAGE });
+      void speak(opening, { language });
       return;
     }
 
@@ -336,6 +342,7 @@ export default function CompassPage() {
   }, [
     live.match,
     liveFoodCode,
+    language,
     refinement,
     requestContextResponse,
     startWithContextResponse,
@@ -367,36 +374,36 @@ export default function CompassPage() {
   return (
     <main className="mx-auto grid max-w-2xl gap-4 p-4 [&>*]:min-w-0">
       <header className="grid gap-3">
-        <h1 className="text-xl font-semibold">{COMPASS_PAGE_TITLE}</h1>
-        <p className="text-sm text-ink/65">
-          Point the camera at a food and Food Lens starts the conversation. Add restaurant, topping, crust, or size
-          details naturally while you talk; the demo never invents a brand-specific score.
-        </p>
-        <ol aria-label="Prototype flow" className="grid grid-cols-3 gap-2 text-xs font-semibold text-ink/70">
-          {PROTOTYPE_STEPS.map(([step, label]) => (
+        <h1 className="text-xl font-semibold">{t(language, "compassPageTitle")}</h1>
+        <p className="text-sm text-ink/65">{t(language, "compassPageDescription")}</p>
+        <ol
+          aria-label={t(language, "compassPrototypeFlow")}
+          className="grid grid-cols-3 gap-2 text-xs font-semibold text-ink/70"
+        >
+          {PROTOTYPE_STEPS.map(([step, labelKey]) => (
             <li className="rounded-control bg-calm px-2 py-2 text-center" key={step}>
               <span className="mr-1 text-care">{step}</span>
-              {label}
+              {t(language, labelKey)}
             </li>
           ))}
         </ol>
-        <FoodGuidanceSource kind="general" />
+        <FoodGuidanceSource kind="general" language={language} />
       </header>
 
-      <section className="grid gap-2" aria-label="Food camera">
+      <section className="grid gap-2" aria-label={t(language, "compassCameraRegion")}>
         <FoodViewfinder
           cameraStatus={camera.status}
           demoPreview
           idleLabel={
             voice.status === "closed"
-              ? "Conversation ended. Restart below or point at a new food."
+              ? t(language, "compassIdleEnded")
               : shown?.kind === "match"
                 ? voiceAvailable
-                  ? "Starting a conversation about this food…"
-                  : "Demo conversation started automatically."
-                : "Conversation starts when a food is identified."
+                  ? t(language, "compassIdleStarting")
+                  : t(language, "compassIdleDemo")
+                : t(language, "compassIdleAwaiting")
           }
-          language={LANGUAGE}
+          language={language}
           scanChip={shown?.kind === "match" ? shown.match.food.description : null}
           scoreBadge={
             shown?.kind === "match" ? "score" : shown?.kind === "carve_out" ? "carve_out" : live.badge
@@ -413,6 +420,7 @@ export default function CompassPage() {
 
       <NutritionCompass
         foodName={shown?.kind === "match" ? shown.match.food.description : null}
+        language={language}
         score={shown?.kind === "match" ? shown.match.score : null}
         state={
           refinementLoading || (!shown && live.badge === "pending")
@@ -426,7 +434,7 @@ export default function CompassPage() {
       />
 
       <fieldset className="grid gap-2 rounded-control border border-ink/10 p-3">
-        <legend className="px-1 text-sm font-medium text-ink/75">Sort better options by</legend>
+        <legend className="px-1 text-sm font-medium text-ink/75">{t(language, "compassSortLegend")}</legend>
         <label className="flex items-center gap-2 text-sm">
           <input
             checked={sortMode === "score"}
@@ -435,7 +443,7 @@ export default function CompassPage() {
             onChange={() => changeSortMode("score")}
             type="radio"
           />
-          Highest score first
+          {t(language, "compassSortScore")}
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input
@@ -445,53 +453,62 @@ export default function CompassPage() {
             onChange={() => changeSortMode("density")}
             type="radio"
           />
-          Lowest calorie density first
+          {t(language, "compassSortDensity")}
         </label>
       </fieldset>
 
       {shown ? (
-        <div aria-label="Food result" className="min-w-0" role="region">
-          {shown.kind === "carve_out" ? <CompassCarveOut language={LANGUAGE} reason={shown.reason} /> : null}
+        <div aria-label={t(language, "compassResultRegion")} className="min-w-0" role="region">
+          {shown.kind === "carve_out" ? <CompassCarveOut language={language} reason={shown.reason} /> : null}
 
           {shown.kind === "none" ? (
             <p className="rounded-control bg-calm px-3 py-3 text-sm text-ink/70">
-              No published score for that one. Try a simpler name, or choose a sample.
+              {t(language, "compassNoPublishedScore")}
             </p>
           ) : null}
 
           {shown.kind === "match" ? (
             <section className="grid min-w-0 gap-3 rounded-control border border-ink/10 bg-white p-4 shadow-sm [&>*]:min-w-0">
-          <FoodGuidanceSource kind="general" />
+          <FoodGuidanceSource kind="general" language={language} />
           {shown.match.interpretation && shown.match.provenance ? (
-            <div aria-label="Order interpretation" className="grid min-w-0 gap-3 rounded-control bg-calm/60 p-3 [&>*]:min-w-0">
+            <div
+              aria-label={t(language, "compassOrderInterpretation")}
+              className="grid min-w-0 gap-3 rounded-control bg-calm/60 p-3 [&>*]:min-w-0"
+            >
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-care">We heard</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-care">
+                  {t(language, "compassWeHeard")}
+                </p>
                 <dl className="mt-2 grid min-w-0 grid-cols-2 gap-2 text-sm [&>*]:min-w-0">
                   <div>
-                    <dt className="text-xs text-ink/70">Restaurant</dt>
-                    <dd className="break-words font-semibold">{shown.match.interpretation.restaurant ?? "Not specified"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-ink/70">Food</dt>
-                    <dd className="break-words font-semibold">{sentenceCase(shown.match.interpretation.item)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-ink/70">Toppings</dt>
+                    <dt className="text-xs text-ink/70">{t(language, "compassRestaurant")}</dt>
                     <dd className="break-words font-semibold">
-                      {shown.match.interpretation.toppings.length > 0
-                        ? shown.match.interpretation.toppings.map(sentenceCase).join(", ")
-                        : "Not specified"}
+                      {shown.match.interpretation.restaurant ?? t(language, "compassNotSpecified")}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-ink/70">Crust</dt>
+                    <dt className="text-xs text-ink/70">{t(language, "compassFood")}</dt>
+                    <dd className="break-words font-semibold">{sentenceCase(shown.match.interpretation.item)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-ink/70">{t(language, "compassToppings")}</dt>
                     <dd className="break-words font-semibold">
-                      {shown.match.interpretation.crust ? sentenceCase(shown.match.interpretation.crust) : "Not specified"}
+                      {shown.match.interpretation.toppings.length > 0
+                        ? shown.match.interpretation.toppings.map(sentenceCase).join(", ")
+                        : t(language, "compassNotSpecified")}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-ink/70">{t(language, "compassCrust")}</dt>
+                    <dd className="break-words font-semibold">
+                      {shown.match.interpretation.crust
+                        ? sentenceCase(shown.match.interpretation.crust)
+                        : t(language, "compassNotSpecified")}
                     </dd>
                   </div>
                   {shown.match.interpretation.size ? (
                     <div>
-                      <dt className="text-xs text-ink/70">Size</dt>
+                      <dt className="text-xs text-ink/70">{t(language, "compassSize")}</dt>
                       <dd className="break-words font-semibold">{sentenceCase(shown.match.interpretation.size)}</dd>
                     </div>
                   ) : null}
@@ -499,19 +516,23 @@ export default function CompassPage() {
               </div>
 
               <div className="border-t border-care/15 pt-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-care">Closest published match</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-care">
+                  {t(language, "compassClosestPublished")}
+                </p>
                 <p className="mt-1 text-sm font-semibold">{shown.match.provenance.matchedAs}</p>
                 <p className="mt-1 text-xs text-ink/65">{shown.match.provenance.note}</p>
                 {shown.match.provenance.unmatchedDetails.length > 0 ? (
                   <p className="mt-1 text-xs text-ink/65">
-                    Not represented in this score: {shown.match.provenance.unmatchedDetails.join(", ")}.
+                    {t(language, "compassNotRepresented", {
+                      details: shown.match.provenance.unmatchedDetails.join(", ")
+                    })}
                   </p>
                 ) : null}
               </div>
 
               {correctionCandidates.length > 0 ? (
                 <div className="border-t border-care/15 pt-3">
-                  <p className="text-xs font-semibold text-ink/70">Choose a closer published category</p>
+                  <p className="text-xs font-semibold text-ink/70">{t(language, "compassChooseCloser")}</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {correctionCandidates.map((candidate) => (
                       <button
@@ -533,24 +554,28 @@ export default function CompassPage() {
           ) : null}
 
           <h2 className="text-lg font-semibold">{shown.match.food.description}</h2>
-          <CompassScoreRow estimatedDomains={shown.match.estimatedDomains ?? null} language={LANGUAGE} score={shown.match.score} />
+          <CompassScoreRow
+            estimatedDomains={shown.match.estimatedDomains ?? null}
+            language={language}
+            score={shown.match.score}
+          />
 
           {shown.match.nutrients ? (
             <dl className="grid grid-cols-2 gap-2 text-sm">
               {(
                 [
-                  ["Calories", shown.match.nutrients.kcal, "per 100 g"],
-                  ["Protein", shown.match.nutrients.protein, "g"],
-                  ["Fibre", shown.match.nutrients.fiber, "g"],
-                  ["Sodium", shown.match.nutrients.na, "mg"],
-                  ["Potassium", shown.match.nutrients.k, "mg"],
-                  ["Saturated fat", shown.match.nutrients.sfa, "g"]
+                  ["nutritionCalories", shown.match.nutrients.kcal, t(language, "compassPer100g")],
+                  ["nutritionProtein", shown.match.nutrients.protein, "g"],
+                  ["nutritionFiber", shown.match.nutrients.fiber, "g"],
+                  ["nutritionSodium", shown.match.nutrients.na, "mg"],
+                  ["nutritionPotassium", shown.match.nutrients.k, "mg"],
+                  ["nutritionSaturatedFat", shown.match.nutrients.sfa, "g"]
                 ] as const
               )
                 .filter(([, value]) => value !== null)
-                .map(([label, value, unit]) => (
-                  <div className="rounded-control bg-calm/60 px-3 py-2" key={label}>
-                    <dt className="text-xs font-medium text-ink/70">{label}</dt>
+                .map(([labelKey, value, unit]) => (
+                  <div className="rounded-control bg-calm/60 px-3 py-2" key={labelKey}>
+                    <dt className="text-xs font-medium text-ink/70">{t(language, labelKey)}</dt>
                     <dd className="font-semibold">
                       {value} {unit}
                     </dd>
@@ -560,19 +585,21 @@ export default function CompassPage() {
           ) : (
             // ~1/3 of published foods predate FNDDS 2017-18, so there is no panel to show.
             <p className="text-xs text-ink/70">
-              No nutrient panel for this food — its published score comes from an earlier survey cycle.
+              {t(language, "compassNoNutrientPanel")}
             </p>
           )}
 
           <div>
             <h3 className="text-sm font-semibold text-ink/75">
-              Better options · {sortMode === "score" ? "highest score first" : "lowest calorie density first"}
+              {t(language, "compassBetterOptionsSorted", {
+                sort: t(language, sortMode === "score" ? "compassSortedScore" : "compassSortedDensity")
+              })}
             </h3>
             <div className="mt-2">
               <CompassAlternatives
                 alternatives={shown.match.alternatives}
                 currentFcs={shown.match.score.fcs}
-                language={LANGUAGE}
+                language={language}
               />
             </div>
           </div>
@@ -583,34 +610,34 @@ export default function CompassPage() {
 
       <footer className="border-t border-ink/10 pt-3 text-xs text-ink/70">
         <details className="rounded-control border border-ink/10 bg-white p-3">
-          <summary className="cursor-pointer font-semibold text-care">How scoring works</summary>
+          <summary className="cursor-pointer font-semibold text-care">{t(language, "compassHowScoringWorks")}</summary>
           <div className="mt-2 grid gap-1">
-            <p>Scores: Food Compass 2.0 (Tufts University, used with permission)</p>
+            <p>{t(language, "compassScoreSource")}</p>
             <p>
-              Methodology:{" "}
+              {t(language, "compassMethodology")}:{" "}
               <a className="underline" href="https://arxiv.org/abs/2512.11836" rel="noreferrer noopener" target="_blank">
                 arxiv.org/abs/2512.11836
               </a>
             </p>
-            <p>AI-assisted identification · Not medical advice — consult your care team.</p>
+            <p>{t(language, "compassDisclaimer")}</p>
           </div>
         </details>
       </footer>
 
       <section
-        aria-label="Automatic food conversation"
+        aria-label={t(language, "compassConversationRegion")}
         className="grid gap-3 rounded-control border border-care/20 bg-calm/40 p-3"
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold">Automatic food conversation</h2>
+            <h2 className="text-sm font-semibold">{t(language, "compassConversationTitle")}</h2>
             <p className="text-xs text-ink/70">
               {voiceAvailable
-                ? "No text box: identify the food, then add details or ask questions out loud."
-                : "Scripted preview: with live voice connected, the user continues out loud."}
+                ? t(language, "compassConversationLive")
+                : t(language, "compassConversationPreview")}
             </p>
           </div>
-          <FoodGuidanceSource kind="general" />
+          <FoodGuidanceSource kind="general" language={language} />
         </div>
 
         <div aria-live="polite" className="grid gap-2" role="log">
@@ -623,27 +650,32 @@ export default function CompassPage() {
                 key={turn.id}
               >
                 <p>
-                  <span className="font-semibold">{turn.role === "assistant" ? "Food Lens" : "You"}:</span>{" "}
+                  <span className="font-semibold">
+                    {turn.role === "assistant"
+                      ? t(language, "compassAssistantName")
+                      : t(language, "compassRoleYou")}:
+                  </span>{" "}
                   {turn.text}
                 </p>
                 {turn.scripted ? (
-                  <p className="mt-1 text-[11px] text-ink/70">Scripted fallback for the functional prototype.</p>
+                  <p className="mt-1 text-[11px] text-ink/70">{t(language, "compassScriptedFallback")}</p>
                 ) : null}
               </article>
             ))
           ) : shown?.kind === "match" ? (
             <p className="rounded-control bg-white px-3 py-2 text-sm text-ink/70">
-              Starting a conversation about {shown.match.food.description}…
+              {t(language, "compassConversationStarting", { food: shown.match.food.description })}
             </p>
           ) : (
             <p className="rounded-control bg-white px-3 py-2 text-sm text-ink/70">
-              Waiting for the camera to identify a food.
+              {t(language, "compassConversationWaiting")}
             </p>
           )}
           {voice.partialAssistantText ? (
             <article className="rounded-control bg-white px-3 py-2 text-sm leading-6 text-ink/70">
               <p>
-                <span className="font-semibold">Food Lens:</span> {voice.partialAssistantText}
+                <span className="font-semibold">{t(language, "compassAssistantName")}:</span>{" "}
+                {voice.partialAssistantText}
               </p>
             </article>
           ) : null}
@@ -651,10 +683,10 @@ export default function CompassPage() {
 
         {voiceAvailable && voice.error ? (
           <p className="rounded-control border border-pulse/30 bg-pulse/5 px-3 py-2 text-sm text-pulse" role="alert">
-            {voice.error}{" "}
+            {t(language, "statusError")}{" "}
             {voice.status === "error"
-              ? "Use “Try automatic conversation again” to retry."
-              : "You can keep talking or say the details again."}
+              ? t(language, "compassRetryHint")
+              : t(language, "compassContinueHint")}
           </p>
         ) : null}
         {voiceAvailable && !voiceCanStart ? (
@@ -663,7 +695,7 @@ export default function CompassPage() {
             onClick={voice.stop}
             type="button"
           >
-            End conversation
+            {t(language, "compassEndConversation")}
           </button>
         ) : null}
         {voiceAvailable && voice.status === "error" ? (
@@ -672,7 +704,7 @@ export default function CompassPage() {
             onClick={() => void voice.startWithContextResponse()}
             type="button"
           >
-            Try automatic conversation again
+            {t(language, "compassRetryConversation")}
           </button>
         ) : null}
         {voiceAvailable && voice.status === "closed" ? (
@@ -681,7 +713,7 @@ export default function CompassPage() {
             onClick={() => void voice.startWithContextResponse()}
             type="button"
           >
-            Start conversation again
+            {t(language, "compassRestartConversation")}
           </button>
         ) : null}
       </section>

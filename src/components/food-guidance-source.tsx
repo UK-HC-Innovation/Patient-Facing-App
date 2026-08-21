@@ -1,17 +1,11 @@
 import React from "react";
-import type { Language } from "@/i18n/strings";
+import { t, type FoodLensStringKey, type Language } from "@/i18n/strings";
 
 type GuidanceSource = "general" | "personalized";
 
-const COPY: Record<Language, Record<GuidanceSource, string>> = {
-  en: {
-    general: "General nutrition: Food Compass only — no recent readings or health profile used.",
-    personalized: "Personalized: considers your recent readings and health profile."
-  },
-  es: {
-    general: "Nutrición general: solo Food Compass — no usa lecturas recientes ni tu perfil de salud.",
-    personalized: "Personalizado: considera tus lecturas recientes y tu perfil de salud."
-  }
+const COPY_KEY: Record<GuidanceSource, FoodLensStringKey> = {
+  general: "guidanceGeneral",
+  personalized: "guidancePersonalized"
 };
 
 export function FoodGuidanceSource({
@@ -23,13 +17,13 @@ export function FoodGuidanceSource({
 }) {
   return (
     <p
-      aria-label="Guidance source"
+      aria-label={t(language, "guidanceSourceLabel")}
       className={`w-fit max-w-full break-words rounded-full px-3 py-1.5 text-xs font-semibold ${
         kind === "general" ? "bg-calm text-care" : "bg-amber-100 text-amber-900"
       }`}
       data-guidance-scope={kind}
     >
-      {COPY[language][kind]}
+      {t(language, COPY_KEY[kind])}
     </p>
   );
 }

@@ -23,6 +23,7 @@ import type {
   DoseEvent,
   EvidenceStatus,
   ExtractedFact,
+  FoodFavorite,
   FamilyAppointment,
   FamilyAppointmentBarrier,
   FamilyCheckinProbeAnswer,
@@ -444,6 +445,30 @@ function isMealLogEntry(value: unknown): value is MealLogEntry {
     isNullableStringOrAbsent(value.mealId) &&
     isNullableStringOrAbsent(value.editedAt) &&
     isCompassScoreOrAbsent(value.compassScore)
+  );
+}
+
+function isFoodFavorite(value: unknown): value is FoodFavorite {
+  return (
+    isObject(value) &&
+    hasString(value, "foodId") &&
+    /^\d{8}$/.test(value.foodId) &&
+    hasString(value, "description") &&
+    typeof value.fcs === "number" &&
+    Number.isFinite(value.fcs) &&
+    value.fcs >= 1 &&
+    value.fcs <= 100 &&
+    (value.band === "encourage" || value.band === "moderate" || value.band === "minimize") &&
+    isExactIsoTimestamp(value.starredAt)
+  );
+}
+
+function isFoodFavorites(value: unknown): value is FoodFavorite[] {
+  return (
+    Array.isArray(value) &&
+    value.length <= 24 &&
+    value.every(isFoodFavorite) &&
+    new Set(value.map((favorite) => favorite.foodId)).size === value.length
   );
 }
 
@@ -1351,6 +1376,7 @@ type PersistedAppState = Omit<
   AppState,
   | "tasks"
   | "mealLog"
+  | "foodFavorites"
   | "doseEvents"
   | "medicationFills"
   | "assessmentEvents"
@@ -1363,6 +1389,7 @@ type PersistedAppState = Omit<
 > & {
   tasks: unknown;
   mealLog: unknown;
+  foodFavorites: unknown;
   doseEvents: unknown;
   medicationFills: unknown;
   assessmentEvents: unknown;
@@ -1525,6 +1552,10 @@ function isValidCoreAppState(value: unknown): value is PersistedAppState {
     return false;
   }
 
+  if (value.foodFavorites !== undefined && !isFoodFavorites(value.foodFavorites)) {
+    return false;
+  }
+
   return hasValidRelationships(value as AppState);
 }
 
@@ -1538,6 +1569,10 @@ function isValidAppState(value: unknown): value is AppState {
   }
 
   if (!Array.isArray(value.mealLog) || !value.mealLog.every(isMealLogEntry)) {
+    return false;
+  }
+
+  if (!isFoodFavorites(value.foodFavorites)) {
     return false;
   }
 
@@ -1623,8 +1658,12 @@ export function loadStoredStateResult(): StoredStateLoad {
       return recoverRejectedState(raw, decoded.reason);
     }
     const parsed = decoded.state;
+    const backfilledFoodFavorites = isObject(parsed) && parsed.foodFavorites === undefined;
     if (isObject(parsed) && parsed.mealLog === undefined) {
       parsed.mealLog = [];
+    }
+    if (backfilledFoodFavorites) {
+      parsed.foodFavorites = [];
     }
     if (isObject(parsed) && parsed.doseEvents === undefined) {
       parsed.doseEvents = [];
@@ -1690,6 +1729,7 @@ export function loadStoredStateResult(): StoredStateLoad {
       }
 
       const changed =
+        backfilledFoodFavorites ||
         JSON.stringify(parsed.tasks) !== JSON.stringify(sanitizedState.tasks) ||
         JSON.stringify(parsed.mealLog) !== JSON.stringify(sanitizedState.mealLog) ||
         JSON.stringify(parsed.glucoseReadings) !== JSON.stringify(sanitizedState.glucoseReadings) ||

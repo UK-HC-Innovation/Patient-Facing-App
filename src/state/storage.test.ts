@@ -1313,6 +1313,41 @@ describe("storage", () => {
     expect(loaded.readings).toHaveLength(demoState.readings.length);
   });
 
+  it("migrates a pre-F14 save without foodFavorites to an empty list without resetting", () => {
+    const legacy: Record<string, unknown> = {
+      ...demoState,
+      patient: { ...demoState.patient, name: "Pre-F14 Patient", preferredName: "Pre-F14" }
+    };
+    delete legacy.foodFavorites;
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(legacy));
+
+    const loaded = loadStoredStateResult();
+
+    expect(loaded.state.patient.name).toBe("Pre-F14 Patient");
+    expect(loaded.state.foodFavorites).toEqual([]);
+    expect(loaded.status).not.toBe("recovered");
+  });
+
+  it("rehydrates a valid bare-code favorite", () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        ...demoState,
+        foodFavorites: [
+          {
+            foodId: "63107010",
+            description: "Banana, raw",
+            fcs: 83,
+            band: "encourage",
+            starredAt: "2026-08-21T12:00:00.000Z"
+          }
+        ]
+      })
+    );
+
+    expect(loadStoredState().foodFavorites[0]?.foodId).toBe("63107010");
+  });
+
   it("migrates a pre-spec-23 meal log entry instead of dropping the patient's history", () => {
     const legacyEntry = {
       id: "meal-legacy",
