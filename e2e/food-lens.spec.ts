@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const SOUP_BARCODE = "051000012616";
+const OATS_BARCODE = "030000010204";
 
 async function stubFoodLens(page: import("@playwright/test").Page) {
   await page.addInitScript((barcode) => {
@@ -8,12 +9,14 @@ async function stubFoodLens(page: import("@playwright/test").Page) {
       window.localStorage.clear();
       window.sessionStorage.setItem("__e2e_cleared", "1");
     }
+    (window as unknown as { __e2eBarcode?: string }).__e2eBarcode = barcode;
     class FakeBarcodeDetector {
       static getSupportedFormats() {
         return Promise.resolve(["ean_13", "upc_a"]);
       }
       detect() {
-        return Promise.resolve([{ rawValue: barcode, format: "ean_13" }]);
+        const current = (window as unknown as { __e2eBarcode?: string }).__e2eBarcode;
+        return Promise.resolve(current ? [{ rawValue: current, format: "ean_13" }] : []);
       }
     }
     (window as unknown as { BarcodeDetector: unknown }).BarcodeDetector = FakeBarcodeDetector;
@@ -23,6 +26,44 @@ async function stubFoodLens(page: import("@playwright/test").Page) {
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ mode: "mock", reason: "provider_mock" }) })
   );
 }
+
+test("builds and logs a two-item plate with one shared meal id", async ({ page }) => {
+  await stubFoodLens(page);
+  await page.goto("/food");
+
+  await expect(page.getByRole("heading", { name: /Chicken Noodle Soup/ })).toBeVisible();
+  await expect(page.getByText("Food Compass score")).toBeVisible();
+  await page.getByRole("button", { name: "Add to plate" }).click();
+
+  await page.evaluate((barcode) => {
+    (window as unknown as { __e2eBarcode?: string }).__e2eBarcode = barcode;
+  }, OATS_BARCODE);
+  // The scanner requires two consecutive 500 ms detections before changing.
+  await expect(page.getByRole("heading", { name: /Old Fashioned Oats/ })).toBeVisible();
+  await expect(page.getByText("Food Compass score")).toBeVisible();
+  await page.getByRole("button", { name: "Add to plate" }).click();
+
+  const plate = page.getByTestId("plate-card");
+  await expect(plate.getByTestId("plate-item")).toHaveCount(2);
+  await expect(plate.getByText("Plate average")).toBeVisible();
+  await page.getByRole("button", { name: /Increase servings for Campbell's Condensed Chicken Noodle Soup/ }).click();
+  await expect(plate.getByText("2 serving(s)")).toBeVisible();
+  await page.getByRole("button", { name: "Log plate" }).click();
+
+  await expect(page.getByRole("listitem").filter({ hasText: "Campbell's Condensed Chicken Noodle Soup" })).toBeVisible();
+  await expect(page.getByRole("listitem").filter({ hasText: "Quaker Old Fashioned Oats" })).toBeVisible();
+  const entries = await page.evaluate(() => {
+    const raw = window.localStorage.getItem("home-health-ai-ownership-state");
+    const parsed = raw ? (JSON.parse(raw) as { mealLog?: Array<Record<string, unknown>> }) : null;
+    return (parsed?.mealLog ?? []).slice(-2);
+  });
+  expect(entries).toHaveLength(2);
+  expect(entries[0].mealId).toBeTruthy();
+  expect(entries[1].mealId).toBe(entries[0].mealId);
+  expect((entries[0].food as { nutrition: { carbsG: number } }).nutrition.carbsG).toBe(16);
+  expect(entries[0].servings).toBe(2);
+  expect((entries[1].food as { nutrition: { carbsG: number } }).nutrition.carbsG).toBe(27);
+});
 
 async function stubEmptyFoodLens(page: import("@playwright/test").Page) {
   await page.addInitScript(() => {
@@ -62,7 +103,7 @@ test("scans a food, asks a typed question, logs the meal, and persists it", asyn
   await expect(page.getByText(/mg sodium/)).toBeVisible();
   await expect(page.locator('[data-guidance-scope="personalized"]').first()).toBeVisible();
 
-  await page.getByRole("button", { name: "Start" }).click();
+  await page.getByRole("button", { name: "Start", exact: true }).click();
   await page.getByLabel("Ask about this food…").fill("Can I have this for lunch?");
   await page.getByRole("button", { name: "Ask" }).click();
 
@@ -150,7 +191,7 @@ test("keeps existing state when migrating a pre-mealLog save", async ({ page }) 
   await expect(page.getByText("137/86")).toBeVisible();
 
   await page.goto("/food");
-  await page.getByRole("button", { name: "Start" }).click();
+  await page.getByRole("button", { name: "Start", exact: true }).click();
   await page.getByLabel("Ask about this food…").fill("Is this okay?");
   await page.getByRole("button", { name: "Ask" }).click();
   await page.getByRole("button", { name: "Log this" }).click();

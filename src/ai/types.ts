@@ -54,6 +54,7 @@ export type LiveSessionContext = {
   compass?: CompassContext | null;
   historyLine?: string;
   dayTotalsLine?: string;
+  plateLine?: string;
 };
 
 export type LiveSessionInit = {

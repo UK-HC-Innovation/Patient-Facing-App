@@ -118,6 +118,26 @@ describe("FoodFactsCard", () => {
     expect(screen.getByText("120")).toBeInTheDocument();
   });
 
+  it("offers Add to plate beside the single-food log action", async () => {
+    const user = userEvent.setup();
+    const onAddToPlate = vi.fn();
+    render(
+      <FoodFactsCard
+        food={soup}
+        flags={[]}
+        logged={false}
+        canLog
+        onLog={() => {}}
+        onAddToPlate={onAddToPlate}
+        language="en"
+        {...portionProps}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add to plate" }));
+    expect(onAddToPlate).toHaveBeenCalledTimes(1);
+  });
+
   it("shows prior-food history and keeps the paired number diabetes-only", () => {
     const { rerender } = render(
       <FoodFactsCard

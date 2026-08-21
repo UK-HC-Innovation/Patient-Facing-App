@@ -86,6 +86,7 @@ export function FoodFactsCard({
   logged,
   canLog,
   onLog,
+  onAddToPlate,
   language,
   portionServings,
   spokenSize = null,
@@ -104,6 +105,7 @@ export function FoodFactsCard({
   logged: boolean;
   canLog: boolean;
   onLog: () => void;
+  onAddToPlate?: () => void;
   language: Language;
   portionServings: number;
   spokenSize?: SpokenFoodSize | null;
@@ -296,14 +298,25 @@ export function FoodFactsCard({
         {logged ? (
           <p className="text-sm font-semibold text-care">{t(language, "loggedConfirmation")}</p>
         ) : (
-          <button
-            className="min-h-14 w-full rounded-control bg-care px-4 py-2 font-semibold text-white disabled:opacity-40"
-            disabled={!canLog}
-            onClick={onLog}
-            type="button"
-          >
-            {t(language, "logThis")}
-          </button>
+          <div className={`grid gap-2 ${food && onAddToPlate ? "sm:grid-cols-2" : ""}`}>
+            <button
+              className="min-h-14 w-full rounded-control bg-care px-4 py-2 font-semibold text-white disabled:opacity-40"
+              disabled={!canLog}
+              onClick={onLog}
+              type="button"
+            >
+              {t(language, "logThis")}
+            </button>
+            {food && onAddToPlate ? (
+              <button
+                className="min-h-14 w-full rounded-control border border-care bg-white px-4 py-2 font-semibold text-care"
+                onClick={onAddToPlate}
+                type="button"
+              >
+                {t(language, "addToPlate")}
+              </button>
+            ) : null}
+          </div>
         )}
       </div>
     </section>

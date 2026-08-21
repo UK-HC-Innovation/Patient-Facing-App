@@ -55,7 +55,9 @@ describe("useFoodVoiceSession context injection", () => {
       flagTexts: ["High sodium"],
       historyLine:
         "The patient has logged this same food before (Jan 12); a glucose reading followed within the usual window — the number is on their screen.",
-      dayTotalsLine: "Today's logged nutrition totals: sodium 1200 of 1500 mg (80%)."
+      dayTotalsLine: "Today's logged nutrition totals: sodium 1200 of 1500 mg (80%).",
+      plateLine:
+        "Plate items and per-item Food Compass scores: Soup: 24 (minimize); Oats: 82 (encourage). Display-only plate average: 67 (moderate). Call this the plate average, never a Food Compass Score for a food."
     });
     const { result } = renderHook(() => useFoodVoiceSession({
       language: "en",
@@ -74,6 +76,8 @@ describe("useFoodVoiceSession context injection", () => {
     expect(first.text).toContain("Precomputed flags: High sodium.");
     expect(first.text).toContain(getContext().historyLine);
     expect(first.text).toContain(getContext().dayTotalsLine);
+    expect(first.text).toContain(getContext().plateLine);
+    expect(first.text).toContain("plate average: 67");
     expect(first.text.endsWith("Use the numbers above exactly; do not recompute them.")).toBe(true);
     expect(specificNumberAssertions.some((pattern) => pattern.test(getContext().historyLine))).toBe(false);
     expect(repeat.text).toContain('{"foodData":"unchanged"}');

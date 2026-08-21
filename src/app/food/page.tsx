@@ -9,6 +9,7 @@ import { FoodGuidanceSource } from "@/components/food-guidance-source";
 import { FoodViewfinder } from "@/components/food-viewfinder";
 import { PantryRecipes } from "@/components/pantry-recipes";
 import { MealLogList } from "@/components/meal-log-list";
+import { PlateCard } from "@/components/plate-card";
 import { createSafeAiResponse } from "@/ai/safety-gate";
 import { PantryProvider, PANTRY_REQUEST_TEXT } from "@/ai/pantry-provider";
 import { activeConditions, selectLenses } from "@/domain/condition-lens";
@@ -16,6 +17,7 @@ import { formatDayTotalsContext, selectFoodLensDayTotals, summarizeDayTotals } f
 import { computeFoodFlags, type FoodFlag } from "@/domain/food-flags";
 import { foodHistoryVoiceLine, lastTimeYouAte } from "@/domain/glucose-correlation";
 import { buildMealLogEntry } from "@/domain/meal-log";
+import { buildPlateEntries, formatPlateContext, summarizePlate, type PlateItem } from "@/domain/plate";
 import { resolvePortionServings, scaleNutrition } from "@/domain/portion";
 import { foodLookupResponseSchema, mealLogEntrySchema } from "@/domain/schemas";
 import { t } from "@/i18n/strings";
@@ -59,6 +61,7 @@ export default function FoodPage() {
   const [barcodeFood, setBarcodeFood] = useState<IdentifiedFood | null>(null);
   const [portionServings, setPortionServings] = useState(1);
   const [spokenSize, setSpokenSize] = useState<SpokenFoodSize | null>(null);
+  const [plateItems, setPlateItems] = useState<PlateItem[]>([]);
   const [logged, setLogged] = useState(false);
   const loggedEntryIdRef = useRef<string | null>(null);
   const { activeBarcode } = useBarcodeScan({
@@ -75,6 +78,7 @@ export default function FoodPage() {
     passcode
   });
   const adoptLiveMatch = live.adoptMatch;
+  const rearmLiveScore = live.rearm;
 
   // A barcode is authoritative while it is on screen; otherwise the live vision match is.
   const identifiedFood = useMemo<IdentifiedFood | null>(() => {
@@ -130,6 +134,19 @@ export default function FoodPage() {
       ),
     [scaledFood, lens, state.medications, state.readings, language, flagDayTotals]
   );
+  const plateSummary = useMemo(() => summarizePlate(plateItems), [plateItems]);
+  const plateFlags = useMemo(
+    () =>
+      computeFoodFlags(
+        plateSummary.flagsFood,
+        lens,
+        { medications: state.medications, readings: state.readings },
+        language,
+        dayTotals
+      ),
+    [dayTotals, language, lens, plateSummary.flagsFood, state.medications, state.readings]
+  );
+  const plateLine = useMemo(() => formatPlateContext(plateItems, plateSummary) ?? undefined, [plateItems, plateSummary]);
   const foodHistory = useMemo(() => {
     if (!identifiedFoodId) {
       return null;
@@ -159,6 +176,8 @@ export default function FoodPage() {
   historyLineRef.current = historyLine;
   const dayTotalsLineRef = useRef<string | undefined>(undefined);
   dayTotalsLineRef.current = dayTotalsLine;
+  const plateLineRef = useRef<string | undefined>(undefined);
+  plateLineRef.current = plateLine;
   const lastAssistantRef = useRef<string | null>(null);
   const lastPortionFoodIdRef = useRef<string | null>(null);
   const stateRef = useRef(state);
@@ -172,6 +191,7 @@ export default function FoodPage() {
       flagTexts: flagsRef.current.map((flag) => flag.text),
       historyLine: historyLineRef.current,
       dayTotalsLine: dayTotalsLineRef.current,
+      plateLine: plateLineRef.current,
       compass: current.carveOut
         ? { kind: "carve_out", reason: current.carveOut }
         : toCompassContext(current.score, current.alternatives)
@@ -382,6 +402,68 @@ export default function FoodPage() {
     setLogged(true);
   }, [dispatch, language, portionServings]);
 
+  const onAddToPlate = useCallback(() => {
+    if (!identifiedFood) {
+      return;
+    }
+    const score = compassRef.current.score;
+    setPlateItems((items) => [
+      ...items,
+      {
+        id: crypto.randomUUID(),
+        food: identifiedFood,
+        servings: portionServings,
+        compassScore: score ? { fcs: score.fcs, band: score.band, tier: score.tier } : null
+      }
+    ]);
+    rearmLiveScore();
+    setBarcodeFood(null);
+    setPortionServings(1);
+    setSpokenSize(null);
+    setLogged(false);
+    lastPortionFoodIdRef.current = null;
+  }, [identifiedFood, portionServings, rearmLiveScore]);
+
+  const changePlateServings = useCallback((index: number, servings: number) => {
+    setPlateItems((items) =>
+      items.map((item, itemIndex) => (itemIndex === index ? { ...item, servings } : item))
+    );
+  }, []);
+
+  const removePlateItem = useCallback((index: number) => {
+    setPlateItems((items) => items.filter((_, itemIndex) => itemIndex !== index));
+  }, []);
+
+  const logPlate = useCallback(() => {
+    if (plateItems.length === 0) {
+      return;
+    }
+    const currentState = stateRef.current;
+    const entries = buildPlateEntries({
+      items: plateItems,
+      patientId: currentState.patient.id,
+      language,
+      lastAssistantText: lastAssistantRef.current,
+      flagsForFood: (food) =>
+        computeFoodFlags(
+          food,
+          lens,
+          { medications: currentState.medications, readings: currentState.readings },
+          language,
+          dayTotals
+        )
+    });
+    const parsed = entries.map((entry) => mealLogEntrySchema.safeParse(entry));
+    if (parsed.some((result) => !result.success)) {
+      return;
+    }
+    for (const entry of entries) {
+      dispatch({ type: "addMealLogEntry", entry });
+    }
+    setPlateItems([]);
+    setLogged(false);
+  }, [dayTotals, dispatch, language, lens, plateItems]);
+
   // The barcode's own score is computed locally, so the badge reflects it directly rather
   // than waiting for the vision loop that stood down while the barcode is on screen.
   const badgeState = barcodeFood
@@ -465,6 +547,7 @@ export default function FoodPage() {
             logged={logged}
             canLog={canLog}
             onCorrection={!barcodeFood ? (foodId) => void correctCameraMatch(foodId) : undefined}
+            onAddToPlate={onAddToPlate}
             onLog={onLog}
             language={language}
             portionServings={portionServings}
@@ -472,6 +555,16 @@ export default function FoodPage() {
             onPortionChange={handlePortionChange}
           />
         ) : null}
+
+        <PlateCard
+          items={plateItems}
+          summary={plateSummary}
+          flags={plateFlags}
+          language={language}
+          onServingsChange={changePlateServings}
+          onRemove={removePlateItem}
+          onLog={logPlate}
+        />
 
         <FoodConversation
           messages={foodMessages}

@@ -236,6 +236,7 @@ export function useFoodVoiceSession(args: {
             ...(compass ? [compass] : []),
             ...(context.historyLine ? [context.historyLine] : []),
             ...(context.dayTotalsLine ? [context.dayTotalsLine] : []),
+            ...(context.plateLine ? [context.plateLine] : []),
             "Use the numbers above exactly; do not recompute them."
           ].join(" ")
         };

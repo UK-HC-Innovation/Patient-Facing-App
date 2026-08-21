@@ -51,6 +51,18 @@ export type FoodLensStringKey =
   | "todayTotalIncomplete"
   | "logThis"
   | "loggedConfirmation"
+  | "addToPlate"
+  | "plateTitle"
+  | "plateItemScore"
+  | "plateNoScore"
+  | "plateAverage"
+  | "plateIncomplete"
+  | "plateRemove"
+  | "plateDecrease"
+  | "plateIncrease"
+  | "plateServings"
+  | "plateNutritionTitle"
+  | "plateLog"
   | "recentMealsTitle"
   | "noMealsYet"
   | "foodNotThis"
@@ -183,6 +195,18 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     todayTotalIncomplete: "Some logged foods are missing this value.",
     logThis: "Log this",
     loggedConfirmation: "Added to your meals",
+    addToPlate: "Add to plate",
+    plateTitle: "Your plate",
+    plateItemScore: "Food Compass {score}",
+    plateNoScore: "Not scored",
+    plateAverage: "Plate average",
+    plateIncomplete: "Some items are missing nutrition data.",
+    plateRemove: "Remove {food}",
+    plateDecrease: "Decrease servings for {food}",
+    plateIncrease: "Increase servings for {food}",
+    plateServings: "{count} serving(s)",
+    plateNutritionTitle: "Plate nutrition",
+    plateLog: "Log plate",
     recentMealsTitle: "Recent meals",
     noMealsYet: "No meals logged yet.",
     foodNotThis: "Not this?",
@@ -314,6 +338,18 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     todayTotalIncomplete: "A algunos alimentos registrados les falta este valor.",
     logThis: "Guardar",
     loggedConfirmation: "Agregado a tus comidas",
+    addToPlate: "Añadir al plato",
+    plateTitle: "Tu plato",
+    plateItemScore: "Food Compass {score}",
+    plateNoScore: "Sin puntaje",
+    plateAverage: "Promedio del plato",
+    plateIncomplete: "A algunos alimentos les faltan datos nutricionales.",
+    plateRemove: "Quitar {food}",
+    plateDecrease: "Disminuir porciones de {food}",
+    plateIncrease: "Aumentar porciones de {food}",
+    plateServings: "{count} porción(es)",
+    plateNutritionTitle: "Nutrición del plato",
+    plateLog: "Registrar plato",
     recentMealsTitle: "Comidas recientes",
     noMealsYet: "Aún no hay comidas guardadas.",
     foodNotThis: "¿No es esto?",
