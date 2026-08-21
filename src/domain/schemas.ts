@@ -92,6 +92,9 @@ export const mealLogEntrySchema = z.object({
   food: identifiedFoodSchema,
   flags: z.array(z.string()),
   assistantSummary: z.string().max(280),
+  servings: z.number().finite().positive().optional(),
+  mealId: z.string().min(1).nullable().optional(),
+  editedAt: z.string().min(1).nullable().optional(),
   // Optional and migration-safe: entries logged before spec 23 simply have no score.
   compassScore: z
     .object({

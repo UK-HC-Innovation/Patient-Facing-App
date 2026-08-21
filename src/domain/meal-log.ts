@@ -27,6 +27,8 @@ export function buildMealLogEntry(args: {
   language: Language;
   now?: Date;
   id?: string;
+  servings?: number;
+  mealId?: string | null;
   compassScore?: { fcs: number; band: CompassBand; tier: CompassTier } | null;
 }): MealLogEntry {
   const id = args.id ?? crypto.randomUUID();
@@ -48,6 +50,8 @@ export function buildMealLogEntry(args: {
     food,
     flags: args.flags.map((flag) => flag.text),
     assistantSummary: summarize(args.lastAssistantText),
+    servings: args.servings ?? 1,
+    ...(args.mealId !== undefined ? { mealId: args.mealId } : {}),
     // Optional by design: an entry logged without a score simply has no compassScore key,
     // which is what keeps every meal logged before spec 23 valid.
     ...(args.compassScore ? { compassScore: args.compassScore } : {})

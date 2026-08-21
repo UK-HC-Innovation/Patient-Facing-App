@@ -1348,6 +1348,9 @@ describe("storage", () => {
     expect(loaded.mealLog[0].food.ingredientText).toBeNull();
     expect(loaded.mealLog[0].food.nutrition?.basis).toBe("per_serving");
     expect(loaded.mealLog[0].food.nutrition?.totalFatG).toBeNull();
+    expect(loaded.mealLog[0].servings).toBeUndefined();
+    expect(loaded.mealLog[0].mealId).toBeUndefined();
+    expect(loaded.mealLog[0].editedAt).toBeUndefined();
     // values that were already stored survive the migration untouched
     expect(loaded.mealLog[0].food.nutrition?.sodiumMg).toBe(890);
   });

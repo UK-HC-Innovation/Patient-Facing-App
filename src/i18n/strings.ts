@@ -38,6 +38,17 @@ export type FoodLensStringKey =
   | "loggedConfirmation"
   | "recentMealsTitle"
   | "noMealsYet"
+  | "mealAteEarlier"
+  | "mealTimeReason"
+  | "mealThirtyMinutesAgo"
+  | "mealOneHourAgo"
+  | "mealTwoHoursAgo"
+  | "mealCustomTime"
+  | "mealSaveTime"
+  | "mealTimePastError"
+  | "mealDelete"
+  | "mealConfirmDelete"
+  | "mealCancel"
   | "betterOptionHint"
   | "flagSodium"
   | "flagSaturatedFat"
@@ -125,6 +136,17 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     loggedConfirmation: "Added to your meals",
     recentMealsTitle: "Recent meals",
     noMealsYet: "No meals logged yet.",
+    mealAteEarlier: "I ate this earlier",
+    mealTimeReason: "Post-meal pairing uses the time you ate.",
+    mealThirtyMinutesAgo: "30 min ago",
+    mealOneHourAgo: "1 h ago",
+    mealTwoHoursAgo: "2 h ago",
+    mealCustomTime: "Custom meal time",
+    mealSaveTime: "Save time",
+    mealTimePastError: "Choose a valid time that is not in the future.",
+    mealDelete: "Delete",
+    mealConfirmDelete: "Yes, delete",
+    mealCancel: "Cancel",
     betterOptionHint: "Ask for a better option.",
     flagSodium: "{amount} mg sodium — {percent}% of your {limit} mg daily limit",
     flagSaturatedFat: "{amount} g saturated fat — {percent}% of your {limit} g daily limit",
@@ -211,6 +233,17 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     loggedConfirmation: "Agregado a tus comidas",
     recentMealsTitle: "Comidas recientes",
     noMealsYet: "Aún no hay comidas guardadas.",
+    mealAteEarlier: "Comí esto más temprano",
+    mealTimeReason: "La relación con una lectura después de comer usa la hora en que comiste.",
+    mealThirtyMinutesAgo: "Hace 30 min",
+    mealOneHourAgo: "Hace 1 h",
+    mealTwoHoursAgo: "Hace 2 h",
+    mealCustomTime: "Hora personalizada de la comida",
+    mealSaveTime: "Guardar hora",
+    mealTimePastError: "Elige una hora válida que no esté en el futuro.",
+    mealDelete: "Eliminar",
+    mealConfirmDelete: "Sí, eliminar",
+    mealCancel: "Cancelar",
     betterOptionHint: "Pide una mejor opción.",
     flagSodium: "{amount} mg de sodio — {percent}% de tu límite diario de {limit} mg",
     flagSaturatedFat: "{amount} g de grasa saturada — {percent}% de tu límite diario de {limit} g",

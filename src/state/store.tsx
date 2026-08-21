@@ -111,6 +111,8 @@ export type HealthAction =
   | { type: "acknowledgeCrisis"; messageId: string }
   | { type: "addAuditEvent"; event: AuditEvent }
   | { type: "addMealLogEntry"; entry: MealLogEntry }
+  | { type: "amendMealLogTime"; entryId: string; loggedAt: string }
+  | { type: "deleteMealLogEntry"; entryId: string }
   | { type: "logDose"; event: DoseEvent }
   | { type: "undoDose"; medicationId: string; date: string }
   | { type: "setDoseReminder"; preference: DoseReminderPreference }
@@ -658,6 +660,29 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
         ...state,
         mealLog: [...state.mealLog, action.entry],
         auditEvents: [...state.auditEvents, recordAuditEvent(state.patient.id, "created", "Meal logged from Food Lens")]
+      };
+    }
+    case "amendMealLogTime": {
+      if (!state.mealLog.some((entry) => entry.id === action.entryId)) {
+        return state;
+      }
+      const editedAt = new Date().toISOString();
+      return {
+        ...state,
+        mealLog: state.mealLog.map((entry) =>
+          entry.id === action.entryId ? { ...entry, loggedAt: action.loggedAt, editedAt } : entry
+        ),
+        auditEvents: [...state.auditEvents, recordAuditEvent(state.patient.id, "updated", "Meal time corrected")]
+      };
+    }
+    case "deleteMealLogEntry": {
+      if (!state.mealLog.some((entry) => entry.id === action.entryId)) {
+        return state;
+      }
+      return {
+        ...state,
+        mealLog: state.mealLog.filter((entry) => entry.id !== action.entryId),
+        auditEvents: [...state.auditEvents, recordAuditEvent(state.patient.id, "deleted", "Meal deleted")]
       };
     }
     case "logDose": {

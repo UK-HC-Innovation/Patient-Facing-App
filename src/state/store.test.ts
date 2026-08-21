@@ -1648,6 +1648,46 @@ describe("healthReducer", () => {
     expect(next.auditEvents.at(-1)?.label).toBe("Meal logged from Food Lens");
   });
 
+  it("amends a meal time and records when it was edited", () => {
+    const original = {
+      id: "meal-1",
+      patientId: "patient-1",
+      loggedAt: "2026-07-05T12:00:00.000Z",
+      food: { id: "1", barcode: "1", name: "Soup", brand: null, category: null, nutrition: null, source: "barcode_seed" as const, ingredientText: null },
+      flags: [],
+      assistantSummary: ""
+    };
+    const before = Date.now();
+    const next = healthReducer({ ...demoState, mealLog: [original] }, {
+      type: "amendMealLogTime",
+      entryId: "meal-1",
+      loggedAt: "2026-07-05T10:00:00.000Z"
+    });
+    const editedAt = new Date(next.mealLog[0].editedAt ?? "").getTime();
+
+    expect(next.mealLog[0].loggedAt).toBe("2026-07-05T10:00:00.000Z");
+    expect(editedAt).toBeGreaterThanOrEqual(before);
+    expect(editedAt).toBeLessThanOrEqual(Date.now());
+    expect(next.auditEvents.at(-1)?.label).toBe("Meal time corrected");
+  });
+
+  it("deletes a meal entry and records an audit event", () => {
+    const next = healthReducer({
+      ...demoState,
+      mealLog: [{
+        id: "meal-1",
+        patientId: "patient-1",
+        loggedAt: "2026-07-05T12:00:00.000Z",
+        food: { id: "1", barcode: "1", name: "Soup", brand: null, category: null, nutrition: null, source: "barcode_seed", ingredientText: null },
+        flags: [],
+        assistantSummary: ""
+      }]
+    }, { type: "deleteMealLogEntry", entryId: "meal-1" });
+
+    expect(next.mealLog).toEqual([]);
+    expect(next.auditEvents.at(-1)?.label).toBe("Meal deleted");
+  });
+
   it("returns the retinopathy-due demo state for a plain resetDemo action", () => {
     const modifiedState: AppState = {
       ...demoState,

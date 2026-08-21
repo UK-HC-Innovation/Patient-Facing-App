@@ -290,6 +290,7 @@ export default function FoodPage() {
       flags: flagsRef.current,
       lastAssistantText: lastAssistantRef.current,
       language,
+      servings: portionServings,
       compassScore: scored ? { fcs: scored.fcs, band: scored.band, tier: scored.tier } : null
     });
     const parsed = mealLogEntrySchema.safeParse(entry);
@@ -298,7 +299,7 @@ export default function FoodPage() {
     }
     dispatch({ type: "addMealLogEntry", entry });
     setLogged(true);
-  }, [dispatch, language]);
+  }, [dispatch, language, portionServings]);
 
   // The barcode's own score is computed locally, so the badge reflects it directly rather
   // than waiting for the vision loop that stood down while the barcode is on screen.
@@ -390,7 +391,12 @@ export default function FoodPage() {
           clinic={{ name: state.patient.primaryClinicName, phone: state.patient.primaryClinicPhone }}
         />
 
-        <MealLogList entries={recentMeals} language={language} />
+        <MealLogList
+          entries={recentMeals}
+          language={language}
+          onAmendTime={(entryId, loggedAt) => dispatch({ type: "amendMealLogTime", entryId, loggedAt })}
+          onDelete={(entryId) => dispatch({ type: "deleteMealLogEntry", entryId })}
+        />
       </div>
     </AppShell>
   );

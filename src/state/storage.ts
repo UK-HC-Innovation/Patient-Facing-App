@@ -421,6 +421,14 @@ function isCompassScoreOrAbsent(value: unknown): boolean {
   );
 }
 
+function isPositiveNumberOrAbsent(value: unknown): boolean {
+  return value === undefined || (typeof value === "number" && Number.isFinite(value) && value > 0);
+}
+
+function isNullableStringOrAbsent(value: unknown): boolean {
+  return value === undefined || value === null || (typeof value === "string" && value.length > 0);
+}
+
 function isMealLogEntry(value: unknown): value is MealLogEntry {
   return (
     isObject(value) &&
@@ -430,6 +438,9 @@ function isMealLogEntry(value: unknown): value is MealLogEntry {
     isIdentifiedFood(value.food) &&
     isArrayOfStrings(value.flags) &&
     hasString(value, "assistantSummary") &&
+    isPositiveNumberOrAbsent(value.servings) &&
+    isNullableStringOrAbsent(value.mealId) &&
+    isNullableStringOrAbsent(value.editedAt) &&
     isCompassScoreOrAbsent(value.compassScore)
   );
 }

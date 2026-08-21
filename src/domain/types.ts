@@ -232,6 +232,11 @@ export type MealLogEntry = {
   food: IdentifiedFood;
   flags: string[];
   assistantSummary: string;
+  // Nutrition is already scaled in the stored snapshot. Servings is provenance only.
+  servings?: number;
+  // Plate siblings share a meal id; older single-food entries intentionally omit it.
+  mealId?: string | null;
+  editedAt?: string | null;
   // Added by spec 23. Optional and migration-safe: absent on every entry logged before it.
   compassScore?: {
     fcs: number;

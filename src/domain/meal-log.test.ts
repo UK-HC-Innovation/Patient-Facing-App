@@ -32,6 +32,7 @@ describe("buildMealLogEntry", () => {
     expect(entry.food.name).toBe("Chicken Noodle Soup");
     expect(entry.flags).toEqual([flags[0].text]);
     expect(entry.assistantSummary).toBe("That soup is high in sodium.");
+    expect(entry.servings).toBe(1);
     expect(mealLogEntrySchema.safeParse(entry).success).toBe(true);
   });
 
@@ -49,6 +50,36 @@ describe("buildMealLogEntry", () => {
     expect(entry.food.name).toBe("This food");
     expect(entry.assistantSummary).toBe("");
     expect(mealLogEntrySchema.safeParse(entry).success).toBe(true);
+  });
+
+  it("round-trips legacy-absent and present integrity fields", () => {
+    const legacyEntry = {
+      id: "meal-legacy",
+      patientId: "patient-1",
+      loggedAt: "2026-07-05T12:00:00.000Z",
+      food: soup,
+      flags: [],
+      assistantSummary: ""
+    };
+    const currentEntry = {
+      ...buildMealLogEntry({
+        patientId: "patient-1",
+        food: soup,
+        flags: [],
+        lastAssistantText: null,
+        language: "en",
+        servings: 1.5,
+        mealId: "plate-1"
+      }),
+      editedAt: "2026-07-05T13:00:00.000Z"
+    };
+
+    expect(mealLogEntrySchema.parse(legacyEntry)).toEqual(legacyEntry);
+    expect(mealLogEntrySchema.parse(currentEntry)).toMatchObject({
+      servings: 1.5,
+      mealId: "plate-1",
+      editedAt: "2026-07-05T13:00:00.000Z"
+    });
   });
 
   it("trims a long summary to 240 characters with an ellipsis", () => {
