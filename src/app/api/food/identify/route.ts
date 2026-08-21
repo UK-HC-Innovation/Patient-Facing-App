@@ -1,8 +1,11 @@
 import { buildVoiceSafetyIdentifier } from "@/ai/voice-safety-identifier";
 import {
   classifyQueryScoreability,
+  computeFullScore,
   findAlternatives,
   lookupScore,
+  publicationParityBreakdown,
+  publicationParityContext,
   type CompassScore,
   type FcsFood
 } from "@/domain/food-compass";
@@ -75,6 +78,9 @@ function buildMatch(
   const siblings = data.byCode.get(food.code) ?? [food];
   const nutrients = data.nutrients[food.code] ?? null;
   const score: CompassScore = lookupScore(food, siblings, nutrients);
+  const estimatedDomains = nutrients
+    ? publicationParityBreakdown(computeFullScore(nutrients, publicationParityContext(food, nutrients)))
+    : undefined;
   const alternatives = findAlternatives(food, data.foods, data.nutrients, {
     preferHigherScore: body.preferHigherScore === true,
     preferLowerCalorieDensity: body.preferLowerCalorieDensity === true
@@ -89,6 +95,7 @@ function buildMatch(
         score,
         alternatives,
         nutrients,
+        ...(estimatedDomains ? { estimatedDomains } : {}),
         ...(interpretation
           ? {
               interpretation,

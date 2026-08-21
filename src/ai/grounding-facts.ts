@@ -1,5 +1,6 @@
 import { activeConditions } from "@/domain/condition-lens";
 import { gradeStringKey } from "@/domain/dr-triage";
+import { buildMealDigest, MEAL_DIGEST_SOURCE_ID } from "@/domain/food-week";
 import type { SourceFact } from "@/domain/grounding";
 import { tScreening } from "@/i18n/strings";
 import type { AppState } from "@/domain/types";
@@ -106,6 +107,20 @@ export function collectSourceFacts(state: AppState): SourceFact[] {
     });
   });
 
+  const mealDigest = buildMealDigest(state);
+  if (mealDigest) {
+    facts.push({
+      id: MEAL_DIGEST_SOURCE_ID,
+      label: "Recent meal log",
+      value: mealDigest,
+      sourceKind: "meal_log",
+      sourceName: "Patient food log",
+      confidence: "inferred",
+      patientConfirmed: true,
+      effectiveDate: ""
+    });
+  }
+
   // Confirmed screening results ground "what did my eye report say?" — the
   // fact value is the LOCKED plain-language copy, so the coach can only ever
   // repeat what the report said, never re-grade it.
@@ -138,7 +153,8 @@ export function coachCitations(state: AppState): string[] {
   const latest = <T extends { measuredAt: string; id: string }>(items: T[]): string | null =>
     items.length === 0 ? null : [...items].sort((a, b) => a.measuredAt.localeCompare(b.measuredAt)).at(-1)!.id;
   const latestScreening = state.screeningResults.at(-1)?.id ?? null;
-  return [state.carePlan.id, latest(state.glucoseReadings), latest(state.readings), latestScreening].filter(
+  const mealDigestId = buildMealDigest(state) ? MEAL_DIGEST_SOURCE_ID : null;
+  return [state.carePlan.id, latest(state.glucoseReadings), latest(state.readings), latestScreening, mealDigestId].filter(
     (id): id is string => id !== null
   );
 }

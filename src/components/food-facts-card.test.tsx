@@ -305,9 +305,38 @@ describe("FoodFactsCard — Food Compass row", () => {
     expect(screen.getByText("Minimize")).toBeInTheDocument();
     expect(screen.getByText(/General nutrition: Food Compass only/)).toBeInTheDocument();
     expect(screen.getByText("Estimate from label")).toBeInTheDocument();
-    expect(screen.getByText(/Not scored from this label: D2, D4/)).toBeInTheDocument();
+    expect(screen.getByText("Why this score?")).toBeInTheDocument();
+    expect(screen.getByText("Minerals")).toBeInTheDocument();
+    expect(screen.getByText("-5")).toBeInTheDocument();
+    expect(screen.getByText(/Not assessable: Vitamins, Food ingredients/)).toBeInTheDocument();
     // score 19 with no closer better option: saying "already one of the best" would be a lie
     expect(screen.getByText(/No closer option with a higher score/)).toBeInTheDocument();
+  });
+
+  it("labels a T1 breakdown as an estimate while preserving the published score", () => {
+    render(
+      <FoodFactsCard
+        canLog
+        compassScore={{ ...score, fcs: 83, tier: "T1", domains: null, coverage: null }}
+        estimatedDomains={{
+          domains: [{ key: "D3", value: 4.25 }],
+          coverage: { included: ["D3"], missing: ["D4"], partial: ["D5", "D9"] }
+        }}
+        flags={[]}
+        food={soup}
+        language="en"
+        logged={false}
+        onLog={() => {}}
+        onPortionChange={() => {}}
+        portionServings={1}
+      />
+    );
+
+    expect(screen.getByText("83")).toBeInTheDocument();
+    expect(screen.getByText(/published number stands/i)).toBeInTheDocument();
+    expect(screen.getByText("+4.3")).toBeInTheDocument();
+    expect(screen.getByText(/Not assessable: Food ingredients/)).toBeInTheDocument();
+    expect(screen.getByText(/Only partly assessable: Additives, Phytochemicals/)).toBeInTheDocument();
   });
 
   it("shows carve-out copy and no number at all for a food outside the score's range", () => {

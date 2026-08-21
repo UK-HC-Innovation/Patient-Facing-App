@@ -1,6 +1,7 @@
 import { summarizeGlucoseTrend } from "./adherence";
 import { activeConditions, selectLenses } from "./condition-lens";
 import { summarizeFoodGlucoseLink, summarizeScoreGlucoseLink } from "./glucose-correlation";
+import { summarizeFoodWindow } from "./food-week";
 import { computeTimeInRange } from "./glucose-range";
 import { getPdcToDate } from "./medication-fills";
 import { screeningLens, screeningLensLine } from "./screening-status";
@@ -57,6 +58,34 @@ function foodPatternSection(state: AppState): BriefSection | null {
     items: [carbInsight?.message, scoreInsight?.message].filter((item): item is string => Boolean(item)),
     status: "inferred"
   };
+}
+
+export function whatIveBeenEatingSection(state: AppState, asOf: Date): BriefSection | null {
+  const summary = summarizeFoodWindow(state.mealLog, asOf, 14);
+  if (summary.meals < 5) {
+    return null;
+  }
+
+  const items = [`Meals logged: ${summary.meals} grouped meals in the last 14 days.`];
+  if (summary.avgFcs !== null) {
+    items.push(
+      `Average Food Compass score across ${summary.scoredItems} scored items: ${summary.avgFcs} (T1 published: ${summary.tierCounts.T1}; T2 label estimates: ${summary.tierCounts.T2}). Grouped-meal band mix: encourage ${summary.bandCounts.encourage}, moderate ${summary.bandCounts.moderate}, minimize ${summary.bandCounts.minimize}.`
+    );
+  }
+  if (summary.mostRepeatedMinimize) {
+    items.push(
+      `Most repeated minimize-band food: ${summary.mostRepeatedMinimize.text} (${summary.mostRepeatedMinimize.count} logged items).`
+    );
+  }
+  if (summary.topFlags.length > 0) {
+    items.push(
+      `Most common food flags: ${summary.topFlags
+        .slice(0, 3)
+        .map((flag) => `${flag.text} (${flag.count}x)`)
+        .join("; ")}.`
+    );
+  }
+  return { title: "What I've been eating", items, status: "inferred" };
 }
 
 // Provider-legible adherence: refill-based diabetes coverage (the honest PDC
@@ -228,6 +257,7 @@ export function buildHealthBrief(state: AppState, options: HealthBriefBuildOptio
     },
     bloodSugarSection(state),
     foodPatternSection(state),
+    whatIveBeenEatingSection(state, asOf),
     {
       title: "When to call my care team",
       items: urgencyItems,

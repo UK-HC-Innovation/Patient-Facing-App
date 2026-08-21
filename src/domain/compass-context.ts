@@ -1,4 +1,11 @@
-import type { CompassAlternative, CompassBand, CompassScore, CompassTier, NotScoreableReason } from "./food-compass";
+import type {
+  CompassAlternative,
+  CompassBand,
+  CompassScore,
+  CompassTier,
+  NotScoreableReason,
+  ScoreDomainBreakdown
+} from "./food-compass";
 
 /**
  * The Food Compass facts handed to an AI turn — typed, deterministic, and computed before
@@ -14,11 +21,13 @@ export type CompassContext =
       tier: CompassTier;
       calorieDensityKcalPer100g: number | null;
       alternatives: { description: string; fcs: number }[];
+      domainBreakdown?: ScoreDomainBreakdown | null;
     };
 
 export function toCompassContext(
   score: CompassScore | null,
-  alternatives: CompassAlternative[]
+  alternatives: CompassAlternative[],
+  estimatedDomains: ScoreDomainBreakdown | null = null
 ): CompassContext | null {
   if (!score) {
     return null;
@@ -29,6 +38,11 @@ export function toCompassContext(
     band: score.band,
     tier: score.tier,
     calorieDensityKcalPer100g: score.calorieDensity.kcalPer100g,
+    domainBreakdown:
+      estimatedDomains ??
+      (score.domains && score.coverage
+        ? { domains: score.domains, coverage: { ...score.coverage, partial: [] } }
+        : null),
     alternatives: alternatives.map((alternative) => ({
       description: alternative.description,
       fcs: alternative.fcs

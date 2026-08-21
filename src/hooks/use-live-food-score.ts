@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
-import type { CompassAlternative, CompassScore, FnddsRecord, NotScoreableReason } from "@/domain/food-compass";
+import type {
+  CompassAlternative,
+  CompassScore,
+  FnddsRecord,
+  NotScoreableReason,
+  ScoreDomainBreakdown
+} from "@/domain/food-compass";
 import type { FoodMatchProvenance, FoodOrderIntent } from "@/domain/food-order-intent";
 
 export const LIVE_INTERVAL_MS = 2_500;
@@ -23,6 +29,7 @@ export type LiveMatch = {
   score: CompassScore;
   alternatives: CompassAlternative[];
   nutrients: FnddsRecord | null;
+  estimatedDomains?: ScoreDomainBreakdown;
   candidates: LiveCandidate[];
   interpretation?: FoodOrderIntent;
   provenance?: FoodMatchProvenance;

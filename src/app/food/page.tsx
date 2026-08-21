@@ -115,9 +115,10 @@ export default function FoodPage() {
             score: live.match.score,
             carveOut: null,
             alternatives: live.match.alternatives,
+            estimatedDomains: live.match.estimatedDomains ?? null,
             alternativesLoading: false
           }
-        : { ...labelCompass, carveOut: labelCompass.carveOut ?? live.carveOut },
+        : { ...labelCompass, carveOut: labelCompass.carveOut ?? live.carveOut, estimatedDomains: null },
     [barcodeFood, labelCompass, live.carveOut, live.match]
   );
   const compassRef = useRef(compass);
@@ -194,7 +195,7 @@ export default function FoodPage() {
       plateLine: plateLineRef.current,
       compass: current.carveOut
         ? { kind: "carve_out", reason: current.carveOut }
-        : toCompassContext(current.score, current.alternatives)
+        : toCompassContext(current.score, current.alternatives, current.estimatedDomains)
     };
   }, [camera]);
 
@@ -538,6 +539,7 @@ export default function FoodPage() {
             compassAlternatives={compass.alternatives}
             compassCarveOut={compass.carveOut}
             compassScore={compass.score}
+            estimatedDomains={compass.estimatedDomains}
             food={scaledFood}
             flags={flags}
             dayTotals={visibleDayTotals}

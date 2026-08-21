@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { demoState } from "@/domain/fixtures";
+import { brentState, demoState } from "@/domain/fixtures";
 import { hypertensionLens } from "@/domain/condition-lens";
 import type { FoodFlag } from "@/domain/food-flags";
-import { buildFoodLensInstructions, buildFoodVisionSystemPrompt, buildPerAskContext } from "./food-instructions";
+import {
+  buildCompassContext,
+  buildFoodLensInstructions,
+  buildFoodVisionSystemPrompt,
+  buildPerAskContext
+} from "./food-instructions";
 
 describe("buildFoodLensInstructions", () => {
   it("includes the patient name, medication, condition, and reading trend", () => {
@@ -27,6 +32,48 @@ describe("buildFoodLensInstructions", () => {
       hypertensionLens
     );
     expect(instructions).toContain("Speak Spanish");
+  });
+
+  it("adds a recent food-only digest and the scoped numeric rule at session start", () => {
+    const now = new Date();
+    const recentMeals = brentState.mealLog
+      .filter((entry) => entry.compassScore !== undefined)
+      .slice(0, 3)
+      .map((entry, index) => ({
+        ...entry,
+        loggedAt: new Date(now.getFullYear(), now.getMonth(), now.getDate() - index, 12).toISOString()
+      }));
+    const instructions = buildFoodLensInstructions({ ...brentState, mealLog: recentMeals }, hypertensionLens);
+
+    expect(instructions).toContain("Meal log digest for the last 7 local calendar days");
+    expect(instructions).toContain("The food-log numbers below are safe to state exactly");
+    expect(instructions).toContain("Use the numbers above exactly; do not recompute them.");
+  });
+});
+
+describe("buildCompassContext", () => {
+  it("adds deterministic friendly domain lines and keeps limitations separate", () => {
+    const context = buildCompassContext({
+      kind: "score",
+      fcs: 83,
+      band: "encourage",
+      tier: "T1",
+      calorieDensityKcalPer100g: 89,
+      alternatives: [],
+      domainBreakdown: {
+        domains: [
+          { key: "D3", value: 4.25 },
+          { key: "D6", value: -2 }
+        ],
+        coverage: { included: ["D3", "D6"], missing: ["D4"], partial: ["D5"] }
+      }
+    });
+
+    expect(context).toContain("published score stands");
+    expect(context).toContain("minerals +4.3");
+    expect(context).toContain("processing -2");
+    expect(context).toContain("Not assessable: food ingredients");
+    expect(context).toContain("Only partly assessable: additives");
   });
 });
 

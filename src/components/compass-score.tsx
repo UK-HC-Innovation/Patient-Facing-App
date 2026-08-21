@@ -7,6 +7,8 @@ import type {
   CompassAlternative,
   CompassBand,
   CompassScore,
+  DomainKey,
+  ScoreDomainBreakdown,
   NotScoreableReason
 } from "@/domain/food-compass";
 
@@ -47,6 +49,23 @@ const CARVE_OUT_COPY: Record<NotScoreableReason, FoodLensStringKey> = {
   infant: "compassCarveOutInfant",
   specialized: "compassCarveOutSpecialized"
 };
+
+const DOMAIN_LABEL: Record<DomainKey, FoodLensStringKey> = {
+  D1: "compassDomainD1",
+  D2: "compassDomainD2",
+  D3: "compassDomainD3",
+  D4: "compassDomainD4",
+  D5: "compassDomainD5",
+  D6: "compassDomainD6",
+  D7: "compassDomainD7",
+  D8: "compassDomainD8",
+  D9: "compassDomainD9"
+};
+
+function signedContribution(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return `${rounded >= 0 ? "+" : ""}${rounded}`;
+}
 
 const DIAL_RADIUS = 22;
 const DIAL_CIRCUMFERENCE = 2 * Math.PI * DIAL_RADIUS;
@@ -92,14 +111,20 @@ export function CompassCarveOut({ reason, language }: { reason: NotScoreableReas
 export function CompassScoreRow({
   score,
   language,
+  estimatedDomains = null,
   compact = false
 }: {
   score: CompassScore;
   language: Language;
+  estimatedDomains?: ScoreDomainBreakdown | null;
   compact?: boolean;
 }) {
   const density = score.calorieDensity;
-  const missing = score.coverage?.missing ?? [];
+  const breakdown =
+    estimatedDomains ??
+    (score.domains && score.coverage
+      ? { domains: score.domains, coverage: { ...score.coverage, partial: [] } }
+      : null);
 
   return (
     <div className="grid gap-2 rounded-control bg-calm/60 p-3">
@@ -138,8 +163,35 @@ export function CompassScoreRow({
         <p className="text-xs text-ink/65">{t(language, "compassEstimateNote", { mae: T2_MEASURED_MAE })}</p>
       ) : null}
 
-      {missing.length > 0 ? (
-        <p className="text-xs text-ink/70">{t(language, "compassMissingDomains", { domains: missing.join(", ") })}</p>
+      {breakdown ? (
+        <details className="rounded-control border border-ink/10 bg-white p-3">
+          <summary className="cursor-pointer text-sm font-semibold text-care">{t(language, "compassWhyScore")}</summary>
+          <div className="mt-2 grid gap-2 text-xs text-ink/70">
+            {score.tier === "T1" ? <p>{t(language, "compassPublishedDriversNote")}</p> : null}
+            <ul className="grid gap-1">
+              {breakdown.domains.map((domain) => (
+                <li className="flex justify-between gap-3" key={domain.key}>
+                  <span>{t(language, DOMAIN_LABEL[domain.key])}</span>
+                  <span className="font-semibold text-ink">{signedContribution(domain.value)}</span>
+                </li>
+              ))}
+            </ul>
+            {breakdown.coverage.missing.length > 0 ? (
+              <p>
+                {t(language, "compassNotAssessable", {
+                  domains: breakdown.coverage.missing.map((key) => t(language, DOMAIN_LABEL[key])).join(", ")
+                })}
+              </p>
+            ) : null}
+            {breakdown.coverage.partial.length > 0 ? (
+              <p>
+                {t(language, "compassPartlyAssessable", {
+                  domains: breakdown.coverage.partial.map((key) => t(language, DOMAIN_LABEL[key])).join(", ")
+                })}
+              </p>
+            ) : null}
+          </div>
+        </details>
       ) : null}
     </div>
   );

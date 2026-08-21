@@ -1,6 +1,7 @@
 import { activeMedDietRules, type FoodFlag } from "@/domain/food-flags";
 import type { CompassContext } from "@/domain/compass-context";
 import { activeConditions, type ConditionLens } from "@/domain/condition-lens";
+import { buildMealDigest } from "@/domain/food-week";
 import type { AppState, HomeReading, IdentifiedFood } from "@/domain/types";
 
 export const FOOD_LENS_PROMPT_VERSION = "food-lens-v0.1-2026-07-05";
@@ -59,6 +60,7 @@ export function buildFoodLensInstructions(state: AppState, lens: ConditionLens):
     .map((rule) => `- ${rule.modelGuidance}`)
     .join("\n");
 
+  const digest = buildMealDigest(state);
   const sections = [
     "You are a warm, knowledgeable food coach speaking out loud with a patient who is holding food up to their phone camera.",
     "Keep each spoken answer to about three short sentences unless the patient asks for more. Use plain, sixth-grade language. Never diagnose or prescribe or tell the patient to change a medicine. Say numbers plainly.",
@@ -67,7 +69,10 @@ export function buildFoodLensInstructions(state: AppState, lens: ConditionLens):
     `Condition focus:\n${lens.personaFocus}\nNutrient targets:\n${nutrientLimitLines(lens)}`,
     medGuidance ? `Medication-diet rules to follow:\n${medGuidance}` : "",
     `Better options: ${lens.betterOptionGuidance}`,
-    `Patient card:\n${patientCard(state)}`
+    `Patient card:\n${patientCard(state)}`,
+    digest
+      ? `Food-log facts available at session start:\n${digest}\nThe food-log numbers below are safe to state exactly; the earlier rule about blood-pressure/A1C/blood-sugar numbers still applies. Use the numbers above exactly; do not recompute them.`
+      : ""
   ];
 
   return sections.filter((section) => section.length > 0).join("\n\n");
@@ -131,6 +136,38 @@ export function buildCompassContext(compass: CompassContext | null): string | nu
         .map((alternative) => `${alternative.description} (${alternative.fcs})`)
         .join("; ")}.`
     );
+  }
+  if (compass.domainBreakdown) {
+    const domainNames = {
+      D1: "nutrient ratios",
+      D2: "vitamins",
+      D3: "minerals",
+      D4: "food ingredients",
+      D5: "additives",
+      D6: "processing",
+      D7: "specific fats",
+      D8: "fiber and protein",
+      D9: "phytochemicals"
+    } as const;
+    const signed = (value: number): string => {
+      const rounded = Math.round(value * 10) / 10;
+      return `${rounded >= 0 ? "+" : ""}${rounded}`;
+    };
+    lines.push(
+      `${compass.tier === "T1" ? "Estimated drivers (the published score stands)" : "Estimated label drivers"}: ${compass.domainBreakdown.domains
+        .map((domain) => `${domainNames[domain.key]} ${signed(domain.value)}`)
+        .join("; ")}.`
+    );
+    if (compass.domainBreakdown.coverage.missing.length > 0) {
+      lines.push(
+        `Not assessable: ${compass.domainBreakdown.coverage.missing.map((key) => domainNames[key]).join(", ")}.`
+      );
+    }
+    if (compass.domainBreakdown.coverage.partial.length > 0) {
+      lines.push(
+        `Only partly assessable: ${compass.domainBreakdown.coverage.partial.map((key) => domainNames[key]).join(", ")}.`
+      );
+    }
   }
   return lines.join("\n");
 }

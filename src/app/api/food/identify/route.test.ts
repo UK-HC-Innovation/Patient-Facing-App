@@ -12,6 +12,10 @@ type IdentifyJson = {
     tier: string;
     score: { fcs: number; band: string; tier: string };
     alternatives: Array<{ fcs: number; recipeSearchUrl: string; description: string }>;
+    estimatedDomains?: {
+      domains: Array<{ key: string; value: number }>;
+      coverage: { included: string[]; missing: string[]; partial: string[] };
+    };
     interpretation?: {
       kind: string;
       restaurant: string | null;
@@ -68,6 +72,10 @@ describe("POST /api/food/identify — deterministic paths", () => {
     expect(json.match?.score.band).toBe("encourage");
     expect(json.match?.score.tier).toBe("T1");
     expect(json.match?.food.code).toBe("63107010");
+    expect(json.match?.estimatedDomains?.domains.length).toBeGreaterThan(0);
+    expect(json.match?.estimatedDomains?.coverage.missing).toContain("D4");
+    expect(json.match?.estimatedDomains?.coverage.partial).toContain("D5");
+    expect(json.match?.score.fcs).toBe(83);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

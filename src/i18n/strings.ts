@@ -141,6 +141,19 @@ export type FoodLensStringKey =
   | "compassPointAtFood"
   | "compassScoring"
   | "compassMissingDomains"
+  | "compassWhyScore"
+  | "compassPublishedDriversNote"
+  | "compassNotAssessable"
+  | "compassPartlyAssessable"
+  | "compassDomainD1"
+  | "compassDomainD2"
+  | "compassDomainD3"
+  | "compassDomainD4"
+  | "compassDomainD5"
+  | "compassDomainD6"
+  | "compassDomainD7"
+  | "compassDomainD8"
+  | "compassDomainD9"
   | "compassOutOf100";
 
 export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>> = {
@@ -285,6 +298,19 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     compassPointAtFood: "Point at a food",
     compassScoring: "Scoring...",
     compassMissingDomains: "Not scored from this label: {domains}",
+    compassWhyScore: "Why this score?",
+    compassPublishedDriversNote: "Estimate of what drives it — the published number stands.",
+    compassNotAssessable: "Not assessable: {domains}.",
+    compassPartlyAssessable: "Only partly assessable: {domains}.",
+    compassDomainD1: "Nutrient ratios",
+    compassDomainD2: "Vitamins",
+    compassDomainD3: "Minerals",
+    compassDomainD4: "Food ingredients",
+    compassDomainD5: "Additives",
+    compassDomainD6: "Processing",
+    compassDomainD7: "Specific fats",
+    compassDomainD8: "Fiber and protein",
+    compassDomainD9: "Phytochemicals",
     compassOutOf100: "out of 100"
   },
   es: {
@@ -428,6 +454,19 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     compassPointAtFood: "Apunta a una comida",
     compassScoring: "Calculando...",
     compassMissingDomains: "No se calculo con esta etiqueta: {domains}",
+    compassWhyScore: "¿Por qué este puntaje?",
+    compassPublishedDriversNote: "Estimación de lo que lo impulsa; el número publicado se mantiene.",
+    compassNotAssessable: "No se puede evaluar: {domains}.",
+    compassPartlyAssessable: "Solo se puede evaluar en parte: {domains}.",
+    compassDomainD1: "Proporciones de nutrientes",
+    compassDomainD2: "Vitaminas",
+    compassDomainD3: "Minerales",
+    compassDomainD4: "Ingredientes de alimentos",
+    compassDomainD5: "Aditivos",
+    compassDomainD6: "Procesamiento",
+    compassDomainD7: "Grasas específicas",
+    compassDomainD8: "Fibra y proteína",
+    compassDomainD9: "Fitoquímicos",
     compassOutOf100: "de 100"
   }
 };

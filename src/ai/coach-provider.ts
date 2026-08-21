@@ -2,6 +2,7 @@ import { MockHealthAiProvider } from "./mock-provider";
 import { coachCitations } from "./grounding-facts";
 import { healthAiSystemPrompt } from "./prompts";
 import { activeConditions } from "@/domain/condition-lens";
+import { buildMealDigest } from "@/domain/food-week";
 import type { AppState } from "@/domain/types";
 import type { HealthAiProvider, HealthAiRequest, HealthAiResponse } from "./types";
 
@@ -35,12 +36,17 @@ function coachContext(state: AppState): string {
 // guards the food path uses: never state a specific number, never a med change,
 // never a diagnosis — so a compliant answer clears verifyGrounding.
 export function buildCoachSystemPrompt(state: AppState): string {
-  return [
+  const digest = buildMealDigest(state);
+  const sections = [
     healthAiSystemPrompt,
     `Speak ${state.patient.language === "es" ? "Spanish" : "English"} in plain, sixth-grade language. Keep answers to about four short sentences unless asked for more.`,
     "Do not state a specific blood-pressure, A1C, or blood-sugar number — speak generally about the pattern or trend. Never tell the patient to stop, start, or change a medicine or dose. Never tell the patient they 'have' a condition; refer to their care plan instead.",
-    `Patient context:\n${coachContext(state)}`
-  ].join("\n\n");
+    `Patient context:\n${coachContext(state)}`,
+    digest
+      ? `Food-log facts:\n${digest}\nThe food-log numbers below are safe to state exactly; the earlier rule about blood-pressure/A1C/blood-sugar numbers still applies. Use the numbers above exactly; do not recompute them.`
+      : ""
+  ];
+  return sections.filter(Boolean).join("\n\n");
 }
 
 // Live text-Coach for the typed chat path. respond() calls the server route that

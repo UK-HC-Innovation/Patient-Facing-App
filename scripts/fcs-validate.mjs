@@ -31,6 +31,8 @@ const FRIED_KEYWORD = /\b(fried|deep[- ]fat|batter[- ]dipped|tempura|breaded and
 const DAIRY_GROUP = "6000_Dairy";
 
 function contextFor(food) {
+  // Intentionally mirrors publicationParityContext in src/domain/food-compass.ts;
+  // this standalone harness keeps a local copy rather than importing TypeScript here.
   const description = food.description;
   const fermented = CHEESE_OR_YOGURT.test(description) || FERMENTED_KEYWORD.test(description) ? 100 : 0;
   return {

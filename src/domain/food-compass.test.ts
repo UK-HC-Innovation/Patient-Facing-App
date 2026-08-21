@@ -15,6 +15,8 @@ import {
   lnRatioScore,
   lookupScore,
   novaScore,
+  publicationParityBreakdown,
+  publicationParityContext,
   rawToFcs,
   scaleScore,
   topByMagnitude,
@@ -179,6 +181,40 @@ describe("topByMagnitude", () => {
   it("averages everything available when fewer than n scores exist", () => {
     expect(topByMagnitude([4, 6], 5)).toBe(5);
     expect(topByMagnitude([], 5)).toBeNull();
+  });
+});
+
+describe("publication parity score explanation", () => {
+  it("pins the TypeScript context to every harness choice", () => {
+    const panel = record();
+    expect(
+      publicationParityContext(
+        food({ description: "Cheese, breaded and fried", group: "6000_Dairy", nova: 3 }),
+        panel
+      )
+    ).toEqual({
+      nova: 3,
+      fermentedEnergyPercent: 100,
+      fried: true,
+      dairy: true,
+      addedSugarPercentEnergy: null,
+      processedMeatPercentEnergy: null,
+      binaryAdditiveCount: 0,
+      includeTransFat: false,
+      transPercentEnergy: null,
+      flavonoidsMg: null
+    });
+    expect(publicationParityContext(food({ description: "Kimchi" }), panel).fermentedEnergyPercent).toBe(100);
+    expect(publicationParityContext(food({ description: "Plain rice" }), panel).fermentedEnergyPercent).toBe(0);
+  });
+
+  it("reports every unavailable publication-parity domain separately from partial ones", () => {
+    const result = computeFullScore(record({ protein: 5, fiber: 2 }), context());
+    const breakdown = publicationParityBreakdown(result);
+
+    expect(breakdown.coverage.missing).toContain("D4");
+    expect(breakdown.coverage.partial).toEqual(["D5", "D7", "D9"]);
+    expect(breakdown.coverage.included).toEqual(result.domains.map((domain) => domain.key));
   });
 });
 

@@ -1,4 +1,5 @@
 import { defaultDemoState } from "@/domain/fixtures";
+import { MEAL_DIGEST_SOURCE_ID } from "@/domain/food-week";
 import { stripLadderSimulationState } from "@/domain/ladder-sim";
 import { clearAllFamilyDrafts } from "@/state/family-draft-storage";
 import {
@@ -175,6 +176,7 @@ function advanceStoredDeletionFence(): number | null {
 function getKnownSourceIds(state: AppState): Set<string> {
   const sourceIds = new Set<string>();
 
+  sourceIds.add(MEAL_DIGEST_SOURCE_ID);
   sourceIds.add(state.carePlan.id);
   state.carePlan.goals.forEach((goal) => {
     sourceIds.add(goal.id);

@@ -226,7 +226,7 @@ export default function CompassPage() {
           current?.kind === "carve_out"
             ? { kind: "carve_out", reason: current.reason }
             : current?.kind === "match"
-              ? toCompassContext(current.match.score, current.match.alternatives)
+              ? toCompassContext(current.match.score, current.match.alternatives, current.match.estimatedDomains ?? null)
               : null
       };
     },
@@ -533,7 +533,7 @@ export default function CompassPage() {
           ) : null}
 
           <h2 className="text-lg font-semibold">{shown.match.food.description}</h2>
-          <CompassScoreRow language={LANGUAGE} score={shown.match.score} />
+          <CompassScoreRow estimatedDomains={shown.match.estimatedDomains ?? null} language={LANGUAGE} score={shown.match.score} />
 
           {shown.match.nutrients ? (
             <dl className="grid grid-cols-2 gap-2 text-sm">

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { brentState, demoState } from "@/domain/fixtures";
+import { MEAL_DIGEST_SOURCE_ID } from "@/domain/food-week";
+import { verifyGrounding } from "@/domain/grounding";
 import type { AppState, ScreeningResult } from "@/domain/types";
 import { coachCitations, collectSourceFacts } from "./grounding-facts";
 
@@ -86,5 +88,35 @@ describe("collectSourceFacts", () => {
 
     expect(confirmedFact?.patientConfirmed).toBe(true);
     expect(confirmedMed?.patientConfirmed).toBe(true);
+  });
+
+  it("emits and cites the food-only digest only when recent meals clear the floor", () => {
+    const now = new Date();
+    const recentMeals = brentState.mealLog
+      .filter((entry) => entry.compassScore !== undefined)
+      .slice(0, 3)
+      .map((entry, index) => ({
+        ...entry,
+        loggedAt: new Date(now.getFullYear(), now.getMonth(), now.getDate() - index, 12).toISOString()
+      }));
+    const state = { ...brentState, mealLog: recentMeals };
+    const facts = collectSourceFacts(state);
+    const digest = facts.find((fact) => fact.id === MEAL_DIGEST_SOURCE_ID);
+
+    expect(digest?.sourceKind).toBe("meal_log");
+    expect(digest?.value).not.toMatch(/glucose|blood\s+sugar|blood\s+pressure|\ba1c\b|mg\s*\/?\s*dL/i);
+    expect(coachCitations(state)).toContain(MEAL_DIGEST_SOURCE_ID);
+    expect(
+      verifyGrounding({
+        answer: "You logged 3 grouped meals this week.",
+        sourceFacts: facts,
+        citationIds: [MEAL_DIGEST_SOURCE_ID]
+      }).allowed
+    ).toBe(true);
+
+    expect(collectSourceFacts({ ...state, mealLog: recentMeals.slice(0, 2) }).map((fact) => fact.id)).not.toContain(
+      MEAL_DIGEST_SOURCE_ID
+    );
+    expect(coachCitations({ ...state, mealLog: [] })).not.toContain(MEAL_DIGEST_SOURCE_ID);
   });
 });

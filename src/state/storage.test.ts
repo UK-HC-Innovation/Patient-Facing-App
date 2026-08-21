@@ -3,6 +3,7 @@ import { firstStepsClock, hasEnrolledFirstSteps } from "@/domain/family-clocks";
 import { createFamilyAppointmentOffer, createSoonerAppointmentOffer } from "@/domain/family-appointments";
 import { brentState, deletedDemoState, demoState } from "@/domain/fixtures";
 import { INSTRUMENTS } from "@/domain/instruments/registry";
+import { MEAL_DIGEST_SOURCE_ID } from "@/domain/food-week";
 import type { ScreeningInstrument } from "@/domain/instruments/types";
 import {
   clearStoredState,
@@ -1484,6 +1485,31 @@ describe("storage", () => {
 
     expect(loaded.aiMessages).toHaveLength(1);
     expect(loaded.aiMessages[0].mode).toBe("food");
+  });
+
+  it("rehydrates a saved assistant citation after every meal has been deleted", () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        ...demoState,
+        mealLog: [],
+        aiMessages: [
+          {
+            id: "message-meal-digest",
+            mode: "ask",
+            role: "assistant",
+            content: "You logged three meals this week.",
+            createdAt: "2026-07-05T12:00:00.000Z",
+            safety: "allowed",
+            sources: [MEAL_DIGEST_SOURCE_ID]
+          }
+        ]
+      })
+    );
+
+    const loaded = loadStoredState();
+    expect(loaded.mealLog).toEqual([]);
+    expect(loaded.aiMessages[0]?.sources).toEqual([MEAL_DIGEST_SOURCE_ID]);
   });
 
   it("accepts a diabetes care plan condition", () => {

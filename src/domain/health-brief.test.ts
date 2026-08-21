@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { brentState, demoState } from "./fixtures";
-import { buildHealthBrief } from "./health-brief";
+import { buildHealthBrief, whatIveBeenEatingSection } from "./health-brief";
 import type { AssessmentEvent } from "./assessment";
 import type { AppState, GlucoseReading, IdentifiedFood, MealLogEntry } from "./types";
 
@@ -272,5 +272,28 @@ describe("buildHealthBrief", () => {
     expect(sectionTitles).not.toContain("Recent blood sugar");
     expect(sectionTitles).not.toContain("Food & blood-sugar pattern");
     expect(sectionTitles).not.toContain("Eye screening");
+  });
+
+  it("shows the 14-day food section at five grouped meals and stays hidden below the floor", () => {
+    const state = pairedDiabetesState();
+    const asOf = new Date(FIXED);
+    const fiveMeals = state.mealLog.slice(0, 5).map((entry, index) => ({
+      ...entry,
+      flags: index < 2 ? ["Watch the portion"] : entry.flags
+    }));
+
+    expect(whatIveBeenEatingSection({ ...state, mealLog: fiveMeals.slice(0, 4) }, asOf)).toBeNull();
+
+    const section = whatIveBeenEatingSection({ ...state, mealLog: fiveMeals }, asOf);
+    expect(section?.title).toBe("What I've been eating");
+    expect(section?.status).toBe("inferred");
+    expect(section?.items.join(" ")).toContain("5 grouped meals");
+    expect(section?.items.join(" ")).toContain("T1 published: 5");
+    expect(section?.items.join(" ")).toContain("Watch the portion (2x)");
+
+    const plateAtFloor = fiveMeals.map((entry, index) =>
+      index < 2 ? { ...entry, mealId: "same-plate" } : entry
+    );
+    expect(whatIveBeenEatingSection({ ...state, mealLog: plateAtFloor }, asOf)).toBeNull();
   });
 });

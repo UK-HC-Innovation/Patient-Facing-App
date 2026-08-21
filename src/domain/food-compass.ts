@@ -14,6 +14,12 @@ import type { IdentifiedFood, NutritionFacts } from "./types";
 export type CompassBand = "encourage" | "moderate" | "minimize";
 export type CompassTier = "T1" | "T2";
 export type DomainKey = "D1" | "D2" | "D3" | "D4" | "D5" | "D6" | "D7" | "D8" | "D9";
+export const FOOD_COMPASS_DOMAIN_KEYS: DomainKey[] = ["D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9"];
+
+export type ScoreDomainBreakdown = {
+  domains: { key: DomainKey; value: number }[];
+  coverage: { included: DomainKey[]; missing: DomainKey[]; partial: DomainKey[] };
+};
 
 export type FcsFood = {
   code: string;
@@ -316,8 +322,6 @@ export type CompassScore = {
   coverage: { included: DomainKey[]; missing: DomainKey[] } | null;
 };
 
-const ALL_DOMAINS: DomainKey[] = ["D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9"];
-
 /**
  * T1: the score IS the published Table S5 value. Nothing is recomputed — a banana is 83
  * because Tufts published 83, and any engine change that "improves" it is wrong.
@@ -576,7 +580,7 @@ export function computeLabelScore(nutrition: NutritionFacts, options: LabelScore
     range: null,
     calorieDensity: calorieDensity(nutrition),
     domains,
-    coverage: { included, missing: ALL_DOMAINS.filter((d) => !included.includes(d)) },
+    coverage: { included, missing: FOOD_COMPASS_DOMAIN_KEYS.filter((d) => !included.includes(d)) },
     additives
   };
 }
@@ -779,6 +783,46 @@ export type FullScoreContext = {
   transPercentEnergy: number | null;
   flavonoidsMg: number | null;
 };
+
+const PUBLICATION_FERMENTED_KEYWORD = /\b(kefir|kombucha|injera|dosa|natto|miso|kimchi|tempeh|sauerkraut)\b/i;
+const PUBLICATION_CHEESE_OR_YOGURT = /^(cheese|yogurt)\b/i;
+const PUBLICATION_FRIED_KEYWORD = /\b(fried|deep[- ]fat|batter[- ]dipped|tempura|breaded and fried)\b/i;
+const PUBLICATION_DAIRY_GROUP = "6000_Dairy";
+
+/** Exact TypeScript port of scripts/fcs-validate.mjs contextFor. */
+export function publicationParityContext(food: FcsFood, _record: FnddsRecord): FullScoreContext {
+  void _record;
+  const fermented =
+    PUBLICATION_CHEESE_OR_YOGURT.test(food.description) || PUBLICATION_FERMENTED_KEYWORD.test(food.description)
+      ? 100
+      : 0;
+  return {
+    nova: food.nova,
+    fermentedEnergyPercent: fermented,
+    fried: PUBLICATION_FRIED_KEYWORD.test(food.description),
+    dairy: food.group === PUBLICATION_DAIRY_GROUP,
+    addedSugarPercentEnergy: null,
+    processedMeatPercentEnergy: null,
+    binaryAdditiveCount: 0,
+    includeTransFat: false,
+    transPercentEnergy: null,
+    flavonoidsMg: null
+  };
+}
+
+/** Coverage for the publication-parity estimate, kept separate from the published T1 score. */
+export function publicationParityBreakdown(result: FullScoreResult): ScoreDomainBreakdown {
+  const partial: DomainKey[] = ["D5", "D7", "D9"];
+  const included = result.domains.map((domain) => domain.key);
+  return {
+    domains: result.domains,
+    coverage: {
+      included,
+      missing: FOOD_COMPASS_DOMAIN_KEYS.filter((key) => !included.includes(key) && !partial.includes(key)),
+      partial
+    }
+  };
+}
 
 export type FullScoreResult = {
   fcs: number;

@@ -5,6 +5,7 @@ export type SourceFactKind =
   | "extracted_fact"
   | "context_item"
   | "goal"
+  | "meal_log"
   | "screening_result";
 
 export type SourceFactConfidence =

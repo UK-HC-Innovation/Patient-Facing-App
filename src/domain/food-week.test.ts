@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { summarizeWeekInFood } from "./food-week";
-import type { MealLogEntry } from "./types";
+import { demoState } from "./fixtures";
+import { buildMealDigest, summarizeWeekInFood } from "./food-week";
+import type { AppState, MealLogEntry } from "./types";
 
 function meal(args: {
   id: string;
@@ -8,6 +9,8 @@ function meal(args: {
   fcs?: number;
   band?: "encourage" | "moderate" | "minimize";
   mealId?: string;
+  name?: string;
+  flags?: string[];
 }): MealLogEntry {
   return {
     id: args.id,
@@ -16,14 +19,14 @@ function meal(args: {
     food: {
       id: `food-${args.id}`,
       barcode: null,
-      name: args.id,
+      name: args.name ?? args.id,
       brand: null,
       category: null,
       nutrition: null,
       source: "fndds_lookup",
       ingredientText: null
     },
-    flags: [],
+    flags: args.flags ?? [],
     assistantSummary: "",
     ...(args.mealId ? { mealId: args.mealId } : {}),
     ...(args.fcs !== undefined
@@ -82,6 +85,68 @@ describe("summarizeWeekInFood", () => {
           meal({ id: "plate-b", mealId: "plate", at: now, fcs: 20, band: "minimize" }),
           meal({ id: "single", at: new Date(2026, 6, 9, 12), fcs: 50 })
         ],
+        now
+      )
+    ).toBeNull();
+  });
+});
+
+describe("buildMealDigest", () => {
+  it("is deterministic, groups a plate once, ranks food signals, and excludes clinical wording", () => {
+    const now = new Date(2026, 6, 10, 12);
+    const meals = [
+      meal({
+        id: "plate-a",
+        mealId: "plate",
+        at: now,
+        fcs: 20,
+        band: "minimize",
+        name: "Salty soup",
+        flags: ["High sodium", "Blood sugar reading was high at 205 mg/dL", "Blood-pressure and A1-C context"]
+      }),
+      meal({
+        id: "plate-b",
+        mealId: "plate",
+        at: now,
+        fcs: 80,
+        band: "encourage",
+        flags: ["High sodium"]
+      }),
+      meal({
+        id: "soup-again",
+        at: new Date(2026, 6, 9, 12),
+        fcs: 20,
+        band: "minimize",
+        name: "Salty soup",
+        flags: ["High sodium"]
+      }),
+      meal({ id: "third-meal", at: new Date(2026, 6, 8, 12), fcs: 55, band: "moderate" })
+    ];
+    const state: AppState = { ...demoState, mealLog: meals };
+
+    const first = buildMealDigest(state, now);
+    const second = buildMealDigest(state, new Date(now));
+
+    expect(first).toBe(second);
+    expect(first).toContain("Meals logged: 3 grouped meals");
+    expect(first).toContain("Most repeated minimize-band food: Salty soup (2 logged items)");
+    expect(first).toContain("High sodium (3x)");
+    expect(first).not.toMatch(
+      /glucose|blood[\s-]+sugar|blood[\s-]+pressure|\ba1[\s-]?c\b|mg\s*\/?\s*dL|\breadings?\b/i
+    );
+  });
+
+  it("is null below the honest three-group score floor", () => {
+    const now = new Date(2026, 6, 10, 12);
+    expect(
+      buildMealDigest(
+        {
+          ...demoState,
+          mealLog: [
+            meal({ id: "one", at: now, fcs: 70, band: "encourage" }),
+            meal({ id: "two", at: now, fcs: 40, band: "moderate" })
+          ]
+        },
         now
       )
     ).toBeNull();
