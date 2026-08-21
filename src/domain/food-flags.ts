@@ -1,5 +1,6 @@
-import { t, type Language } from "@/i18n/strings";
-import type { ConditionLens, MedDietRule, NutrientRule } from "./condition-lens";
+import { t, type FoodLensStringKey, type Language } from "@/i18n/strings";
+import type { ConditionLens, MedDietRule, NutrientRule, NumericNutrient } from "./condition-lens";
+import type { DayTotal } from "./day-totals";
 import type { HomeReading, IdentifiedFood, Medication, NutritionFacts } from "./types";
 
 export type FoodFlagSeverity = "info" | "caution" | "warning";
@@ -11,6 +12,13 @@ export type FoodFlag = {
 };
 
 const SEVERITY_ORDER: Record<FoodFlagSeverity, number> = { warning: 0, caution: 1, info: 2 };
+
+const dayTotalFlagKey: Partial<Record<NumericNutrient, FoodLensStringKey>> = {
+  sodiumMg: "flagDayTotalSodium",
+  carbsG: "flagDayTotalCarbs",
+  addedSugarsG: "flagDayTotalAddedSugars",
+  saturatedFatG: "flagDayTotalSaturatedFat"
+};
 
 export function percentOfDailyLimit(amount: number, dailyLimit: number): number {
   if (dailyLimit <= 0) {
@@ -135,7 +143,8 @@ export function computeFoodFlags(
   food: IdentifiedFood | null,
   lens: ConditionLens,
   state: Pick<AppStateSlice, "medications" | "readings">,
-  language: Language
+  language: Language,
+  dayTotals: DayTotal[] = []
 ): FoodFlag[] {
   const flags: FoodFlag[] = [];
   const activeRules = activeMedDietRules(state.medications, lens.medDietRules);
@@ -149,6 +158,26 @@ export function computeFoodFlags(
       const flag = nutrientRuleFlag(food.nutrition, rule, language);
       if (flag) {
         flags.push(flag);
+      }
+
+      if (rule.direction === "limit") {
+        const today = dayTotals.find((total) => total.nutrient === rule.nutrient);
+        const amount = food.nutrition[rule.nutrient];
+        const cumulativeKey = dayTotalFlagKey[rule.nutrient];
+        if (
+          today &&
+          !today.incomplete &&
+          amount !== null &&
+          cumulativeKey &&
+          today.total <= rule.dailyLimit &&
+          today.total + amount > rule.dailyLimit
+        ) {
+          flags.push({
+            id: `day-total-${rule.nutrient}`,
+            severity: "warning",
+            text: t(language, cumulativeKey)
+          });
+        }
       }
     }
   }

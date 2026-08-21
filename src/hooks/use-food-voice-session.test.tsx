@@ -54,7 +54,8 @@ describe("useFoodVoiceSession context injection", () => {
       identifiedFood: food,
       flagTexts: ["High sodium"],
       historyLine:
-        "The patient has logged this same food before (Jan 12); a glucose reading followed within the usual window — the number is on their screen."
+        "The patient has logged this same food before (Jan 12); a glucose reading followed within the usual window — the number is on their screen.",
+      dayTotalsLine: "Today's logged nutrition totals: sodium 1200 of 1500 mg (80%)."
     });
     const { result } = renderHook(() => useFoodVoiceSession({
       language: "en",
@@ -72,6 +73,7 @@ describe("useFoodVoiceSession context injection", () => {
     expect(first.text).toContain(JSON.stringify(food));
     expect(first.text).toContain("Precomputed flags: High sodium.");
     expect(first.text).toContain(getContext().historyLine);
+    expect(first.text).toContain(getContext().dayTotalsLine);
     expect(first.text.endsWith("Use the numbers above exactly; do not recompute them.")).toBe(true);
     expect(specificNumberAssertions.some((pattern) => pattern.test(getContext().historyLine))).toBe(false);
     expect(repeat.text).toContain('{"foodData":"unchanged"}');

@@ -12,6 +12,7 @@ import { MealLogList } from "@/components/meal-log-list";
 import { createSafeAiResponse } from "@/ai/safety-gate";
 import { PantryProvider, PANTRY_REQUEST_TEXT } from "@/ai/pantry-provider";
 import { activeConditions, selectLenses } from "@/domain/condition-lens";
+import { formatDayTotalsContext, selectFoodLensDayTotals, summarizeDayTotals } from "@/domain/day-totals";
 import { computeFoodFlags, type FoodFlag } from "@/domain/food-flags";
 import { foodHistoryVoiceLine, lastTimeYouAte } from "@/domain/glucose-correlation";
 import { buildMealLogEntry } from "@/domain/meal-log";
@@ -37,7 +38,8 @@ import type { SpokenFoodSize } from "@/domain/food-order-intent";
 export default function FoodPage() {
   const { state, dispatch } = useHealthState();
   const language = state.patient.language;
-  const lens = useMemo(() => selectLenses(activeConditions(state.carePlan)), [state.carePlan]);
+  const conditions = useMemo(() => activeConditions(state.carePlan), [state.carePlan]);
+  const lens = useMemo(() => selectLenses(conditions), [conditions]);
   const foodMessages = useMemo(() => state.aiMessages.filter((message) => message.mode === "food"), [state.aiMessages]);
   const latestPatientUtterance = useMemo(() => {
     for (let index = foodMessages.length - 1; index >= 0; index -= 1) {
@@ -89,6 +91,14 @@ export default function FoodPage() {
     }
     return { ...identifiedFood, nutrition: scaleNutrition(identifiedFood.nutrition, portionServings) };
   }, [identifiedFood, portionServings]);
+  const priorMealLog = useMemo(() => {
+    const currentEntryId = logged ? loggedEntryIdRef.current : null;
+    return currentEntryId ? state.mealLog.filter((entry) => entry.id !== currentEntryId) : state.mealLog;
+  }, [logged, state.mealLog]);
+  const dayTotals = useMemo(() => summarizeDayTotals(state.mealLog, lens, new Date()), [lens, state.mealLog]);
+  const flagDayTotals = useMemo(() => summarizeDayTotals(priorMealLog, lens, new Date()), [lens, priorMealLog]);
+  const visibleDayTotals = useMemo(() => selectFoodLensDayTotals(dayTotals, conditions), [conditions, dayTotals]);
+  const dayTotalsLine = formatDayTotalsContext(visibleDayTotals) ?? undefined;
 
   // Scored from identifiedFood, not scaledFood: scaleNutrition rounds to integers, and a
   // per-100-kcal score recomputed off rounded values would wobble as portions change.
@@ -110,20 +120,26 @@ export default function FoodPage() {
   compassRef.current = compass;
 
   const flags = useMemo<FoodFlag[]>(
-    () => computeFoodFlags(scaledFood, lens, { medications: state.medications, readings: state.readings }, language),
-    [scaledFood, lens, state.medications, state.readings, language]
+    () =>
+      computeFoodFlags(
+        scaledFood,
+        lens,
+        { medications: state.medications, readings: state.readings },
+        language,
+        flagDayTotals
+      ),
+    [scaledFood, lens, state.medications, state.readings, language, flagDayTotals]
   );
   const foodHistory = useMemo(() => {
     if (!identifiedFoodId) {
       return null;
     }
-    const currentEntryId = logged ? loggedEntryIdRef.current : null;
     return lastTimeYouAte(
       identifiedFoodId,
-      currentEntryId ? state.mealLog.filter((entry) => entry.id !== currentEntryId) : state.mealLog,
+      priorMealLog,
       state.glucoseReadings
     );
-  }, [identifiedFoodId, logged, state.glucoseReadings, state.mealLog]);
+  }, [identifiedFoodId, priorMealLog, state.glucoseReadings]);
   const historyDate = useMemo(() => {
     if (!foodHistory) {
       return null;
@@ -141,6 +157,8 @@ export default function FoodPage() {
   flagsRef.current = flags;
   const historyLineRef = useRef<string | undefined>(undefined);
   historyLineRef.current = historyLine;
+  const dayTotalsLineRef = useRef<string | undefined>(undefined);
+  dayTotalsLineRef.current = dayTotalsLine;
   const lastAssistantRef = useRef<string | null>(null);
   const lastPortionFoodIdRef = useRef<string | null>(null);
   const stateRef = useRef(state);
@@ -153,6 +171,7 @@ export default function FoodPage() {
       identifiedFood: foodRef.current,
       flagTexts: flagsRef.current.map((flag) => flag.text),
       historyLine: historyLineRef.current,
+      dayTotalsLine: dayTotalsLineRef.current,
       compass: current.carveOut
         ? { kind: "carve_out", reason: current.carveOut }
         : toCompassContext(current.score, current.alternatives)
@@ -439,8 +458,9 @@ export default function FoodPage() {
             compassScore={compass.score}
             food={scaledFood}
             flags={flags}
+            dayTotals={visibleDayTotals}
             history={foodHistory && historyDate ? { ...foodHistory, date: historyDate } : null}
-            showGlucoseHistory={activeConditions(state.carePlan).includes("diabetes")}
+            showGlucoseHistory={conditions.includes("diabetes")}
             correctionCandidates={!barcodeFood ? live.match?.candidates ?? [] : []}
             logged={logged}
             canLog={canLog}

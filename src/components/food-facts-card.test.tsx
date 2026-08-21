@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import React from "react";
-import { FoodFactsCard } from "./food-facts-card";
+import { dayTotalBarTone, FoodFactsCard } from "./food-facts-card";
 import type { FoodFlag } from "@/domain/food-flags";
 import type { IdentifiedFood } from "@/domain/types";
 import { scaleNutrition } from "@/domain/portion";
@@ -149,6 +149,52 @@ describe("FoodFactsCard", () => {
       />
     );
     expect(screen.getByText(/178 mg\/dL/)).toHaveTextContent("not a diagnosis");
+  });
+
+  it("renders today's totals with fixed amber and red thresholds and an incomplete marker", () => {
+    expect(dayTotalBarTone(79)).toBe("default");
+    expect(dayTotalBarTone(80)).toBe("amber");
+    expect(dayTotalBarTone(100)).toBe("red");
+
+    render(
+      <FoodFactsCard
+        food={soup}
+        flags={[]}
+        dayTotals={[
+          {
+            nutrient: "sodiumMg",
+            flagKey: "flagSodium",
+            unit: "mg",
+            total: 1200,
+            dailyLimit: 1500,
+            percent: 80,
+            incomplete: true
+          },
+          {
+            nutrient: "carbsG",
+            flagKey: "flagCarbs",
+            unit: "g",
+            total: 200,
+            dailyLimit: 200,
+            percent: 100,
+            incomplete: false
+          }
+        ]}
+        logged={false}
+        canLog
+        onLog={() => {}}
+        language="en"
+        {...portionProps}
+      />
+    );
+
+    expect(screen.getByText("Today so far")).toBeInTheDocument();
+    expect(screen.getByText("Some logged foods are missing this value.")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: /Sodium/ }).firstElementChild).toHaveAttribute(
+      "data-tone",
+      "amber"
+    );
+    expect(screen.getByRole("progressbar", { name: /Carbs/ }).firstElementChild).toHaveAttribute("data-tone", "red");
   });
 
   it("discloses the spoken-size serving assumption", () => {

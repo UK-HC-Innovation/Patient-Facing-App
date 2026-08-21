@@ -45,6 +45,10 @@ export type FoodLensStringKey =
   | "nutritionSodium"
   | "nutritionCarbs"
   | "nutritionAddedSugars"
+  | "nutritionSaturatedFat"
+  | "todaySoFar"
+  | "todayTotalLine"
+  | "todayTotalIncomplete"
   | "logThis"
   | "loggedConfirmation"
   | "recentMealsTitle"
@@ -86,6 +90,10 @@ export type FoodLensStringKey =
   | "flagSaltSubstituteMed"
   | "flagMetforminAlcohol"
   | "flagBpTrend"
+  | "flagDayTotalSodium"
+  | "flagDayTotalCarbs"
+  | "flagDayTotalAddedSugars"
+  | "flagDayTotalSaturatedFat"
   | "pantryButton"
   | "pantryScanning"
   | "pantryDetectedTitle"
@@ -169,6 +177,10 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     nutritionSodium: "Sodium",
     nutritionCarbs: "Carbs",
     nutritionAddedSugars: "Added sugars",
+    nutritionSaturatedFat: "Saturated fat",
+    todaySoFar: "Today so far",
+    todayTotalLine: "{total} of {limit} {unit} ({percent}%)",
+    todayTotalIncomplete: "Some logged foods are missing this value.",
     logThis: "Log this",
     loggedConfirmation: "Added to your meals",
     recentMealsTitle: "Recent meals",
@@ -210,6 +222,10 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     flagSaltSubstituteMed: "This is a salt substitute — check with your care team first because you take {med}",
     flagMetforminAlcohol: "Alcohol with {med} can upset your stomach and affect your blood sugar — go easy and ask your care team",
     flagBpTrend: "Your recent readings are trending up — extra reason to go easy on salt this week",
+    flagDayTotalSodium: "Together with today's meals, this passes your daily sodium limit.",
+    flagDayTotalCarbs: "Together with today's meals, this passes your daily carbohydrate limit.",
+    flagDayTotalAddedSugars: "Together with today's meals, this passes your daily added-sugar limit.",
+    flagDayTotalSaturatedFat: "Together with today's meals, this passes your daily saturated-fat limit.",
     pantryButton: "Find recipes in my pantry",
     pantryScanning: "Reading your pantry…",
     pantryDetectedTitle: "In your pantry",
@@ -292,6 +308,10 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     nutritionSodium: "Sodio",
     nutritionCarbs: "Carbohidratos",
     nutritionAddedSugars: "Azucares anadidos",
+    nutritionSaturatedFat: "Grasas saturadas",
+    todaySoFar: "Total de hoy",
+    todayTotalLine: "{total} de {limit} {unit} ({percent}%)",
+    todayTotalIncomplete: "A algunos alimentos registrados les falta este valor.",
     logThis: "Guardar",
     loggedConfirmation: "Agregado a tus comidas",
     recentMealsTitle: "Comidas recientes",
@@ -333,6 +353,10 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     flagSaltSubstituteMed: "Esto es un sustituto de sal — consulta primero con tu equipo de salud porque tomas {med}",
     flagMetforminAlcohol: "El alcohol con {med} puede molestar tu estómago y afectar tu azúcar — ve con calma y consulta a tu equipo de salud",
     flagBpTrend: "Tus lecturas recientes están subiendo — una razón más para cuidar la sal esta semana",
+    flagDayTotalSodium: "Junto con las comidas de hoy, esto supera tu límite diario de sodio.",
+    flagDayTotalCarbs: "Junto con las comidas de hoy, esto supera tu límite diario de carbohidratos.",
+    flagDayTotalAddedSugars: "Junto con las comidas de hoy, esto supera tu límite diario de azúcares añadidos.",
+    flagDayTotalSaturatedFat: "Junto con las comidas de hoy, esto supera tu límite diario de grasas saturadas.",
     pantryButton: "Buscar recetas en mi despensa",
     pantryScanning: "Leyendo tu despensa…",
     pantryDetectedTitle: "En tu despensa",

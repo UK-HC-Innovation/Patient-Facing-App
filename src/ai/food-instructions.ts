@@ -138,7 +138,8 @@ export function buildCompassContext(compass: CompassContext | null): string | nu
 export function buildPerAskContext(
   food: IdentifiedFood | null,
   flags: FoodFlag[],
-  compass: CompassContext | null = null
+  compass: CompassContext | null = null,
+  dayTotalsLine: string | null = null
 ): string {
   const foodData = food
     ? JSON.stringify({
@@ -156,6 +157,7 @@ export function buildPerAskContext(
   return [
     `Food data: ${foodData}`,
     ...(compassBlock ? [compassBlock] : []),
+    ...(dayTotalsLine ? [dayTotalsLine] : []),
     `Precomputed flags:\n${flagLines}`,
     "Weave at most the top two flags into a natural spoken answer. Use the numbers above exactly; do not recompute them."
   ].join("\n");

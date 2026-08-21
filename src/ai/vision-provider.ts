@@ -1,6 +1,7 @@
 import { MockHealthAiProvider } from "./mock-provider";
 import { buildFoodVisionSystemPrompt, buildPerAskContext } from "./food-instructions";
 import { activeConditions, selectLenses } from "@/domain/condition-lens";
+import { formatDayTotalsContext, selectFoodLensDayTotals, summarizeDayTotals } from "@/domain/day-totals";
 import { computeFoodFlags } from "@/domain/food-flags";
 import type { AppState, HomeReading } from "@/domain/types";
 import type { HealthAiProvider, HealthAiRequest, HealthAiResponse } from "./types";
@@ -42,12 +43,16 @@ export class OpenAiVisionProvider implements HealthAiProvider {
 
   async respond(request: HealthAiRequest): Promise<HealthAiResponse> {
     const { state } = request;
-    const lens = selectLenses(activeConditions(state.carePlan));
+    const conditions = activeConditions(state.carePlan);
+    const lens = selectLenses(conditions);
+    const dayTotals = summarizeDayTotals(state.mealLog, lens, new Date());
+    const visibleDayTotals = selectFoodLensDayTotals(dayTotals, conditions);
     const flags = computeFoodFlags(
       request.identifiedFood ?? null,
       lens,
       { medications: state.medications, readings: state.readings },
-      state.patient.language
+      state.patient.language,
+      dayTotals
     );
 
     let route: VisionRouteResponse;
@@ -60,7 +65,12 @@ export class OpenAiVisionProvider implements HealthAiProvider {
           passcode: this.passcode,
           question: request.patientInput,
           system: buildFoodVisionSystemPrompt(state, lens),
-          foodContext: buildPerAskContext(request.identifiedFood ?? null, flags, request.compass ?? null),
+          foodContext: buildPerAskContext(
+            request.identifiedFood ?? null,
+            flags,
+            request.compass ?? null,
+            formatDayTotalsContext(visibleDayTotals)
+          ),
           image: request.image ?? null
         })
       });

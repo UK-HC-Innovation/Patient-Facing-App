@@ -53,6 +53,7 @@ export type LiveSessionContext = {
   flagTexts: string[];
   compass?: CompassContext | null;
   historyLine?: string;
+  dayTotalsLine?: string;
 };
 
 export type LiveSessionInit = {

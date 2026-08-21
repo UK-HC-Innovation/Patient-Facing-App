@@ -8,6 +8,7 @@ import {
   percentOfDailyLimit
 } from "./food-flags";
 import type { HomeReading, IdentifiedFood, Medication, NutritionFacts } from "./types";
+import type { DayTotal } from "./day-totals";
 
 const sodiumRule = hypertensionLens.nutrientRules.find((rule) => rule.nutrient === "sodiumMg")!;
 
@@ -169,6 +170,55 @@ describe("computeFoodFlags", () => {
     const severities = flags.map((flag) => flag.severity);
     expect(severities).toEqual([...severities].sort((a, b) => (a === "warning" ? -1 : b === "warning" ? 1 : a === "caution" ? -1 : 1)));
     expect(flags[0].severity).toBe("warning");
+  });
+
+  it.each([
+    ["en" as const, "Together with today's meals"],
+    ["es" as const, "Junto con las comidas de hoy"]
+  ])("flags when the current food pushes a complete day total past its limit in %s", (language, text) => {
+    const dayTotals: DayTotal[] = [
+      {
+        nutrient: "sodiumMg",
+        flagKey: sodiumRule.flagKey,
+        unit: "mg",
+        total: 1400,
+        dailyLimit: 1500,
+        percent: 93,
+        incomplete: false
+      }
+    ];
+    const flags = computeFoodFlags(
+      food({ nutrition: nutrition({ sodiumMg: 200 }) }),
+      hypertensionLens,
+      { medications: [], readings: [] },
+      language,
+      dayTotals
+    );
+
+    expect(flags.find((flag) => flag.id === "day-total-sodiumMg")?.text).toContain(text);
+  });
+
+  it("does not claim a crossing from an incomplete total", () => {
+    const dayTotals: DayTotal[] = [
+      {
+        nutrient: "sodiumMg",
+        flagKey: sodiumRule.flagKey,
+        unit: "mg",
+        total: 1400,
+        dailyLimit: 1500,
+        percent: 93,
+        incomplete: true
+      }
+    ];
+    const flags = computeFoodFlags(
+      food({ nutrition: nutrition({ sodiumMg: 200 }) }),
+      hypertensionLens,
+      { medications: [], readings: [] },
+      "en",
+      dayTotals
+    );
+
+    expect(flags.some((flag) => flag.id === "day-total-sodiumMg")).toBe(false);
   });
 });
 

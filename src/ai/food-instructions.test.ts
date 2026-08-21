@@ -66,6 +66,17 @@ describe("buildPerAskContext", () => {
     expect(context).toContain('"foodData":"none"');
     expect(context).toContain("- none");
   });
+
+  it("keeps the compact day totals inside the deterministic-number wrapper", () => {
+    const context = buildPerAskContext(
+      null,
+      [],
+      null,
+      "Today's logged nutrition totals: sodium 1200 of 1500 mg (80%)."
+    );
+    expect(context).toContain("sodium 1200 of 1500 mg (80%)");
+    expect(context.endsWith("Use the numbers above exactly; do not recompute them.")).toBe(true);
+  });
 });
 
 describe("buildPerAskContext — Food Compass block", () => {

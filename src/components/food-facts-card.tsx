@@ -6,6 +6,7 @@ import type { FoodFlag, FoodFlagSeverity } from "@/domain/food-flags";
 import type { IdentifiedFood, NutritionFacts } from "@/domain/types";
 import type { CompassAlternative, CompassScore, NotScoreableReason } from "@/domain/food-compass";
 import type { SpokenFoodSize } from "@/domain/food-order-intent";
+import type { DayTotal } from "@/domain/day-totals";
 import type { LiveCandidate } from "@/hooks/use-live-food-score";
 import { CompassAlternatives, CompassCarveOut, CompassScoreRow } from "./compass-score";
 import { FoodGuidanceSource } from "./food-guidance-source";
@@ -24,6 +25,26 @@ const sizeLabelKey: Record<SpokenFoodSize, FoodLensStringKey> = {
   large: "sizeLarge",
   "extra large": "sizeExtraLarge",
   family: "sizeFamily"
+};
+
+const dayTotalLabelKey: Partial<Record<DayTotal["nutrient"], FoodLensStringKey>> = {
+  sodiumMg: "nutritionSodium",
+  carbsG: "nutritionCarbs",
+  addedSugarsG: "nutritionAddedSugars",
+  saturatedFatG: "nutritionSaturatedFat"
+};
+
+export function dayTotalBarTone(percent: number): "default" | "amber" | "red" {
+  if (percent >= 100) {
+    return "red";
+  }
+  return percent >= 80 ? "amber" : "default";
+}
+
+const dayTotalBarClass: Record<ReturnType<typeof dayTotalBarTone>, string> = {
+  default: "bg-care",
+  amber: "bg-amber-500",
+  red: "bg-pulse"
 };
 
 type NutritionRow = {
@@ -75,7 +96,8 @@ export function FoodFactsCard({
   compassCarveOut = null,
   compassAlternatives = [],
   history = null,
-  showGlucoseHistory = false
+  showGlucoseHistory = false,
+  dayTotals = []
 }: {
   food: IdentifiedFood | null;
   flags: FoodFlag[];
@@ -93,6 +115,7 @@ export function FoodFactsCard({
   compassAlternatives?: CompassAlternative[];
   history?: { date: string; postMealReading: number | null } | null;
   showGlucoseHistory?: boolean;
+  dayTotals?: DayTotal[];
 }) {
   const title = food ? (food.brand ? `${food.brand} ${food.name}` : food.name) : t(language, "unknownFood");
   const portionLabel = formatServingCount(portionServings);
@@ -167,6 +190,50 @@ export function FoodFactsCard({
           {showGlucoseHistory && history.postMealReading !== null ? (
             <p>{t(language, "foodHistoryReading", { value: history.postMealReading })}</p>
           ) : null}
+        </div>
+      ) : null}
+
+      {dayTotals.length > 0 ? (
+        <div className="mt-3 rounded-control border border-ink/10 bg-white p-3">
+          <h3 className="text-sm font-semibold">{t(language, "todaySoFar")}</h3>
+          <div className="mt-2 grid gap-3">
+            {dayTotals.map((total) => {
+              const labelKey = dayTotalLabelKey[total.nutrient] ?? total.flagKey;
+              const label = t(language, labelKey);
+              const line = t(language, "todayTotalLine", {
+                total: total.total,
+                limit: total.dailyLimit,
+                unit: total.unit,
+                percent: total.percent
+              });
+              const tone = dayTotalBarTone(total.percent);
+              return (
+                <div key={total.nutrient}>
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    <span className="font-medium">{label}</span>
+                    <span className="text-ink/65">{line}</span>
+                  </div>
+                  <div
+                    aria-label={`${label}: ${line}`}
+                    aria-valuemax={100}
+                    aria-valuemin={0}
+                    aria-valuenow={Math.min(total.percent, 100)}
+                    className="mt-1 h-2 overflow-hidden rounded-full bg-ink/10"
+                    role="progressbar"
+                  >
+                    <div
+                      className={`h-full rounded-full ${dayTotalBarClass[tone]}`}
+                      data-tone={tone}
+                      style={{ width: `${Math.min(Math.max(total.percent, 0), 100)}%` }}
+                    />
+                  </div>
+                  {total.incomplete ? (
+                    <p className="mt-1 text-xs text-ink/60">{t(language, "todayTotalIncomplete")}</p>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
         </div>
       ) : null}
 

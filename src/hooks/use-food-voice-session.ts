@@ -235,6 +235,7 @@ export function useFoodVoiceSession(args: {
             `[camera context — not spoken by the patient] Food data: ${foodJson}. Precomputed flags: ${flags}.`,
             ...(compass ? [compass] : []),
             ...(context.historyLine ? [context.historyLine] : []),
+            ...(context.dayTotalsLine ? [context.dayTotalsLine] : []),
             "Use the numbers above exactly; do not recompute them."
           ].join(" ")
         };

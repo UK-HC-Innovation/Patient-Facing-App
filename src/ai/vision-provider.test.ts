@@ -1,9 +1,43 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { demoState } from "@/domain/fixtures";
+import type { IdentifiedFood } from "@/domain/types";
 import { OpenAiVisionProvider } from "./vision-provider";
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), { status: 200 });
+}
+
+function sodiumFood(id: string, sodiumMg: number): IdentifiedFood {
+  return {
+    id,
+    barcode: null,
+    name: "Test soup",
+    brand: null,
+    category: "Soup",
+    nutrition: {
+      servingSize: "1 serving",
+      servingGrams: null,
+      basis: "per_serving",
+      calories: null,
+      sodiumMg,
+      potassiumMg: null,
+      totalSugarsG: null,
+      addedSugarsG: null,
+      saturatedFatG: null,
+      fiberG: null,
+      proteinG: null,
+      carbsG: null,
+      totalFatG: null,
+      monoFatG: null,
+      polyFatG: null,
+      transFatG: null,
+      cholesterolMg: null,
+      calciumMg: null,
+      ironMg: null
+    },
+    source: "vision_estimate",
+    ingredientText: null
+  };
 }
 
 describe("OpenAiVisionProvider", () => {
@@ -36,6 +70,39 @@ describe("OpenAiVisionProvider", () => {
     const payload = JSON.parse(options.body as string) as { passcode?: string; image?: string };
     expect(payload.passcode).toBe("Tama");
     expect(payload.image).toContain("data:image/jpeg");
+  });
+
+  it("passes the same cumulative-limit flag and compact totals into HTTP vision context", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ mode: "answer", content: "That is a salty choice." }));
+    vi.stubGlobal("fetch", fetchMock);
+    const loggedFood = sodiumFood("logged-soup", 1400);
+    const currentFood = sodiumFood("current-soup", 200);
+    const state = {
+      ...demoState,
+      mealLog: [
+        {
+          id: "meal-today",
+          patientId: demoState.patient.id,
+          loggedAt: new Date().toISOString(),
+          food: loggedFood,
+          flags: [],
+          assistantSummary: ""
+        }
+      ]
+    };
+
+    await new OpenAiVisionProvider().respond({
+      mode: "food",
+      patientInput: "What about this?",
+      state,
+      identifiedFood: currentFood
+    });
+
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const payload = JSON.parse(options.body as string) as { foodContext: string };
+    expect(payload.foodContext).toContain("Together with today's meals, this passes your daily sodium limit.");
+    expect(payload.foodContext).toContain("sodium 1400 of 1500 mg (93%)");
+    expect(payload.foodContext).toContain("Use the numbers above exactly; do not recompute them.");
   });
 
   it("degrades to the on-device coach when the route is unconfigured", async () => {
