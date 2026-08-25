@@ -127,15 +127,23 @@ export function PlateCard({
         })}
       </ul>
 
-      {summary.plateAverage ? (
-        <div className="mt-3 flex items-center justify-between rounded-control border border-care/20 bg-white p-3">
-          <div>
-            <p className="text-xs font-medium text-ink/65">{t(language, "plateAverage")}</p>
-            <p className="text-2xl font-semibold">{summary.plateAverage.fcs}</p>
+      {/* A plate of one is not an average. Below two items the headline is still the
+          published score with its band; averaging language over a single published number
+          under-claims a real value, and the reverse over-claims a computed one. */}
+      {summary.plateAverage && items.length >= 2 ? (
+        <div className="mt-3 rounded-control border border-care/20 bg-white p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium text-ink/65">
+                {t(language, "plateAverageEyebrow", { count: items.length })}
+              </p>
+              <p className="text-2xl font-semibold">{summary.plateAverage.fcs}</p>
+            </div>
+            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${bandClass[summary.plateAverage.band]}`}>
+              {t(language, bandLabel[summary.plateAverage.band])}
+            </span>
           </div>
-          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${bandClass[summary.plateAverage.band]}`}>
-            {t(language, bandLabel[summary.plateAverage.band])}
-          </span>
+          <p className="mt-2 text-xs leading-5 text-ink/65">{t(language, "plateAverageNote")}</p>
         </div>
       ) : null}
 

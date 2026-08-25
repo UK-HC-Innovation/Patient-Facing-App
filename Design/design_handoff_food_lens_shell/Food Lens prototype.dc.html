@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  body { margin:0; background:#eef1f7; color:#172026; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color:#0033a0; }
+  a:hover { color:#001f63; }
+  @keyframes fl-bar { 0%,100% { transform: scaleY(.25) } 50% { transform: scaleY(1) } }
+</style>
+</helmet>
+
+<div style="padding:48px 48px 80px; display:flex; flex-direction:column; gap:32px; background:#eef1f7; min-width:1500px;">
+
+  <header style="max-width:880px; display:flex; flex-direction:column; gap:14px;">
+    <p style="margin:0; font-family:ui-monospace,'SF Mono',Menlo,monospace; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:rgba(23,32,38,.55);">Food Lens · working prototype</p>
+    <h1 style="margin:0; font-size:38px; line-height:1.06; letter-spacing:-.022em; font-weight:650;">Does the sheet actually work under a thumb?</h1>
+    <p style="margin:0; font-size:17px; line-height:1.55; color:rgba(23,32,38,.72); max-width:76ch; text-wrap:pretty;">The review doc asserts that drag-to-resize, tap-to-expand-transcript and reach-the-mic can share one edge. This is that claim, running. Drag the dark voice bar; tap the transcript text; tap the mic; scan and build a plate; tap the score marker on the chart.</p>
+  </header>
+
+  <div style="display:flex; align-items:flex-start; gap:40px; flex-wrap:wrap;">
+
+    <div style="flex:0 0 auto; display:flex; flex-direction:column; gap:14px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-family:ui-monospace,Menlo,monospace; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:rgba(23,32,38,.55);">Sheet:</span>
+        <span style="display:inline-flex; align-items:center; height:26px; padding:0 10px; border-radius:6px; background:#0033a0; color:#fff; font-family:ui-monospace,Menlo,monospace; font-size:12px; font-weight:700;">{{ snapLabel }}</span>
+        <span style="font-family:ui-monospace,Menlo,monospace; font-size:12px; color:rgba(23,32,38,.45);">{{ heightLabel }}</span>
+        <button type="button" onClick="{{ reset }}" style="margin-left:8px; min-height:32px; border-radius:7px; border:1px solid rgba(23,32,38,.2); background:#fff; padding:0 12px; font-size:13px; font-weight:600; color:#172026;">Reset</button>
+      </div>
+
+      <div style="width:406px; background:#0b1115; border-radius:44px; padding:8px; box-shadow:0 34px 64px -30px rgba(23,32,38,.55);">
+        <div style="position:relative; width:390px; height:844px; border-radius:36px; overflow:hidden; background:#0f172a; touch-action:none; user-select:none;">
+
+          <div style="position:absolute; inset:0; display:grid; place-items:center; background:linear-gradient(to bottom right,#1e293b,#0f172a,#000);">
+            <span style="font-size:132px; filter:drop-shadow(0 18px 26px rgba(0,0,0,.65));">{{ foodEmoji }}</span>
+          </div>
+          <div style="position:absolute; inset:0; background:linear-gradient(to bottom, rgba(15,23,42,.75) 0%, rgba(15,23,42,0) 24%);"></div>
+
+          <div style="position:absolute; left:0; right:0; top:0; padding:50px 18px 0; display:flex; align-items:center; justify-content:space-between; gap:12px;">
+            <span style="font-family:ui-monospace,Menlo,monospace; font-size:12px; font-weight:700; letter-spacing:.16em; color:rgba(255,255,255,.9);">FOOD LENS</span>
+            <span style="display:flex; align-items:center; gap:6px; min-height:44px; white-space:nowrap; border-radius:9999px; border:1px solid rgba(244,208,111,.55); background:rgba(15,23,42,.5); padding:0 13px; font-size:13px; font-weight:600; color:#f4d06f;">For my plan<span style="display:grid; place-items:center; width:16px; height:16px; border-radius:9999px; border:1px solid rgba(244,208,111,.8); font-size:11px; font-weight:700;">i</span></span>
+          </div>
+
+          <div style="position:absolute; left:0; right:0; top:104px; padding:0 18px; display:flex; align-items:center; gap:8px;">
+            <span style="min-height:36px; display:inline-flex; align-items:center; border-radius:9999px; background:rgba(255,255,255,.94); padding:0 13px; font-size:13px; font-weight:600; color:#172026; max-width:236px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ foodName }}</span>
+            <button type="button" onClick="{{ scanNext }}" style="min-height:44px; white-space:nowrap; border-radius:9999px; border:1px dashed rgba(255,255,255,.6); background:rgba(15,23,42,.45); padding:0 14px; font-size:14px; font-weight:600; color:#fff;">Scan next</button>
+          </div>
+
+          <div style="position:absolute; left:0; right:0; bottom:0; height:{{ sheetH }}; display:flex; flex-direction:column; border-radius:24px 24px 0 0; overflow:hidden; box-shadow:0 -22px 44px -20px rgba(0,0,0,.55);">
+
+            <div onPointerDown="{{ onHandleDown }}" style="flex:0 0 auto; background:#172026; padding:9px 16px 13px; cursor:grab;">
+              <div style="width:46px; height:5px; border-radius:9999px; background:rgba(255,255,255,.34); margin:0 auto 11px;"></div>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <sc-if value="{{ micOn }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex; align-items:flex-end; gap:3px; height:26px; flex:0 0 auto;">
+                    <span style="width:4px; height:26px; border-radius:2px; background:#6ee7b7; animation:fl-bar 1s ease-in-out infinite;"></span>
+                    <span style="width:4px; height:26px; border-radius:2px; background:#6ee7b7; animation:fl-bar 1s ease-in-out infinite; animation-delay:.12s;"></span>
+                    <span style="width:4px; height:26px; border-radius:2px; background:#6ee7b7; animation:fl-bar 1s ease-in-out infinite; animation-delay:.24s;"></span>
+                    <span style="width:4px; height:26px; border-radius:2px; background:#6ee7b7; animation:fl-bar 1s ease-in-out infinite; animation-delay:.36s;"></span>
+                    <span style="width:4px; height:26px; border-radius:2px; background:#6ee7b7; animation:fl-bar 1s ease-in-out infinite; animation-delay:.48s;"></span>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ micOff }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex; align-items:flex-end; gap:3px; height:22px; flex:0 0 auto;">
+                    <span style="width:4px; height:22px; border-radius:2px; background:rgba(255,255,255,.3);"></span>
+                    <span style="width:4px; height:22px; border-radius:2px; background:rgba(255,255,255,.3);"></span>
+                    <span style="width:4px; height:22px; border-radius:2px; background:rgba(255,255,255,.3);"></span>
+                    <span style="width:4px; height:22px; border-radius:2px; background:rgba(255,255,255,.3);"></span>
+                    <span style="width:4px; height:22px; border-radius:2px; background:rgba(255,255,255,.3);"></span>
+                  </div>
+                </sc-if>
+
+                <button type="button" data-tap="transcript" onClick="{{ toggleTranscript }}" style="flex:1; min-width:0; min-height:44px; border:0; background:transparent; padding:0; text-align:left; cursor:pointer;">
+                  <span style="display:block; font-size:14px; font-weight:600; color:rgba(255,255,255,.62);">{{ micLabel }}</span>
+                  <span style="display:block; font-size:15px; font-weight:600; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ lastTurn }}</span>
+                </button>
+
+                <button type="button" onClick="{{ toggleMic }}" aria-label="Toggle microphone" style="flex:0 0 auto; display:grid; place-items:center; width:54px; height:54px; border-radius:9999px; border:0; cursor:pointer; background:{{ micBg }};">
+                  <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
+                </button>
+              </div>
+
+              <sc-if value="{{ transcriptOpen }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top:12px; max-height:{{ logMax }}; overflow-y:auto; display:flex; flex-direction:column; gap:7px; border-top:1px solid rgba(255,255,255,.14); padding-top:12px;">
+                  <sc-for list="{{ turns }}" as="turn" hint-placeholder-count="3">
+                    <p style="margin:0; border-radius:9px; padding:9px 11px; font-size:14px; line-height:1.5; background:{{ turn.bg }}; color:{{ turn.fg }};"><span style="font-weight:700;">{{ turn.who }}</span> {{ turn.text }}</p>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+
+            <div ref="{{ scrollRef }}" style="flex:1; min-height:0; overflow-y:auto; background:#fff;">
+              <div style="padding:18px 18px 40px; display:flex; flex-direction:column; gap:18px;">
+
+                <div>
+                  <div style="display:flex; align-items:flex-start; gap:14px;">
+                    <div style="flex:1; min-width:0;">
+                      <span style="display:inline-block; border-radius:6px; padding:3px 9px; font-size:13px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; background:{{ bandTint }}; color:{{ bandColor }};">{{ bandLabel }}</span>
+                      <p style="margin:9px 0 0; font-size:21px; line-height:1.26; font-weight:640; letter-spacing:-.01em; text-wrap:pretty;">{{ verdict }}</p>
+                      <p style="margin:6px 0 0; font-size:15px; line-height:1.45; color:rgba(23,32,38,.66);">{{ verdictSub }}</p>
+                    </div>
+                    <div style="flex:0 0 auto; text-align:right;">
+                      <p style="margin:0; font-size:50px; line-height:1; font-weight:660; letter-spacing:-.03em; color:{{ bandColor }};">{{ headlineNumber }}</p>
+                      <p style="margin:2px 0 0; font-size:13px; font-weight:600; color:rgba(23,32,38,.55);">{{ headlineUnit }}</p>
+                    </div>
+                  </div>
+                  <sc-if value="{{ plateMode }}" hint-placeholder-val="{{ false }}">
+                    <p style="margin:9px 0 0; font-size:13px; line-height:1.5; color:rgba(23,32,38,.6);">A calorie-weighted average of the items below — <strong style="font-weight:650;">not a Food Compass score.</strong> The published numbers are the per-item ones.</p>
+                  </sc-if>
+                </div>
+
+                <sc-if value="{{ hasPlate }}" hint-placeholder-val="{{ false }}">
+                  <ul style="margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px;">
+                    <sc-for list="{{ plateRows }}" as="row" hint-placeholder-count="2">
+                      <li style="display:flex; flex-direction:column; gap:10px; border-radius:10px; border:1px solid rgba(23,32,38,.12); background:#fff; padding:12px 14px;">
+                        <div style="display:flex; align-items:center; gap:12px;">
+                          <span style="flex:0 0 auto; display:grid; place-items:center; width:40px; height:40px; border-radius:9999px; font-size:16px; font-weight:700; background:{{ row.tint }}; color:{{ row.color }};">{{ row.fcs }}</span>
+                          <div style="min-width:0; flex:1;">
+                            <p style="margin:0; font-size:15px; font-weight:600; line-height:1.35;">{{ row.name }}</p>
+                            <p style="margin:2px 0 0; font-size:13px; color:rgba(23,32,38,.62);">{{ row.meta }}</p>
+                          </div>
+                          <button type="button" onClick="{{ row.remove }}" aria-label="Remove item" style="flex:0 0 auto; display:grid; place-items:center; width:44px; height:44px; border-radius:8px; border:1px solid rgba(157,63,49,.28); background:#fff; font-size:18px; font-weight:600; color:#9d3f31; cursor:pointer;">×</button>
+                        </div>
+                        <div style="display:flex; align-items:center; justify-content:flex-end; gap:8px;">
+                          <button type="button" onClick="{{ row.dec }}" aria-label="Fewer" style="width:44px; height:44px; border-radius:8px; border:1px solid rgba(23,32,38,.15); background:#fff; font-size:18px; font-weight:600; cursor:pointer;">−</button>
+                          <span style="min-width:72px; text-align:center; font-size:15px; font-weight:600;">{{ row.qtyLabel }}</span>
+                          <button type="button" onClick="{{ row.inc }}" aria-label="More" style="width:44px; height:44px; border-radius:8px; border:1px solid rgba(23,32,38,.15); background:#fff; font-size:18px; font-weight:600; cursor:pointer;">+</button>
+                        </div>
+                      </li>
+                    </sc-for>
+                  </ul>
+                </sc-if>
+
+                <div>
+                  <div style="display:grid; grid-template-columns:34px minmax(0,1fr); gap:6px;">
+                    <div style="display:flex; height:280px; flex-direction:column; justify-content:space-between; padding:2px 0; text-align:right; font-size:13px; font-weight:600; color:rgba(23,32,38,.7);"><span>9</span><span>6</span><span>3</span><span>0</span></div>
+                    <div style="position:relative; height:280px; overflow:hidden; border-radius:10px; border:1px solid rgba(23,32,38,.22); background:#fff;">
+                      <div style="position:absolute; left:0; top:0; width:70%; height:72.2%; background:#ffe4e6;"></div>
+                      <div style="position:absolute; right:0; top:0; width:30%; height:72.2%; background:#fef3c7;"></div>
+                      <div style="position:absolute; bottom:0; left:0; width:70%; height:27.8%; background:#ffedd5;"></div>
+                      <div style="position:absolute; bottom:0; right:0; width:30%; height:27.8%; background:#d1fae5;"></div>
+                      <div style="position:absolute; top:0; bottom:0; left:70%; border-left:1px solid rgba(23,32,38,.25);"></div>
+                      <div style="position:absolute; left:0; right:0; bottom:27.8%; border-top:1px solid rgba(23,32,38,.25);"></div>
+                      <sc-for list="{{ chartDots }}" as="dot" hint-placeholder-count="1">
+                        <span style="position:absolute; left:{{ dot.left }}; bottom:{{ dot.bottom }}; transform:translate(-50%,50%); width:16px; height:16px; border-radius:9999px; border:3px solid #92400e; background:#fff;"></span>
+                      </sc-for>
+                      <button type="button" onClick="{{ openWhy }}" aria-label="Why this score" style="position:absolute; left:{{ markerLeft }}; bottom:{{ markerBottom }}; background:{{ bandColor }}; transform:translate(-50%,50%); z-index:10; display:grid; place-items:center; width:46px; height:46px; border-radius:9999px; border:3px solid #fff; font-size:17px; font-weight:700; color:#fff; cursor:pointer;">{{ markerNumber }}</button>
+                    </div>
+                    <span></span>
+                    <div style="position:relative; height:22px; font-size:13px; font-weight:600; color:rgba(23,32,38,.7);"><span style="position:absolute; left:0;">0</span><span style="position:absolute; left:70%; transform:translateX(-50%);">70</span><span style="position:absolute; right:0;">100</span></div>
+                  </div>
+                  <div style="margin:12px 0 0 40px; display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+                    <span style="display:flex; align-items:center; gap:7px; border-radius:7px; background:#ffe4e6; padding:6px 9px; font-size:13px; font-weight:600; color:#9f1239;">Limit</span>
+                    <span style="display:flex; align-items:center; gap:7px; border-radius:7px; background:#fef3c7; padding:6px 9px; font-size:13px; font-weight:600; color:#78350f;">Moderate</span>
+                    <span style="display:flex; align-items:center; gap:7px; border-radius:7px; background:#ffedd5; padding:6px 9px; font-size:13px; font-weight:600; color:#7c2d12;">Be mindful</span>
+                    <span style="display:flex; align-items:center; gap:7px; border-radius:7px; background:#d1fae5; padding:6px 9px; font-size:13px; font-weight:600; color:#064e3b;">Choose often</span>
+                  </div>
+                  <p style="margin:10px 0 0; font-size:14px; line-height:1.5; color:rgba(23,32,38,.7);">Tap the filled marker to see what drives the number. Down and to the right is better — higher score, fewer calories.</p>
+                </div>
+
+                <sc-if value="{{ whyOpen }}" hint-placeholder-val="{{ false }}">
+                  <div style="border-radius:12px; border:1px solid rgba(0,51,160,.25); background:#fff; padding:14px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+                      <p style="margin:0; font-size:15px; font-weight:640;">Why this score?</p>
+                      <button type="button" onClick="{{ closeWhy }}" style="min-height:44px; border-radius:8px; border:1px solid rgba(23,32,38,.16); background:#fff; padding:0 12px; font-size:14px; font-weight:600; color:#172026; cursor:pointer;">Close</button>
+                    </div>
+                    <ul style="margin:12px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px;">
+                      <sc-for list="{{ domains }}" as="d" hint-placeholder-count="4">
+                        <li style="display:flex; align-items:center; gap:10px; font-size:14px;">
+                          <span style="flex:1;">{{ d.name }}</span>
+                          <span style="flex:0 0 96px; height:8px; border-radius:9999px; background:#e3eaf8; position:relative; overflow:hidden;"><span style="position:absolute; height:100%; left:{{ d.left }}; right:{{ d.right }}; width:{{ d.width }}; background:{{ d.color }};"></span></span>
+                          <span style="flex:0 0 44px; text-align:right; font-weight:700; color:{{ d.color }};">{{ d.value }}</span>
+                        </li>
+                      </sc-for>
+                    </ul>
+                    <p style="margin:12px 0 0; font-size:13px; line-height:1.5; color:rgba(23,32,38,.65);">An estimate of what drives it — <strong style="font-weight:650;">the published number stands.</strong> Not assessable here: additives (partial: processing degree).</p>
+                  </div>
+                </sc-if>
+
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <button type="button" onClick="{{ addToPlate }}" style="min-height:56px; width:100%; border-radius:10px; border:0; background:#0033a0; font-size:16px; font-weight:650; color:#fff; cursor:pointer;">{{ addLabel }}</button>
+                  <button type="button" style="min-height:52px; width:100%; border-radius:10px; border:1px solid rgba(0,51,160,.3); background:#fff; font-size:15px; font-weight:600; color:#0033a0; cursor:pointer;">{{ logLabel }}</button>
+                </div>
+
+                <p style="margin:0; font-size:13px; line-height:1.5; color:rgba(23,32,38,.55);">Food Compass 2.0, Tufts University, used with permission · AI-assisted identification · not medical advice.</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:0 0 400px; display:flex; flex-direction:column; gap:14px;">
+      <h2 style="margin:0 0 2px; font-size:15px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#0033a0;">Try these, in order</h2>
+
+      <div style="background:#fff; border:1px solid rgba(23,32,38,.12); border-left:3px solid #0033a0; border-radius:10px; padding:14px 16px;">
+        <p style="margin:0; font-size:16px; font-weight:650;">1 · Drag the dark bar</p>
+        <p style="margin:5px 0 0; font-size:14px; line-height:1.55; color:rgba(23,32,38,.7);">Drag up and down, then release. It snaps to peek / half / full. A tap with no movement cycles to the next height instead — that 8px threshold is what keeps drag and tap from fighting.</p>
+      </div>
+
+      <div style="background:#fff; border:1px solid rgba(23,32,38,.12); border-left:3px solid #0033a0; border-radius:10px; padding:14px 16px;">
+        <p style="margin:0; font-size:16px; font-weight:650;">2 · Tap the transcript line</p>
+        <p style="margin:5px 0 0; font-size:14px; line-height:1.55; color:rgba(23,32,38,.7);">The two-line status expands into a scrollable log inside the handle. From peek it lifts the sheet to half first — see the note below for why it has to.</p>
+      </div>
+
+      <div style="background:#fff; border:1px solid rgba(23,32,38,.12); border-left:3px solid #0033a0; border-radius:10px; padding:14px 16px;">
+        <p style="margin:0; font-size:16px; font-weight:650;">3 · Tap the mic</p>
+        <p style="margin:5px 0 0; font-size:14px; line-height:1.55; color:rgba(23,32,38,.7);">Listening ↔ paused. The waveform stills and the button hollows out. Note it never drags the sheet even though it sits on the handle.</p>
+      </div>
+
+      <div style="background:#fff; border:1px solid rgba(23,32,38,.12); border-left:3px solid #0033a0; border-radius:10px; padding:14px 16px;">
+        <p style="margin:0; font-size:16px; font-weight:650;">4 · Scan next, then Add to plate</p>
+        <p style="margin:5px 0 0; font-size:14px; line-height:1.55; color:rgba(23,32,38,.7);">Cycle foods with "Scan next" and add two or three. The headline flips from a published score to a <em>calorie-weighted plate average</em> — relabelled, not just renumbered. Adjust quantities and watch it move; remove items to get back to a single food.</p>
+      </div>
+
+      <div style="background:#fff; border:1px solid rgba(23,32,38,.12); border-left:3px solid #0033a0; border-radius:10px; padding:14px 16px;">
+        <p style="margin:0; font-size:16px; font-weight:650;">5 · Tap the marker on the chart</p>
+        <p style="margin:5px 0 0; font-size:14px; line-height:1.55; color:rgba(23,32,38,.7);">The filled dot opens the domain breakdown and pushes the sheet to full. Plate items appear as hollow dots — the plate average is never plotted, because it isn't a published score.</p>
+      </div>
+
+      <div style="background:#172026; border-radius:10px; padding:16px 18px; color:#fff;">
+        <p style="margin:0; font-size:15px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#6ee7b7;">What I found building it</p>
+        <ul style="margin:10px 0 0; padding-left:20px; font-size:14px; line-height:1.7; color:rgba(255,255,255,.86);">
+          <li>Drag and tap <em>can</em> share the handle, but only with a movement threshold. Without it every drag also fires the transcript.</li>
+          <li>The sheet needs two independent scroll surfaces — the transcript log and the content — or expanding the log steals the content's scroll position.</li>
+          <li><strong style="font-weight:650;">A growing handle can eat its own sheet.</strong> Opening the log at peek height pushed the handle past 258px, so the flexible content pane collapsed to zero and the verdict rendered below the phone. Two guards: opening from peek lifts the sheet to half, and the log's height is now derived from the sheet's, so it can never out-grow its container. Caught only by tapping it in the state the prototype opens in.</li>
+          <li>The mic has to stop propagation explicitly. A 54px button on a drag handle is otherwise a drag handle.</li>
+          <li>Plate mode changes the headline's <em>meaning</em>, not just its value, so the label and the sub-line both have to switch. That's the trap-2 discipline, enforced in layout.</li>
+          <li>A plate of <em>one</em> should not say "plate average" — it is still a published score, and averaging language there under-claims a real number. The switch happens at two items. I only noticed this by building it.</li>
+          <li>Tapping the marker has to scroll the panel into view. Opening it below the fold is the same dead end the old page had.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="flex:0 0 460px; display:flex; flex-direction:column; gap:14px;">
+      <h2 style="margin:0 0 2px; font-size:15px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:rgba(23,32,38,.55);">Draft copy — 22 strings, for your edit</h2>
+      <p style="margin:0; font-size:14px; line-height:1.55; color:rgba(23,32,38,.68);">First pass at the new strings, en + es. Reading age kept low, no clinical claims, nothing that states a number the engine didn't compute. The two crisis-adjacent strings are listed separately — they belong in <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px; white-space:nowrap;">safetyStrings</code> and need the safety approval path, not a copy review.</p>
+
+      <div style="background:#fff; border:1px solid rgba(23,32,38,.12); border-radius:10px; padding:14px 16px; display:flex; flex-direction:column; gap:12px;">
+        <p style="margin:0; font-size:13px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#0033a0;">Verdict &amp; chart · 5</p>
+        <sc-for list="{{ copyVerdict }}" as="s" hint-placeholder-count="5">
+          <div style="border-top:1px solid rgba(23,32,38,.09); padding-top:10px;">
+            <p style="margin:0; font-family:ui-monospace,Menlo,monospace; font-size:12px; color:rgba(23,32,38,.5);">{{ s.key }}</p>
+            <p style="margin:4px 0 0; font-size:15px; line-height:1.45; font-weight:500;">{{ s.en }}</p>
+            <p style="margin:3px 0 0; font-size:15px; line-height:1.45; color:rgba(23,32,38,.62);">{{ s.es }}</p>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="background:#fff; border:1px solid rgba(23,32,38,.12); border-radius:10px; padding:14px 16px; display:flex; flex-direction:column; gap:12px;">
+        <p style="margin:0; font-size:13px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#0033a0;">Sheet chrome · 6</p>
+        <sc-for list="{{ copyChrome }}" as="s" hint-placeholder-count="6">
+          <div style="border-top:1px solid rgba(23,32,38,.09); padding-top:10px;">
+            <p style="margin:0; font-family:ui-monospace,Menlo,monospace; font-size:12px; color:rgba(23,32,38,.5);">{{ s.key }}</p>
+            <p style="margin:4px 0 0; font-size:15px; line-height:1.45; font-weight:500;">{{ s.en }}</p>
+            <p style="margin:3px 0 0; font-size:15px; line-height:1.45; color:rgba(23,32,38,.62);">{{ s.es }}</p>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="background:#fff; border:1px solid rgba(23,32,38,.12); border-radius:10px; padding:14px 16px; display:flex; flex-direction:column; gap:12px;">
+        <p style="margin:0; font-size:13px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#0033a0;">Edge states · 11</p>
+        <sc-for list="{{ copyEdge }}" as="s" hint-placeholder-count="11">
+          <div style="border-top:1px solid rgba(23,32,38,.09); padding-top:10px;">
+            <p style="margin:0; font-family:ui-monospace,Menlo,monospace; font-size:12px; color:rgba(23,32,38,.5);">{{ s.key }}</p>
+            <p style="margin:4px 0 0; font-size:15px; line-height:1.45; font-weight:500;">{{ s.en }}</p>
+            <p style="margin:3px 0 0; font-size:15px; line-height:1.45; color:rgba(23,32,38,.62);">{{ s.es }}</p>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="background:rgba(157,63,49,.07); border:1px solid rgba(157,63,49,.3); border-radius:10px; padding:14px 16px; display:flex; flex-direction:column; gap:12px;">
+        <p style="margin:0; font-size:13px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#9d3f31;">Safety-adjacent · 2 · separate approval</p>
+        <sc-for list="{{ copySafety }}" as="s" hint-placeholder-count="2">
+          <div style="border-top:1px solid rgba(157,63,49,.18); padding-top:10px;">
+            <p style="margin:0; font-family:ui-monospace,Menlo,monospace; font-size:12px; color:rgba(23,32,38,.5);">{{ s.key }}</p>
+            <p style="margin:4px 0 0; font-size:15px; line-height:1.45; font-weight:500;">{{ s.en }}</p>
+            <p style="margin:3px 0 0; font-size:15px; line-height:1.45; color:rgba(23,32,38,.62);">{{ s.es }}</p>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1500,&quot;height&quot;:1100}}">
+const PEEK = 258, HALF = 520, FULL = 792, SNAPS = [PEEK, HALF, FULL];
+
+const BAND = {
+  encourage: { label: "Encourage", color: "#047857", tint: "rgba(4,120,87,.12)" },
+  moderate: { label: "Moderate", color: "#92400e", tint: "rgba(146,64,14,.12)" },
+  minimize: { label: "Minimize", color: "#9d3f31", tint: "rgba(157,63,49,.12)" }
+};
+
+const VERDICT = {
+  encourage: "One of the better choices you can make.",
+  moderate: "Middle of the pack — fine now and then.",
+  minimize: "A lot of calories for the nutrition you get."
+};
+
+const FOODS = [
+  { id: "pizza", emoji: "🍕", name: "Pizza with pepperoni, from a restaurant", fcs: 24, kcal: 285, per100: 266, unit: "slice", step: 1 },
+  { id: "salad", emoji: "🥗", name: "Salad, garden, no dressing", fcs: 71, kcal: 20, per100: 20, unit: "cup", step: 1 },
+  { id: "cola", emoji: "🥤", name: "Cola, regular", fcs: 8, kcal: 140, per100: 41, unit: "can", step: 1, missing: "added sugars unknown" },
+  { id: "oatmeal", emoji: "🥣", name: "Oatmeal, regular, made with water", fcs: 81, kcal: 158, per100: 62, unit: "cup", step: 1 }
+];
+
+const DOMAINS = [
+  { name: "Vitamins & minerals", value: 2.1 },
+  { name: "Fibre & whole grains", value: -1.4 },
+  { name: "Sodium", value: -6.8 },
+  { name: "Saturated fat", value: -4.2 },
+  { name: "Processing degree", value: -3.1 }
+];
+
+const TURNS = [
+  { who: "Food Lens", text: "I see pizza with pepperoni. Its published Food Compass score is 24 out of 100. What would you like to know about it?", role: "a" },
+  { who: "You", text: "It's from Papa John's — pepperoni and sausage, large.", role: "p" },
+  { who: "Food Lens", text: "Scored as pizza with pepperoni from a restaurant — 24 out of 100. Sausage, the original crust and the large size aren't in that published category, so they're not in the number.", role: "a" },
+  { who: "You", text: "What would be better?", role: "p" },
+  { who: "Food Lens", text: "A thin-crust pizza with chicken and vegetables scores 45 — same kind of meal, fewer calories for the nutrition.", role: "a" }
+];
+
+const COPY_VERDICT = [
+  { key: "verdictEncourage", en: "One of the better choices you can make.", es: "Una de las mejores opciones que puedes elegir." },
+  { key: "verdictModerate", en: "Middle of the pack — fine now and then.", es: "En el promedio — está bien de vez en cuando." },
+  { key: "verdictMinimize", en: "A lot of calories for the nutrition you get.", es: "Muchas calorías para la nutrición que aporta." },
+  { key: "chartDirection", en: "Down and to the right is better — higher score, fewer calories.", es: "Abajo y a la derecha es mejor — más puntaje, menos calorías." },
+  { key: "plateAverageNote", en: "A calorie-weighted average of the items below — not a Food Compass score.", es: "Un promedio ponderado por calorías de los alimentos de abajo — no es un puntaje Food Compass." }
+];
+
+const COPY_CHROME = [
+  { key: "todaySoFar", en: "Today so far", es: "Hoy hasta ahora" },
+  { key: "whyThisScore", en: "Why this score?", es: "¿Por qué este puntaje?" },
+  { key: "whyThisScoreNote", en: "An estimate of what drives it — the published number stands.", es: "Una estimación de qué lo influye — el número publicado se mantiene." },
+  { key: "plateAverageEyebrow", en: "Plate average · {count} items", es: "Promedio del plato · {count} alimentos" },
+  { key: "logPlate", en: "Log this plate · {count} items", es: "Guardar este plato · {count} alimentos" },
+  { key: "scanAnotherItem", en: "Scan another item", es: "Escanear otro alimento" }
+];
+
+const COPY_EDGE = [
+  { key: "recentAndStarred", en: "Recent & starred", es: "Recientes y favoritos" },
+  { key: "nothingInView", en: "Nothing in view yet", es: "Nada a la vista todavía" },
+  { key: "nothingInViewBody", en: "Point at a food — or pick one you've had before.", es: "Apunta a una comida — o elige una que ya hayas comido." },
+  { key: "notScored", en: "Not scored", es: "Sin puntaje" },
+  { key: "carveOutNoNumber", en: "There is no number to show you here, and we won't invent one.", es: "Aquí no hay un número que mostrarte, y no vamos a inventarlo." },
+  { key: "logItAnyway", en: "Log it anyway", es: "Guardarlo igual" },
+  { key: "whyNotScored", en: "Why some foods aren't scored", es: "Por qué algunas comidas no tienen puntaje" },
+  { key: "noMatchLabel", en: "No match", es: "Sin coincidencia" },
+  { key: "sayOneOfThese", en: "Say one of these instead", es: "Di una de estas en su lugar" },
+  { key: "micReadyOrType", en: "Mic ready — or type below.", es: "Micrófono listo — o escribe abajo." },
+  { key: "orStartFromLogged", en: "Or start from something you've logged", es: "O empieza con algo que ya guardaste" }
+];
+
+const COPY_SAFETY = [
+  { key: "voicePausedForSafety", en: "Voice paused for your safety", es: "Voz pausada por tu seguridad" },
+  { key: "crisisLockNote", en: "The mic and the keyboard stay locked until you tap continue. These numbers work without a connection.", es: "El micrófono y el teclado quedan bloqueados hasta que toques continuar. Estos números funcionan sin conexión." }
+];
+
+function bandFor(fcs) {
+  if (fcs >= 70) return "encourage";
+  if (fcs <= 30) return "minimize";
+  return "moderate";
+}
+function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+function snapName(h) {
+  if (h <= (PEEK + HALF) / 2) return "peek";
+  return h <= (HALF + FULL) / 2 ? "half" : "full";
+}
+function densityBottom(per100) {
+  return clamp((per100 / 100 / 9) * 100, 4, 96);
+}
+
+class Component extends DCLogic {
+  state = { h: PEEK, foodIndex: 0, plate: [], transcriptOpen: false, mic: true, whyOpen: false };
+  scrollRef = React.createRef();
+
+  componentWillUnmount() { this.detach(); }
+
+  detach() {
+    if (this.move) window.removeEventListener("pointermove", this.move);
+    if (this.up) window.removeEventListener("pointerup", this.up);
+    this.move = null;
+    this.up = null;
+  }
+
+  onHandleDown = (event) => {
+    if (event.target.closest("button[aria-label='Toggle microphone']")) return;
+    const tapTarget = event.target.closest("[data-tap='transcript']");
+    const startY = event.clientY;
+    const startH = this.state.h;
+    let moved = false;
+
+    this.move = (e) => {
+      const dy = startY - e.clientY;
+      if (!moved && Math.abs(dy) < 8) return;
+      moved = true;
+      this.setState({ h: clamp(startH + dy, PEEK - 40, FULL + 40) });
+    };
+    this.up = () => {
+      this.detach();
+      if (!moved) {
+        if (tapTarget) return;
+        const order = [PEEK, HALF, FULL];
+        const i = order.indexOf(SNAPS.reduce((a, b) => (Math.abs(b - this.state.h) < Math.abs(a - this.state.h) ? b : a)));
+        this.setState({ h: order[(i + 1) % order.length] });
+        return;
+      }
+      const nearest = SNAPS.reduce((a, b) => (Math.abs(b - this.state.h) < Math.abs(a - this.state.h) ? b : a));
+      this.setState({ h: nearest });
+    };
+    window.addEventListener("pointermove", this.move);
+    window.addEventListener("pointerup", this.up);
+  };
+
+  plateTotals() {
+    const items = this.state.plate;
+    let kcal = 0, weighted = 0;
+    for (const it of items) {
+      const c = it.kcal * it.qty;
+      kcal += c;
+      weighted += it.fcs * c;
+    }
+    return { kcal, avg: kcal > 0 ? Math.round(weighted / kcal) : 0 };
+  }
+
+  renderVals() {
+    const food = FOODS[this.state.foodIndex];
+    const plate = this.state.plate;
+    const hasPlate = plate.length > 0;
+    // A plate of one is still a published score. "Plate average" only earns its
+    // label — and its caveat — once two items are actually being averaged.
+    const plateMode = plate.length > 1;
+    const totals = this.plateTotals();
+    const headlineFcs = plateMode ? totals.avg : hasPlate ? plate[0].fcs : food.fcs;
+    const band = BAND[bandFor(headlineFcs)];
+    const snap = snapName(this.state.h);
+    const itemWord = plate.length === 1 ? "item" : "items";
+
+    const plateRows = plate.map((it, i) => {
+      const b = BAND[bandFor(it.fcs)];
+      return {
+        fcs: it.fcs,
+        name: it.name,
+        meta: it.missing ? (it.kcal * it.qty) + " kcal · " + it.missing : (it.kcal * it.qty) + " kcal",
+        qtyLabel: it.qty + " " + it.unit + (it.qty > 1 ? "s" : ""),
+        tint: b.tint,
+        color: b.color,
+        inc: () => this.setState((s) => ({ plate: s.plate.map((p, j) => (j === i ? { ...p, qty: p.qty + 1 } : p)) })),
+        dec: () => this.setState((s) => ({ plate: s.plate.map((p, j) => (j === i && p.qty > 1 ? { ...p, qty: p.qty - 1 } : p)) })),
+        remove: () => this.setState((s) => ({ plate: s.plate.filter((_, j) => j !== i) }))
+      };
+    });
+
+    const chartDots = hasPlate
+      ? plate.map((it) => ({ left: it.fcs + "%", bottom: densityBottom(it.per100) + "%" }))
+      : [{ left: "45%", bottom: densityBottom(205) + "%" }];
+
+    return {
+      sheetH: this.state.h + "px",
+      snapLabel: snap,
+      heightLabel: Math.round(this.state.h) + "px of 844",
+      onHandleDown: this.onHandleDown,
+
+      foodEmoji: hasPlate ? plate[plate.length - 1].emoji : food.emoji,
+      foodName: food.name,
+      scanNext: () => this.setState((s) => ({ foodIndex: (s.foodIndex + 1) % FOODS.length, whyOpen: false })),
+
+      micOn: this.state.mic,
+      micOff: !this.state.mic,
+      micLabel: this.state.mic ? "Listening — just talk." : "Paused · tap the mic to resume",
+      micBg: this.state.mic ? "#0033a0" : "rgba(255,255,255,.12)",
+      toggleMic: (e) => { e.stopPropagation(); this.setState((s) => ({ mic: !s.mic })); },
+      lastTurn: this.state.transcriptOpen ? "Tap again to collapse" : '"' + TURNS[TURNS.length - 1].text.slice(0, 46) + '…"',
+      transcriptOpen: this.state.transcriptOpen,
+      // The log cannot open into a peek sheet: the handle would out-grow its own
+      // container and the content sibling would collapse to zero. Lift first.
+      logMax: clamp(this.state.h - 150, 90, 190) + "px",
+      toggleTranscript: (e) => {
+        e.stopPropagation();
+        this.setState((s) => ({
+          transcriptOpen: !s.transcriptOpen,
+          h: !s.transcriptOpen && s.h < HALF ? HALF : s.h
+        }));
+      },
+      turns: TURNS.map((t, i) => ({
+        id: i,
+        who: t.who + ":",
+        text: t.text,
+        bg: t.role === "a" ? "rgba(255,255,255,.1)" : "rgba(0,51,160,.32)",
+        fg: "rgba(255,255,255,.92)"
+      })),
+
+      bandLabel: plateMode ? "Plate average · " + plate.length + " " + itemWord : band.label,
+      bandColor: band.color,
+      bandTint: band.tint,
+      verdict: plateMode
+        ? this.plateSentence(plate, totals.avg)
+        : VERDICT[bandFor(headlineFcs)],
+      verdictSub: plateMode
+        ? totals.kcal + " kcal on the plate"
+        : (hasPlate ? plate[0].name : food.name) + " · " + ((hasPlate ? plate[0].per100 : food.per100) / 100).toFixed(1) + " kcal/g",
+      headlineNumber: headlineFcs,
+      headlineUnit: plateMode ? "plate average" : "of 100",
+      hasPlate,
+      plateMode,
+      plateRows,
+
+      markerLeft: headlineFcs + "%",
+      markerBottom: densityBottom(hasPlate ? 200 : food.per100) + "%",
+      markerNumber: headlineFcs,
+      chartDots,
+
+      scrollRef: this.scrollRef,
+      whyOpen: this.state.whyOpen,
+      openWhy: () => {
+        this.setState({ whyOpen: true, h: FULL });
+        // Opening the panel below the fold is the same dead end the old page had.
+        window.setTimeout(() => {
+          const el = this.scrollRef.current;
+          if (el) el.scrollTop = el.scrollHeight;
+        }, 60);
+      },
+      closeWhy: () => this.setState({ whyOpen: false }),
+      domains: DOMAINS.map((d) => ({
+        name: d.name,
+        value: (d.value > 0 ? "+" : "") + d.value.toFixed(1),
+        color: d.value > 0 ? "#047857" : "#9d3f31",
+        left: d.value > 0 ? "50%" : "auto",
+        right: d.value > 0 ? "auto" : "50%",
+        width: Math.min(50, Math.abs(d.value) * 5) + "%"
+      })),
+
+      addLabel: hasPlate ? "Add this too" : "Add to plate",
+      logLabel: plateMode ? "Log this plate · " + plate.length + " " + itemWord : "Log this meal",
+      addToPlate: () => this.setState((s) => ({
+        plate: [...s.plate, { ...FOODS[s.foodIndex], qty: 1 }],
+        foodIndex: (s.foodIndex + 1) % FOODS.length,
+        h: Math.max(s.h, HALF),
+        whyOpen: false
+      })),
+
+      reset: () => this.setState({ h: PEEK, foodIndex: 0, plate: [], transcriptOpen: false, mic: true, whyOpen: false }),
+
+      copyVerdict: COPY_VERDICT.map((s, i) => ({ ...s, id: i })),
+      copyChrome: COPY_CHROME.map((s, i) => ({ ...s, id: i })),
+      copyEdge: COPY_EDGE.map((s, i) => ({ ...s, id: i })),
+      copySafety: COPY_SAFETY.map((s, i) => ({ ...s, id: i }))
+    };
+  }
+
+  plateSentence(plate, avg) {
+    const worst = plate.reduce((a, b) => (a.fcs <= b.fcs ? a : b));
+    if (avg >= 70) return "A strong plate overall.";
+    if (avg <= 30) return "The " + worst.name.split(",")[0].toLowerCase() + " is carrying this plate.";
+    return "A mixed plate — the " + worst.name.split(",")[0].toLowerCase() + " pulls it down.";
+  }
+}
+</script>
+</body>
+</html>

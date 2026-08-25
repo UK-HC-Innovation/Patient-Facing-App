@@ -41,7 +41,35 @@ const items: PlateItem[] = [
   { id: "item-1", food, servings: 1, compassScore: { fcs: 24, band: "minimize", tier: "T1" } }
 ];
 
+const twoItems: PlateItem[] = [
+  ...items,
+  {
+    id: "item-2",
+    food: { ...food, id: "toast", name: "Toast" },
+    servings: 1,
+    compassScore: { fcs: 60, band: "moderate", tier: "T1" }
+  }
+];
+
 describe("PlateCard", () => {
+  it("keeps a plate of one a published score rather than an average", () => {
+    render(
+      <PlateCard
+        items={items}
+        summary={summarizePlate(items)}
+        flags={[]}
+        language="en"
+        onServingsChange={vi.fn()}
+        onRemove={vi.fn()}
+        onLog={vi.fn()}
+      />
+    );
+
+    // Averaging language over a single published number under-claims a real value.
+    expect(screen.queryByText(/average/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Food Compass 24")).toBeInTheDocument();
+  });
+
   it("labels the display derivation only as plate average and exposes item controls", async () => {
     const user = userEvent.setup();
     const onServingsChange = vi.fn();
@@ -49,8 +77,8 @@ describe("PlateCard", () => {
     const onLog = vi.fn();
     render(
       <PlateCard
-        items={items}
-        summary={summarizePlate(items)}
+        items={twoItems}
+        summary={summarizePlate(twoItems)}
         flags={[]}
         language="en"
         onServingsChange={onServingsChange}
@@ -59,9 +87,10 @@ describe("PlateCard", () => {
       />
     );
 
-    expect(screen.getByText("Plate average")).toBeInTheDocument();
+    expect(screen.getByText("Plate average · 2 items")).toBeInTheDocument();
+    // The caveat is what keeps the derivation honest: it names itself as not a score.
+    expect(screen.getByText(/not a Food Compass score/)).toBeInTheDocument();
     expect(screen.getByText("Food Compass 24")).toBeInTheDocument();
-    expect(screen.queryByText(/Food Compass Score/i)).not.toBeInTheDocument();
     expect(screen.getByText("Some items are missing nutrition data.")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Increase servings for Soup" }));

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { type RefObject } from "react";
 import type { CompassScore } from "@/domain/food-compass";
 import { t, type FoodLensStringKey, type Language } from "@/i18n/strings";
 
@@ -25,6 +25,20 @@ const MARKER_COLOR: Record<NutritionQuadrant, string> = {
   choose_often: "bg-emerald-700"
 };
 
+/**
+ * Quadrant names live in a legend beneath the plot, never in its corners. The plot corners
+ * hold data, and a colour-keyed legend is what carries the meaning for anyone who cannot
+ * use the colour.
+ */
+const LEGEND_ORDER: readonly NutritionQuadrant[] = ["limit", "moderate", "be_mindful", "choose_often"];
+
+const LEGEND_SWATCH: Record<NutritionQuadrant, string> = {
+  limit: "bg-rose-100 text-rose-800",
+  moderate: "bg-amber-100 text-amber-900",
+  be_mindful: "bg-orange-100 text-orange-900",
+  choose_often: "bg-emerald-100 text-emerald-900"
+};
+
 type NutritionCompassState = "idle" | "pending" | "no_match" | "carve_out";
 
 type NutritionCompassProps = {
@@ -32,6 +46,10 @@ type NutritionCompassProps = {
   language?: Language;
   score?: CompassScore | null;
   state?: NutritionCompassState;
+  /** Turns the marker into the control that opens the domain breakdown. */
+  onMarkerTap?: () => void;
+  /** So closing that panel can hand focus back to the marker that opened it. */
+  markerRef?: RefObject<HTMLButtonElement | null>;
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -81,7 +99,14 @@ function plotStateMessage(language: Language, state: NutritionCompassState): str
   return t(language, "nutritionCompassPlotIdle");
 }
 
-export function NutritionCompass({ foodName, language = "en", score, state = "idle" }: NutritionCompassProps) {
+export function NutritionCompass({
+  foodName,
+  language = "en",
+  score,
+  state = "idle",
+  onMarkerTap,
+  markerRef
+}: NutritionCompassProps) {
   const densityPer100g = score?.calorieDensity.kcalPer100g ?? null;
   const densityPerGram = densityPer100g === null ? null : calorieDensityKcalPerGram(densityPer100g);
   const quadrant = score && densityPer100g !== null ? nutritionQuadrant(score.fcs, densityPer100g) : null;
@@ -140,8 +165,10 @@ export function NutritionCompass({ foodName, language = "en", score, state = "id
             <span>0</span>
           </div>
 
+          {/* overflow-clip rather than overflow-hidden: a hidden box is still a scrollport,
+              so focusing the marker inside it scrolls the plot instead of the page. */}
           <div
-            className="relative h-64 overflow-hidden rounded-control border border-ink/25 bg-white sm:h-80"
+            className="relative h-64 overflow-clip rounded-control border border-ink/25 bg-white sm:h-80"
             data-testid="nutrition-compass-plot"
           >
             <div
@@ -174,31 +201,35 @@ export function NutritionCompass({ foodName, language = "en", score, state = "id
             <div aria-hidden="true" className="absolute inset-x-0 top-1/3 border-t border-dashed border-ink/15" />
             <div aria-hidden="true" className="absolute inset-x-0 top-2/3 border-t border-dashed border-ink/15" />
 
-            <span aria-hidden="true" className="absolute left-2 top-2 text-[10px] font-bold uppercase tracking-wide text-rose-800">
-              {t(language, "nutritionCompassQuadrantLimit")}
-            </span>
-            <span aria-hidden="true" className="absolute right-2 top-2 text-[10px] font-bold uppercase tracking-wide text-amber-900">
-              {t(language, "nutritionCompassQuadrantModerate")}
-            </span>
-            <span aria-hidden="true" className="absolute bottom-[22%] left-2 text-[10px] font-bold uppercase tracking-wide text-orange-900">
-              {t(language, "nutritionCompassQuadrantMindful")}
-            </span>
-            <span aria-hidden="true" className="absolute bottom-[22%] right-2 text-[10px] font-bold uppercase tracking-wide text-emerald-900">
-              {t(language, "nutritionCompassQuadrantOften")}
-            </span>
-
             {position && quadrant ? (
-              <span
-                aria-hidden="true"
-                className={`absolute z-10 grid h-8 w-8 -translate-x-1/2 translate-y-1/2 place-items-center rounded-full border-2 border-white text-[11px] font-bold text-white shadow-md ${MARKER_COLOR[quadrant]}`}
-                data-quadrant={quadrant}
-                data-testid="nutrition-compass-marker"
-                data-x-percent={position.x}
-                data-y-percent={position.y}
-                style={{ left: `${position.x}%`, bottom: `${position.y}%` }}
-              >
-                {score?.fcs}
-              </span>
+              onMarkerTap ? (
+                <button
+                  aria-label={summary}
+                  className={`absolute z-10 grid h-11 w-11 -translate-x-1/2 translate-y-1/2 place-items-center rounded-full border-2 border-white text-[11px] font-bold text-white shadow-md ${MARKER_COLOR[quadrant]}`}
+                  data-quadrant={quadrant}
+                  data-testid="nutrition-compass-marker"
+                  data-x-percent={position.x}
+                  data-y-percent={position.y}
+                  onClick={onMarkerTap}
+                  ref={markerRef}
+                  style={{ left: `${position.x}%`, bottom: `${position.y}%` }}
+                  type="button"
+                >
+                  {score?.fcs}
+                </button>
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className={`absolute z-10 grid h-8 w-8 -translate-x-1/2 translate-y-1/2 place-items-center rounded-full border-2 border-white text-[11px] font-bold text-white shadow-md ${MARKER_COLOR[quadrant]}`}
+                  data-quadrant={quadrant}
+                  data-testid="nutrition-compass-marker"
+                  data-x-percent={position.x}
+                  data-y-percent={position.y}
+                  style={{ left: `${position.x}%`, bottom: `${position.y}%` }}
+                >
+                  {score?.fcs}
+                </span>
+              )
             ) : (
               <span className="absolute left-1/2 top-1/2 max-w-[75%] -translate-x-1/2 -translate-y-1/2 rounded-control border border-dashed border-ink/30 bg-white/95 px-3 py-2 text-center text-xs font-semibold text-ink/75">
                 {score ? t(language, "nutritionCompassDensityUnavailable") : plotStateMessage(language, state)}
@@ -222,6 +253,23 @@ export function NutritionCompass({ foodName, language = "en", score, state = "id
         <p aria-hidden="true" className="mt-1 text-center text-[11px] font-semibold text-ink/75">
           {t(language, "nutritionCompassHigherDensity")}
         </p>
+
+        <div aria-label={t(language, "chartLegendLabel")} className="ml-7 mt-3 grid grid-cols-2 gap-1.5" role="group">
+          {LEGEND_ORDER.map((key) => (
+            <span
+              className={`rounded-md px-2 py-1.5 text-[13px] font-semibold ${LEGEND_SWATCH[key]} ${
+                key === quadrant ? "ring-2 ring-ink/40" : ""
+              }`}
+              data-quadrant={key}
+              data-current={key === quadrant ? "true" : undefined}
+              key={key}
+            >
+              {t(language, QUADRANT_LABEL[key])}
+              {key === quadrant ? ` — ${t(language, "chartYourQuadrant")}` : ""}
+            </span>
+          ))}
+        </div>
+        <p className="mt-2 text-[14px] leading-normal text-ink/70">{t(language, "chartDirection")}</p>
         <figcaption aria-live="polite" className="mt-2 text-xs font-medium text-ink/70">
           {summary}
         </figcaption>

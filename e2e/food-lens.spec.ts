@@ -32,21 +32,32 @@ test("builds and logs a two-item plate with one shared meal id", async ({ page }
   await stubFoodLens(page);
   await page.goto("/food");
 
-  await expect(page.getByRole("heading", { name: /Chicken Noodle Soup/ })).toBeVisible();
-  await expect(page.getByText("Food Compass score")).toBeVisible();
+  await expect(page.getByTestId("food-verdict")).toContainText("Chicken Noodle Soup");
+  await expect(page.getByTestId("food-verdict")).toContainText("Food Compass score");
   await page.getByRole("button", { name: "Add to plate" }).click();
+
+  // A plate of one is still a published score with its band, not an average.
+  const onePlate = page.getByTestId("plate-card");
+  await expect(onePlate.getByTestId("plate-item")).toHaveCount(1);
+  await expect(onePlate.getByText(/average/i)).toHaveCount(0);
+  await expect(onePlate.getByText(/Food Compass \d+/)).toBeVisible();
 
   await page.evaluate((barcode) => {
     (window as unknown as { __e2eBarcode?: string }).__e2eBarcode = barcode;
   }, OATS_BARCODE);
+  // Clicking "Add to plate" scrolled the viewfinder away, and the verdict stops printing
+  // the food's name while the sticky strip is printing it. Back to the top to read it.
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior }));
   // The scanner requires two consecutive 500 ms detections before changing.
-  await expect(page.getByRole("heading", { name: /Old Fashioned Oats/ })).toBeVisible();
-  await expect(page.getByText("Food Compass score")).toBeVisible();
+  await expect(page.getByTestId("food-verdict")).toContainText("Old Fashioned Oats");
+  await expect(page.getByTestId("food-verdict")).toContainText("Food Compass score");
   await page.getByRole("button", { name: "Add to plate" }).click();
 
   const plate = page.getByTestId("plate-card");
   await expect(plate.getByTestId("plate-item")).toHaveCount(2);
-  await expect(plate.getByText("Plate average")).toBeVisible();
+  // At two the headline changes meaning, not just value: label and caveat both switch.
+  await expect(plate.getByText("Plate average · 2 items")).toBeVisible();
+  await expect(plate.getByText(/not a Food Compass score/)).toBeVisible();
   await page.getByRole("button", { name: /Increase servings for Campbell's Condensed Chicken Noodle Soup/ }).click();
   await expect(plate.getByText("2 serving(s)")).toBeVisible();
   await page.getByRole("button", { name: "Log plate" }).click();
@@ -135,18 +146,21 @@ test("scans a food, asks a typed question, logs the meal, and persists it", asyn
   await page.goto("/food");
   await expect(page.getByRole("heading", { name: "Food Lens" })).toBeVisible();
 
-  await expect(page.getByRole("heading", { name: /Chicken Noodle Soup/ })).toBeVisible();
+  await expect(page.getByTestId("food-verdict")).toContainText("Chicken Noodle Soup");
   await expect(page.getByText(/mg sodium/)).toBeVisible();
   await expect(page.locator('[data-guidance-scope="personalized"]').first()).toBeVisible();
 
   await page.getByLabel("Ask about this food…").fill("Can I have this for lunch?");
   await page.getByRole("button", { name: "Ask" }).click();
 
+  // The transcript now lives in the pinned voice bar and grows upward from it.
+  await page.getByRole("button", { name: /Show the conversation/ }).click();
   await expect(page.getByText("Can I have this for lunch?", { exact: true })).toBeVisible();
   await expect(page.getByText(/has 890 mg of sodium/)).toBeVisible();
+  await page.getByRole("button", { name: /Hide the conversation/ }).click();
 
   // spec 23: the Food Compass score sits above the flag chips, badged as a label estimate.
-  await expect(page.getByText("Food Compass score")).toBeVisible();
+  await expect(page.getByTestId("food-verdict")).toContainText("Food Compass score");
   await expect(page.locator('[data-guidance-scope="general"]')).toContainText("Food Compass only");
   // Shown twice on purpose: the viewfinder badge and the score row on the card.
   await expect(page.getByText("Estimate from label")).toHaveCount(2);
@@ -228,6 +242,9 @@ test("keeps existing state when migrating a pre-mealLog save", async ({ page }) 
   await page.goto("/food");
   await page.getByLabel("Ask about this food…").fill("Is this okay?");
   await page.getByRole("button", { name: "Ask" }).click();
+  // The published alternatives arrive last and move everything below them, so wait for the
+  // slot to land before reaching for an action underneath it.
+  await expect(page.getByTestId("food-alternatives")).toBeVisible();
   await page.getByRole("button", { name: "Log this" }).click();
   await expect(page.getByText("Added to your meals")).toBeVisible();
 });

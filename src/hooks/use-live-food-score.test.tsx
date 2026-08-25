@@ -386,3 +386,155 @@ describe("useLiveFoodScore", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });
+
+describe("useLiveFoodScore — the visibility gate", () => {
+  it("stops sending while less than half the viewfinder is on screen", async () => {
+    const clock = { value: 1_000 };
+    const { result } = setup({}, clock);
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    act(() => result.current.setVisibleRatio(0.49));
+    expect(result.current.disarmReason).toBe("offscreen");
+    expect(result.current.loopState).toBe("paused_offscreen");
+
+    for (let i = 0; i < 4; i += 1) {
+      clock.value += LIVE_INTERVAL_MS;
+      await act(async () => {
+        vi.advanceTimersByTime(LIVE_INTERVAL_MS);
+      });
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("needs more than half back, then a full interval, before it sends again", async () => {
+    const clock = { value: 1_000 };
+    const { result } = setup({}, clock);
+    await flush();
+    const before = fetchMock.mock.calls.length;
+
+    act(() => result.current.setVisibleRatio(0.49));
+    // Above the pause line but below the resume line: hysteresis, not a single threshold.
+    act(() => result.current.setVisibleRatio(0.55));
+    expect(result.current.disarmReason).toBe("offscreen");
+
+    act(() => result.current.setVisibleRatio(0.61));
+    expect(result.current.disarmReason).toBeNull();
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(before);
+
+    clock.value += LIVE_INTERVAL_MS / 2;
+    await act(async () => {
+      vi.advanceTimersByTime(LIVE_INTERVAL_MS / 2);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(before);
+
+    clock.value += LIVE_INTERVAL_MS;
+    await act(async () => {
+      vi.advanceTimersByTime(LIVE_INTERVAL_MS);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(before + 1);
+  });
+
+  it("re-arms on ratio recovery alone and never through rearm()", async () => {
+    const { result } = setup();
+    await flush();
+
+    act(() => result.current.setVisibleRatio(0.4));
+    expect(result.current.disarmReason).toBe("offscreen");
+
+    act(() => result.current.rearm());
+    // A "Scan again" chip here is what makes scrolling back feel broken.
+    expect(result.current.disarmReason).toBe("offscreen");
+    expect(result.current.badge).not.toBe("scan_again");
+  });
+
+  it("re-shows the stashed match on return inside the restore window, for free", async () => {
+    const clock = { value: 1_000 };
+    const { result } = setup({}, clock);
+    await flush();
+    await flush();
+    expect(result.current.match?.food.code).toBe(MATCH.food.code);
+    const before = fetchMock.mock.calls.length;
+
+    act(() => result.current.setVisibleRatio(0.2));
+    clock.value += VISION_RESTORE_MS - 1_000;
+    act(() => result.current.setVisibleRatio(1));
+
+    expect(result.current.match?.food.code).toBe(MATCH.food.code);
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(before);
+  });
+
+  it("keeps a provider disarm rather than letting the gate reopen it", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ mode: "locked" }));
+    const { result } = setup();
+    await flush();
+    await flush();
+    expect(result.current.disarmReason).toBe("provider");
+
+    act(() => result.current.setVisibleRatio(0.1));
+    expect(result.current.disarmReason).toBe("provider");
+    act(() => result.current.setVisibleRatio(1));
+    expect(result.current.disarmReason).toBe("provider");
+  });
+
+  it("gives crisis its own disarm rather than reading an unmounted camera as a scroll", async () => {
+    const { result, rerender } = setup();
+    await flush();
+    const before = fetchMock.mock.calls.length;
+
+    await act(async () => rerender({ crisis: true }));
+    expect(result.current.disarmReason).toBe("crisis");
+    expect(result.current.badge).toBe("hidden");
+    expect(result.current.loopState).toBe("unavailable");
+
+    await act(async () => {
+      vi.advanceTimersByTime(LIVE_INTERVAL_MS * 3);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(before);
+
+    act(() => result.current.rearm());
+    expect(result.current.disarmReason).toBe("crisis");
+  });
+
+  it("names the four loop states the pill has to report", async () => {
+    // Armed and visible with nothing recognised and nothing in flight yet.
+    const searching = setup({ grabFrame: () => null });
+    await flush();
+    expect(searching.result.current.loopState).toBe("searching");
+
+    fetchMock.mockImplementation(() => new Promise<Response>(() => {}));
+    const { result, rerender } = setup();
+    await flush();
+    // A call is in flight, so frames are going out.
+    expect(result.current.loopState).toBe("sending");
+
+    act(() => result.current.setVisibleRatio(0.1));
+    expect(result.current.loopState).toBe("paused_offscreen");
+
+    await act(async () => rerender({ cameraActive: false }));
+    // A permission error is not a loop state: no pill at all.
+    expect(result.current.loopState).toBe("unavailable");
+  });
+
+  it("offers the published categories the route named when nothing matched", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        mode: "none",
+        candidates: [
+          { code: "1", description: "One", fcs: 10 },
+          { code: "2", description: "Two", fcs: 20 },
+          { code: "3", description: "Three", fcs: 30 },
+          { code: "4", description: "Four", fcs: 40 }
+        ]
+      })
+    );
+    const { result } = setup();
+    await flush();
+    await flush();
+
+    expect(result.current.match).toBeNull();
+    expect(result.current.noMatchCandidates.map((candidate) => candidate.code)).toEqual(["1", "2", "3"]);
+  });
+});

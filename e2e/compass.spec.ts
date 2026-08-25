@@ -46,7 +46,8 @@ test("keeps the camera in place and starts the food conversation automatically",
   await stubCameraMatch(page);
   await page.goto("/compass");
 
-  await expect(page.getByRole("heading", { name: "Banana, raw" })).toBeVisible({ timeout: 10_000 });
+  // The verdict says band, sentence and number; the food name rides its subline.
+  await expect(page.getByTestId("food-verdict")).toContainText("Banana, raw", { timeout: 10_000 });
   await expect(page.getByRole("region", { name: "Food camera" })).toBeVisible();
   await expect(page.getByRole("log")).toContainText("Food Lens: I see Banana, raw");
   await expect(page.getByText("Scripted fallback for the functional prototype.")).toBeVisible();

@@ -67,6 +67,70 @@ function signedContribution(value: number): string {
   return `${rounded >= 0 ? "+" : ""}${rounded}`;
 }
 
+/** The shipped carve-out sentence for a food outside the score's range. */
+export function carveOutStringKey(reason: NotScoreableReason): FoodLensStringKey {
+  return CARVE_OUT_COPY[reason];
+}
+
+export function compassBandStringKey(band: CompassBand): FoodLensStringKey {
+  return BAND_LABEL[band];
+}
+
+export type CompassBreakdown = { domains: ScoreDomainBreakdown["domains"]; coverage: ScoreDomainBreakdown["coverage"] };
+
+/** A published score carries no `partial` list; an estimate does. */
+export function resolveDomainBreakdown(
+  score: CompassScore | null,
+  estimatedDomains: ScoreDomainBreakdown | null
+): CompassBreakdown | null {
+  if (estimatedDomains) {
+    return estimatedDomains;
+  }
+  if (score?.domains && score.coverage) {
+    return { domains: score.domains, coverage: { ...score.coverage, partial: [] } };
+  }
+  return null;
+}
+
+/** F9's domain breakdown, unchanged whether it is disclosed inline or hoisted into a slot. */
+export function CompassDomainList({
+  breakdown,
+  tier,
+  language
+}: {
+  breakdown: CompassBreakdown;
+  tier: CompassScore["tier"];
+  language: Language;
+}) {
+  return (
+    <div className="grid gap-2 text-xs text-ink/70">
+      {tier === "T1" ? <p>{t(language, "compassPublishedDriversNote")}</p> : null}
+      <ul className="grid gap-1">
+        {breakdown.domains.map((domain) => (
+          <li className="flex justify-between gap-3" key={domain.key}>
+            <span>{t(language, DOMAIN_LABEL[domain.key])}</span>
+            <span className="font-semibold text-ink">{signedContribution(domain.value)}</span>
+          </li>
+        ))}
+      </ul>
+      {breakdown.coverage.missing.length > 0 ? (
+        <p>
+          {t(language, "compassNotAssessable", {
+            domains: breakdown.coverage.missing.map((key) => t(language, DOMAIN_LABEL[key])).join(", ")
+          })}
+        </p>
+      ) : null}
+      {breakdown.coverage.partial.length > 0 ? (
+        <p>
+          {t(language, "compassPartlyAssessable", {
+            domains: breakdown.coverage.partial.map((key) => t(language, DOMAIN_LABEL[key])).join(", ")
+          })}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 const DIAL_RADIUS = 22;
 const DIAL_CIRCUMFERENCE = 2 * Math.PI * DIAL_RADIUS;
 
@@ -120,11 +184,7 @@ export function CompassScoreRow({
   compact?: boolean;
 }) {
   const density = score.calorieDensity;
-  const breakdown =
-    estimatedDomains ??
-    (score.domains && score.coverage
-      ? { domains: score.domains, coverage: { ...score.coverage, partial: [] } }
-      : null);
+  const breakdown = resolveDomainBreakdown(score, estimatedDomains);
 
   return (
     <div className="grid gap-2 rounded-control bg-calm/60 p-3">
@@ -168,30 +228,8 @@ export function CompassScoreRow({
       {breakdown ? (
         <details className="rounded-control border border-ink/10 bg-white p-3">
           <summary className="cursor-pointer text-sm font-semibold text-care">{t(language, "compassWhyScore")}</summary>
-          <div className="mt-2 grid gap-2 text-xs text-ink/70">
-            {score.tier === "T1" ? <p>{t(language, "compassPublishedDriversNote")}</p> : null}
-            <ul className="grid gap-1">
-              {breakdown.domains.map((domain) => (
-                <li className="flex justify-between gap-3" key={domain.key}>
-                  <span>{t(language, DOMAIN_LABEL[domain.key])}</span>
-                  <span className="font-semibold text-ink">{signedContribution(domain.value)}</span>
-                </li>
-              ))}
-            </ul>
-            {breakdown.coverage.missing.length > 0 ? (
-              <p>
-                {t(language, "compassNotAssessable", {
-                  domains: breakdown.coverage.missing.map((key) => t(language, DOMAIN_LABEL[key])).join(", ")
-                })}
-              </p>
-            ) : null}
-            {breakdown.coverage.partial.length > 0 ? (
-              <p>
-                {t(language, "compassPartlyAssessable", {
-                  domains: breakdown.coverage.partial.map((key) => t(language, DOMAIN_LABEL[key])).join(", ")
-                })}
-              </p>
-            ) : null}
+          <div className="mt-2">
+            <CompassDomainList breakdown={breakdown} language={language} tier={score.tier} />
           </div>
         </details>
       ) : null}
@@ -258,7 +296,8 @@ export function CompassViewfinderBadge({
   tier,
   name,
   language,
-  onTap
+  onTap,
+  placement = "top-right"
 }: {
   badge: "hidden" | "idle" | "pending" | "score" | "carve_out" | "scan_again";
   fcs?: number;
@@ -267,12 +306,16 @@ export function CompassViewfinderBadge({
   name?: string;
   language: Language;
   onTap?: () => void;
+  /** The shell puts the trust pill top-right, so the badge moves out of its way. */
+  placement?: "top-right" | "bottom-right";
 }) {
   if (badge === "hidden") {
     return null;
   }
 
-  const shell = "absolute right-3 top-3 max-w-[55%] rounded-control bg-white/92 px-3 py-2 shadow-sm";
+  const shell = `absolute right-3 ${
+    placement === "bottom-right" ? "bottom-3" : "top-3"
+  } max-w-[55%] rounded-control bg-white/92 px-3 py-2 shadow-sm`;
 
   if (badge === "scan_again") {
     return onTap ? (
@@ -299,7 +342,9 @@ export function CompassViewfinderBadge({
   }
 
   if (badge === "carve_out") {
-    return <div className={`${shell} text-xs font-semibold text-care`}>{t(language, "compassCarveOutZeroCalorie")}</div>;
+    // The badge reports the state; the carve-out sentence belongs to the verdict, which is
+    // the one place the product says it.
+    return <div className={`${shell} text-xs font-semibold text-care`}>{t(language, "notScored")}</div>;
   }
 
   if (fcs === undefined || band === undefined) {

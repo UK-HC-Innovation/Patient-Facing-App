@@ -9,6 +9,7 @@ import type {
   ScoreDomainBreakdown
 } from "@/domain/food-compass";
 import type { FoodMatchProvenance, FoodOrderIntent } from "@/domain/food-order-intent";
+import { GATE_PAUSE_BELOW, GATE_RESUME_ABOVE } from "@/domain/viewfinder-gate";
 
 export const LIVE_INTERVAL_MS = 2_500;
 /** Mean absolute difference (0-255) between two 32x32 grayscale frames that counts as a new scene. */
@@ -36,18 +37,36 @@ export type LiveMatch = {
 };
 
 export type LiveScoreBadge = "hidden" | "idle" | "pending" | "score" | "carve_out" | "scan_again";
-export type LiveDisarmReason = "idle" | "provider" | null;
+export type LiveDisarmReason = "idle" | "provider" | "offscreen" | "crisis" | null;
+
+/**
+ * What the loop pill says. Four states, not two: no pill at all is a real answer, because a
+ * permission error is not a loop state.
+ */
+export type LiveLoopState = "sending" | "searching" | "paused_offscreen" | "unavailable";
 
 export type LiveScoreState = {
   badge: LiveScoreBadge;
+  loopState: LiveLoopState;
   match: LiveMatch | null;
   carveOut: NotScoreableReason | null;
+  /**
+   * Published category names to offer when nothing matched. FNDDS names read straight from
+   * the table, so they need no translation of their own.
+   */
+  noMatchCandidates: LiveCandidate[];
   armed: boolean;
   disarmReason: LiveDisarmReason;
   /** A paid image-identify match has succeeded at least once during this mount. */
   liveIdentifySucceeded: boolean;
   adoptMatch: (match: LiveMatch) => void;
   rearm: () => void;
+  /**
+   * How much of the viewfinder is on screen, 0-1. Imperative on purpose: the caller measures
+   * into a ref and calls this once per animation frame, so a continuous scroll value never
+   * reaches component state.
+   */
+  setVisibleRatio: (ratio: number) => void;
 };
 
 /** Mean absolute difference between two equal-length grayscale signatures. */
@@ -91,9 +110,9 @@ function frameSignature(video: HTMLVideoElement | null, canvas: HTMLCanvasElemen
  *
  * Cost discipline is the whole design: one grab immediately on arm so the first score
  * lands fast, then at most one call every 2.5 s, skipped entirely when the scene has not
- * changed, when a call is already in flight, when the tab is hidden, or when a barcode is
- * doing the identifying instead. At low image detail that is roughly $0.5/hour worst case,
- * and it is passcode-gated on top.
+ * changed, when a call is already in flight, when the tab is hidden, when a barcode is
+ * doing the identifying instead, or when the viewfinder is not on screen. At low image
+ * detail that is roughly $0.5/hour worst case, and it is passcode-gated on top.
  *
  * There is no separate provider probe: the first identify call is the probe. If it comes
  * back "unconfigured" or "locked" the loop disarms for good and the badge hides, which
@@ -105,15 +124,22 @@ export function useLiveFoodScore(args: {
   cameraActive: boolean;
   /** While a barcode is active it is authoritative and the vision loop stands down. */
   barcodeActive: boolean;
+  /**
+   * A crisis intercept unmounts the camera, so a naive visibility gate would read 0% and
+   * pause -- correct by accident. Paused because you scrolled and stopped because we
+   * intercepted must not share a code path.
+   */
+  crisis?: boolean;
   passcode?: string;
   enabled?: boolean;
   now?: () => number;
 }): LiveScoreState {
-  const { videoRef, grabFrame, cameraActive, barcodeActive, passcode, enabled = true } = args;
+  const { videoRef, grabFrame, cameraActive, barcodeActive, crisis = false, passcode, enabled = true } = args;
   const now = args.now ?? (() => Date.now());
 
   const [match, setMatch] = useState<LiveMatch | null>(null);
   const [carveOut, setCarveOut] = useState<NotScoreableReason | null>(null);
+  const [noMatchCandidates, setNoMatchCandidates] = useState<LiveCandidate[]>([]);
   const [inFlight, setInFlight] = useState(false);
   const [disarmReason, setDisarmReason] = useState<LiveDisarmReason>(null);
   const [liveIdentifySucceeded, setLiveIdentifySucceeded] = useState(false);
@@ -134,6 +160,12 @@ export function useLiveFoodScore(args: {
   enabledRef.current = enabled;
   const nowRef = useRef(now);
   nowRef.current = now;
+  // The continuous scroll value never reaches state -- storing it there renders on every
+  // scroll event, and that render changes the geometry it was measuring.
+  const visibleRatioRef = useRef(1);
+  // Resuming holds for one full interval, so a flick past the camera costs no request.
+  const resumeHoldUntilRef = useRef(0);
+  const offscreenResumeRef = useRef(false);
   // Held in refs on purpose. If identify() depended on these by identity, a caller passing
   // an inline grabFrame would re-arm the loop on every state update -- and since arming
   // fires a call immediately, that is an unbounded request loop against a paid endpoint.
@@ -186,6 +218,10 @@ export function useLiveFoodScore(args: {
     if (correctionPinnedUntilRef.current > nowRef.current()) {
       return;
     }
+    // The viewfinder came back on screen less than an interval ago; hold the first send.
+    if (resumeHoldUntilRef.current > nowRef.current()) {
+      return;
+    }
     const image = grabFrameRef.current();
     if (!image) {
       return;
@@ -224,6 +260,13 @@ export function useLiveFoodScore(args: {
       if (correctionPinnedUntilRef.current > nowRef.current()) {
         return;
       }
+      if (json.mode === "none") {
+        // "none" keeps whatever was last shown rather than flashing empty, but the route
+        // still names the nearest published categories -- offer them instead of a dead end.
+        setNoMatchCandidates((json.candidates ?? []).slice(0, 3));
+        return;
+      }
+      setNoMatchCandidates([]);
       if (json.mode === "carve_out" && json.reason) {
         setCarveOut(json.reason);
         commitMatch(null);
@@ -239,9 +282,9 @@ export function useLiveFoodScore(args: {
         setCarveOut(null);
         stashRef.current = { match: next, carveOut: null, at: nowRef.current() };
       }
-      // "none" and "error": keep whatever was last shown rather than flashing empty.
+      // "error": keep whatever was last shown rather than flashing empty.
     } catch {
-      // network hiccup — the next tick tries again
+      // network hiccup -- the next tick tries again
     } finally {
       inFlightRef.current = false;
       setInFlight(false);
@@ -252,14 +295,23 @@ export function useLiveFoodScore(args: {
     if (disarmReasonRef.current === "provider") {
       return;
     }
+    // "offscreen" and "crisis" each re-arm on their own condition alone. An explicit rearm
+    // may clear the current food, but it must never claim the viewfinder is back on screen,
+    // and it must never put a "Scan again" chip in front of a scroll.
+    const gated = disarmReasonRef.current === "offscreen" || disarmReasonRef.current === "crisis";
     const wasDisarmed = disarmReasonRef.current !== null;
-    disarmedRef.current = false;
-    disarmReasonRef.current = null;
     correctionPinnedUntilRef.current = 0;
-    signatureRef.current = null;
-    lastChangeRef.current = nowRef.current();
+    // Dropping the stash too, or scrolling back would restore the food that was just plated.
+    stashRef.current = null;
     commitMatch(null);
     setCarveOut(null);
+    if (gated) {
+      return;
+    }
+    disarmedRef.current = false;
+    disarmReasonRef.current = null;
+    signatureRef.current = null;
+    lastChangeRef.current = nowRef.current();
     setDisarmReason(null);
     if (
       !wasDisarmed &&
@@ -271,6 +323,53 @@ export function useLiveFoodScore(args: {
       void identify();
     }
   }, [commitMatch, identify]);
+
+  const setVisibleRatio = useCallback(
+    (ratio: number) => {
+      visibleRatioRef.current = ratio;
+      if (disarmReasonRef.current === "offscreen") {
+        if (ratio < GATE_RESUME_ABOVE) {
+          return;
+        }
+        // Re-armed by ratio recovery, never by rearm(). Restore the stash first, so a scroll
+        // inside the window re-shows the last match instead of buying a fresh identify.
+        const stash = stashRef.current;
+        if (stash && nowRef.current() - stash.at < VISION_RESTORE_MS) {
+          commitMatch(stash.match);
+          setCarveOut(stash.carveOut);
+        }
+        offscreenResumeRef.current = true;
+        resumeHoldUntilRef.current = nowRef.current() + LIVE_INTERVAL_MS;
+        disarmedRef.current = false;
+        disarmReasonRef.current = null;
+        setDisarmReason(null);
+        return;
+      }
+      // Only the gate's own null state may pause. An idle, provider or crisis disarm keeps
+      // its own reason and its own way back.
+      if (disarmReasonRef.current === null && ratio < GATE_PAUSE_BELOW) {
+        disarmedRef.current = true;
+        disarmReasonRef.current = "offscreen";
+        setDisarmReason("offscreen");
+      }
+    },
+    [commitMatch]
+  );
+
+  // --- crisis: an explicit disarm, never a side effect of an unmounted camera ---
+  useEffect(() => {
+    if (crisis) {
+      disarmedRef.current = true;
+      disarmReasonRef.current = "crisis";
+      setDisarmReason("crisis");
+      return;
+    }
+    if (disarmReasonRef.current === "crisis") {
+      disarmedRef.current = false;
+      disarmReasonRef.current = null;
+      setDisarmReason(null);
+    }
+  }, [crisis]);
 
   // --- barcode preemption and restore ---
   useEffect(() => {
@@ -304,11 +403,17 @@ export function useLiveFoodScore(args: {
     if (!canvasRef.current && typeof document !== "undefined") {
       canvasRef.current = document.createElement("canvas");
     }
-    lastChangeRef.current = nowRef.current();
-    signatureRef.current = null;
-
-    // Fire immediately on arm so the first score does not wait a full interval.
-    void identify();
+    // Coming back from an off-screen pause is not a fresh arm. Keeping the scene signature
+    // and the idle clock is what makes scrolling away and back cost zero calls, and it is
+    // what keeps the gate from resetting AUTO_DISARM_MS bookkeeping.
+    if (offscreenResumeRef.current) {
+      offscreenResumeRef.current = false;
+    } else {
+      lastChangeRef.current = nowRef.current();
+      signatureRef.current = null;
+      // Fire immediately on arm so the first score does not wait a full interval.
+      void identify();
+    }
 
     const tick = () => {
       if (disarmedRef.current || inFlightRef.current) {
@@ -338,17 +443,46 @@ export function useLiveFoodScore(args: {
     return () => clearInterval(timer);
   }, [armed, identify, videoRef]);
 
-  const badge: LiveScoreBadge = !enabled || !cameraActive || disarmReason === "provider"
-    ? "hidden"
-    : disarmReason === "idle"
-      ? "scan_again"
-    : carveOut
-      ? "carve_out"
-      : match
-        ? "score"
-        : inFlight
-          ? "pending"
-          : "idle";
+  const badge: LiveScoreBadge =
+    !enabled || !cameraActive || disarmReason === "provider" || disarmReason === "crisis"
+      ? "hidden"
+      : disarmReason === "idle"
+        ? "scan_again"
+        : carveOut
+          ? "carve_out"
+          : match
+            ? "score"
+            : inFlight
+              ? "pending"
+              : "idle";
 
-  return { badge, match, carveOut, armed, disarmReason, liveIdentifySucceeded, adoptMatch, rearm };
+  // An idle disarm already carries its own "Scan again" affordance on the badge, so it shows
+  // no pill: the pill only ever reports a loop that is running, or one the gate paused.
+  const loopState: LiveLoopState =
+    !enabled ||
+    !cameraActive ||
+    barcodeActive ||
+    disarmReason === "provider" ||
+    disarmReason === "crisis" ||
+    disarmReason === "idle"
+      ? "unavailable"
+      : disarmReason === "offscreen"
+        ? "paused_offscreen"
+        : match || carveOut || inFlight
+          ? "sending"
+          : "searching";
+
+  return {
+    badge,
+    loopState,
+    match,
+    carveOut,
+    noMatchCandidates,
+    armed,
+    disarmReason,
+    liveIdentifySucceeded,
+    adoptMatch,
+    rearm,
+    setVisibleRatio
+  };
 }

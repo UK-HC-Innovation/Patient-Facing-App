@@ -3,8 +3,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FoodViewfinder } from "@/components/food-viewfinder";
 import { FoodGuidanceSource } from "@/components/food-guidance-source";
-import { CompassAlternatives, CompassCarveOut, CompassScoreRow } from "@/components/compass-score";
+import { CompassAlternatives, resolveDomainBreakdown } from "@/components/compass-score";
+import { FoodLensShell, COMPASS_CAPABILITIES } from "@/components/food-lens-shell";
+import { FoodLensVoiceBar } from "@/components/food-lens-voice-bar";
 import { NutritionCompass } from "@/components/nutrition-compass";
+import {
+  FoodAttribution,
+  FoodCrisisLock,
+  FoodEmptyState,
+  FoodNoMatch,
+  FoodVerdict,
+  FoodWhyScore
+} from "@/components/food-lens-blocks";
 import { useFoodCamera } from "@/hooks/use-food-camera";
 import { useLiveFoodScore, type LiveMatch } from "@/hooks/use-live-food-score";
 import { useFoodVoiceSession } from "@/hooks/use-food-voice-session";
@@ -77,6 +87,9 @@ export default function CompassPage() {
   const [refinementLoading, setRefinementLoading] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>("score");
   const [conversationTurns, setConversationTurns] = useState<ConversationTurn[]>([]);
+  const [crisisLocked, setCrisisLocked] = useState(false);
+  const [whyOpen, setWhyOpen] = useState(false);
+  const markerRef = useRef<HTMLButtonElement | null>(null);
   const lastAutoConversationFoodRef = useRef<string | null>(null);
   const shownRef = useRef<ConversationResult | null>(null);
   const voiceResultRef = useRef<ConversationResult | null>(null);
@@ -87,6 +100,7 @@ export default function CompassPage() {
     grabFrame: camera.grabFrame,
     cameraActive: camera.status === "active",
     barcodeActive: false,
+    crisis: crisisLocked,
     passcode
   });
 
@@ -255,6 +269,12 @@ export default function CompassPage() {
     onFinalTranscript: handleVoiceTranscript,
     beforePatientResponse: prepareVoiceResponse,
     onSafetyIntercept: (intercept) => {
+      // Session-only, never the store: the public mount stays stateless. A crisis is its own
+      // explicit disarm, so the loop stops for a named reason rather than because an
+      // unmounted camera happened to measure 0%.
+      if (intercept.safety === "crisis") {
+        setCrisisLocked(true);
+      }
       setConversationTurns((turns) => [
         ...turns.slice(-7),
         { id: crypto.randomUUID(), role: "assistant", text: intercept.content }
@@ -371,352 +391,418 @@ export default function CompassPage() {
     };
   }, [stopCamera, stopVoice]);
 
-  return (
-    <main className="mx-auto grid max-w-2xl gap-4 p-4 [&>*]:min-w-0">
-      <header className="grid gap-3">
-        <h1 className="text-xl font-semibold">{t(language, "compassPageTitle")}</h1>
-        <p className="text-sm text-ink/65">{t(language, "compassPageDescription")}</p>
-        <ol
-          aria-label={t(language, "compassPrototypeFlow")}
-          className="grid grid-cols-3 gap-2 text-xs font-semibold text-ink/70"
-        >
-          {PROTOTYPE_STEPS.map(([step, labelKey]) => (
-            <li className="rounded-control bg-calm px-2 py-2 text-center" key={step}>
-              <span className="mr-1 text-care">{step}</span>
-              {t(language, labelKey)}
-            </li>
-          ))}
-        </ol>
-        <FoodGuidanceSource kind="general" language={language} />
-      </header>
 
-      <section className="grid gap-2" aria-label={t(language, "compassCameraRegion")}>
-        <FoodViewfinder
-          cameraStatus={camera.status}
-          demoPreview
-          idleLabel={
-            voice.status === "closed"
-              ? t(language, "compassIdleEnded")
-              : shown?.kind === "match"
-                ? voiceAvailable
-                  ? t(language, "compassIdleStarting")
-                  : t(language, "compassIdleDemo")
-                : t(language, "compassIdleAwaiting")
-          }
-          language={language}
-          scanChip={shown?.kind === "match" ? shown.match.food.description : null}
-          scoreBadge={
-            shown?.kind === "match" ? "score" : shown?.kind === "carve_out" ? "carve_out" : live.badge
-          }
-          scoreBand={shown?.kind === "match" ? shown.match.score.band : undefined}
-          scoreFcs={shown?.kind === "match" ? shown.match.score.fcs : undefined}
-          scoreName={shown?.kind === "match" ? shown.match.food.description : undefined}
-          scoreTier={shown?.kind === "match" ? shown.match.score.tier : undefined}
-          sessionStatus={voice.status}
-          showVoiceStatus
-          videoRef={camera.videoRef}
-        />
-      </section>
+  const matchShown = shown?.kind === "match" ? shown.match : null;
+  const domainBreakdown = resolveDomainBreakdown(
+    matchShown?.score ?? null,
+    matchShown?.estimatedDomains ?? null
+  );
+  const closeWhyScore = useCallback(() => {
+    setWhyOpen(false);
+    markerRef.current?.focus();
+  }, []);
+  const shownFoodCode = matchShown?.food.code ?? null;
+  useEffect(() => {
+    setWhyOpen(false);
+  }, [shownFoodCode]);
 
-      <NutritionCompass
-        foodName={shown?.kind === "match" ? shown.match.food.description : null}
-        language={language}
-        score={shown?.kind === "match" ? shown.match.score : null}
-        state={
-          refinementLoading || (!shown && live.badge === "pending")
-            ? "pending"
-            : shown?.kind === "none"
-              ? "no_match"
-              : shown?.kind === "carve_out"
-                ? "carve_out"
-                : "idle"
-        }
-      />
-
-      <fieldset className="grid gap-2 rounded-control border border-ink/10 p-3">
-        <legend className="px-1 text-sm font-medium text-ink/75">{t(language, "compassSortLegend")}</legend>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            checked={sortMode === "score"}
-            className="h-5 w-5"
-            name="compass-sort"
-            onChange={() => changeSortMode("score")}
-            type="radio"
-          />
-          {t(language, "compassSortScore")}
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            checked={sortMode === "density"}
-            className="h-5 w-5"
-            name="compass-sort"
-            onChange={() => changeSortMode("density")}
-            type="radio"
-          />
-          {t(language, "compassSortDensity")}
-        </label>
-      </fieldset>
-
-      {shown ? (
-        <div aria-label={t(language, "compassResultRegion")} className="min-w-0" role="region">
-          {shown.kind === "carve_out" ? <CompassCarveOut language={language} reason={shown.reason} /> : null}
-
-          {shown.kind === "none" ? (
-            <p className="rounded-control bg-calm px-3 py-3 text-sm text-ink/70">
-              {t(language, "compassNoPublishedScore")}
-            </p>
-          ) : null}
-
-          {shown.kind === "match" ? (
-            <section className="grid min-w-0 gap-3 rounded-control border border-ink/10 bg-white p-4 shadow-sm [&>*]:min-w-0">
-          <FoodGuidanceSource kind="general" language={language} />
-          {shown.match.interpretation && shown.match.provenance ? (
-            <div
-              aria-label={t(language, "compassOrderInterpretation")}
-              className="grid min-w-0 gap-3 rounded-control bg-calm/60 p-3 [&>*]:min-w-0"
-            >
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-care">
-                  {t(language, "compassWeHeard")}
-                </p>
-                <dl className="mt-2 grid min-w-0 grid-cols-2 gap-2 text-sm [&>*]:min-w-0">
-                  <div>
-                    <dt className="text-xs text-ink/70">{t(language, "compassRestaurant")}</dt>
-                    <dd className="break-words font-semibold">
-                      {shown.match.interpretation.restaurant ?? t(language, "compassNotSpecified")}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-ink/70">{t(language, "compassFood")}</dt>
-                    <dd className="break-words font-semibold">{sentenceCase(shown.match.interpretation.item)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-ink/70">{t(language, "compassToppings")}</dt>
-                    <dd className="break-words font-semibold">
-                      {shown.match.interpretation.toppings.length > 0
-                        ? shown.match.interpretation.toppings.map(sentenceCase).join(", ")
-                        : t(language, "compassNotSpecified")}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-ink/70">{t(language, "compassCrust")}</dt>
-                    <dd className="break-words font-semibold">
-                      {shown.match.interpretation.crust
-                        ? sentenceCase(shown.match.interpretation.crust)
-                        : t(language, "compassNotSpecified")}
-                    </dd>
-                  </div>
-                  {shown.match.interpretation.size ? (
-                    <div>
-                      <dt className="text-xs text-ink/70">{t(language, "compassSize")}</dt>
-                      <dd className="break-words font-semibold">{sentenceCase(shown.match.interpretation.size)}</dd>
-                    </div>
-                  ) : null}
-                </dl>
-              </div>
-
-              <div className="border-t border-care/15 pt-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-care">
-                  {t(language, "compassClosestPublished")}
-                </p>
-                <p className="mt-1 text-sm font-semibold">{shown.match.provenance.matchedAs}</p>
-                <p className="mt-1 text-xs text-ink/65">{shown.match.provenance.note}</p>
-                {shown.match.provenance.unmatchedDetails.length > 0 ? (
-                  <p className="mt-1 text-xs text-ink/65">
-                    {t(language, "compassNotRepresented", {
-                      details: shown.match.provenance.unmatchedDetails.join(", ")
-                    })}
-                  </p>
-                ) : null}
-              </div>
-
-              {correctionCandidates.length > 0 ? (
-                <div className="border-t border-care/15 pt-3">
-                  <p className="text-xs font-semibold text-ink/70">{t(language, "compassChooseCloser")}</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {correctionCandidates.map((candidate) => (
-                      <button
-                        className="max-w-full break-words rounded-control border border-care/25 bg-white px-3 py-2 text-left text-xs font-medium text-care disabled:opacity-40"
-                        disabled={refinementLoading}
-                        key={candidate.code}
-                        onClick={() =>
-                          void runQuery(shown.input, undefined, candidate.code, shown.cameraFoodCode)
-                        }
-                        type="button"
-                      >
-                        {candidate.description} · {candidate.fcs}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
-          <h2 className="text-lg font-semibold">{shown.match.food.description}</h2>
-          <CompassScoreRow
-            estimatedDomains={shown.match.estimatedDomains ?? null}
-            language={language}
-            score={shown.match.score}
-          />
-
-          {shown.match.nutrients ? (
-            <dl className="grid grid-cols-2 gap-2 text-sm">
-              {(
-                [
-                  ["nutritionCalories", shown.match.nutrients.kcal, t(language, "compassPer100g")],
-                  ["nutritionProtein", shown.match.nutrients.protein, "g"],
-                  ["nutritionFiber", shown.match.nutrients.fiber, "g"],
-                  ["nutritionSodium", shown.match.nutrients.na, "mg"],
-                  ["nutritionPotassium", shown.match.nutrients.k, "mg"],
-                  ["nutritionSaturatedFat", shown.match.nutrients.sfa, "g"]
-                ] as const
-              )
-                .filter(([, value]) => value !== null)
-                .map(([labelKey, value, unit]) => (
-                  <div className="rounded-control bg-calm/60 px-3 py-2" key={labelKey}>
-                    <dt className="text-xs font-medium text-ink/70">{t(language, labelKey)}</dt>
-                    <dd className="font-semibold">
-                      {value} {unit}
-                    </dd>
-                  </div>
-                ))}
-            </dl>
-          ) : (
-            // ~1/3 of published foods predate FNDDS 2017-18, so there is no panel to show.
-            <p className="text-xs text-ink/70">
-              {t(language, "compassNoNutrientPanel")}
-            </p>
-          )}
-
-          <div>
-            <h3 className="text-sm font-semibold text-ink/75">
-              {t(language, "compassBetterOptionsSorted", {
-                sort: t(language, sortMode === "score" ? "compassSortedScore" : "compassSortedDensity")
-              })}
-            </h3>
-            <div className="mt-2">
-              <CompassAlternatives
-                alternatives={shown.match.alternatives}
-                currentFcs={shown.match.score.fcs}
-                language={language}
-              />
-            </div>
-          </div>
-            </section>
-          ) : null}
-        </div>
-      ) : null}
-
-      <footer className="border-t border-ink/10 pt-3 text-xs text-ink/70">
-        <details className="rounded-control border border-ink/10 bg-white p-3">
-          <summary className="cursor-pointer font-semibold text-care">{t(language, "compassHowScoringWorks")}</summary>
-          <div className="mt-2 grid gap-1">
-            <p>{t(language, "compassScoreSource")}</p>
-            <p>
-              {t(language, "compassMethodology")}:{" "}
-              <a className="underline" href="https://arxiv.org/abs/2512.11836" rel="noreferrer noopener" target="_blank">
-                arxiv.org/abs/2512.11836
-              </a>
-            </p>
-            <p>{t(language, "compassDisclaimer")}</p>
-          </div>
-        </details>
-      </footer>
-
-      <section
-        aria-label={t(language, "compassConversationRegion")}
-        className="grid gap-3 rounded-control border border-care/20 bg-calm/40 p-3"
-      >
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold">{t(language, "compassConversationTitle")}</h2>
-            <p className="text-xs text-ink/70">
-              {voiceAvailable
-                ? t(language, "compassConversationLive")
-                : t(language, "compassConversationPreview")}
-            </p>
-          </div>
-          <FoodGuidanceSource kind="general" language={language} />
-        </div>
-
-        <div aria-live="polite" className="grid gap-2" role="log">
-          {conversationTurns.length > 0 ? (
-            conversationTurns.map((turn) => (
-              <article
-                className={`rounded-control px-3 py-2 text-sm leading-6 ${
-                  turn.role === "assistant" ? "bg-white" : "bg-care/10"
-                }`}
-                key={turn.id}
-              >
-                <p>
-                  <span className="font-semibold">
-                    {turn.role === "assistant"
-                      ? t(language, "compassAssistantName")
-                      : t(language, "compassRoleYou")}:
-                  </span>{" "}
-                  {turn.text}
-                </p>
-                {turn.scripted ? (
-                  <p className="mt-1 text-[11px] text-ink/70">{t(language, "compassScriptedFallback")}</p>
-                ) : null}
-              </article>
-            ))
-          ) : shown?.kind === "match" ? (
-            <p className="rounded-control bg-white px-3 py-2 text-sm text-ink/70">
-              {t(language, "compassConversationStarting", { food: shown.match.food.description })}
-            </p>
-          ) : (
-            <p className="rounded-control bg-white px-3 py-2 text-sm text-ink/70">
-              {t(language, "compassConversationWaiting")}
-            </p>
-          )}
-          {voice.partialAssistantText ? (
-            <article className="rounded-control bg-white px-3 py-2 text-sm leading-6 text-ink/70">
-              <p>
-                <span className="font-semibold">{t(language, "compassAssistantName")}:</span>{" "}
-                {voice.partialAssistantText}
-              </p>
-            </article>
-          ) : null}
-        </div>
-
-        {voiceAvailable && voice.error ? (
-          <p className="rounded-control border border-pulse/30 bg-pulse/5 px-3 py-2 text-sm text-pulse" role="alert">
-            {t(language, "statusError")}{" "}
-            {voice.status === "error"
-              ? t(language, "compassRetryHint")
-              : t(language, "compassContinueHint")}
+  const conversationBlock = (
+    <section
+      aria-label={t(language, "compassConversationRegion")}
+      className="grid gap-3 rounded-control border border-care/20 bg-calm/40 p-3"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold">{t(language, "compassConversationTitle")}</h2>
+          <p className="text-xs text-ink/70">
+            {voiceAvailable ? t(language, "compassConversationLive") : t(language, "compassConversationPreview")}
           </p>
+        </div>
+      </div>
+
+      <div aria-live="polite" className="grid gap-2" role="log">
+        {conversationTurns.length > 0 ? (
+          conversationTurns.map((turn) => (
+            <article
+              className={`rounded-control px-3 py-2 text-sm leading-6 ${
+                turn.role === "assistant" ? "bg-white" : "bg-care/10"
+              }`}
+              key={turn.id}
+            >
+              <p>
+                <span className="font-semibold">
+                  {turn.role === "assistant" ? t(language, "compassAssistantName") : t(language, "compassRoleYou")}:
+                </span>{" "}
+                {turn.text}
+              </p>
+              {turn.scripted ? (
+                <p className="mt-1 text-[11px] text-ink/70">{t(language, "compassScriptedFallback")}</p>
+              ) : null}
+            </article>
+          ))
+        ) : matchShown ? (
+          <p className="rounded-control bg-white px-3 py-2 text-sm text-ink/70">
+            {t(language, "compassConversationStarting", { food: matchShown.food.description })}
+          </p>
+        ) : (
+          <p className="rounded-control bg-white px-3 py-2 text-sm text-ink/70">
+            {t(language, "compassConversationWaiting")}
+          </p>
+        )}
+        {voice.partialAssistantText ? (
+          <article className="rounded-control bg-white px-3 py-2 text-sm leading-6 text-ink/70">
+            <p>
+              <span className="font-semibold">{t(language, "compassAssistantName")}:</span>{" "}
+              {voice.partialAssistantText}
+            </p>
+          </article>
         ) : null}
-        {voiceAvailable && !voiceCanStart ? (
-          <button
-            className="min-h-12 rounded-control border border-care bg-white px-4 py-2 font-semibold text-care"
-            onClick={voice.stop}
-            type="button"
-          >
-            {t(language, "compassEndConversation")}
-          </button>
-        ) : null}
-        {voiceAvailable && voice.status === "error" ? (
-          <button
-            className="min-h-12 rounded-control border border-care bg-white px-4 py-2 font-semibold text-care"
-            onClick={() => void voice.startWithContextResponse()}
-            type="button"
-          >
-            {t(language, "compassRetryConversation")}
-          </button>
-        ) : null}
-        {voiceAvailable && voice.status === "closed" ? (
-          <button
-            className="min-h-12 rounded-control border border-care bg-white px-4 py-2 font-semibold text-care"
-            onClick={() => void voice.startWithContextResponse()}
-            type="button"
-          >
-            {t(language, "compassRestartConversation")}
-          </button>
-        ) : null}
-      </section>
+      </div>
+
+      {voiceAvailable && voice.error ? (
+        <p className="rounded-control border border-pulse/30 bg-pulse/5 px-3 py-2 text-sm text-pulse" role="alert">
+          {t(language, "statusError")}{" "}
+          {voice.status === "error" ? t(language, "compassRetryHint") : t(language, "compassContinueHint")}
+        </p>
+      ) : null}
+      {voiceAvailable && !voiceCanStart ? (
+        <button
+          className="min-h-12 rounded-control border border-care bg-white px-4 py-2 font-semibold text-care"
+          onClick={voice.stop}
+          type="button"
+        >
+          {t(language, "compassEndConversation")}
+        </button>
+      ) : null}
+      {voiceAvailable && voice.status === "error" ? (
+        <button
+          className="min-h-12 rounded-control border border-care bg-white px-4 py-2 font-semibold text-care"
+          onClick={() => void voice.startWithContextResponse()}
+          type="button"
+        >
+          {t(language, "compassRetryConversation")}
+        </button>
+      ) : null}
+      {voiceAvailable && voice.status === "closed" ? (
+        <button
+          className="min-h-12 rounded-control border border-care bg-white px-4 py-2 font-semibold text-care"
+          onClick={() => void voice.startWithContextResponse()}
+          type="button"
+        >
+          {t(language, "compassRestartConversation")}
+        </button>
+      ) : null}
+    </section>
+  );
+
+  return (
+    <main className="min-h-screen bg-paper">
+      <div className="mx-auto w-full max-w-[480px] px-4 py-2">
+        <h1 className="text-base font-semibold">{t(language, "compassPageTitle")}</h1>
+      </div>
+
+      <FoodLensShell
+        capabilities={COMPASS_CAPABILITIES}
+        collapsedViewfinder={false}
+        crisis={
+          crisisLocked ? (
+            <FoodCrisisLock language={language}>{conversationBlock}</FoodCrisisLock>
+          ) : null
+        }
+        foodName={matchShown?.food.description ?? null}
+        foodScore={matchShown ? { fcs: matchShown.score.fcs, band: matchShown.score.band } : null}
+        language={language}
+        loopState={live.loopState}
+        onVisibleRatio={live.setVisibleRatio}
+        viewfinder={
+          <FoodViewfinder
+            cameraStatus={camera.status}
+            demoPreview
+            height="100%"
+            idleLabel={
+              voice.status === "closed"
+                ? t(language, "compassIdleEnded")
+                : matchShown
+                  ? voiceAvailable
+                    ? t(language, "compassIdleStarting")
+                    : t(language, "compassIdleDemo")
+                  : t(language, "compassIdleAwaiting")
+            }
+            language={language}
+            scanChip={matchShown?.food.description ?? null}
+            scoreBadge={matchShown ? "score" : shown?.kind === "carve_out" ? "carve_out" : live.badge}
+            scoreBand={matchShown?.score.band}
+            scoreFcs={matchShown?.score.fcs}
+            scoreName={matchShown?.food.description}
+            scoreTier={matchShown?.score.tier}
+            sessionStatus={voice.status}
+            showVoiceStatus={false}
+            trustPill={<FoodGuidanceSource kind="general" language={language} />}
+            videoRef={camera.videoRef}
+          />
+        }
+        voiceBar={
+          <FoodLensVoiceBar
+            idleLabel={
+              voice.status === "closed" ? t(language, "compassIdleEnded") : t(language, "compassIdleAwaiting")
+            }
+            language={language}
+            lastTurn={null}
+            mode={voice.mode}
+            onStart={() => void voice.startWithContextResponse()}
+            onStop={voice.stop}
+            status={voice.status}
+            typedInput={COMPASS_CAPABILITIES.typedInput}
+          />
+        }
+        slots={{
+          verdict: (
+            <div aria-label={t(language, "compassResultRegion")} className="min-w-0" role="region">
+              {shown?.kind === "carve_out" ? (
+                <FoodVerdict carveOutReason={shown.reason} foodName={null} language={language} score={null} />
+              ) : matchShown ? (
+                <FoodVerdict
+                  carveOutReason={null}
+                  foodName={matchShown.food.description}
+                  language={language}
+                  score={matchShown.score}
+                  tierBadge={
+                    matchShown.score.tier === "T2" ? (
+                      <span className="mt-1 inline-block rounded-control bg-calm px-2 py-1 text-[11px] font-semibold text-care">
+                        {t(language, "compassEstimateBadge")}
+                      </span>
+                    ) : null
+                  }
+                />
+              ) : shown?.kind === "none" ? (
+                <FoodNoMatch candidates={[]} language={language} />
+              ) : (
+                <FoodEmptyState language={language} offersSavedPicks={false} />
+              )}
+            </div>
+          ),
+          chart: matchShown ? (
+            <NutritionCompass
+              foodName={matchShown.food.description}
+              language={language}
+              markerRef={markerRef}
+              onMarkerTap={domainBreakdown ? () => setWhyOpen(true) : undefined}
+              score={matchShown.score}
+              state={refinementLoading ? "pending" : "idle"}
+            />
+          ) : (
+            <NutritionCompass
+              foodName={null}
+              language={language}
+              score={null}
+              state={
+                refinementLoading || (!shown && live.badge === "pending")
+                  ? "pending"
+                  : shown?.kind === "none"
+                    ? "no_match"
+                    : shown?.kind === "carve_out"
+                      ? "carve_out"
+                      : "idle"
+              }
+            />
+          ),
+          whyScore: (
+            <FoodWhyScore
+              breakdown={domainBreakdown}
+              language={language}
+              onClose={closeWhyScore}
+              open={whyOpen}
+              tier={matchShown?.score.tier ?? "T1"}
+            />
+          ),
+          weHeard:
+            matchShown && matchShown.interpretation && matchShown.provenance && shown?.kind === "match" ? (
+              <div
+                aria-label={t(language, "compassOrderInterpretation")}
+                className="grid min-w-0 gap-3 rounded-control bg-calm/60 p-3 [&>*]:min-w-0"
+              >
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-care">
+                    {t(language, "compassWeHeard")}
+                  </p>
+                  <dl className="mt-2 grid min-w-0 grid-cols-2 gap-2 text-sm [&>*]:min-w-0">
+                    <div>
+                      <dt className="text-xs text-ink/70">{t(language, "compassRestaurant")}</dt>
+                      <dd className="break-words font-semibold">
+                        {matchShown.interpretation.restaurant ?? t(language, "compassNotSpecified")}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-ink/70">{t(language, "compassFood")}</dt>
+                      <dd className="break-words font-semibold">{sentenceCase(matchShown.interpretation.item)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-ink/70">{t(language, "compassToppings")}</dt>
+                      <dd className="break-words font-semibold">
+                        {matchShown.interpretation.toppings.length > 0
+                          ? matchShown.interpretation.toppings.map(sentenceCase).join(", ")
+                          : t(language, "compassNotSpecified")}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-ink/70">{t(language, "compassCrust")}</dt>
+                      <dd className="break-words font-semibold">
+                        {matchShown.interpretation.crust
+                          ? sentenceCase(matchShown.interpretation.crust)
+                          : t(language, "compassNotSpecified")}
+                      </dd>
+                    </div>
+                    {matchShown.interpretation.size ? (
+                      <div>
+                        <dt className="text-xs text-ink/70">{t(language, "compassSize")}</dt>
+                        <dd className="break-words font-semibold">{sentenceCase(matchShown.interpretation.size)}</dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                </div>
+
+                <div className="border-t border-care/15 pt-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-care">
+                    {t(language, "compassClosestPublished")}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold">{matchShown.provenance.matchedAs}</p>
+                  <p className="mt-1 text-xs text-ink/65">{matchShown.provenance.note}</p>
+                  {matchShown.provenance.unmatchedDetails.length > 0 ? (
+                    <p className="mt-1 text-xs text-ink/65">
+                      {t(language, "compassNotRepresented", {
+                        details: matchShown.provenance.unmatchedDetails.join(", ")
+                      })}
+                    </p>
+                  ) : null}
+                </div>
+
+                {correctionCandidates.length > 0 ? (
+                  <div className="border-t border-care/15 pt-3">
+                    <p className="text-xs font-semibold text-ink/70">{t(language, "compassChooseCloser")}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {correctionCandidates.map((candidate) => (
+                        <button
+                          className="min-h-11 max-w-full break-words rounded-control border border-care/25 bg-white px-3 py-2 text-left text-xs font-medium text-care disabled:opacity-40"
+                          disabled={refinementLoading}
+                          key={candidate.code}
+                          onClick={() => void runQuery(shown.input, undefined, candidate.code, shown.cameraFoodCode)}
+                          type="button"
+                        >
+                          {candidate.description} · {candidate.fcs}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null,
+          nutrients: matchShown ? (
+            matchShown.nutrients ? (
+              <dl className="grid grid-cols-2 gap-2 text-sm">
+                {(
+                  [
+                    ["nutritionCalories", matchShown.nutrients.kcal, t(language, "compassPer100g")],
+                    ["nutritionProtein", matchShown.nutrients.protein, "g"],
+                    ["nutritionFiber", matchShown.nutrients.fiber, "g"],
+                    ["nutritionSodium", matchShown.nutrients.na, "mg"],
+                    ["nutritionPotassium", matchShown.nutrients.k, "mg"],
+                    ["nutritionSaturatedFat", matchShown.nutrients.sfa, "g"]
+                  ] as const
+                )
+                  .filter(([, value]) => value !== null)
+                  .map(([labelKey, value, unit]) => (
+                    <div className="rounded-control bg-calm/60 px-3 py-2" key={labelKey}>
+                      <dt className="text-xs font-medium text-ink/70">{t(language, labelKey)}</dt>
+                      <dd className="font-semibold">
+                        {value} {unit}
+                      </dd>
+                    </div>
+                  ))}
+              </dl>
+            ) : (
+              // ~1/3 of published foods predate FNDDS 2017-18, so there is no panel to show.
+              <p className="text-xs text-ink/70">{t(language, "compassNoNutrientPanel")}</p>
+            )
+          ) : null,
+          alternatives: matchShown ? (
+            <section>
+              <h3 className="text-sm font-semibold text-ink/75">
+                {t(language, "compassBetterOptionsSorted", {
+                  sort: t(language, sortMode === "score" ? "compassSortedScore" : "compassSortedDensity")
+                })}
+              </h3>
+              <fieldset className="mt-2 grid gap-2 rounded-control border border-ink/10 p-3">
+                <legend className="px-1 text-sm font-medium text-ink/75">{t(language, "compassSortLegend")}</legend>
+                <label className="flex min-h-11 items-center gap-2 text-sm">
+                  <input
+                    checked={sortMode === "score"}
+                    className="h-5 w-5"
+                    name="compass-sort"
+                    onChange={() => changeSortMode("score")}
+                    type="radio"
+                  />
+                  {t(language, "compassSortScore")}
+                </label>
+                <label className="flex min-h-11 items-center gap-2 text-sm">
+                  <input
+                    checked={sortMode === "density"}
+                    className="h-5 w-5"
+                    name="compass-sort"
+                    onChange={() => changeSortMode("density")}
+                    type="radio"
+                  />
+                  {t(language, "compassSortDensity")}
+                </label>
+              </fieldset>
+              <div className="mt-2">
+                <CompassAlternatives
+                  alternatives={matchShown.alternatives}
+                  currentFcs={matchShown.score.fcs}
+                  language={language}
+                />
+              </div>
+            </section>
+          ) : null,
+          actions: conversationBlock,
+          attribution: (
+            <FoodAttribution language={language}>
+              <FoodGuidanceSource kind="general" language={language} />
+              <p className="text-sm text-ink/65">{t(language, "compassPageDescription")}</p>
+              <ol
+                aria-label={t(language, "compassPrototypeFlow")}
+                className="grid grid-cols-3 gap-2 text-xs font-semibold text-ink/70"
+              >
+                {PROTOTYPE_STEPS.map(([step, labelKey]) => (
+                  <li className="rounded-control bg-calm px-2 py-2 text-center" key={step}>
+                    <span className="mr-1 text-care">{step}</span>
+                    {t(language, labelKey)}
+                  </li>
+                ))}
+              </ol>
+              <details className="rounded-control border border-ink/10 bg-white p-3 text-xs text-ink/70">
+                <summary className="cursor-pointer font-semibold text-care">
+                  {t(language, "compassHowScoringWorks")}
+                </summary>
+                <div className="mt-2 grid gap-1">
+                  <p>{t(language, "compassScoreSource")}</p>
+                  <p>
+                    {t(language, "compassMethodology")}:{" "}
+                    <a
+                      className="underline"
+                      href="https://arxiv.org/abs/2512.11836"
+                      rel="noreferrer noopener"
+                      target="_blank"
+                    >
+                      arxiv.org/abs/2512.11836
+                    </a>
+                  </p>
+                  <p>{t(language, "compassDisclaimer")}</p>
+                </div>
+              </details>
+            </FoodAttribution>
+          )
+        }}
+      />
     </main>
   );
 }

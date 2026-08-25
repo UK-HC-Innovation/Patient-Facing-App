@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<script src="./doc-page.js"></script>
+<style>
+  doc-page:not(:defined) { visibility:hidden }
+  body { margin:0; color:#172026; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color:#0033a0; }
+  a:hover { color:#001f63; }
+</style>
+</helmet>
+
+<doc-page margin="0.8in">
+
+  <p style="margin:0 0 10px; font-family:ui-monospace,Menlo,monospace; font-size:9.5pt; letter-spacing:.1em; text-transform:uppercase; color:rgba(23,32,38,.55);">Build spec · draft 1 · Aug 2026</p>
+
+  <h1 style="margin:0 0 6px; font-size:26pt; line-height:1.12; letter-spacing:-.02em; font-weight:660;">Food Lens shell rebuild</h1>
+  <p style="margin:0 0 12px; font-size:13pt; line-height:1.5; color:rgba(23,32,38,.7);">Replace the nine-card stack on <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5pt;">/food</code> and <code style="font-family:ui-monospace,Menlo,monospace; font-size:11.5pt;">/compass</code> with one scroll surface, and gate the vision loop on whether the user can actually see the camera.</p>
+  <p style="margin:0; padding-top:10px; border-top:1px solid rgba(23,32,38,.18); font-size:10pt; line-height:1.55; color:rgba(23,32,38,.6);">Design intent, not final copy — every published number is unchanged. Companions: <em>Food Lens redesign</em> (turns 4a, 5a, 6a) and <em>Food Lens prototype v2 scroll</em>.</p>
+
+  <p style="margin:18px 0 0; border-radius:8px; border:1px solid rgba(157,63,49,.3); background:rgba(157,63,49,.06); padding:12px 14px; font-size:11pt; line-height:1.55; color:#7d2f22;"><strong style="font-weight:700;">Sequencing:</strong> this lands after the core bets (P5+). It must therefore be a <em>drop-in</em> for a facts card that already carries every spec-24 block — each block moves as-is into a named slot. No block is rewritten by this work. Migration is per-block and reversible.</p>
+
+  <h2 style="margin:26px 0 8px; font-size:15pt; font-weight:650; letter-spacing:-.01em;">1 · Scope</h2>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;">In scope: page shell, scroll geometry, sticky strip, pinned voice bar, the visibility gate, and the capability props that let one component serve two routes.</p>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;"><strong style="font-weight:650;">Explicitly out of scope:</strong> the scoring engine, the FNDDS match logic, the safety gate and crisis pathway, the Tufts attribution, and the content of any spec-24 feature block. This work re-ranks and re-hosts; it does not re-compute.</p>
+
+  <h2 style="margin:26px 0 8px; font-size:15pt; font-weight:650; letter-spacing:-.01em;">2 · Shell geometry</h2>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;">One vertical scroll container. Four regions, top to bottom:</p>
+  <table style="width:100%; border-collapse:collapse; font-size:10.5pt; margin:0 0 12px;">
+    <thead>
+      <tr style="background:rgba(23,32,38,.05);">
+        <th style="text-align:left; padding:8px 10px; border:1px solid rgba(23,32,38,.15); font-weight:700;">Region</th>
+        <th style="text-align:left; padding:8px 10px; border:1px solid rgba(23,32,38,.15); font-weight:700;">Height</th>
+        <th style="text-align:left; padding:8px 10px; border:1px solid rgba(23,32,38,.15); font-weight:700;">Behaviour</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15);">Viewfinder</td>
+        <td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15);"><strong style="font-weight:650;">336px</strong></td>
+        <td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15);">Scrolls away normally. Not sticky.</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15);">Status strip</td>
+        <td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15);">44px</td>
+        <td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15);"><code style="font-family:ui-monospace,Menlo,monospace; font-size:10pt;">position: sticky; top: 0</code>. Same height in both of its two modes.</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15);">Content</td>
+        <td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15);">auto</td>
+        <td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15);">The block slots, in fixed order (§4).</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15);">Voice bar</td>
+        <td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15);">76px collapsed</td>
+        <td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15);"><code style="font-family:ui-monospace,Menlo,monospace; font-size:10pt;">position: sticky; bottom: 0</code>. Transcript expands upward, max 180px.</td>
+      </tr>
+    </tbody>
+  </table>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;"><strong style="font-weight:650;">336px is a constraint, not a preference.</strong> It is the largest viewfinder that still puts the band chip, the verdict sentence and the score in the first 844px screen. At 440px the verdict landed ~500px down and the user arrived on a camera with no answer visible — which silently undoes the whole point of leading with a verdict. If the verdict block grows, this number shrinks.</p>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;">The status strip carries loop status while the viewfinder is on screen, then the food's name and score once it is not — with a button back to the camera. Fixed height in both modes so nothing jumps at the switch, and the food name never appears twice on one screen.</p>
+
+  <h2 style="margin:26px 0 8px; font-size:15pt; font-weight:650; letter-spacing:-.01em;">3 · The visibility gate (rec 9 — new scope)</h2>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;">While less than half the viewfinder is on screen, <strong style="font-weight:650;">send no frames.</strong> This is not in spec 24; it is the one recommendation here that adds a feature rather than re-ranking one.</p>
+
+  <h3 style="margin:16px 0 6px; font-size:12pt; font-weight:650;">3.1 Thresholds</h3>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;">Pause below <strong style="font-weight:650;">0.50</strong> visible ratio; resume above <strong style="font-weight:650;">0.60</strong>, and hold the resume for one full interval before the first send. A single threshold flips repeatedly during a slow scroll; the hold stops a flick past the camera from costing a request.</p>
+
+  <h3 style="margin:16px 0 6px; font-size:12pt; font-weight:650;">3.2 Loop states</h3>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;">The prototype shipped two. Reality needs four, and the pill copy differs for each:</p>
+  <ul style="margin:0 0 10px; padding-left:22px; font-size:11pt; line-height:1.7;">
+    <li><strong style="font-weight:650;">sending</strong> — armed, visible, a food identified or being sought. "Reading the camera · every 2.5s"</li>
+    <li><strong style="font-weight:650;">searching</strong> — armed and visible, nothing recognised yet. "Looking for food…"</li>
+    <li><strong style="font-weight:650;">paused-offscreen</strong> — visible ratio below threshold. "Camera paused — nothing sent"</li>
+    <li><strong style="font-weight:650;">unavailable</strong> — camera denied or absent. <em>No pill at all</em> — a permission error is not a loop state.</li>
+  </ul>
+
+  <h3 style="margin:16px 0 6px; font-size:12pt; font-weight:650;">3.3 Integration with the existing disarm</h3>
+  <ul style="margin:0 0 10px; padding-left:22px; font-size:11pt; line-height:1.7;">
+    <li>F5 exposes <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">disarmReason: "idle" | "provider" | null</code>. Add <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">"offscreen"</code>.</li>
+    <li><code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">"offscreen"</code> re-arms <strong style="font-weight:650;">automatically</strong> when the ratio recovers. It must never route through <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">rearm()</code> and must never surface a "Scan again" chip. Getting this wrong makes scrolling back feel broken.</li>
+    <li>The idle disarm stays. A camera parked on screen while nobody looks still burns frames; <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">AUTO_DISARM_MS</code> is unaffected.</li>
+    <li>Pairs with the 60-second stash: scroll away and back inside the window and <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">stashRef</code> re-shows the last match instead of re-identifying. A scroll then costs zero calls, not one.</li>
+    <li><strong style="font-weight:650;">Crisis is a separate disarm, not a side effect.</strong> The crisis screen unmounts the camera, so a naive gate would read 0% and pause — correct by accident. Give it an explicit reason: "paused because you scrolled" and "stopped because we intercepted" must not share a code path.</li>
+  </ul>
+
+  <h3 style="margin:16px 0 6px; font-size:12pt; font-weight:650;">3.4 Performance constraints (learned the hard way)</h3>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;">The first prototype build froze the tab. Scroll → setState → re-render content inside the scroller → layout → scroll is a live feedback loop. Required:</p>
+  <ul style="margin:0 0 10px; padding-left:22px; font-size:11pt; line-height:1.7;">
+    <li>The visible ratio lives in a <strong style="font-weight:650;">ref</strong>, never in component state. Any human-readable ratio readout is written imperatively.</li>
+    <li>Measurement is coalesced to one animation frame per scroll burst.</li>
+    <li>Only the on/off boolean triggers a render — and only when it actually flips.</li>
+    <li>No <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">backdrop-filter</code> and no <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">drop-shadow</code> inside the scroll container. Both were accomplices in the freeze.</li>
+    <li>Prefer <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">IntersectionObserver</code> with a threshold list over per-event geometry where the scroll root allows it.</li>
+  </ul>
+
+  <h3 style="margin:16px 0 6px; font-size:12pt; font-weight:650;">3.5 Why this is a privacy feature first</h3>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;">"Frames go out only while the camera is on your screen" is a claim a patient can verify with their own thumb — which is more than any sentence currently in the disclosure copy can offer. Recommend it headlines the disclosure sheet rather than sitting in a card, and that someone checks whether it changes what the AI-data disclosure must assert. The cost saving is real but secondary.</p>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;">On <code style="font-family:ui-monospace,Menlo,monospace; font-size:11pt;">/compass</code> it is also a spend control: an unauthenticated page with a live vision loop is the one surface where a stranger can bill you indefinitely. With the gate plus the idle disarm, an abandoned public tab costs zero. <strong style="font-weight:650;">Ship the gate on the public mount first.</strong></p>
+
+  <h2 style="margin:26px 0 8px; font-size:15pt; font-weight:650; letter-spacing:-.01em;">4 · Block slots</h2>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;">The content region renders a fixed sequence of optional slots. Each is an existing component, moved unmodified. A slot that has nothing to show renders <em>nothing</em> — not a heading with an empty body, not a greyed placeholder.</p>
+  <ol style="margin:0 0 10px; padding-left:22px; font-size:11pt; line-height:1.7;">
+    <li><strong style="font-weight:650;">verdict</strong> — band chip, sentence, number. Always present except carve-out and empty.</li>
+    <li><strong style="font-weight:650;">plate</strong> — F11 item rows. Only at ≥1 item; the "plate average" label and its caveat appear only at ≥2 (see §6).</li>
+    <li><strong style="font-weight:650;">chart</strong> — quadrant plot, your marker plus the single best alternative.</li>
+    <li><strong style="font-weight:650;">whyScore</strong> — F9 domain breakdown. Opens from the chart marker; must scroll itself into view.</li>
+    <li><strong style="font-weight:650;">weHeard</strong> — interpretation read-back and closer-category picker.</li>
+    <li><strong style="font-weight:650;">flags</strong> — personalized warnings. <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">/food</code> only.</li>
+    <li><strong style="font-weight:650;">totals</strong> — F10 running day totals. <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">/food</code> only.</li>
+    <li><strong style="font-weight:650;">nutrients</strong> — per-serving panel and portion stepper.</li>
+    <li><strong style="font-weight:650;">alternatives</strong> — better options list, with the Score/Calories toggle in its own header.</li>
+    <li><strong style="font-weight:650;">actions</strong> — log, add to plate, secondary rows.</li>
+    <li><strong style="font-weight:650;">attribution</strong> — Tufts, AI-assisted, not-medical-advice. Always last, always present.</li>
+  </ol>
+
+  <h2 style="margin:26px 0 8px; font-size:15pt; font-weight:650; letter-spacing:-.01em;">5 · Two mounts, one component</h2>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;">Locked decision 5 freezes <code style="font-family:ui-monospace,Menlo,monospace; font-size:11pt;">/compass</code> as stateless, store-free and input-shape-frozen. The routes therefore <strong style="font-weight:650;">do not merge</strong>; they share the shell and differ by a capability object.</p>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;">Every difference is a <strong style="font-weight:650;">prop, not a route check</strong>. No <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">if (pathname)</code> anywhere in the shell. This keeps decision 5 testable: the public mount can assert its own capability set, and <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">e2e/compass.spec.ts:56</code> keeps passing because the text box is never rendered — not hidden.</p>
+  <table style="width:100%; border-collapse:collapse; font-size:10.5pt; margin:0 0 12px;">
+    <thead>
+      <tr style="background:rgba(23,32,38,.05);">
+        <th style="text-align:left; padding:8px 10px; border:1px solid rgba(23,32,38,.15); font-weight:700;">Capability</th>
+        <th style="text-align:center; padding:8px 10px; border:1px solid rgba(23,32,38,.15); font-weight:700;">/food</th>
+        <th style="text-align:center; padding:8px 10px; border:1px solid rgba(23,32,38,.15); font-weight:700;">/compass</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td style="padding:7px 10px; border:1px solid rgba(23,32,38,.15);">Camera, automatic voice, score, chart, alternatives</td><td style="padding:7px 10px; border:1px solid rgba(23,32,38,.15); text-align:center;">yes</td><td style="padding:7px 10px; border:1px solid rgba(23,32,38,.15); text-align:center;">yes</td></tr>
+      <tr><td style="padding:7px 10px; border:1px solid rgba(23,32,38,.15);">Visibility gate (rec 9)</td><td style="padding:7px 10px; border:1px solid rgba(23,32,38,.15); text-align:center;">yes</td><td style="padding:7px 10px; border:1px solid rgba(23,32,38,.15); text-align:center;">yes — ship first</td></tr>
+      <tr><td style="padding:7px 10px; border:1px solid rgba(23,32,38,.15);">Typed input during voice (F4)</td><td style="padding:7px 10px; border:1px solid rgba(23,32,38,.15); text-align:center;">yes</td><td style="padding:7px 10px; border:1px solid rgba(23,32,38,.15); text-align:center;">no</td></tr>
+      <tr><td style="padding:7px 10px; border:1px solid rgba(23,32,38,.15);">Plate, portions, day totals</td><td style="padding:7px 10px; border:1px solid rgba(23,32,38,.15); text-align:center;">yes</td><td style="padding:7px 10px; border:1px solid rgba(23,32,38,.15); text-align:center;">no</td></tr>
+      <tr><td style="padding:7px 10px; border:1px solid rgba(23,32,38,.15);">Personalized flags, logging, favourites</td><td style="padding:7px 10px; border:1px solid rgba(23,32,38,.15); text-align:center;">yes</td><td style="padding:7px 10px; border:1px solid rgba(23,32,38,.15); text-align:center;">no</td></tr>
+      <tr><td style="padding:7px 10px; border:1px solid rgba(23,32,38,.15);">Sample-scan fallback, <code style="font-family:ui-monospace,Menlo,monospace; font-size:10pt;">?lang=es</code></td><td style="padding:7px 10px; border:1px solid rgba(23,32,38,.15); text-align:center;">no</td><td style="padding:7px 10px; border:1px solid rgba(23,32,38,.15); text-align:center;">yes</td></tr>
+      <tr><td style="padding:7px 10px; border:1px solid rgba(23,32,38,.15);">Camera button in status strip</td><td style="padding:7px 10px; border:1px solid rgba(23,32,38,.15); text-align:center;">yes</td><td style="padding:7px 10px; border:1px solid rgba(23,32,38,.15); text-align:center;">no — nowhere else to be</td></tr>
+    </tbody>
+  </table>
+
+  <h2 style="margin:26px 0 8px; font-size:15pt; font-weight:650; letter-spacing:-.01em;">6 · Rules the layout must enforce</h2>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;">These are correctness requirements, not styling. Each has a failure mode that misrepresents a number.</p>
+  <ul style="margin:0 0 10px; padding-left:22px; font-size:11pt; line-height:1.7;">
+    <li><strong style="font-weight:650;">A plate of one is not an average.</strong> Below two items the headline shows the published score with its band. At two or more it switches to "Plate average · N items" <em>and</em> gains the caveat line. Averaging language over a single published number under-claims a real value; the reverse over-claims a computed one.</li>
+    <li><strong style="font-weight:650;">The plate average is never plotted.</strong> Chart markers are published scores only.</li>
+    <li><strong style="font-weight:650;">A carve-out has no number slot.</strong> The 50px figure and the chart are absent, not zeroed or greyed — a dimmed "—" reads as a bad score. The carve-out sentence takes the verdict's position and type size.</li>
+    <li><strong style="font-weight:650;">Servings never move the score.</strong> They change nutrition and day totals only. State this in the portion block, once.</li>
+    <li><strong style="font-weight:650;">Every interactive target ≥44px.</strong> Includes the recents chips, correction chips and the trust pill.</li>
+    <li><strong style="font-weight:650;">Quadrant names live outside the plot.</strong> A colour-keyed 2×2 legend beneath it, with the user's quadrant marked. The plot corners hold data.</li>
+  </ul>
+
+  <h2 style="margin:26px 0 8px; font-size:15pt; font-weight:650; letter-spacing:-.01em;">7 · Edge states</h2>
+  <table style="width:100%; border-collapse:collapse; font-size:10.5pt; margin:0 0 12px;">
+    <thead>
+      <tr style="background:rgba(23,32,38,.05);">
+        <th style="text-align:left; padding:8px 10px; border:1px solid rgba(23,32,38,.15); font-weight:700;">State</th>
+        <th style="text-align:left; padding:8px 10px; border:1px solid rgba(23,32,38,.15); font-weight:700;">Shell behaviour</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15); font-weight:650;">Empty</td><td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15);">No status strip (no food to name). Loop pill reads "Looking for food…". Content is the recents/favourites row — F14's real job is giving this screen an action.</td></tr>
+      <tr><td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15); font-weight:650;">Carve-out</td><td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15);">Verdict slot carries the shipped carve-out sentence; chart, nutrients and alternatives suppressed. "Log it anyway" stays — the diary still wants the entry.</td></tr>
+      <tr><td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15); font-weight:650;">No match</td><td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15);">Existing <code style="font-family:ui-monospace,Menlo,monospace; font-size:10pt;">compassNoPublishedScore</code> plus three tappable published category names. <strong style="font-weight:650;">New behaviour</strong> — flag as scope. The candidates are FNDDS names read from the table, so they need no translation.</td></tr>
+      <tr><td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15); font-weight:650;">Camera denied</td><td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15);">Viewfinder collapses from 336px to a short header with the retry; no loop pill. Voice bar inverts — keyboard primary, mic secondary — honouring what the shipped string already promises. On <code style="font-family:ui-monospace,Menlo,monospace; font-size:10pt;">/compass</code> there is no keyboard and no store: sample scan only. <em>See §9.</em></td></tr>
+      <tr><td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15); font-weight:650;">Crisis</td><td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15);">Suppresses the shell entirely: camera unmounted, explicit loop disarm, voice bar replaced by a locked strip, mic and keyboard dead until acknowledge. Copy verbatim from <code style="font-family:ui-monospace,Menlo,monospace; font-size:10pt;">safetyStrings</code>. The shell must be able to stop being the shell.</td></tr>
+      <tr><td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15); font-weight:650;">Spanish</td><td style="padding:8px 10px; border:1px solid rgba(23,32,38,.15);">Verdict headline wraps to three lines; the number holds its own column. Separately: <code style="font-family:ui-monospace,Menlo,monospace; font-size:10pt;">compassCalorieDensity</code> and neighbours ship unaccented — that region of the es dictionary wants an accent pass before F15 reaches Spanish-speaking patients.</td></tr>
+    </tbody>
+  </table>
+
+  <h2 style="margin:26px 0 8px; font-size:15pt; font-weight:650; letter-spacing:-.01em;">8 · Strings</h2>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;"><strong style="font-weight:650;">19 new English strings, 38 across both dictionaries.</strong> This number has been revised three times as more of the shipped dictionary was read — treat 19 as the current best estimate and have the implementer reconcile it against <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">strings.ts</code> before committing to a copy review. Six candidates were dropped on discovering they already ship (<code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">compassWhyScore</code>, <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">compassPublishedDriversNote</code>, <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">compassNotAssessable</code>, <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">compassNoPublishedScore</code>, <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">compassPointAtFood</code>, and the carve-out sentences).</p>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;">Drafts for all of them are in <em>Food Lens prototype</em> (v1), grouped by area, awaiting an editing pass. Two are safety-adjacent — "Voice paused for your safety" and the crisis lock note — and belong in <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">safetyStrings</code> under the safety approval path, not a copy review.</p>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;">The three verdict sentences are the highest-risk strings in the set: they are the only place the product speaks a judgement in its own words rather than reporting a number. They should read the same way a good clinician talks — plain, unhedged, no diagnosis.</p>
+
+  <h2 style="margin:26px 0 8px; font-size:15pt; font-weight:650; letter-spacing:-.01em;">9 · Open decisions</h2>
+  <ol style="margin:0 0 10px; padding-left:22px; font-size:11pt; line-height:1.7;">
+    <li><strong style="font-weight:650;">Disclosure consolidation.</strong> The design replaces three repeated guidance sentences with one pill and a detail sheet. Needs a compliance yes. If the answer is "inline," the shell still works — it just gets longer, and rec 6's benefit is lost.</li>
+    <li><strong style="font-weight:650;">The public denied-camera dead end.</strong> <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">/compass</code> with no camera has no keyboard and no store — the only screen in the design where a user can arrive and do nothing. Sample scan is today's answer; confirm it is still the answer.</li>
+    <li><strong style="font-weight:650;">Do the chart's alternative dots re-score on tap,</strong> or stay a read-only comparison?</li>
+    <li><strong style="font-weight:650;">In-memory scan history on /compass.</strong> Not personalization and not the store: a session-only list, gone on reload, that would let the public surface hold a plate and compare scan to scan. Worth an owner call, separate from the merge question.</li>
+    <li><strong style="font-weight:650;">Verdict sentence ownership.</strong> Drafted; needs an editor and an approver.</li>
+  </ol>
+
+  <h2 style="margin:26px 0 8px; font-size:15pt; font-weight:650; letter-spacing:-.01em;">10 · Acceptance criteria</h2>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;">Every rule above maps to an assertion in an existing test file. The build is done when these pass, not when it looks right.</p>
+  <p style="margin:0 0 6px; font-size:11pt; line-height:1.6;"><strong style="font-weight:650;">Hook tests</strong> — <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">use-live-food-score.test.tsx</code>:</p>
+  <ul style="margin:0 0 10px; padding-left:22px; font-size:11pt; line-height:1.7;">
+    <li>Ratio 0.49 → <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">disarmReason === "offscreen"</code> and zero identify calls while paused.</li>
+    <li>Ratio 0.61 → no send until one full interval has elapsed; ratio 0.55 after a pause → still paused (hysteresis, not a single threshold).</li>
+    <li><code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">rearm()</code> never clears <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">"offscreen"</code>; ratio recovery is the only path back. The existing provider-rearm test (line 184) is the pattern.</li>
+    <li>Pause → recover inside 60s → <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">stashRef</code> re-shows the match with zero identifies.</li>
+    <li>Idle-disarm timing tests pass unmodified — the gate must not reset <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">AUTO_DISARM_MS</code> bookkeeping.</li>
+  </ul>
+  <p style="margin:0 0 6px; font-size:11pt; line-height:1.6;"><strong style="font-weight:650;">E2E</strong> — <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">food-lens.spec.ts</code>:</p>
+  <ul style="margin:0 0 10px; padding-left:22px; font-size:11pt; line-height:1.7;">
+    <li>Scroll the viewfinder half off → pill reads "Camera paused — nothing sent" and the stubbed identify route records no new requests.</li>
+    <li>Scroll back → match re-appears, <em>no</em> "Scan again" chip anywhere in the DOM.</li>
+    <li>Strip switches loop-status ↔ name+score with no layout shift (fixed 44px), and the food name appears exactly once on any screenful.</li>
+    <li>One plate item → published score + band, the word "average" absent. Two items → "Plate average · 2 items" <em>and</em> the caveat line.</li>
+    <li>Carve-out → no 50px figure, no chart region, "Log it anyway" present.</li>
+  </ul>
+  <p style="margin:0 0 6px; font-size:11pt; line-height:1.6;"><strong style="font-weight:650;">E2E</strong> — <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">compass.spec.ts</code>:</p>
+  <ul style="margin:0 0 10px; padding-left:22px; font-size:11pt; line-height:1.7;">
+    <li>Existing assertions pass untouched — line 56 (no text input rendered) is the capability-prop proof.</li>
+    <li>Gate active on the public mount; no camera button in the strip; camera-denied path lands on sample scan, not a dead end.</li>
+  </ul>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;"><strong style="font-weight:650;">Performance gate:</strong> with the loop armed, a full-speed scroll of the content region triggers zero content re-renders (assert with a render-count probe, per §3.4). Review checklist: no <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">backdrop-filter</code> or <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">drop-shadow</code> inside the scroller.</p>
+
+  <h2 style="margin:26px 0 8px; font-size:15pt; font-weight:650; letter-spacing:-.01em;">11 · Telemetry</h2>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;">§14 names the risk this design accepts; these counters are how we find out if it was the wrong trade. Counts and durations only — never frames, and no food names on the unauthenticated mount.</p>
+  <ul style="margin:0 0 10px; padding-left:22px; font-size:11pt; line-height:1.7;">
+    <li><code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">gate_pause</code> / <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">gate_resume</code> — pause duration and frames skipped. The cost-saving claim in §3.5 becomes a measured number.</li>
+    <li><code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">stash_hit</code> vs <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">reidentify_on_return</code> — is the 60s window long enough?</li>
+    <li><code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">strip_camera_tap</code> — the §14 watch metric. High rates mean people miss the always-on camera; that is the signal to revisit a sheet.</li>
+    <li><code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">verdict_visible_ms</code> — arrival to verdict-in-viewport. The 336px constraint (§2) exists to keep this near zero; regression here means the viewfinder grew.</li>
+    <li><code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">voicebar_expand</code> — whether anyone reads the transcript.</li>
+  </ul>
+
+  <h2 style="margin:26px 0 8px; font-size:15pt; font-weight:650; letter-spacing:-.01em;">12 · Accessibility</h2>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;">The e2e suite finds everything by role — <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">region "Food camera"</code>, <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">role "log"</code> for the transcript. Re-hosting a block must not strip its landmark; the tests are the tripwire.</p>
+  <ul style="margin:0 0 10px; padding-left:22px; font-size:11pt; line-height:1.7;">
+    <li><strong style="font-weight:650;">Loop pill:</strong> <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">aria-live="polite"</code>, announcing once per state <em>flip</em> — never per interval tick. In <em>unavailable</em> the node is removed, so nothing announces.</li>
+    <li><strong style="font-weight:650;">Status strip:</strong> a named landmark; its mode switch announces the new content politely. The camera button is the strip's only control — reachable, ≥44px, first in strip tab order.</li>
+    <li><strong style="font-weight:650;">whyScore:</strong> opening from the chart marker moves focus to the panel heading; closing returns it to the marker. "Must scroll itself into view" (§4) means focus and scroll arrive together.</li>
+    <li><strong style="font-weight:650;">Reduced motion:</strong> transcript expand and strip transitions become cuts under <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">prefers-reduced-motion</code>. The gate itself is motion-neutral.</li>
+    <li><strong style="font-weight:650;">Chart:</strong> quadrant meaning is carried by the named legend (§6), never colour alone; the marker keeps a text alternative naming its quadrant.</li>
+  </ul>
+
+  <h2 style="margin:26px 0 8px; font-size:15pt; font-weight:650; letter-spacing:-.01em;">13 · Wide viewports</h2>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;"><code style="font-family:ui-monospace,Menlo,monospace; font-size:11pt;">/compass</code> is public, so desktop arrivals are certain, not hypothetical. The answer is a clamp, not a layout: the shell is one column, <code style="font-family:ui-monospace,Menlo,monospace; font-size:10.5pt;">max-width: 480px</code>, centered. The viewfinder keeps its 336px height with the camera crop letterboxed; sticky geometry, gate thresholds and the voice bar are identical. A two-column desktop layout is <strong style="font-weight:650;">explicitly out of scope</strong> — the only requirement is that nothing breaks or stretches full-bleed at 1440px.</p>
+
+  <h2 style="margin:26px 0 8px; font-size:15pt; font-weight:650; letter-spacing:-.01em;">14 · The known cost of this design</h2>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;">Under the draggable sheet the camera was always present — half-covered, but live. In the scroll model, reading the detail means the camera is gone. For someone standing in a grocery aisle comparing two packages, that is a real loss, and the Camera button in the status strip is a mitigation rather than a fix.</p>
+  <p style="margin:0 0 10px; font-size:11pt; line-height:1.6;">The trade is still right: no gesture to learn, a whole class of layout bug deleted, and an honest signal for "the user isn't looking" that the sheet could never provide. But it is the first thing to watch in a real usability test, and the finding that would justify revisiting a sheet.</p>
+
+</doc-page>
+</x-dc>
+</body>
+</html>

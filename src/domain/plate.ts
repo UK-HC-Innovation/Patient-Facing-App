@@ -137,9 +137,14 @@ export function formatPlateContext(items: PlateItem[], summary: PlateSummary): s
         : `${item.food.name}: not scored`
     )
     .join("; ");
-  const averageLine = summary.plateAverage
-    ? `Display-only plate average: ${summary.plateAverage.fcs} (${summary.plateAverage.band}). Call this the plate average, never a Food Compass Score for a food.`
-    : "Display-only plate average: unavailable.";
+  // A plate of one is not an average: the per-item number is the published score, and
+  // handing the coach averaging language for it would under-claim a real value.
+  const averageLine =
+    items.length < 2
+      ? "Single item: report its published Food Compass Score, never a plate average."
+      : summary.plateAverage
+        ? `Display-only plate average: ${summary.plateAverage.fcs} (${summary.plateAverage.band}). Call this the plate average, never a Food Compass Score for a food.`
+        : "Display-only plate average: unavailable.";
   return `Plate items and per-item Food Compass scores: ${itemLines}. ${averageLine}`;
 }
 

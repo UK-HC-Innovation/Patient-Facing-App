@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* The Food Lens shell pins a status strip to the top of the viewport and a voice bar to
+   the bottom, so it sets scroll padding on the root while it is mounted -- otherwise
+   anything scrolled or focused into view lands underneath one of them. The bars are the
+   one exception: a control inside the voice bar already sits inside that padding, and
+   without this the browser would keep trying to lift the bar clear of itself. */
+[data-food-lens-pinned],
+[data-food-lens-pinned] * {
+  scroll-margin-bottom: calc(-1 * var(--food-lens-pinned-bottom, 0px));
+}
+
+
 /* Semantic palette, as space-separated RGB channels so Tailwind's `/40` alpha
    syntax works. Kept in step with src/styles/palette.ts, which the contrast
    tests read. UK blue is the care/action color; urgency, caution, and crisis

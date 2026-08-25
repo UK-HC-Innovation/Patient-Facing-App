@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  body { margin:0; background:#eef1f7; color:#172026; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color:#0033a0; }
+  a:hover { color:#001f63; }
+  @keyframes fl-bar { 0%,100% { transform: scaleY(.25) } 50% { transform: scaleY(1) } }
+  @keyframes fl-ping { 0% { transform:scale(.6); opacity:.9 } 100% { transform:scale(2.4); opacity:0 } }
+  [data-scroll-pane]::-webkit-scrollbar { display: none; }
+</style>
+</helmet>
+
+<div style="padding:48px 48px 80px; display:flex; flex-direction:column; gap:32px; background:#eef1f7; min-width:1480px;">
+
+  <header style="max-width:900px; display:flex; flex-direction:column; gap:14px;">
+    <p style="margin:0; font-family:ui-monospace,'SF Mono',Menlo,monospace; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:rgba(23,32,38,.55);">Food Lens · prototype v2 · scroll model</p>
+    <h1 style="margin:0; font-size:38px; line-height:1.06; letter-spacing:-.022em; font-weight:650;">The camera scrolls, and stops paying for itself.</h1>
+    <p style="margin:0; font-size:17px; line-height:1.55; color:rgba(23,32,38,.72); max-width:80ch; text-wrap:pretty;">One scroll surface instead of a draggable sheet. The viewfinder is a block at the top of the page; scroll it away and it collapses into a sticky chip. When less than half of it is on screen the vision loop <strong style="font-weight:650;">stops sending frames</strong> — and the counter below makes that visible. Scroll the phone and watch the badge flip.</p>
+  </header>
+
+  <div style="display:flex; align-items:flex-start; gap:40px; flex-wrap:wrap;">
+
+    <div style="flex:0 0 auto; display:flex; flex-direction:column; gap:14px;">
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <span style="font-family:ui-monospace,Menlo,monospace; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:rgba(23,32,38,.55);">Vision loop:</span>
+        <span style="display:inline-flex; align-items:center; height:26px; padding:0 10px; border-radius:6px; background:{{ hudBg }}; color:#fff; font-family:ui-monospace,Menlo,monospace; font-size:12px; font-weight:700;">{{ hudLabel }}</span>
+        <span ref="{{ ratioRef }}" style="font-family:ui-monospace,Menlo,monospace; font-size:12px; color:rgba(23,32,38,.5);">100% of the viewfinder in view</span>
+        <button type="button" onClick="{{ reset }}" style="margin-left:6px; min-height:32px; border-radius:7px; border:1px solid rgba(23,32,38,.2); background:#fff; padding:0 12px; font-size:13px; font-weight:600; color:#172026; cursor:pointer;">Reset</button>
+      </div>
+
+      <div style="width:406px; background:#0b1115; border-radius:44px; padding:8px; box-shadow:0 34px 64px -30px rgba(23,32,38,.55);">
+        <div ref="{{ scrollRef }}" onScroll="{{ onScroll }}" data-scroll-pane="true" style="position:relative; width:390px; height:844px; border-radius:36px; overflow-y:auto; overflow-x:hidden; scrollbar-width:none; background:#f6f8fc;">
+
+          <div ref="{{ camRef }}" style="position:relative; height:336px; display:grid; place-items:center; background:linear-gradient(to bottom right,#1e293b,#0f172a,#000);">
+            <span style="font-size:104px; text-shadow:0 14px 22px rgba(0,0,0,.65);">🍕</span>
+            <div style="position:absolute; inset:0; background:linear-gradient(to bottom, rgba(15,23,42,.75) 0%, rgba(15,23,42,0) 34%);"></div>
+
+            <div style="position:absolute; left:0; right:0; top:0; padding:46px 18px 0; display:flex; align-items:center; justify-content:space-between; gap:12px;">
+              <span style="font-family:ui-monospace,Menlo,monospace; font-size:12px; font-weight:700; letter-spacing:.16em; color:rgba(255,255,255,.9);">FOOD LENS</span>
+              <span style="display:flex; align-items:center; gap:6px; min-height:44px; white-space:nowrap; border-radius:9999px; border:1px solid rgba(244,208,111,.55); background:rgba(15,23,42,.5); padding:0 13px; font-size:13px; font-weight:600; color:#f4d06f;">For my plan<span style="display:grid; place-items:center; width:16px; height:16px; border-radius:9999px; border:1px solid rgba(244,208,111,.8); font-size:11px; font-weight:700;">i</span></span>
+            </div>
+
+            <span style="position:absolute; left:18px; bottom:16px; min-height:36px; display:inline-flex; align-items:center; border-radius:9999px; background:rgba(255,255,255,.94); padding:0 13px; font-size:13px; font-weight:600; color:#172026; max-width:300px;">Pizza with pepperoni, from a restaurant</span>
+          </div>
+
+          <div style="position:sticky; top:0; z-index:20; background:#172026; padding:10px 16px; display:flex; align-items:center; gap:11px; border-bottom:1px solid rgba(255,255,255,.1); min-height:44px;">
+            <span style="position:relative; display:grid; place-items:center; width:10px; height:10px; flex:0 0 auto;">
+              <span style="width:8px; height:8px; border-radius:9999px; background:{{ camDot }};"></span>
+              <span style="position:absolute; width:8px; height:8px; border-radius:9999px; background:{{ camDot }}; opacity:{{ pingOpacity }}; animation:fl-ping 1.6s ease-out infinite;"></span>
+            </span>
+            <sc-if value="{{ visionActive }}" hint-placeholder-val="{{ true }}">
+              <p style="margin:0; flex:1; min-width:0; font-size:13px; font-weight:650; color:rgba(255,255,255,.9); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Reading the camera · a frame every 2.5s</p>
+            </sc-if>
+            <sc-if value="{{ visionPaused }}" hint-placeholder-val="{{ false }}">
+              <span style="font-size:22px; flex:0 0 auto;">🍕</span>
+              <div style="flex:1; min-width:0;">
+                <p style="margin:0; font-size:14px; font-weight:650; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Pizza with pepperoni · 24</p>
+                <p style="margin:1px 0 0; font-size:12px; font-weight:600; color:{{ camDot }};">Camera paused — nothing sent</p>
+              </div>
+              <button type="button" onClick="{{ backToCamera }}" style="flex:0 0 auto; min-height:44px; white-space:nowrap; border-radius:9999px; border:1px solid rgba(255,255,255,.3); background:transparent; padding:0 13px; font-size:13px; font-weight:600; color:#fff; cursor:pointer;">Camera</button>
+            </sc-if>
+          </div>
+
+          <div style="background:#fff; padding:18px 18px 24px; display:flex; flex-direction:column; gap:18px;">
+            <div>
+              <div style="display:flex; align-items:flex-start; gap:14px;">
+                <div style="flex:1; min-width:0;">
+                  <span style="display:inline-block; border-radius:6px; background:rgba(157,63,49,.12); color:#9d3f31; padding:3px 9px; font-size:13px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;">Limit</span>
+                  <p style="margin:9px 0 0; font-size:21px; line-height:1.26; font-weight:640; letter-spacing:-.01em; text-wrap:pretty;">A lot of calories for the nutrition you get.</p>
+                  <p style="margin:6px 0 0; font-size:15px; line-height:1.45; color:rgba(23,32,38,.66);">Pizza with pepperoni, from a restaurant · 2.7 kcal/g</p>
+                </div>
+                <div style="flex:0 0 auto; text-align:right;">
+                  <p style="margin:0; font-size:50px; line-height:1; font-weight:660; letter-spacing:-.03em; color:#9d3f31;">24</p>
+                  <p style="margin:2px 0 0; font-size:13px; font-weight:600; color:rgba(23,32,38,.55);">of 100</p>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div style="display:grid; grid-template-columns:34px minmax(0,1fr); gap:6px;">
+                <div style="display:flex; height:280px; flex-direction:column; justify-content:space-between; padding:2px 0; text-align:right; font-size:13px; font-weight:600; color:rgba(23,32,38,.7);"><span>9</span><span>6</span><span>3</span><span>0</span></div>
+                <div style="position:relative; height:280px; overflow:hidden; border-radius:10px; border:1px solid rgba(23,32,38,.22); background:#fff;">
+                  <div style="position:absolute; left:0; top:0; width:70%; height:72.2%; background:#ffe4e6;"></div>
+                  <div style="position:absolute; right:0; top:0; width:30%; height:72.2%; background:#fef3c7;"></div>
+                  <div style="position:absolute; bottom:0; left:0; width:70%; height:27.8%; background:#ffedd5;"></div>
+                  <div style="position:absolute; bottom:0; right:0; width:30%; height:27.8%; background:#d1fae5;"></div>
+                  <div style="position:absolute; top:0; bottom:0; left:70%; border-left:1px solid rgba(23,32,38,.25);"></div>
+                  <div style="position:absolute; left:0; right:0; bottom:27.8%; border-top:1px solid rgba(23,32,38,.25);"></div>
+                  <span style="position:absolute; left:45%; bottom:22.8%; transform:translate(-50%,50%); width:16px; height:16px; border-radius:9999px; border:3px solid #92400e; background:#fff;"></span>
+                  <span style="position:absolute; left:24%; bottom:29.6%; transform:translate(-50%,50%); z-index:10; display:grid; place-items:center; width:46px; height:46px; border-radius:9999px; border:3px solid #fff; background:#9d3f31; font-size:17px; font-weight:700; color:#fff;">24</span>
+                </div>
+                <span></span>
+                <div style="position:relative; height:22px; font-size:13px; font-weight:600; color:rgba(23,32,38,.7);"><span style="position:absolute; left:0;">0</span><span style="position:absolute; left:70%; transform:translateX(-50%);">70</span><span style="position:absolute; right:0;">100</span></div>
+              </div>
+              <div style="margin:12px 0 0 40px; display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+                <span style="border-radius:7px; background:#ffe4e6; padding:6px 9px; font-size:13px; font-weight:600; color:#9f1239;">Limit</span>
+                <span style="border-radius:7px; background:#fef3c7; padding:6px 9px; font-size:13px; font-weight:600; color:#78350f;">Moderate</span>
+                <span style="border-radius:7px; background:#ffedd5; padding:6px 9px; font-size:13px; font-weight:600; color:#7c2d12;">Be mindful</span>
+                <span style="border-radius:7px; background:#d1fae5; padding:6px 9px; font-size:13px; font-weight:600; color:#064e3b;">Choose often</span>
+              </div>
+              <p style="margin:10px 0 0; font-size:14px; line-height:1.5; color:rgba(23,32,38,.7);">Down and to the right is better — higher score, fewer calories.</p>
+            </div>
+
+            <div style="border-radius:12px; border:1px solid rgba(0,51,160,.22); background:rgba(227,234,248,.4); padding:14px;">
+              <p style="margin:0; font-size:13px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#0033a0;">Camera &amp; privacy</p>
+              <p style="margin:8px 0 0; font-size:15px; line-height:1.5; color:rgba(23,32,38,.8); text-wrap:pretty;">Frames go out only while the viewfinder is on your screen. Scroll it away and nothing is sent.</p>
+              <div style="margin-top:12px; display:flex; gap:8px;">
+                <div style="flex:1; border-radius:9px; background:#fff; padding:10px 12px;">
+                  <p style="margin:0; font-size:12px; font-weight:600; color:rgba(23,32,38,.6);">Frames sent</p>
+                  <p style="margin:2px 0 0; font-size:22px; font-weight:700; color:#0033a0;">{{ framesSent }}</p>
+                </div>
+                <div style="flex:1; border-radius:9px; background:#fff; padding:10px 12px;">
+                  <p style="margin:0; font-size:12px; font-weight:600; color:rgba(23,32,38,.6);">Skipped off-screen</p>
+                  <p style="margin:2px 0 0; font-size:22px; font-weight:700; color:#047857;">{{ framesSkipped }}</p>
+                </div>
+              </div>
+            </div>
+
+            <div style="border-radius:12px; border:1px solid rgba(23,32,38,.12); background:#fff; padding:14px;">
+              <p style="margin:0; font-size:15px; font-weight:640;">Per 100 g</p>
+              <dl style="margin:12px 0 0; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; font-size:15px;">
+                <div style="border-radius:8px; background:rgba(227,234,248,.55); padding:10px;"><dt style="font-size:13px; color:rgba(23,32,38,.62);">Calories</dt><dd style="margin:2px 0 0; font-weight:640;">266</dd></div>
+                <div style="border-radius:8px; background:rgba(227,234,248,.55); padding:10px;"><dt style="font-size:13px; color:rgba(23,32,38,.62);">Sodium</dt><dd style="margin:2px 0 0; font-weight:640;">598 mg</dd></div>
+                <div style="border-radius:8px; background:rgba(227,234,248,.55); padding:10px;"><dt style="font-size:13px; color:rgba(23,32,38,.62);">Sat fat</dt><dd style="margin:2px 0 0; font-weight:640;">4.6 g</dd></div>
+                <div style="border-radius:8px; background:rgba(227,234,248,.55); padding:10px;"><dt style="font-size:13px; color:rgba(23,32,38,.62);">Protein</dt><dd style="margin:2px 0 0; font-weight:640;">11 g</dd></div>
+                <div style="border-radius:8px; background:rgba(227,234,248,.55); padding:10px;"><dt style="font-size:13px; color:rgba(23,32,38,.62);">Fibre</dt><dd style="margin:2px 0 0; font-weight:640;">2.3 g</dd></div>
+                <div style="border-radius:8px; background:rgba(227,234,248,.55); padding:10px;"><dt style="font-size:13px; color:rgba(23,32,38,.62);">Potassium</dt><dd style="margin:2px 0 0; font-weight:640;">172 mg</dd></div>
+              </dl>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <button type="button" style="min-height:56px; width:100%; border-radius:10px; border:0; background:#0033a0; font-size:16px; font-weight:650; color:#fff; cursor:pointer;">Log this meal</button>
+              <button type="button" style="min-height:52px; width:100%; border-radius:10px; border:1px solid rgba(0,51,160,.3); background:#fff; font-size:15px; font-weight:600; color:#0033a0; cursor:pointer;">Add to plate</button>
+            </div>
+
+            <p style="margin:0; font-size:13px; line-height:1.5; color:rgba(23,32,38,.55);">Food Compass 2.0, Tufts University, used with permission · AI-assisted identification · not medical advice.</p>
+          </div>
+
+          <div style="position:sticky; bottom:0; z-index:30; background:#172026; padding:11px 16px 15px; border-top:1px solid rgba(255,255,255,.1);">
+            <div style="display:flex; align-items:center; gap:11px;">
+              <sc-if value="{{ micOn }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex; align-items:flex-end; gap:3px; height:26px; flex:0 0 auto;">
+                  <span style="width:4px; height:26px; border-radius:2px; background:#6ee7b7; animation:fl-bar 1s ease-in-out infinite;"></span>
+                  <span style="width:4px; height:26px; border-radius:2px; background:#6ee7b7; animation:fl-bar 1s ease-in-out infinite; animation-delay:.12s;"></span>
+                  <span style="width:4px; height:26px; border-radius:2px; background:#6ee7b7; animation:fl-bar 1s ease-in-out infinite; animation-delay:.24s;"></span>
+                  <span style="width:4px; height:26px; border-radius:2px; background:#6ee7b7; animation:fl-bar 1s ease-in-out infinite; animation-delay:.36s;"></span>
+                  <span style="width:4px; height:26px; border-radius:2px; background:#6ee7b7; animation:fl-bar 1s ease-in-out infinite; animation-delay:.48s;"></span>
+                </div>
+              </sc-if>
+              <sc-if value="{{ micOff }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex; align-items:flex-end; gap:3px; height:22px; flex:0 0 auto;">
+                  <span style="width:4px; height:22px; border-radius:2px; background:rgba(255,255,255,.3);"></span>
+                  <span style="width:4px; height:22px; border-radius:2px; background:rgba(255,255,255,.3);"></span>
+                  <span style="width:4px; height:22px; border-radius:2px; background:rgba(255,255,255,.3);"></span>
+                  <span style="width:4px; height:22px; border-radius:2px; background:rgba(255,255,255,.3);"></span>
+                  <span style="width:4px; height:22px; border-radius:2px; background:rgba(255,255,255,.3);"></span>
+                </div>
+              </sc-if>
+              <button type="button" onClick="{{ toggleTranscript }}" style="flex:1; min-width:0; min-height:44px; border:0; background:transparent; padding:0; text-align:left; cursor:pointer;">
+                <span style="display:block; font-size:14px; font-weight:600; color:rgba(255,255,255,.62);">{{ micLabel }}</span>
+                <span style="display:block; font-size:15px; font-weight:600; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ lastTurn }}</span>
+              </button>
+              <button type="button" onClick="{{ toggleMic }}" aria-label="Toggle microphone" style="flex:0 0 auto; display:grid; place-items:center; width:54px; height:54px; border-radius:9999px; border:0; background:{{ micBg }}; cursor:pointer;">
+                <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
+              </button>
+            </div>
+            <sc-if value="{{ transcriptOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="margin-top:12px; max-height:180px; overflow-y:auto; display:flex; flex-direction:column; gap:7px; border-top:1px solid rgba(255,255,255,.14); padding-top:12px;">
+                <sc-for list="{{ turns }}" as="turn" hint-placeholder-count="3">
+                  <p style="margin:0; border-radius:9px; padding:9px 11px; font-size:14px; line-height:1.5; background:{{ turn.bg }}; color:rgba(255,255,255,.92);"><span style="font-weight:700;">{{ turn.who }}</span> {{ turn.text }}</p>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:0 0 420px; display:flex; flex-direction:column; gap:14px;">
+      <h2 style="margin:0 0 2px; font-size:15px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#0033a0;">Try it</h2>
+
+      <div style="background:#fff; border:1px solid rgba(23,32,38,.12); border-left:3px solid #0033a0; border-radius:10px; padding:14px 16px;">
+        <p style="margin:0; font-size:16px; font-weight:650;">Scroll the phone slowly</p>
+        <p style="margin:5px 0 0; font-size:14px; line-height:1.55; color:rgba(23,32,38,.7);">Watch the dark strip under the viewfinder. At the moment less than half the camera is on screen it flips from <em>Reading the camera</em> to the food's name plus <em>Camera paused</em>, the pulse stops, and the "Frames sent" counter freezes while "Skipped" starts climbing.</p>
+      </div>
+
+      <div style="background:#fff; border:1px solid rgba(23,32,38,.12); border-left:3px solid #0033a0; border-radius:10px; padding:14px 16px;">
+        <p style="margin:0; font-size:16px; font-weight:650;">One strip, two jobs</p>
+        <p style="margin:5px 0 0; font-size:14px; line-height:1.55; color:rgba(23,32,38,.7);">The sticky strip under the viewfinder reports the loop while the camera is up, then becomes the camera's stand-in once it scrolls away — food name, score, and a button back. Same 44px row either way, so nothing jumps, and the food's name is never printed twice on one screen.</p>
+      </div>
+
+      <div style="background:#fff; border:1px solid rgba(23,32,38,.12); border-left:3px solid #9d3f31; border-radius:10px; padding:14px 16px;">
+        <p style="margin:0; font-size:16px; font-weight:650;">The answer is above the fold again</p>
+        <p style="margin:5px 0 0; font-size:14px; line-height:1.55; color:rgba(23,32,38,.7);">First pass put a 440px viewfinder on top, which pushed the verdict to roughly 500px down an 844px screen — you landed on the camera and had to scroll to find out anything. That quietly undid the whole point of "say the answer once, immediately". The camera is now 336px, so band, sentence and number all land in the first screen with the chart's top edge peeking to invite the scroll.</p>
+        <p style="margin:8px 0 0; font-size:14px; line-height:1.55; color:rgba(23,32,38,.7);">The alternative was a verdict overlaid on the viewfinder. Rejected: it reintroduces the same number in two places — the exact fault the review doc opens with — and sets a 21px sentence and a 50px figure over live food photography.</p>
+      </div>
+
+      <div style="background:#fff; border:1px solid rgba(23,32,38,.12); border-left:3px solid #0033a0; border-radius:10px; padding:14px 16px;">
+        <p style="margin:0; font-size:16px; font-weight:650;">The voice bar is pinned, not dragged</p>
+        <p style="margin:5px 0 0; font-size:14px; line-height:1.55; color:rgba(23,32,38,.7);">It sticks to the bottom of the viewport at every scroll position, so the mic is always in the thumb arc — without a gesture to learn. Tap the transcript line to expand the log; it grows upward and the page keeps its place.</p>
+      </div>
+
+      <div style="background:#047857; border-radius:10px; padding:16px 18px; color:#fff;">
+        <p style="margin:0; font-size:15px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#d1fae5;">Why this is better than my sheet</p>
+        <ul style="margin:10px 0 0; padding-left:20px; font-size:14px; line-height:1.7; color:rgba(255,255,255,.92);">
+          <li><strong style="font-weight:650;">No gesture to teach.</strong> Peek / half / full was a model the user had to discover. Scrolling is a model they already have.</li>
+          <li><strong style="font-weight:650;">It deletes a whole class of bug.</strong> The draggable version's handle could out-grow its own sheet and annihilate the content pane. A sticky bar cannot do that.</li>
+          <li><strong style="font-weight:650;">Visibility becomes the gate.</strong> A draggable sheet over a fixed camera has no honest signal for "the user isn't looking at the camera." Scroll position is exactly that signal, for free.</li>
+        </ul>
+      </div>
+
+      <div style="background:#172026; border-radius:10px; padding:16px 18px; color:#fff;">
+        <p style="margin:0; font-size:15px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#f4d06f;">What it costs to build</p>
+        <ul style="margin:10px 0 0; padding-left:20px; font-size:14px; line-height:1.7; color:rgba(255,255,255,.86);">
+          <li><strong style="font-weight:650;">A fourth disarm reason.</strong> F5 exposes <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px; white-space:nowrap;">disarmReason: "idle" | "provider" | null</code>. This adds <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px; white-space:nowrap;">"offscreen"</code> — and unlike the other two it must re-arm <em>automatically</em> when the camera returns, never via <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px; white-space:nowrap;">rearm()</code> and never showing a "Scan again" chip. Getting that wrong makes scrolling back feel broken.</li>
+          <li><strong style="font-weight:650;">It pairs with the 60-second stash, not against it.</strong> Scroll away and back inside a minute and <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px; white-space:nowrap;">stashRef</code> should re-show the last match rather than re-identifying — so a scroll costs zero calls, not one.</li>
+          <li><strong style="font-weight:650;">Hysteresis, or it thrashes.</strong> A single 50% threshold flips repeatedly during a slow scroll. Pause at 50% leaving, resume at 60% entering, and hold the resume for one interval so a flick past the camera doesn't fire a request.</li>
+          <li><strong style="font-weight:650;">It does not replace the idle disarm.</strong> A camera parked on screen while nobody looks still burns frames; <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px; white-space:nowrap;">AUTO_DISARM_MS</code> stays.</li>
+          <li><strong style="font-weight:650;">The counters are a demo, not a metric.</strong> Real numbers need instrumenting the loop. Worth doing — this is the cheapest spend story in the product.</li>
+          <li><strong style="font-weight:650;">Never put the scroll ratio in component state.</strong> My first build did, and it froze the tab: a render per scroll event, where the render itself swapped the pill text and mounted the pulse — scroll → render → layout → scroll, until the main thread died. The ratio now lives in a ref, the readout is written imperatively, measurement is coalesced to one animation frame, and only the on/off boolean re-renders. Any real implementation will hit this.</li>
+          <li><strong style="font-weight:650;">And keep expensive paint out of the scroller.</strong> Same crash had two accomplices: a <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px; white-space:nowrap;">backdrop-filter</code> blur on the sticky header (re-rasterising the blurred strip every frame of every scroll) and a <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px; white-space:nowrap;">drop-shadow</code> filter on a 132px glyph. Both were decorative; both are gone. A viewfinder that scrolls is a compositing problem as much as a layout one.</li>
+        </ul>
+      </div>
+
+      <div style="background:#fff; border:1px solid rgba(23,32,38,.12); border-radius:10px; padding:16px 18px;">
+        <p style="margin:0; font-size:15px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:rgba(23,32,38,.55);">One thing I'd push on</p>
+        <p style="margin:8px 0 0; font-size:14px; line-height:1.6; color:rgba(23,32,38,.75);">Gating on visibility is also a <strong style="font-weight:650;">privacy</strong> feature, not just a cost one, and it is more legible than anything in the current disclosure copy: "frames go out only while the camera is on your screen" is a sentence a patient can verify with their own thumb. That deserves to be the headline of the disclosure sheet rather than a line in a card — and it is worth asking whether it changes what the AI-data disclosure has to claim.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1480,&quot;height&quot;:1050}}">
+const INTERVAL_MS = 2500;
+const PAUSE_BELOW = 0.5;   // frames stop when less than half the viewfinder shows
+const RESUME_ABOVE = 0.6;  // hysteresis: needs more than half back before resuming
+
+const TURNS = [
+  { who: "Food Lens", text: "I see pizza with pepperoni. Its published Food Compass score is 24 out of 100. What would you like to know about it?", role: "a" },
+  { who: "You", text: "It's from Papa John's — pepperoni and sausage, large.", role: "p" },
+  { who: "Food Lens", text: "Scored as pizza with pepperoni from a restaurant — 24 out of 100. Sausage, the original crust and the large size aren't in that published category, so they're not in the number.", role: "a" },
+  { who: "You", text: "What would be better?", role: "p" },
+  { who: "Food Lens", text: "A thin-crust pizza with chicken and vegetables scores 45 — same kind of meal, fewer calories for the nutrition.", role: "a" }
+];
+
+class Component extends DCLogic {
+  // `ratio` is deliberately NOT in state. Storing a continuous scroll value in state
+  // renders on every scroll event, and because a render swaps the pill text and
+  // mounts/unmounts the ping span, that re-render changes scroll geometry — a
+  // scroll -> setState -> layout -> scroll loop that saturates the main thread.
+  state = { active: true, sent: 0, skipped: 0, mic: true, transcriptOpen: false };
+  scrollRef = React.createRef();
+  camRef = React.createRef();
+  ratioRef = React.createRef();
+  ratio = 1;
+  pending = false;
+
+  componentDidMount() {
+    this.measure();
+    if (this.timer) window.clearInterval(this.timer);
+    this.timer = window.setInterval(() => {
+      this.setState((s) => (s.active ? { sent: s.sent + 1 } : { skipped: s.skipped + 1 }));
+    }, INTERVAL_MS);
+  }
+
+  componentWillUnmount() {
+    if (this.timer) window.clearInterval(this.timer);
+    if (this.raf) window.cancelAnimationFrame(this.raf);
+  }
+
+  // Coalesce a scroll burst into one measurement per frame.
+  onScroll = () => {
+    if (this.pending) return;
+    this.pending = true;
+    this.raf = window.requestAnimationFrame(() => {
+      this.pending = false;
+      this.measure();
+    });
+  };
+
+  // Geometry rather than IntersectionObserver: the scroll container is the root, and
+  // a per-frame read keeps the pill honest mid-drag. Only the derived boolean renders.
+  measure = () => {
+    const cam = this.camRef.current;
+    const box = this.scrollRef.current;
+    if (!cam || !box) return;
+    const c = cam.getBoundingClientRect();
+    const b = box.getBoundingClientRect();
+    const visible = Math.max(0, Math.min(c.bottom, b.bottom) - Math.max(c.top, b.top));
+    const ratio = c.height > 0 ? visible / c.height : 0;
+    this.ratio = ratio;
+    const node = this.ratioRef.current;
+    if (node) node.textContent = Math.round(ratio * 100) + "% of the viewfinder in view";
+    // Hysteresis, or a slow scroll flips the loop on and off around one threshold.
+    const next = this.state.active ? ratio >= PAUSE_BELOW : ratio >= RESUME_ABOVE;
+    if (next !== this.state.active) this.setState({ active: next });
+  };
+
+  renderVals() {
+    const active = this.state.active;
+    return {
+      scrollRef: this.scrollRef,
+      camRef: this.camRef,
+      ratioRef: this.ratioRef,
+      onScroll: this.onScroll,
+
+      visionActive: active,
+      visionPaused: !active,
+      // Kept mounted and hidden rather than toggled by sc-if: mounting an animated
+      // node during a scroll-driven render is exactly what made this thrash.
+      pingOpacity: active ? 1 : 0,
+      hudLabel: active ? "sending" : "paused",
+      hudBg: active ? "#0033a0" : "#047857",
+
+      camDot: active ? "#6ee7b7" : "#d1fae5",
+
+      framesSent: this.state.sent,
+      framesSkipped: this.state.skipped,
+
+      micOn: this.state.mic,
+      micOff: !this.state.mic,
+      micBg: this.state.mic ? "#0033a0" : "rgba(255,255,255,.12)",
+      micLabel: this.state.mic ? "Listening — just talk." : "Paused · tap the mic to resume",
+      toggleMic: () => this.setState((s) => ({ mic: !s.mic })),
+
+      transcriptOpen: this.state.transcriptOpen,
+      lastTurn: this.state.transcriptOpen ? "Tap again to collapse" : '"' + TURNS[TURNS.length - 1].text.slice(0, 44) + '…"',
+      toggleTranscript: () => this.setState((s) => ({ transcriptOpen: !s.transcriptOpen })),
+      turns: TURNS.map((t, i) => ({
+        id: i,
+        who: t.who + ":",
+        text: t.text,
+        bg: t.role === "a" ? "rgba(255,255,255,.1)" : "rgba(0,51,160,.32)"
+      })),
+
+      backToCamera: () => {
+        const box = this.scrollRef.current;
+        if (box) box.scrollTop = 0;
+        window.setTimeout(this.measure, 60);
+      },
+      reset: () => {
+        const box = this.scrollRef.current;
+        if (box) box.scrollTop = 0;
+        this.setState({ sent: 0, skipped: 0, mic: true, transcriptOpen: false });
+        window.setTimeout(this.measure, 60);
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

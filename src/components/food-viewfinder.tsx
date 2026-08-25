@@ -1,6 +1,6 @@
 "use client";
 
-import React, { type RefObject } from "react";
+import React, { type ReactNode, type RefObject } from "react";
 import { t, type Language } from "@/i18n/strings";
 import type { CameraStatus } from "@/hooks/use-food-camera";
 import type { LiveSessionStatus } from "@/ai/types";
@@ -33,7 +33,9 @@ export function FoodViewfinder({
   onVoiceStatusTap,
   showVoiceStatus = true,
   idleLabel,
-  demoPreview = false
+  demoPreview = false,
+  height = "55vh",
+  trustPill
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
   cameraStatus: CameraStatus;
@@ -52,13 +54,18 @@ export function FoodViewfinder({
   onVoiceStatusTap?: () => void;
   /**
    * Some surfaces use an actionable voice pill. Others, including the automatic
-   * Compass conversation, keep this as a status announcement only.
+   * Compass conversation, keep this as a status announcement only. Inside the scroll shell
+   * the pinned voice bar owns the status instead, so this is off there.
    */
   showVoiceStatus?: boolean;
   /** Replaces food-specific idle copy before a food has been identified. */
   idleLabel?: string;
   /** Shows a deterministic sample scan instead of an empty panel when camera access is unavailable. */
   demoPreview?: boolean;
+  /** The shell fixes this at 336px, the largest that still puts the verdict on screen one. */
+  height?: string | number;
+  /** Wordmark plus the guidance-source pill, the shell's top overlay. */
+  trustPill?: ReactNode;
 }) {
   const voiceStatus =
     idleLabel && (sessionStatus === "idle" || sessionStatus === "closed")
@@ -87,7 +94,7 @@ export function FoodViewfinder({
   );
 
   return (
-    <div className="relative overflow-hidden rounded-control border border-ink/10 bg-ink" style={{ height: "55vh" }}>
+    <div className="relative overflow-clip bg-ink" style={{ height }}>
       <video ref={videoRef} className="h-full w-full object-cover" muted playsInline aria-label={t(language, "viewfinderHint")} />
 
       {demoPreview && cameraStatus !== "active" ? (
@@ -96,10 +103,11 @@ export function FoodViewfinder({
           className="absolute inset-0 flex items-center justify-center overflow-hidden bg-gradient-to-br from-slate-800 via-slate-900 to-black"
           role="img"
         >
-          <span aria-hidden="true" className="select-none text-8xl drop-shadow-2xl">
+          {/* A text-shadow, never a drop-shadow filter: a filtered glyph inside a scroll
+              container re-rasterises on every frame of every scroll. */}
+          <span aria-hidden="true" className="select-none text-8xl" style={{ textShadow: "0 14px 22px rgba(0,0,0,.65)" }}>
             🍕
           </span>
-          <span aria-hidden="true" className="absolute inset-x-8 top-1/2 h-0.5 animate-pulse bg-emerald-300/90 shadow-[0_0_18px_rgba(110,231,183,0.9)] motion-reduce:animate-none" />
           <p className="absolute inset-x-4 bottom-16 rounded-control bg-black/80 px-3 py-2 text-center text-xs font-medium text-white">
             {t(language, "demoCameraUnavailable")}
           </p>
@@ -127,10 +135,25 @@ export function FoodViewfinder({
         </div>
       ) : null}
 
+      {trustPill ? (
+        <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-3 bg-gradient-to-b from-slate-900/75 to-transparent p-3">
+          <span className="pt-1 font-mono text-xs font-bold tracking-[.16em] text-white/90">
+            {t(language, "shellWordmark")}
+          </span>
+          {trustPill}
+        </div>
+      ) : null}
+
       {scanChip ? (
-        <div className="absolute left-3 top-3 rounded-control bg-white/90 px-3 py-1 text-xs font-semibold text-ink">{scanChip}</div>
+        <div
+          className={`absolute left-3 rounded-full bg-white/95 px-3 py-2 text-xs font-semibold text-ink ${
+            trustPill ? "bottom-3 max-w-[70%] truncate" : "top-3"
+          }`}
+        >
+          {scanChip}
+        </div>
       ) : (
-        <div className="absolute left-3 top-3 rounded-control bg-black/75 px-3 py-1 text-xs font-medium text-white">
+        <div className={`absolute left-3 rounded-control bg-black/75 px-3 py-1 text-xs font-medium text-white ${trustPill ? "bottom-3" : "top-3"}`}>
           {t(language, "scanHint")}
         </div>
       )}
@@ -142,6 +165,7 @@ export function FoodViewfinder({
         language={language}
         name={scoreName}
         onTap={onScoreTap}
+        placement={trustPill ? "bottom-right" : "top-right"}
         tier={scoreTier}
       />
 

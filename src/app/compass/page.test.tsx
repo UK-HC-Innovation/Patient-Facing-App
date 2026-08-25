@@ -38,7 +38,19 @@ vi.mock("@/hooks/use-food-camera", () => ({
 }));
 
 vi.mock("@/hooks/use-live-food-score", () => ({
-  useLiveFoodScore: () => ({ badge: "score", match: pizzaMatch, carveOut: null, armed: true })
+  useLiveFoodScore: () => ({
+    badge: "score",
+    loopState: "sending",
+    match: pizzaMatch,
+    carveOut: null,
+    noMatchCandidates: [],
+    armed: true,
+    disarmReason: null,
+    liveIdentifySucceeded: false,
+    adoptMatch: () => {},
+    rearm: () => {},
+    setVisibleRatio: () => {}
+  })
 }));
 
 vi.mock("@/hooks/use-food-voice-session", () => ({
@@ -116,10 +128,12 @@ describe("CompassPage camera-first conversation", () => {
 
     render(<CompassPage />);
 
-    expect(screen.getByRole("region", { name: "Food camera" })).toBeInTheDocument();
-    expect(screen.getByRole("main").lastElementChild).toBe(
-      screen.getByRole("region", { name: "Automatic food conversation" })
-    );
+    const camera = screen.getByRole("region", { name: "Food camera" });
+    const conversation = screen.getByRole("region", { name: "Automatic food conversation" });
+    expect(camera).toBeInTheDocument();
+    // The camera keeps the top of the scroll surface; the conversation lives below it in the
+    // content region rather than replacing it.
+    expect(camera.compareDocumentPosition(conversation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByLabelText("Describe a food or order")).not.toBeInTheDocument();
     expect(mocks.onFinalTranscript).not.toBeNull();
 

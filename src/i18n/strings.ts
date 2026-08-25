@@ -254,6 +254,39 @@ export type FoodLensStringKey =
   | "nutritionCompassScoreAxis"
   | "nutritionCompassHigherDensity"
   | "nutritionCompassExplanation"
+  | "shellWordmark"
+  | "loopSending"
+  | "loopSearching"
+  | "loopPausedOffscreen"
+  | "cameraPrivacyLabel"
+  | "gatePrivacyClaim"
+  | "stripRegion"
+  | "stripCameraButton"
+  | "stripCameraButtonLabel"
+  | "contentRegion"
+  | "verdictEncourage"
+  | "verdictModerate"
+  | "verdictMinimize"
+  | "verdictOutOf100"
+  | "chartDirection"
+  | "chartLegendLabel"
+  | "chartYourQuadrant"
+  | "plateAverageEyebrow"
+  | "plateAverageNote"
+  | "carveOutNoNumber"
+  | "logItAnyway"
+  | "nothingInView"
+  | "nothingInViewBody"
+  | "notScored"
+  | "noMatchLabel"
+  | "sayOneOfThese"
+  | "micReadyOrType"
+  | "voiceBarRegion"
+  | "transcriptExpand"
+  | "transcriptCollapse"
+  | "attributionLine"
+  | "servingsDoNotMoveScore"
+  | "whyScoreClose"
   | "compassOutOf100";
 
 export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>> = {
@@ -519,6 +552,39 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     nutritionCompassHigherDensity: "↑ Higher calorie density",
     nutritionCompassExplanation:
       "The four quadrants combine two separate measures for this prototype; they do not change the published score.",
+    shellWordmark: "FOOD LENS",
+    loopSending: "Reading the camera · every 2.5s",
+    loopSearching: "Looking for food…",
+    loopPausedOffscreen: "Camera paused — nothing sent",
+    cameraPrivacyLabel: "Camera & privacy",
+    gatePrivacyClaim: "Frames go out only while the viewfinder is on your screen. Scroll it away and nothing is sent.",
+    stripRegion: "Food Lens status",
+    stripCameraButton: "Camera",
+    stripCameraButtonLabel: "Back to the camera",
+    contentRegion: "Food details",
+    verdictEncourage: "One of the better choices you can make.",
+    verdictModerate: "Middle of the pack — fine now and then.",
+    verdictMinimize: "A lot of calories for the nutrition you get.",
+    verdictOutOf100: "of 100",
+    chartDirection: "Down and to the right is better — higher score, fewer calories.",
+    chartLegendLabel: "What the four quadrants mean",
+    chartYourQuadrant: "Your food is here",
+    plateAverageEyebrow: "Plate average · {count} items",
+    plateAverageNote: "A calorie-weighted average of the items below — not a Food Compass score. The published numbers are the per-item ones.",
+    carveOutNoNumber: "There is no number to show you here, and we won't invent one.",
+    logItAnyway: "Log it anyway",
+    nothingInView: "Nothing in view yet",
+    nothingInViewBody: "Point at a food — or pick one you've had before.",
+    notScored: "Not scored",
+    noMatchLabel: "No match",
+    sayOneOfThese: "Say one of these instead",
+    micReadyOrType: "Mic ready — or type below.",
+    voiceBarRegion: "Voice",
+    transcriptExpand: "Show the conversation",
+    transcriptCollapse: "Hide the conversation",
+    attributionLine: "Food Compass 2.0, Tufts University, used with permission · AI-assisted identification · not medical advice.",
+    servingsDoNotMoveScore: "Servings change the nutrition and today's totals — never the score.",
+    whyScoreClose: "Close",
     compassOutOf100: "out of 100"
   },
   es: {
@@ -657,26 +723,27 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     compassBandModerate: "Moderado",
     compassBandMinimize: "Limitar",
     compassEstimateBadge: "Estimado por la etiqueta",
-    compassEstimateNote: "Calculado solo con la tabla nutricional, asi que suele estar a unos {mae} puntos y queda bajo: las vitaminas, los grupos de alimentos y los fitoquimicos no aparecen en la etiqueta.",
-    compassCalorieDensity: "Densidad calorica",
+    compassEstimateNote:
+      "Calculado solo con la tabla nutricional, así que suele estar a unos {mae} puntos y queda bajo: las vitaminas, los grupos de alimentos y los fitoquímicos no aparecen en la etiqueta.",
+    compassCalorieDensity: "Densidad calórica",
     compassDensityVeryLow: "Muy baja",
     compassDensityLow: "Baja",
     compassDensityMedium: "Media",
     compassDensityHigh: "Alta",
-    compassDensityUnknown: "Peso de la porcion desconocido",
+    compassDensityUnknown: "Peso de la porción desconocido",
     compassBetterOptions: "Mejores opciones",
     compassAlreadyBest: "Ya es una de las mejores opciones de su grupo.",
-    compassNoCloseMatch: "No hay una opcion parecida con mejor puntaje en esta categoria.",
+    compassNoCloseMatch: "No hay una opción parecida con mejor puntaje en esta categoría.",
     compassRecipeLink: "Ideas de recetas",
-    compassCarveOutZeroCalorie: "El agua es la mejor opcion que existe: queda fuera del rango de este puntaje.",
-    compassCarveOutBelow5: "Menos de 5 calorias por 100 g, asi que queda fuera del rango del puntaje.",
+    compassCarveOutZeroCalorie: "El agua es la mejor opción que existe: queda fuera del rango de este puntaje.",
+    compassCarveOutBelow5: "Menos de 5 calorías por 100 g, así que queda fuera del rango del puntaje.",
     compassCarveOutAlcohol: "El alcohol queda fuera del rango de este puntaje.",
-    compassCarveOutInfant: "Las formulas y papillas infantiles quedan fuera del rango de este puntaje.",
-    compassCarveOutSpecialized: "Los alimentos dieteticos especializados quedan fuera del rango de este puntaje.",
-    compassAmbiguous: "Publicado dos veces con puntajes distintos ({low} y {high}): tomalo como un rango.",
+    compassCarveOutInfant: "Las fórmulas y papillas infantiles quedan fuera del rango de este puntaje.",
+    compassCarveOutSpecialized: "Los alimentos dietéticos especializados quedan fuera del rango de este puntaje.",
+    compassAmbiguous: "Publicado dos veces con puntajes distintos ({low} y {high}): tómalo como un rango.",
     compassPointAtFood: "Apunta a una comida",
-    compassScoring: "Calculando...",
-    compassMissingDomains: "No se calculo con esta etiqueta: {domains}",
+    compassScoring: "Calculando…",
+    compassMissingDomains: "No se calculó con esta etiqueta: {domains}",
     compassWhyScore: "¿Por qué este puntaje?",
     compassPublishedDriversNote: "Estimación de lo que lo impulsa; el número publicado se mantiene.",
     compassNotAssessable: "No se puede evaluar: {domains}.",
@@ -783,6 +850,39 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     nutritionCompassHigherDensity: "↑ Mayor densidad calórica",
     nutritionCompassExplanation:
       "Los cuatro cuadrantes combinan dos medidas distintas para este prototipo; no cambian el puntaje publicado.",
+    shellWordmark: "LENTE DE COMIDA",
+    loopSending: "Leyendo la cámara · cada 2.5 s",
+    loopSearching: "Buscando comida…",
+    loopPausedOffscreen: "Cámara en pausa — no se envía nada",
+    cameraPrivacyLabel: "Cámara y privacidad",
+    gatePrivacyClaim: "Las imágenes se envían solo mientras el visor está en tu pantalla. Si lo desplazas fuera, no se envía nada.",
+    stripRegion: "Estado de Lente de Comida",
+    stripCameraButton: "Cámara",
+    stripCameraButtonLabel: "Volver a la cámara",
+    contentRegion: "Detalles del alimento",
+    verdictEncourage: "Una de las mejores opciones que puedes elegir.",
+    verdictModerate: "En el promedio — está bien de vez en cuando.",
+    verdictMinimize: "Muchas calorías para la nutrición que aporta.",
+    verdictOutOf100: "de 100",
+    chartDirection: "Abajo y a la derecha es mejor — más puntaje, menos calorías.",
+    chartLegendLabel: "Qué significan los cuatro cuadrantes",
+    chartYourQuadrant: "Tu comida está aquí",
+    plateAverageEyebrow: "Promedio del plato · {count} alimentos",
+    plateAverageNote: "Un promedio ponderado por calorías de los alimentos de abajo — no es un puntaje Food Compass. Los números publicados son los de cada alimento.",
+    carveOutNoNumber: "Aquí no hay un número que mostrarte, y no vamos a inventarlo.",
+    logItAnyway: "Guardarlo igual",
+    nothingInView: "Nada a la vista todavía",
+    nothingInViewBody: "Apunta a una comida — o elige una que ya hayas comido.",
+    notScored: "Sin puntaje",
+    noMatchLabel: "Sin coincidencia",
+    sayOneOfThese: "Di una de estas en su lugar",
+    micReadyOrType: "Micrófono listo — o escribe abajo.",
+    voiceBarRegion: "Voz",
+    transcriptExpand: "Mostrar la conversación",
+    transcriptCollapse: "Ocultar la conversación",
+    attributionLine: "Food Compass 2.0, Universidad Tufts, usado con permiso · identificación asistida por IA · no es consejo médico.",
+    servingsDoNotMoveScore: "Las porciones cambian la nutrición y los totales de hoy — nunca el puntaje.",
+    whyScoreClose: "Cerrar",
     compassOutOf100: "de 100"
   }
 };
@@ -900,6 +1000,8 @@ export type SafetyStringKey =
   | "groundingFallbackBanner"
   | "voiceInterceptNotice"
   | "socialEmergencyResponse"
+  | "voicePausedForSafety"
+  | "crisisLockNote"
   | "urgentHelpSummary";
 
 export const safetyStrings: Record<Language, Record<SafetyStringKey, string>> = {
@@ -925,6 +1027,9 @@ export const safetyStrings: Record<Language, Record<SafetyStringKey, string>> = 
     voiceInterceptNotice: "I paused here for your safety.",
     socialEmergencyResponse:
       "It sounds like you may be without something you need today, like food or medicine. If this is an emergency, call 911. You can also dial 211 any time to reach someone who can help connect you with food, housing, or utility support right now.",
+    voicePausedForSafety: "Voice paused for your safety",
+    crisisLockNote:
+      "The mic and the keyboard stay locked until you tap continue. These numbers work without a connection.",
     urgentHelpSummary: "Feeling unsafe right now? Get help"
   },
   es: {
@@ -949,6 +1054,9 @@ export const safetyStrings: Record<Language, Record<SafetyStringKey, string>> = 
     voiceInterceptNotice: "Hice una pausa aquí por tu seguridad.",
     socialEmergencyResponse:
       "Parece que hoy podrías estar sin algo que necesitas, como comida o medicina. Si esto es una emergencia, llama al 911. También puedes llamar al 211 en cualquier momento para comunicarte con alguien que pueda ayudarte a conectar con apoyo de comida, vivienda o servicios ahora mismo.",
+    voicePausedForSafety: "Voz pausada por tu seguridad",
+    crisisLockNote:
+      "El micrófono y el teclado quedan bloqueados hasta que toques continuar. Estos números funcionan sin conexión.",
     urgentHelpSummary: "¿Te sientes inseguro ahora? Busca ayuda"
   }
 };
