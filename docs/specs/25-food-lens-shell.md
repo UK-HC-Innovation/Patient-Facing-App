@@ -1,7 +1,7 @@
 # Food Lens Shell — One Scroll Surface, and a Camera That Stops Paying For Itself
 
 > Built from the design handoff in `Design/design_handoff_food_lens_shell/` (build spec draft 1, Aug 2026).
-> **Status:** implemented 2026-08-25 on master. `npm run check` green (lint · 3 498 unit tests · build · bundle budgets), `npm run crisis:gate` green, Playwright green on chromium + mobile for every food surface. Not deployed — `vercel --prod --archive=tgz` is the deploy path on this project; `git push` does nothing.
+> **Status:** implemented 2026-08-25 on master and deployed 2026-08-26. Application commit `c827e97`; deployed source `648e479`; production deployment `dpl_EHLVRXFqLAj95q3oFVpHAK1xeB1c` at `https://patient-centered.vercel.app`. Fresh gates: `npm run check` green (lint · 3 498 unit tests · build · bundle budgets), `npm run crisis:gate` green (342/342), and every food-surface Playwright test green on chromium + mobile. Deploy path remains `vercel --prod --archive=tgz`; `git push` does nothing.
 
 ## What this replaced
 
