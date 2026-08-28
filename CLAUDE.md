@@ -15,7 +15,8 @@
 - Fight complexity accretion; look for surfaces to merge or delete when adding anything.
 
 ## Writing voice (all user-facing copy)
-- Plain human voice ("Tama voice"). No em dashes. No "It's not X, it's Y" constructions. No self-explaining meta-language ("This section covers…"). It must not read like LinkedIn ad copy or AI-structured prose.
+- Read and follow `C:\Users\tsthe2\.claude\writing-rules.md` (Tama voice) before writing any prose. Scope: prose only; code and commit messages are exempt.
+- Core rules even without opening the file: plain human voice; no em dashes; no "not X, it's Y" reframes; no AI-glossy vocabulary; no analogies by default; specific beats polished; if the point is made, stop. It must not read like LinkedIn ad copy.
 
 ## Verification of UI work
 - After any UI change: `npm run dev` (or `npm run dev:https` when the feature needs it), open the changed route, and visually confirm — including that the blank state is blank — before claiming done.
