@@ -55,6 +55,8 @@ export type LiveScoreState = {
    * the table, so they need no translation of their own.
    */
   noMatchCandidates: LiveCandidate[];
+  /** The route answered "none" for the current scene -- not the same as nothing seen yet. */
+  noMatch: boolean;
   armed: boolean;
   disarmReason: LiveDisarmReason;
   /** A paid image-identify match has succeeded at least once during this mount. */
@@ -140,6 +142,7 @@ export function useLiveFoodScore(args: {
   const [match, setMatch] = useState<LiveMatch | null>(null);
   const [carveOut, setCarveOut] = useState<NotScoreableReason | null>(null);
   const [noMatchCandidates, setNoMatchCandidates] = useState<LiveCandidate[]>([]);
+  const [noMatch, setNoMatch] = useState(false);
   const [inFlight, setInFlight] = useState(false);
   const [disarmReason, setDisarmReason] = useState<LiveDisarmReason>(null);
   const [liveIdentifySucceeded, setLiveIdentifySucceeded] = useState(false);
@@ -264,9 +267,11 @@ export function useLiveFoodScore(args: {
         // "none" keeps whatever was last shown rather than flashing empty, but the route
         // still names the nearest published categories -- offer them instead of a dead end.
         setNoMatchCandidates((json.candidates ?? []).slice(0, 3));
+        setNoMatch(true);
         return;
       }
       setNoMatchCandidates([]);
+      setNoMatch(false);
       if (json.mode === "carve_out" && json.reason) {
         setCarveOut(json.reason);
         commitMatch(null);
@@ -478,6 +483,7 @@ export function useLiveFoodScore(args: {
     match,
     carveOut,
     noMatchCandidates,
+    noMatch,
     armed,
     disarmReason,
     liveIdentifySucceeded,

@@ -164,7 +164,7 @@ export function FoodLensExperience({
   // (spec 25 section 6) -- so this rule now holds on both doors, not just the personal one.
   const chartSlot = view.carveOut ? null : view.score ? (
     <NutritionCompass
-      foodName={view.name}
+      foodName={view.identified ? view.name : null}
       language={language}
       markerRef={chart?.markerRef}
       onMarkerTap={chart?.onMarkerTap}
@@ -185,7 +185,7 @@ export function FoodLensExperience({
       capabilities={capabilities}
       collapsedViewfinder={collapsedViewfinder}
       crisis={crisis}
-      foodName={view.name}
+      foodName={view.identified ? view.name : null}
       foodScore={view.score ? { fcs: view.score.fcs, band: view.score.band } : null}
       language={language}
       loopState={loopState}

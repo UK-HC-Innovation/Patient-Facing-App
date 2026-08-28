@@ -142,6 +142,10 @@ export function FoodNutrientsBlock({
           </button>
         </div>
       </div>
+      {/* The panel below scales with servings and the score above it does not, on purpose:
+          the score is a property of the food, the nutrition is a property of the portion.
+          Without this line the most available reading is that the score is stuck. */}
+      <p className="text-xs font-medium text-ink/65">{t(language, "servingsKeepTheScore")}</p>
       {food.source === "label_vision" ? (
         <p className="text-xs font-medium text-ink/70">{t(language, "labelPhotoCheck")}</p>
       ) : null}

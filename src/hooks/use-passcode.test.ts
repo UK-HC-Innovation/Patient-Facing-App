@@ -21,10 +21,11 @@ describe("readPasscode", () => {
     expect(readPasscode()).toBe("Tama");
   });
 
-  it("treats an empty passcode as absent rather than as an empty answer", () => {
+  it("reports an empty passcode as the empty string, which every caller must treat as absent", () => {
     window.history.replaceState({}, "", "/food?k=");
-    // Five call sites read this; one of them treating "" as a real value would lock half
-    // the surface while the rest stayed open.
-    expect(readPasscode() || undefined).toBeUndefined();
+    // URLSearchParams gives back "", not null. Pinning the real value rather than a coerced
+    // one, because five call sites read this and one of them sending "" to a passcode-gated
+    // route would lock half the surface while the rest stayed open.
+    expect(readPasscode()).toBe("");
   });
 });

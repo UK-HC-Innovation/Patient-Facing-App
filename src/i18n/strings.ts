@@ -256,6 +256,8 @@ export type FoodLensStringKey =
   | "verdictEncourage"
   | "verdictModerate"
   | "verdictMinimize"
+  | "servingsKeepTheScore"
+  | "estimatedDrivers"
   | "verdictOutOf100"
   | "chartDirection"
   | "chartLegendLabel"
@@ -535,6 +537,8 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     verdictEncourage: "One of the better choices you can make.",
     verdictModerate: "Middle of the pack — fine now and then.",
     verdictMinimize: "A lot of calories for the nutrition you get.",
+    servingsKeepTheScore: "More servings change the nutrition below, not the score.",
+    estimatedDrivers: "These drivers are our estimate. The score itself is the published number.",
     verdictOutOf100: "of 100",
     chartDirection: "Down and to the right is better — higher score, fewer calories.",
     chartLegendLabel: "What the colors mean",
@@ -814,6 +818,8 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     verdictEncourage: "Una de las mejores opciones que puedes elegir.",
     verdictModerate: "En el promedio — está bien de vez en cuando.",
     verdictMinimize: "Muchas calorías para la nutrición que aporta.",
+    servingsKeepTheScore: "Más porciones cambian la nutrición de abajo, no el puntaje.",
+    estimatedDrivers: "Estos factores son nuestra estimación. El puntaje es el número publicado.",
     verdictOutOf100: "de 100",
     chartDirection: "Abajo y a la derecha es mejor — más puntaje, menos calorías.",
     chartLegendLabel: "Qué significan los colores",

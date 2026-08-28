@@ -164,16 +164,17 @@ describe("FoodLensExperience — the shared quadrant chart", () => {
     expect(plot()).not.toBeInTheDocument();
   });
 
-  it("holds the plot's place while a food is still being identified", () => {
-    // The parity /food gained: a chart that says it is looking, rather than one that pops
-    // into existence under the reader's thumb when the answer lands.
+  it("says it is still working while a refinement is in flight", () => {
     renderExperience({ chart: { pending: true } });
-    expect(plot()).toBeInTheDocument();
+    expect(plot()).toHaveAttribute("aria-busy", "true");
+    expect(plot()).toHaveTextContent("Checking this food");
   });
 
   it("says so when the lens saw something with no published score", () => {
+    // The parity /food gained: the plot names the outcome instead of vanishing.
     renderExperience({ view: { ...emptyView, noMatch: true } });
-    expect(plot()).toBeInTheDocument();
+    expect(plot()).toHaveTextContent("No match yet");
+    expect(plot()).not.toHaveAttribute("aria-busy", "true");
   });
 
   it("leaves the personal empty screen to the recents row, and holds the public one open", () => {

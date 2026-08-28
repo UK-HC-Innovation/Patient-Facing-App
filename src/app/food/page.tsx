@@ -622,7 +622,7 @@ export default function FoodPage() {
     carveOut: compass.carveOut,
     badge: badgeState,
     noMatchCandidates: live.noMatchCandidates,
-    noMatch: false
+    noMatch: live.noMatch
   };
 
   const conversation = (
@@ -639,8 +639,7 @@ export default function FoodPage() {
       capabilities={FOOD_LENS_CAPABILITIES}
       chart={{
         markerRef,
-        onMarkerTap: domainBreakdown ? openWhyScore : undefined,
-        pending: compass.score === null && live.badge === "pending"
+        onMarkerTap: domainBreakdown ? openWhyScore : undefined
       }}
       collapsedViewfinder={cameraBlocked}
       crisis={
