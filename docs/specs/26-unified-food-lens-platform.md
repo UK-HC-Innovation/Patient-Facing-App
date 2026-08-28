@@ -1,6 +1,8 @@
 # Unified Food Lens Platform — One Engine, Two Doors
 
-> **Status: DESIGN — not implemented.** Authored 2026-08-27 from an adversarial design panel: two code scouts (responsibility diff matrix, constraint sweep), three independent architectures with opposing priors (minimal extraction · radical one-URL · full platform-adapter), three judges (clinical-safety/privacy auditor, pragmatic implementer, product advocate). Every load-bearing claim below was verified against the working tree at `9fb547d`; the two losing designs both contained judge-verified mechanism errors on the authority-stack seam, which is itself a finding this spec records.
+> **Status: P0–P5 IMPLEMENTED 2026-08-28 on master; P6 held (see section 8).** Not yet deployed — deploy with `vercel --prod --archive=tgz`; `git push` does nothing on this project.
+>
+> **Design provenance:** Authored 2026-08-27 from an adversarial design panel: two code scouts (responsibility diff matrix, constraint sweep), three independent architectures with opposing priors (minimal extraction · radical one-URL · full platform-adapter), three judges (clinical-safety/privacy auditor, pragmatic implementer, product advocate). Every load-bearing claim below was verified against the working tree at `9fb547d`; the two losing designs both contained judge-verified mechanism errors on the authority-stack seam, which is itself a finding this spec records.
 >
 > The ask: *"/food and /compass should be combined into a unified platform."*
 
@@ -134,6 +136,37 @@ Every phase is a complete, committed, green unit. **Gate per phase:** `npm run c
 | **P6** | *Owner-gated, on the shelf:* namespace move — `src/app/compass/` → `src/app/food/demo/` + `next.config.mjs` permanent redirect `/compass → /food/demo` (query strings preserved; deploy-verified precedent: `/family → 308 → /ladder`). The shared link in the wild keeps working forever; `/food/demo` inherits only root + its own layout so the metadata split survives; joins neither menu nor classifier | 0.5 d | Redirect e2e + both-routes-200 ledger convention |
 
 Deploy (`vercel --prod --archive=tgz`) + `DEPLOYS.jsonl` line at the end of whatever is approved. **Core plan P0–P4: ~5–6 solo days. Everything through P6: ~7–8.**
+
+## 7.1 · What actually shipped, and the one correction made on the way
+
+P0–P5 landed 2026-08-28 (`f6bdffd`, `63e910c`, `06272b2`, and this commit). P3 was cut as
+the plan allowed — P2 had already taken its value, and nothing left could stay
+pixel-identical. The doors went 915 → 832 and 809 → 720 lines; both route budgets came down
+rather than up.
+
+**The correction.** P5 as designed said `/food` should absorb the chart's full four-state
+machine, including `/compass`'s carve-out state. Implementing it showed that would have
+broken spec 25 §6 — *a carve-out has no chart* — which `e2e/food-lens-shell.spec.ts` asserts
+on `/food`. The chart was unified the other way instead: the carve-out rule now holds on
+**both** doors, which fixes a quiet spec-25 violation on `/compass` that had been rendering a
+"not scored" plot. Whether the plot holds its place when there is nothing to plot became a
+capability (`chartPlaceholder`) rather than a mount difference: the public door's chart is
+the centrepiece of its page, the personal door's empty screen belongs to the recents row.
+`/food` gained the pending and no-match states, which is the parity actually worth having.
+
+**Not absorbed:** the we-heard interpretation panel. On `/food` an `interpretation` only ever
+arrives from the text path, which that door does not use, so the panel would have been dead
+code rather than a feature.
+
+**Also found and fixed on the way in:** a blanket `vi.useFakeTimers()` in the new compass
+tests stalled the identify promise, so the refinement landed through `runQuery`'s catch —
+indistinguishable from success, which would have let the release test pass without a request
+ever being made. Timers are now narrowed to `setTimeout`/`clearTimeout` and the test asserts
+the request fired.
+
+**Flakes, not regressions:** `quick-check.crisis`, `swyc-checkin`,
+`family-orientation-interview` and one Playwright legend test each failed once under
+full-suite load and passed immediately in isolation — the documented precedent for this repo.
 
 ## 8 · Owner decision points
 

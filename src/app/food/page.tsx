@@ -27,7 +27,6 @@ import {
   foodTitle
 } from "@/components/food-facts-card";
 import { CompassAlternatives, resolveDomainBreakdown } from "@/components/compass-score";
-import { NutritionCompass } from "@/components/nutrition-compass";
 import { hasUnacknowledgedCrisis } from "@/state/selectors";
 import { createSafeAiResponse } from "@/ai/safety-gate";
 import { PantryProvider, PANTRY_REQUEST_TEXT } from "@/ai/pantry-provider";
@@ -638,6 +637,11 @@ export default function FoodPage() {
   return (
     <FoodLensExperience
       capabilities={FOOD_LENS_CAPABILITIES}
+      chart={{
+        markerRef,
+        onMarkerTap: domainBreakdown ? openWhyScore : undefined,
+        pending: compass.score === null && live.badge === "pending"
+      }}
       collapsedViewfinder={cameraBlocked}
       crisis={
         crisisOpen ? (
@@ -703,16 +707,6 @@ export default function FoodPage() {
             summary={plateSummary}
           />
         ),
-        chart:
-          compass.score && !compass.carveOut ? (
-            <NutritionCompass
-              foodName={identifiedFood?.name ?? null}
-              language={language}
-              markerRef={markerRef}
-              onMarkerTap={domainBreakdown ? openWhyScore : undefined}
-              score={compass.score}
-            />
-          ) : null,
         weHeard:
           identifiedFood?.source === "fndds_lookup" && correctionCandidates.length > 0 ? (
             <FoodCorrectionChips
@@ -742,6 +736,10 @@ export default function FoodPage() {
             portionServings={portionServings}
             spokenSize={spokenSize}
           />
+        ) : identifiedFood && compass.score ? (
+          // About a third of published foods predate FNDDS 2017-18 and have no panel at all.
+          // Saying so is better than a scored food that silently shows no numbers.
+          <p className="text-xs text-ink/70">{t(language, "compassNoNutrientPanel")}</p>
         ) : null,
         // Held back until the published list has actually arrived: an empty
         // CompassAlternatives says "already one of the best", which is not true yet.

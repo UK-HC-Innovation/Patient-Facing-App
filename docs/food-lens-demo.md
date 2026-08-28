@@ -1,5 +1,22 @@
 # Food Lens — demo runbook
 
+One product, two doors onto the same lens. Since spec 26 both run the same engine
+(`useFoodLensEngine`) inside the same experience (`FoodLensExperience`); everything that
+differs between them is a capability the door hands in, never a check on the URL.
+
+| Door | URL | Who it is for |
+|---|---|---|
+| Personal | `/food` | A patient inside the app. Their store, their plate, their day totals, their meal log. |
+| Public | `/compass` | Anyone with the link. Stateless, store-free, no text box — the page to send outside the project. |
+
+`scripts/check-compass-store-free.mjs` proves the second row at build time: if any import
+path from the public door ever reaches the patient store, `npm run check` fails and prints
+the chain.
+
+---
+
+## The personal door (`/food`)
+
 Camera + voice dietary feedback. Point the phone at a food, ask by voice, get
 personalized spoken guidance grounded in the patient's care plan, medications,
 and readings. This is a proof-of-concept demo. The voice safety gate is active,
@@ -9,7 +26,7 @@ Demo device: **Android Galaxy S25, Chrome.** iOS is out of scope.
 
 ---
 
-## One-time setup
+### One-time setup
 
 1. Create `.env.local` in the project root:
 
@@ -30,7 +47,7 @@ Demo device: **Android Galaxy S25, Chrome.** iOS is out of scope.
    `src/domain/food-seed.ts` (scan them at world.openfoodfacts.org if unsure).
    The seed guarantees the demo works with zero network for these three.
 
-## Run it on the phone
+### Run it on the phone
 
 `getUserMedia` needs a secure context (HTTPS). Two tunnel-free ways to get one —
 no `cloudflared`, `ngrok`, or any other external tunnel (those create an
@@ -97,13 +114,13 @@ PowerShell and remove any temporary `allowedDevOrigins` entry:
 Remove-NetFirewallRule -DisplayName "Next dev phone demo"
 ```
 
-## Seed the patient
+### Seed the patient
 
 Privacy → **Reset demo**. This seeds Jordan Taylor, Lisinopril 10 mg, three
 rising morning readings (132/84 → 141/88 → 149/94, all below the 160/100 call
 threshold), and an empty meal log.
 
-## Staged products
+### Staged products
 
 | Product | Barcode | Beat |
 |---|---|---|
@@ -111,7 +128,7 @@ threshold), and an empty meal log.
 | Morton Lite Salt | `024600017008` | Salt substitute → ACE-inhibitor (lisinopril) caution |
 | Quaker Old Fashioned Oats | `030000010204` | Low sodium, high fiber → positive beat |
 
-## Script
+### Script
 
 1. **Sodium + personalization** — point at the soup; the barcode chip, facts
    card, and a red sodium flag appear. Ask "Can I have this for lunch?" The
@@ -130,7 +147,7 @@ threshold), and an empty meal log.
 5. **Close the loop** — show Recent meals on Food, the transcript on Coach, and
    the audit trail on Privacy.
 
-## Contingencies
+### Contingencies
 
 - WebRTC blocked → phone hotspot.
 - Total network loss / no key → the page shows a typed **fallback** with the
@@ -140,7 +157,7 @@ threshold), and an empty meal log.
 
 ---
 
-## What cannot be automated — verify on the real S25
+### What cannot be automated — verify on the real S25
 
 Camera start latency and orientation; native barcode speed and low-light
 behavior on real packaging; WebRTC over Wi-Fi and 5G; server-VAD turn-taking
@@ -152,7 +169,10 @@ answer quality on real packaging under kitchen lighting.
 
 ---
 
-# Food Lens functional prototype (`/compass`) — demo runbook
+
+---
+
+## The public door (`/compass`)
 
 A standalone, shareable page that scores a food 1–100 with the published Food Compass 2.0
 system and suggests better options in the same food group. No patient chrome, no patient
@@ -160,7 +180,7 @@ data — it is the page to send to someone outside the project.
 
 **Link:** `https://patient-centered.vercel.app/compass` — everything works, no passcode.
 
-## The passcode gate is off (2026-08-19)
+### The passcode gate is off (2026-08-19)
 
 `DEMO_PASSCODE` was removed from the Vercel production environment, so every AI route
 answers without a passcode: realtime voice, the live camera scoring loop, vision Q&A, the
@@ -181,7 +201,7 @@ voice output guard and grounding all run regardless of the passcode.
 
 To put the gate back: `vercel env add DEMO_PASSCODE production`, then redeploy.
 
-## The five-minute script
+### The five-minute script
 
 1. **Orient to the three-step flow and source chip.** The header says exactly what developers
    should test: scan or describe, review the score, then ask a question. The persistent chip
@@ -211,7 +231,7 @@ To put the gate back: `vercel env add DEMO_PASSCODE production`, then redeploy.
    the same as typed input. Ask *"what about peanut butter?"* — the spoken number comes from
    the `lookup_food_score` tool, a table lookup, not from the model's memory.
 
-## Known rough edges, so they do not surprise you live
+### Known rough edges, so they do not surprise you live
 
 - **Restaurant orders use a closest published category, not chain nutrition.** The local
   Table S5 asset has no Papa John's row and no combined pepperoni-and-sausage row. The UI
@@ -228,7 +248,7 @@ To put the gate back: `vercel env add DEMO_PASSCODE production`, then redeploy.
   2001–2018 while the joined nutrient workbook covers 2017–18 only, so those foods show a
   score with no panel underneath it. That is stated on screen, not hidden.
 
-## What the numbers are
+### What the numbers are
 
 Scores come from Table S5 of the Food Compass 2.0 supplement (9,273 published rows) or from
 a deterministic TypeScript engine for label-only foods. The engine agrees with the published

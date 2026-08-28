@@ -72,6 +72,12 @@ export type FoodLensCapabilities = {
   stripCameraButton: boolean;
   /** The visibility gate. */
   gate: boolean;
+  /**
+   * Whether the quadrant plot holds its place when there is nothing to plot. The public
+   * door's chart is the centrepiece of the page, so it waits visibly; the personal door's
+   * empty screen belongs to the recents row instead.
+   */
+  chartPlaceholder: boolean;
 };
 
 export const FOOD_LENS_CAPABILITIES: FoodLensCapabilities = {
@@ -80,7 +86,8 @@ export const FOOD_LENS_CAPABILITIES: FoodLensCapabilities = {
   personalized: true,
   sampleScan: false,
   stripCameraButton: true,
-  gate: true
+  gate: true,
+  chartPlaceholder: false
 };
 
 export const COMPASS_CAPABILITIES: FoodLensCapabilities = {
@@ -89,7 +96,8 @@ export const COMPASS_CAPABILITIES: FoodLensCapabilities = {
   personalized: false,
   sampleScan: true,
   stripCameraButton: false,
-  gate: true
+  gate: true,
+  chartPlaceholder: true
 };
 
 /**

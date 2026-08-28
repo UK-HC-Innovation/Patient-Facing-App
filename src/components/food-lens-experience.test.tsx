@@ -138,3 +138,51 @@ describe("sharedViewfinderProps", () => {
     expect("scoreName" in props).toBe(false);
   });
 });
+
+describe("FoodLensExperience — the shared quadrant chart", () => {
+  const plot = () => screen.queryByTestId("nutrition-compass");
+
+  it("plots a scored food on either door", () => {
+    renderExperience({ view: { ...emptyView, name: "Banana, raw", identified: true, score } });
+    expect(plot()).toBeInTheDocument();
+    expect(screen.getByTestId("nutrition-compass-marker")).toBeInTheDocument();
+  });
+
+  it("gives a carve-out no chart at all, on either door", () => {
+    // Spec 25 section 6: the product just said there is no number for this food. A plotted
+    // point one line later would put one back. This used to hold on /food only.
+    const { unmount } = renderExperience({
+      view: { ...emptyView, name: "Water", identified: true, carveOut: "zero_calorie" }
+    });
+    expect(plot()).not.toBeInTheDocument();
+    unmount();
+
+    renderExperience({
+      capabilities: COMPASS_CAPABILITIES,
+      view: { ...emptyView, name: "Water", identified: true, carveOut: "zero_calorie" }
+    });
+    expect(plot()).not.toBeInTheDocument();
+  });
+
+  it("holds the plot's place while a food is still being identified", () => {
+    // The parity /food gained: a chart that says it is looking, rather than one that pops
+    // into existence under the reader's thumb when the answer lands.
+    renderExperience({ chart: { pending: true } });
+    expect(plot()).toBeInTheDocument();
+  });
+
+  it("says so when the lens saw something with no published score", () => {
+    renderExperience({ view: { ...emptyView, noMatch: true } });
+    expect(plot()).toBeInTheDocument();
+  });
+
+  it("leaves the personal empty screen to the recents row, and holds the public one open", () => {
+    const { unmount } = renderExperience();
+    expect(plot()).not.toBeInTheDocument();
+    unmount();
+
+    // The public door's chart is the centrepiece of the page, so it waits visibly.
+    renderExperience({ capabilities: COMPASS_CAPABILITIES });
+    expect(plot()).toBeInTheDocument();
+  });
+});

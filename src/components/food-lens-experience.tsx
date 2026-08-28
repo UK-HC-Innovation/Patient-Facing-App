@@ -7,6 +7,7 @@ import type { LiveCandidate, LiveLoopState, LiveScoreBadge } from "@/hooks/use-l
 import type { CameraStatus } from "@/hooks/use-food-camera";
 import type { LiveSessionStatus } from "@/ai/types";
 import type { CompassBreakdown } from "./compass-score";
+import { NutritionCompass } from "./nutrition-compass";
 import {
   FoodEmptyState,
   FoodNoMatch,
@@ -42,6 +43,14 @@ export type FoodLensView = {
   noMatchCandidates: LiveCandidate[];
   /** True when the route answered "none" -- distinct from having seen nothing yet. */
   noMatch: boolean;
+};
+
+export type FoodLensChart = {
+  /** A refinement or a first identify is still in flight. */
+  pending?: boolean;
+  markerRef?: RefObject<HTMLButtonElement | null>;
+  /** Opens the domain breakdown. Absent where there is no breakdown to open. */
+  onMarkerTap?: () => void;
 };
 
 export type FoodLensWhyScore = {
@@ -105,6 +114,7 @@ export function FoodLensExperience({
   viewfinder,
   voiceBar,
   whyScore,
+  chart,
   slots,
   crisis = null,
   collapsedViewfinder = false,
@@ -122,6 +132,7 @@ export function FoodLensExperience({
   viewfinder: ReactNode;
   voiceBar: ReactNode;
   whyScore: FoodLensWhyScore;
+  chart?: FoodLensChart;
   /** Everything the doors build for themselves, in the shell's fixed order. */
   slots: Partial<Record<FoodLensSlot, ReactNode>>;
   crisis?: ReactNode | null;
@@ -148,6 +159,27 @@ export function FoodLensExperience({
     </FoodEmptyState>
   );
 
+  // A carve-out has no chart at all. Plotting a point for a food outside the score's range
+  // would put a number on screen one line after the product said there is none to give
+  // (spec 25 section 6) -- so this rule now holds on both doors, not just the personal one.
+  const chartSlot = view.carveOut ? null : view.score ? (
+    <NutritionCompass
+      foodName={view.name}
+      language={language}
+      markerRef={chart?.markerRef}
+      onMarkerTap={chart?.onMarkerTap}
+      score={view.score}
+      state={chart?.pending ? "pending" : "idle"}
+    />
+  ) : chart?.pending || view.noMatch || capabilities.chartPlaceholder ? (
+    <NutritionCompass
+      foodName={null}
+      language={language}
+      score={null}
+      state={chart?.pending ? "pending" : view.noMatch ? "no_match" : "idle"}
+    />
+  ) : null;
+
   const shell = (
     <FoodLensShell
       capabilities={capabilities}
@@ -161,6 +193,7 @@ export function FoodLensExperience({
       onVisibleRatio={onVisibleRatio}
       slots={{
         ...slots,
+        chart: chartSlot,
         verdict: verdictRegionLabel ? (
           <div aria-label={verdictRegionLabel} className="min-w-0" role="region">
             {verdict}

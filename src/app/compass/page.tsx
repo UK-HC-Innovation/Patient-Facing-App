@@ -11,7 +11,6 @@ import {
   type FoodLensView
 } from "@/components/food-lens-experience";
 import { FoodLensVoiceBar } from "@/components/food-lens-voice-bar";
-import { NutritionCompass } from "@/components/nutrition-compass";
 import { FoodAttribution, FoodCrisisLock } from "@/components/food-lens-blocks";
 import { useFoodLensEngine } from "@/hooks/use-food-lens-engine";
 import { usePageHideTeardown } from "@/hooks/use-page-hide-teardown";
@@ -465,6 +464,11 @@ export default function CompassPage() {
   return (
     <FoodLensExperience
       capabilities={COMPASS_CAPABILITIES}
+      chart={{
+        markerRef,
+        onMarkerTap: domainBreakdown ? openWhyScore : undefined,
+        pending: refinementLoading || (!shown && live.badge === "pending")
+      }}
       crisis={crisisLocked ? <FoodCrisisLock language={language}>{conversationBlock}</FoodCrisisLock> : null}
       language={language}
       loopState={live.loopState}
@@ -515,31 +519,6 @@ export default function CompassPage() {
           />
         }
         slots={{
-          chart: matchShown ? (
-            <NutritionCompass
-              foodName={matchShown.food.description}
-              language={language}
-              markerRef={markerRef}
-              onMarkerTap={domainBreakdown ? openWhyScore : undefined}
-              score={matchShown.score}
-              state={refinementLoading ? "pending" : "idle"}
-            />
-          ) : (
-            <NutritionCompass
-              foodName={null}
-              language={language}
-              score={null}
-              state={
-                refinementLoading || (!shown && live.badge === "pending")
-                  ? "pending"
-                  : shown?.kind === "none"
-                    ? "no_match"
-                    : shown?.kind === "carve_out"
-                      ? "carve_out"
-                      : "idle"
-              }
-            />
-          ),
           weHeard:
             matchShown && matchShown.interpretation && matchShown.provenance && shown?.kind === "match" ? (
               <div
