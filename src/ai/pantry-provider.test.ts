@@ -78,7 +78,7 @@ describe("PantryProvider", () => {
     const response = await provider.respond({ mode: "food", patientInput: "pantry", state: demoState });
 
     expect(response.recipes).toBeUndefined();
-    expect(response.content.toLowerCase()).toContain("couldn't spot");
+    expect(response.content.toLowerCase()).toContain("didn't see any food");
   });
 
   it("degrades safely when the completion is not valid JSON", async () => {

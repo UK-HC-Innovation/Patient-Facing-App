@@ -215,7 +215,7 @@ describe("summarizeScoreGlucoseLink", () => {
       minimizeSamples: 3,
       otherSamples: 3
     });
-    expect(insight?.message).toContain("minimize-band item");
+    expect(insight?.message).toContain("low-scoring food");
     expect(insight?.message).toContain("not a diagnosis");
     expect(summarizeScoreGlucoseLink(meals, readings, { deltaFloorMgDl: 61 })).toBeNull();
   });

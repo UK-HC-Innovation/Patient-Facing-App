@@ -14,8 +14,9 @@
     "test:e2e": "playwright test",
     "test:e2e:offline": "npm run build && playwright test --config=playwright.offline.config.ts",
     "crisis:gate": "node scripts/crisis-gate.mjs",
+    "compass:storefree": "node scripts/check-compass-store-free.mjs",
     "navigator:gate": "node scripts/navigator-gate.mjs",
-    "check": "npm run lint && npm run test && npm run build && npm run bundle:ladder"
+    "check": "npm run lint && npm run test && npm run compass:storefree && npm run build && npm run bundle:ladder"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

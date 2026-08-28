@@ -261,7 +261,7 @@ describe("buildHealthBrief", () => {
     expect(section).toBeDefined();
     expect(section?.status).toBe("inferred");
     expect(section?.items.join(" ")).toContain("higher-carb meals");
-    expect(section?.items.join(" ")).toContain("minimize-band item");
+    expect(section?.items.join(" ")).toContain("low-scoring food");
     expect(section?.items).toHaveLength(2);
     expect(section?.items.join(" ")).toContain("not a diagnosis");
   });

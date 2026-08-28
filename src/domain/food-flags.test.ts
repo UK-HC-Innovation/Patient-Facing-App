@@ -173,8 +173,8 @@ describe("computeFoodFlags", () => {
   });
 
   it.each([
-    ["en" as const, "Together with today's meals"],
-    ["es" as const, "Junto con las comidas de hoy"]
+    ["en" as const, "With today's other meals"],
+    ["es" as const, "Con las demás comidas de hoy"]
   ])("flags when the current food pushes a complete day total past its limit in %s", (language, text) => {
     const dayTotals: DayTotal[] = [
       {
