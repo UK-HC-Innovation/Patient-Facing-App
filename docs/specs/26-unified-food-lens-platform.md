@@ -1,6 +1,6 @@
 # Unified Food Lens Platform — One Engine, Two Doors
 
-> **Status: P0–P5 IMPLEMENTED 2026-08-28 on master; P6 held (see section 8).** Not yet deployed — deploy with `vercel --prod --archive=tgz`; `git push` does nothing on this project.
+> **Status: P0–P5 SHIPPED AND DEPLOYED 2026-08-28; P6 held (see section 8).** Application commit `d584540`; production deployment `dpl_91VJKNgyp5kfWDSUx498pFH3QqNm` at `https://patient-centered.vercel.app`; ledger line in `docs/ops/DEPLOYS.jsonl`. Redeploy with `vercel --prod --archive=tgz`; `git push` does nothing on this project.
 >
 > **Design provenance:** Authored 2026-08-27 from an adversarial design panel: two code scouts (responsibility diff matrix, constraint sweep), three independent architectures with opposing priors (minimal extraction · radical one-URL · full platform-adapter), three judges (clinical-safety/privacy auditor, pragmatic implementer, product advocate). Every load-bearing claim below was verified against the working tree at `9fb547d`; the two losing designs both contained judge-verified mechanism errors on the authority-stack seam, which is itself a finding this spec records.
 >
