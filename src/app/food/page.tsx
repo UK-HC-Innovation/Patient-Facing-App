@@ -8,16 +8,14 @@ import { FoodSavedPicks } from "@/components/food-saved-picks";
 import { FoodGuidanceSource } from "@/components/food-guidance-source";
 import type { LabelFallbackState } from "@/components/food-label-fallback";
 import { FoodViewfinder } from "@/components/food-viewfinder";
-import { FoodLensShell, FOOD_LENS_CAPABILITIES } from "@/components/food-lens-shell";
-import { FoodLensVoiceBar } from "@/components/food-lens-voice-bar";
+import { FOOD_LENS_CAPABILITIES } from "@/components/food-lens-shell";
 import {
-  FoodAttribution,
-  FoodCrisisLock,
-  FoodEmptyState,
-  FoodNoMatch,
-  FoodVerdict,
-  FoodWhyScore
-} from "@/components/food-lens-blocks";
+  FoodLensExperience,
+  sharedViewfinderProps,
+  type FoodLensView
+} from "@/components/food-lens-experience";
+import { FoodLensVoiceBar } from "@/components/food-lens-voice-bar";
+import { FoodAttribution, FoodCrisisLock } from "@/components/food-lens-blocks";
 import {
   FoodActionsBlock,
   FoodCorrectionChips,
@@ -43,18 +41,12 @@ import { recentFoodPicks } from "@/domain/food-recents";
 import { resolvePortionServings, scaleNutrition } from "@/domain/portion";
 import { foodLookupResponseSchema, mealLogEntrySchema } from "@/domain/schemas";
 import { t } from "@/i18n/strings";
-import { useFoodCamera } from "@/hooks/use-food-camera";
-import { usePasscode } from "@/hooks/use-passcode";
+import { useFoodLensEngine } from "@/hooks/use-food-lens-engine";
 import { usePageHideTeardown } from "@/hooks/use-page-hide-teardown";
 import { useWhyScore } from "@/hooks/use-why-score";
-import { useBarcodeScan } from "@/hooks/use-barcode-scan";
 import { useFoodVoiceSession, type VoiceSafetyIntercept } from "@/hooks/use-food-voice-session";
 import { useCompassScore } from "@/hooks/use-compass-score";
-import {
-  useLiveFoodScore,
-  type LiveCandidate,
-  type LiveMatch
-} from "@/hooks/use-live-food-score";
+import type { LiveCandidate, LiveMatch } from "@/hooks/use-live-food-score";
 import { toIdentifiedFood } from "@/domain/food-compass";
 import { toCompassContext } from "@/domain/compass-context";
 import { useHealthState } from "@/state/store";
@@ -102,8 +94,7 @@ export default function FoodPage() {
   }, [foodMessages]);
 
   const crisisOpen = useMemo(() => hasUnacknowledgedCrisis(state), [state]);
-  const camera = useFoodCamera();
-  const passcode = usePasscode();
+
   const [barcodeFood, setBarcodeFood] = useState<IdentifiedFood | null>(null);
   const [labelFood, setLabelFood] = useState<IdentifiedFood | null>(null);
   const [barcodeLookupMiss, setBarcodeLookupMiss] = useState(false);
@@ -116,19 +107,9 @@ export default function FoodPage() {
   const exactFoodRequestRef = useRef(0);
   const labelRequestRef = useRef(0);
   const labelReadingRef = useRef(false);
-  const { activeBarcode } = useBarcodeScan({
-    videoRef: camera.videoRef,
-    enabled: camera.status === "active",
-    onBarcode: () => setLogged(false)
-  });
-
-  const live = useLiveFoodScore({
-    videoRef: camera.videoRef,
-    grabFrame: camera.grabFrame,
-    cameraActive: camera.status === "active",
-    barcodeActive: activeBarcode !== null,
+  const { camera, live, passcode, activeBarcode, cameraBlocked } = useFoodLensEngine({
     crisis: crisisOpen,
-    passcode
+    barcode: { onDetect: () => setLogged(false) }
   });
   const adoptLiveMatch = live.adoptMatch;
   const rearmLiveScore = live.rearm;
@@ -338,11 +319,6 @@ export default function FoodPage() {
       setPantryLoading(false);
     }
   }, [appendIntercept, appendMessage, camera, passcode, pantryLoading]);
-
-  useEffect(() => {
-    void camera.start();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   usePageHideTeardown([camera.stop, voice.stop]);
 
@@ -616,7 +592,6 @@ export default function FoodPage() {
   }, [dispatch, favoriteFoodId]);
   const scanChip = identifiedFood ? (identifiedFood.brand ? `${identifiedFood.brand} ${identifiedFood.name}` : identifiedFood.name) : activeBarcode;
 
-  const cameraBlocked = camera.status === "denied" || camera.status === "unavailable";
   const domainBreakdown = resolveDomainBreakdown(compass.score, compass.estimatedDomains);
   const correctionCandidates = !scannedFood ? live.match?.candidates ?? [] : [];
   const showGeneralGuidance = compass.score !== null || compass.carveOut !== null;
@@ -629,12 +604,6 @@ export default function FoodPage() {
     />
   );
 
-  const backToCamera = useCallback(() => {
-    const reduced =
-      typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
-    window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
-  }, []);
-
   const lastAssistantTurn = useMemo(() => {
     for (let index = foodMessages.length - 1; index >= 0; index -= 1) {
       if (foodMessages[index].role === "assistant") {
@@ -644,156 +613,140 @@ export default function FoodPage() {
     return null;
   }, [foodMessages]);
 
-  const verdictSlot = compass.carveOut ? (
-    <FoodVerdict carveOutReason={compass.carveOut} foodName={scanChip} language={language} score={null} />
-  ) : compass.score ? (
-    <FoodVerdict
-      carveOutReason={null}
-      foodName={scanChip}
+  // Everything the shared layer is allowed to know: what the food is, never which of the
+  // barcode, the label photo, a correction chip or the vision loop won the right to say so.
+  // That precedence, and the 60-second pin it runs on, stay inside this door.
+  const view: FoodLensView = {
+    name: scanChip,
+    identified: identifiedFood !== null,
+    score: compass.score,
+    carveOut: compass.carveOut,
+    badge: badgeState,
+    noMatchCandidates: live.noMatchCandidates,
+    noMatch: false
+  };
+
+  const conversation = (
+    <FoodConversation
+      clinic={{ name: state.patient.primaryClinicName, phone: state.patient.primaryClinicPhone }}
       language={language}
-      score={compass.score}
+      messages={foodMessages}
+      partialAssistantText={voice.partialAssistantText}
     />
-  ) : live.noMatchCandidates.length > 0 ? (
-    <FoodNoMatch
-      candidates={live.noMatchCandidates}
-      language={language}
-      onSelect={(foodId) => void correctCameraMatch(foodId)}
-    />
-  ) : identifiedFood ? null : (
-    <FoodEmptyState language={language}>{savedPicks}</FoodEmptyState>
   );
 
   return (
-    <AppShell title={t(language, "pageTitle")}>
-      <FoodLensShell
-        capabilities={FOOD_LENS_CAPABILITIES}
-        collapsedViewfinder={cameraBlocked}
-        crisis={
-          crisisOpen ? (
-            <FoodCrisisLock language={language}>
-              <FoodConversation
-                clinic={{ name: state.patient.primaryClinicName, phone: state.patient.primaryClinicPhone }}
-                language={language}
-                messages={foodMessages}
-                partialAssistantText=""
-              />
-            </FoodCrisisLock>
-          ) : null
-        }
-        foodName={identifiedFood ? scanChip : null}
-        foodScore={compass.score ? { fcs: compass.score.fcs, band: compass.score.band } : null}
-        language={language}
-        loopState={live.loopState}
-        onBackToCamera={backToCamera}
-        onVisibleRatio={live.setVisibleRatio}
-        viewfinder={
-          <FoodViewfinder
-            cameraStatus={camera.status}
-            height="100%"
-            idleLabel={identifiedFood ? undefined : t(language, "statusIdleNoFood")}
-            language={language}
-            onCameraRetry={() => void camera.start()}
-            onScoreTap={badgeState === "scan_again" ? live.rearm : undefined}
-            scanChip={scanChip}
-            scoreBadge={badgeState}
-            scoreBand={compass.score?.band}
-            scoreFcs={compass.score?.fcs}
-            scoreName={identifiedFood?.name}
-            scoreTier={compass.score?.tier}
-            sessionStatus={voice.status}
-            showVoiceStatus={false}
-            trustPill={<FoodGuidanceSource kind="personalized" language={language} />}
-            videoRef={camera.videoRef}
-          />
-        }
-        voiceBar={
-          <FoodLensVoiceBar
-            idleLabel={identifiedFood ? undefined : t(language, "statusIdleNoFood")}
-            keyboardPrimary={cameraBlocked}
-            language={language}
-            lastTurn={voice.partialAssistantText || lastAssistantTurn}
-            mode={voice.mode}
-            onSendText={voice.sendUserText}
-            onStart={() => void voice.start()}
-            onStop={voice.stop}
-            status={voice.status}
-            transcript={
-              <FoodConversation
-                clinic={{ name: state.patient.primaryClinicName, phone: state.patient.primaryClinicPhone }}
-                language={language}
-                messages={foodMessages}
-                partialAssistantText={voice.partialAssistantText}
-              />
-            }
-            typedInput={FOOD_LENS_CAPABILITIES.typedInput}
-          />
-        }
-        voiceBarOffsetPx={72}
-        slots={{
-          verdict: verdictSlot,
-          plate: (
-            <PlateCard
-              flags={plateFlags}
-              items={plateItems}
+    <FoodLensExperience
+      capabilities={FOOD_LENS_CAPABILITIES}
+      collapsedViewfinder={cameraBlocked}
+      crisis={
+        crisisOpen ? (
+          <FoodCrisisLock language={language}>
+            <FoodConversation
+              clinic={{ name: state.patient.primaryClinicName, phone: state.patient.primaryClinicPhone }}
               language={language}
-              onLog={logPlate}
-              onRemove={removePlateItem}
-              onServingsChange={changePlateServings}
-              summary={plateSummary}
+              messages={foodMessages}
+              partialAssistantText=""
             />
-          ),
-          chart:
-            compass.score && !compass.carveOut ? (
-              <NutritionCompass
-                foodName={identifiedFood?.name ?? null}
-                language={language}
-                markerRef={markerRef}
-                onMarkerTap={domainBreakdown ? openWhyScore : undefined}
-                score={compass.score}
-              />
-            ) : null,
-          whyScore: (
-            <FoodWhyScore
-              breakdown={domainBreakdown}
+          </FoodCrisisLock>
+        ) : null
+      }
+      emptyStateChildren={savedPicks}
+      language={language}
+      loopState={live.loopState}
+      onSelectCandidate={(foodId) => void correctCameraMatch(foodId)}
+      onVisibleRatio={live.setVisibleRatio}
+      view={view}
+      viewfinder={
+        <FoodViewfinder
+          {...sharedViewfinderProps({ camera, view, language, sessionStatus: voice.status })}
+          idleLabel={identifiedFood ? undefined : t(language, "statusIdleNoFood")}
+          onCameraRetry={() => void camera.start()}
+          onScoreTap={badgeState === "scan_again" ? live.rearm : undefined}
+          // The chip beside it already carries the brand, so the badge names the food alone.
+          scoreName={identifiedFood?.name}
+          trustPill={<FoodGuidanceSource kind="personalized" language={language} />}
+        />
+      }
+      voiceBar={
+        <FoodLensVoiceBar
+          idleLabel={identifiedFood ? undefined : t(language, "statusIdleNoFood")}
+          keyboardPrimary={cameraBlocked}
+          language={language}
+          lastTurn={voice.partialAssistantText || lastAssistantTurn}
+          mode={voice.mode}
+          onSendText={voice.sendUserText}
+          onStart={() => void voice.start()}
+          onStop={voice.stop}
+          status={voice.status}
+          transcript={conversation}
+          typedInput={FOOD_LENS_CAPABILITIES.typedInput}
+        />
+      }
+      voiceBarOffsetPx={72}
+      whyScore={{
+        open: whyOpen,
+        onClose: closeWhyScore,
+        breakdown: domainBreakdown,
+        tier: compass.score?.tier ?? "T1"
+      }}
+      wrapper={(children) => <AppShell title={t(language, "pageTitle")}>{children}</AppShell>}
+      slots={{
+        plate: (
+          <PlateCard
+            flags={plateFlags}
+            items={plateItems}
+            language={language}
+            onLog={logPlate}
+            onRemove={removePlateItem}
+            onServingsChange={changePlateServings}
+            summary={plateSummary}
+          />
+        ),
+        chart:
+          compass.score && !compass.carveOut ? (
+            <NutritionCompass
+              foodName={identifiedFood?.name ?? null}
               language={language}
-              onClose={closeWhyScore}
-              open={whyOpen}
-              tier={compass.score?.tier ?? "T1"}
-            />
-          ),
-          weHeard:
-            identifiedFood?.source === "fndds_lookup" && correctionCandidates.length > 0 ? (
-              <FoodCorrectionChips
-                candidates={correctionCandidates}
-                language={language}
-                onCorrection={(foodId) => void correctCameraMatch(foodId)}
-              />
-            ) : null,
-          flags: <FoodFlagsBlock flags={flags} language={language} />,
-          totals: (
-            <>
-              {foodHistory && historyDate ? (
-                <FoodHistoryBlock
-                  history={{ ...foodHistory, date: historyDate }}
-                  language={language}
-                  showGlucoseHistory={conditions.includes("diabetes")}
-                />
-              ) : null}
-              <FoodTotalsBlock dayTotals={startedEatingToday ? visibleDayTotals : []} language={language} />
-            </>
-          ),
-          nutrients: scaledFood?.nutrition ? (
-            <FoodNutrientsBlock
-              food={scaledFood}
-              language={language}
-              onPortionChange={handlePortionChange}
-              portionServings={portionServings}
-              spokenSize={spokenSize}
+              markerRef={markerRef}
+              onMarkerTap={domainBreakdown ? openWhyScore : undefined}
+              score={compass.score}
             />
           ) : null,
-          // Held back until the published list has actually arrived: an empty
-          // CompassAlternatives says "already one of the best", which is not true yet.
-          alternatives: compass.score && !compass.alternativesLoading ? (
+        weHeard:
+          identifiedFood?.source === "fndds_lookup" && correctionCandidates.length > 0 ? (
+            <FoodCorrectionChips
+              candidates={correctionCandidates}
+              language={language}
+              onCorrection={(foodId) => void correctCameraMatch(foodId)}
+            />
+          ) : null,
+        flags: <FoodFlagsBlock flags={flags} language={language} />,
+        totals: (
+          <>
+            {foodHistory && historyDate ? (
+              <FoodHistoryBlock
+                history={{ ...foodHistory, date: historyDate }}
+                language={language}
+                showGlucoseHistory={conditions.includes("diabetes")}
+              />
+            ) : null}
+            <FoodTotalsBlock dayTotals={startedEatingToday ? visibleDayTotals : []} language={language} />
+          </>
+        ),
+        nutrients: scaledFood?.nutrition ? (
+          <FoodNutrientsBlock
+            food={scaledFood}
+            language={language}
+            onPortionChange={handlePortionChange}
+            portionServings={portionServings}
+            spokenSize={spokenSize}
+          />
+        ) : null,
+        // Held back until the published list has actually arrived: an empty
+        // CompassAlternatives says "already one of the best", which is not true yet.
+        alternatives:
+          compass.score && !compass.alternativesLoading ? (
             <section data-testid="food-alternatives">
               <h3 className="text-sm font-semibold text-ink/75">{t(language, "compassBetterOptions")}</h3>
               <div className="mt-2">
@@ -805,76 +758,75 @@ export default function FoodPage() {
               </div>
             </section>
           ) : null,
-          actions: (
-            <FoodActionsBlock
-              canLog={canLog}
-              language={language}
-              logLabelKey={compass.carveOut ? "logItAnyway" : "logThis"}
-              logged={logged}
-              onAddToPlate={identifiedFood ? onAddToPlate : undefined}
-              onLog={onLog}
-            >
-              {favoriteFoodId && compass.score?.tier === "T1" ? (
-                <FoodFavoriteButton
-                  favorite={isFavorite}
-                  language={language}
-                  onToggle={toggleFavorite}
-                  title={foodTitle(identifiedFood, language)}
-                />
-              ) : null}
-
-              {voice.error ? (
-                <div className="grid gap-2 rounded-control border border-pulse/30 bg-pulse/5 p-3">
-                  <p className="text-sm text-pulse">{t(language, "voiceErrorLine")}</p>
-                  <button
-                    className="min-h-11 rounded-control border border-care px-3 py-2 text-sm font-semibold text-care"
-                    onClick={() => void voice.start()}
-                    type="button"
-                  >
-                    {t(language, "retry")}
-                  </button>
-                </div>
-              ) : null}
-
-              {showLabelFallback ? (
-                <FoodLabelFallback language={language} onRead={() => void readLabelPhoto()} state={labelFallbackState} />
-              ) : null}
-
-              {identifiedFood ? savedPicks : null}
-
-              <button
-                className="min-h-14 w-full rounded-control border border-care bg-white px-4 py-2 font-semibold text-care disabled:opacity-40"
-                disabled={pantryLoading || camera.status !== "active"}
-                onClick={() => void findPantryRecipes()}
-                type="button"
-              >
-                {pantryLoading ? t(language, "pantryScanning") : t(language, "pantryButton")}
-              </button>
-
-              {pantryResult ? (
-                <PantryRecipes
-                  detectedItems={pantryResult.detectedItems}
-                  language={language}
-                  recipes={pantryResult.recipes}
-                />
-              ) : null}
-
-              <MealLogList
-                entries={recentMeals}
+        actions: (
+          <FoodActionsBlock
+            canLog={canLog}
+            language={language}
+            logLabelKey={compass.carveOut ? "logItAnyway" : "logThis"}
+            logged={logged}
+            onAddToPlate={identifiedFood ? onAddToPlate : undefined}
+            onLog={onLog}
+          >
+            {favoriteFoodId && compass.score?.tier === "T1" ? (
+              <FoodFavoriteButton
+                favorite={isFavorite}
                 language={language}
-                onAmendTime={(entryId, loggedAt) => dispatch({ type: "amendMealLogTime", entryId, loggedAt })}
-                onDelete={(entryId) => dispatch({ type: "deleteMealLogEntry", entryId })}
+                onToggle={toggleFavorite}
+                title={foodTitle(identifiedFood, language)}
               />
-            </FoodActionsBlock>
-          ),
-          attribution: (
-            <FoodAttribution language={language}>
-              {showGeneralGuidance ? <FoodGuidanceSource kind="general" language={language} /> : null}
-              <AiDataDisclosure compact language={language} mode={voice.dataMode} />
-            </FoodAttribution>
-          )
-        }}
-      />
-    </AppShell>
+            ) : null}
+
+            {voice.error ? (
+              <div className="grid gap-2 rounded-control border border-pulse/30 bg-pulse/5 p-3">
+                <p className="text-sm text-pulse">{t(language, "voiceErrorLine")}</p>
+                <button
+                  className="min-h-11 rounded-control border border-care px-3 py-2 text-sm font-semibold text-care"
+                  onClick={() => void voice.start()}
+                  type="button"
+                >
+                  {t(language, "retry")}
+                </button>
+              </div>
+            ) : null}
+
+            {showLabelFallback ? (
+              <FoodLabelFallback language={language} onRead={() => void readLabelPhoto()} state={labelFallbackState} />
+            ) : null}
+
+            {identifiedFood ? savedPicks : null}
+
+            <button
+              className="min-h-14 w-full rounded-control border border-care bg-white px-4 py-2 font-semibold text-care disabled:opacity-40"
+              disabled={pantryLoading || camera.status !== "active"}
+              onClick={() => void findPantryRecipes()}
+              type="button"
+            >
+              {pantryLoading ? t(language, "pantryScanning") : t(language, "pantryButton")}
+            </button>
+
+            {pantryResult ? (
+              <PantryRecipes
+                detectedItems={pantryResult.detectedItems}
+                language={language}
+                recipes={pantryResult.recipes}
+              />
+            ) : null}
+
+            <MealLogList
+              entries={recentMeals}
+              language={language}
+              onAmendTime={(entryId, loggedAt) => dispatch({ type: "amendMealLogTime", entryId, loggedAt })}
+              onDelete={(entryId) => dispatch({ type: "deleteMealLogEntry", entryId })}
+            />
+          </FoodActionsBlock>
+        ),
+        attribution: (
+          <FoodAttribution language={language}>
+            {showGeneralGuidance ? <FoodGuidanceSource kind="general" language={language} /> : null}
+            <AiDataDisclosure compact language={language} mode={voice.dataMode} />
+          </FoodAttribution>
+        )
+      }}
+    />
   );
 }

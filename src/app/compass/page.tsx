@@ -4,22 +4,19 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { FoodViewfinder } from "@/components/food-viewfinder";
 import { FoodGuidanceSource } from "@/components/food-guidance-source";
 import { CompassAlternatives, resolveDomainBreakdown } from "@/components/compass-score";
-import { FoodLensShell, COMPASS_CAPABILITIES } from "@/components/food-lens-shell";
+import { COMPASS_CAPABILITIES } from "@/components/food-lens-shell";
+import {
+  FoodLensExperience,
+  sharedViewfinderProps,
+  type FoodLensView
+} from "@/components/food-lens-experience";
 import { FoodLensVoiceBar } from "@/components/food-lens-voice-bar";
 import { NutritionCompass } from "@/components/nutrition-compass";
-import {
-  FoodAttribution,
-  FoodCrisisLock,
-  FoodEmptyState,
-  FoodNoMatch,
-  FoodVerdict,
-  FoodWhyScore
-} from "@/components/food-lens-blocks";
-import { useFoodCamera } from "@/hooks/use-food-camera";
-import { usePasscode } from "@/hooks/use-passcode";
+import { FoodAttribution, FoodCrisisLock } from "@/components/food-lens-blocks";
+import { useFoodLensEngine } from "@/hooks/use-food-lens-engine";
 import { usePageHideTeardown } from "@/hooks/use-page-hide-teardown";
 import { useWhyScore } from "@/hooks/use-why-score";
-import { useLiveFoodScore, type LiveMatch } from "@/hooks/use-live-food-score";
+import type { LiveMatch } from "@/hooks/use-live-food-score";
 import { useFoodVoiceSession } from "@/hooks/use-food-voice-session";
 import {
   LOOKUP_FOOD_SCORE_TOOL,
@@ -66,9 +63,11 @@ function scriptedOpening(match: LiveMatch, language: Language): string {
 }
 
 export default function CompassPage() {
-  const camera = useFoodCamera();
-  const { grabFrame, start: startCamera, stop: stopCamera } = camera;
-  const passcode = usePasscode();
+  const [crisisLocked, setCrisisLocked] = useState(false);
+  // No barcode reader on the public door: there is no packaged-food path to feed, and the
+  // scanner's detector chunk is never fetched.
+  const { camera, live, passcode } = useFoodLensEngine({ crisis: crisisLocked });
+  const { grabFrame, stop: stopCamera } = camera;
 
   // /compass never calls useHealthState. The root layout would hand it a full demo patient
   // with medications and blood-pressure readings, and this page must not carry one.
@@ -80,20 +79,10 @@ export default function CompassPage() {
   const [refinementLoading, setRefinementLoading] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>("score");
   const [conversationTurns, setConversationTurns] = useState<ConversationTurn[]>([]);
-  const [crisisLocked, setCrisisLocked] = useState(false);
   const lastAutoConversationFoodRef = useRef<string | null>(null);
   const shownRef = useRef<ConversationResult | null>(null);
   const voiceResultRef = useRef<ConversationResult | null>(null);
   const pizzaIntentRef = useRef<FoodOrderIntent | null>(null);
-
-  const live = useLiveFoodScore({
-    videoRef: camera.videoRef,
-    grabFrame: camera.grabFrame,
-    cameraActive: camera.status === "active",
-    barcodeActive: false,
-    crisis: crisisLocked,
-    passcode
-  });
 
   // A spoken refinement is explicit and outranks the raw camera match until the
   // lens has held on a different food long enough to establish a new scene.
@@ -362,10 +351,6 @@ export default function CompassPage() {
     voiceAvailable
   ]);
 
-  useEffect(() => {
-    void startCamera();
-  }, [startCamera]);
-
   usePageHideTeardown([stopCamera, stopVoice, stopSpeaking]);
 
 
@@ -464,50 +449,57 @@ export default function CompassPage() {
     </section>
   );
 
-  return (
-    <main className="min-h-screen bg-paper">
-      <div className="mx-auto w-full max-w-[480px] px-4 py-2">
-        <h1 className="text-base font-semibold">{t(language, "compassPageTitle")}</h1>
-      </div>
+  // Everything the shared layer is allowed to know. Which source won the right to say it
+  // -- the lens, or a spoken refinement holding until a different food is stable -- stays
+  // inside this door.
+  const view: FoodLensView = {
+    name: matchShown?.food.description ?? null,
+    identified: matchShown !== null,
+    score: matchShown?.score ?? null,
+    carveOut: shown?.kind === "carve_out" ? shown.reason : null,
+    badge: matchShown ? "score" : shown?.kind === "carve_out" ? "carve_out" : live.badge,
+    noMatchCandidates: [],
+    noMatch: shown?.kind === "none"
+  };
 
-      <FoodLensShell
-        capabilities={COMPASS_CAPABILITIES}
-        collapsedViewfinder={false}
-        crisis={
-          crisisLocked ? (
-            <FoodCrisisLock language={language}>{conversationBlock}</FoodCrisisLock>
-          ) : null
-        }
-        foodName={matchShown?.food.description ?? null}
-        foodScore={matchShown ? { fcs: matchShown.score.fcs, band: matchShown.score.band } : null}
-        language={language}
-        loopState={live.loopState}
-        onVisibleRatio={live.setVisibleRatio}
-        viewfinder={
-          <FoodViewfinder
-            cameraStatus={camera.status}
-            demoPreview
-            height="100%"
-            idleLabel={
-              voice.status === "closed"
-                ? t(language, "compassIdleEnded")
-                : matchShown
-                  ? t(language, "compassIdleStarting")
-                  : t(language, "compassIdleAwaiting")
-            }
-            language={language}
-            scanChip={matchShown?.food.description ?? null}
-            scoreBadge={matchShown ? "score" : shown?.kind === "carve_out" ? "carve_out" : live.badge}
-            scoreBand={matchShown?.score.band}
-            scoreFcs={matchShown?.score.fcs}
-            scoreName={matchShown?.food.description}
-            scoreTier={matchShown?.score.tier}
-            sessionStatus={voice.status}
-            showVoiceStatus={false}
-            trustPill={<FoodGuidanceSource kind="general" language={language} />}
-            videoRef={camera.videoRef}
-          />
-        }
+  return (
+    <FoodLensExperience
+      capabilities={COMPASS_CAPABILITIES}
+      crisis={crisisLocked ? <FoodCrisisLock language={language}>{conversationBlock}</FoodCrisisLock> : null}
+      language={language}
+      loopState={live.loopState}
+      onVisibleRatio={live.setVisibleRatio}
+      verdictRegionLabel={t(language, "compassResultRegion")}
+      view={view}
+      whyScore={{
+        open: whyOpen,
+        onClose: closeWhyScore,
+        breakdown: domainBreakdown,
+        tier: matchShown?.score.tier ?? "T1"
+      }}
+      wrapper={(children) => (
+        <main className="min-h-screen bg-paper">
+          <div className="mx-auto w-full max-w-[480px] px-4 py-2">
+            <h1 className="text-base font-semibold">{t(language, "compassPageTitle")}</h1>
+          </div>
+          {children}
+        </main>
+      )}
+      viewfinder={
+        <FoodViewfinder
+          {...sharedViewfinderProps({ camera, view, language, sessionStatus: voice.status })}
+          demoPreview
+          idleLabel={
+            voice.status === "closed"
+              ? t(language, "compassIdleEnded")
+              : matchShown
+                ? t(language, "compassIdleStarting")
+                : t(language, "compassIdleAwaiting")
+          }
+          scoreName={matchShown?.food.description}
+          trustPill={<FoodGuidanceSource kind="general" language={language} />}
+        />
+      }
         voiceBar={
           <FoodLensVoiceBar
             idleLabel={
@@ -523,24 +515,6 @@ export default function CompassPage() {
           />
         }
         slots={{
-          verdict: (
-            <div aria-label={t(language, "compassResultRegion")} className="min-w-0" role="region">
-              {shown?.kind === "carve_out" ? (
-                <FoodVerdict carveOutReason={shown.reason} foodName={null} language={language} score={null} />
-              ) : matchShown ? (
-                <FoodVerdict
-                  carveOutReason={null}
-                  foodName={matchShown.food.description}
-                  language={language}
-                  score={matchShown.score}
-                />
-              ) : shown?.kind === "none" ? (
-                <FoodNoMatch candidates={[]} language={language} />
-              ) : (
-                <FoodEmptyState language={language} offersSavedPicks={false} />
-              )}
-            </div>
-          ),
           chart: matchShown ? (
             <NutritionCompass
               foodName={matchShown.food.description}
@@ -564,15 +538,6 @@ export default function CompassPage() {
                       ? "carve_out"
                       : "idle"
               }
-            />
-          ),
-          whyScore: (
-            <FoodWhyScore
-              breakdown={domainBreakdown}
-              language={language}
-              onClose={closeWhyScore}
-              open={whyOpen}
-              tier={matchShown?.score.tier ?? "T1"}
             />
           ),
           weHeard:
@@ -749,8 +714,7 @@ export default function CompassPage() {
               </details>
             </FoodAttribution>
           )
-        }}
-      />
-    </main>
+      }}
+    />
   );
 }
