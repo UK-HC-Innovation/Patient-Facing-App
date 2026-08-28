@@ -24,8 +24,8 @@ describe("FoodSavedPicks", () => {
       />
     );
 
-    expect(screen.getByText("Favorites & recents")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Score Banana, raw again" }));
+    expect(screen.getByText("Foods you've had before")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "See Banana, raw again" }));
     expect(onSelect).toHaveBeenCalledWith("63107010");
   });
 

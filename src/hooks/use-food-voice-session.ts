@@ -9,6 +9,7 @@ import { connectRealtimeSession, type RealtimeTool } from "@/ai/realtime-session
 import { evaluateVoiceTranscript } from "@/ai/voice-gate";
 import { activeConditions, selectLenses } from "@/domain/condition-lens";
 import { hasUnacknowledgedCrisis } from "@/state/selectors";
+import { readPasscode } from "@/hooks/use-passcode";
 import { aiDataModeForVoiceTransport, type AiDataMode } from "@/domain/privacy-disclosure";
 import type { AiMessageAction, AppState } from "@/domain/types";
 import type { LiveSessionContext, LiveSessionEvent, LiveSessionHandle, LiveSessionStatus } from "@/ai/types";
@@ -192,10 +193,7 @@ export function useFoodVoiceSession(args: {
     }
 
     setStatus("connecting");
-    const passcode =
-      typeof window !== "undefined"
-        ? new URLSearchParams(window.location.search).get("k") ?? undefined
-        : undefined;
+    const passcode = readPasscode();
     let token: TokenResponse;
     try {
       const response = await fetch("/api/realtime/token", {
@@ -342,8 +340,7 @@ export function useFoodVoiceSession(args: {
       return;
     }
     let cancelled = false;
-    const passcode =
-      typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("k") ?? undefined : undefined;
+    const passcode = readPasscode();
     void fetch("/api/realtime/token", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

@@ -50,7 +50,6 @@ test("keeps the camera in place and starts the food conversation automatically",
   await expect(page.getByTestId("food-verdict")).toContainText("Banana, raw", { timeout: 10_000 });
   await expect(page.getByRole("region", { name: "Food camera" })).toBeVisible();
   await expect(page.getByRole("log")).toContainText("Food Lens: I see Banana, raw");
-  await expect(page.getByText("Scripted fallback for the functional prototype.")).toBeVisible();
 
   await expect(page.getByText("Camera collapsed")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Expand camera|Back to result|Tap start|Ask about/i })).toHaveCount(0);
@@ -64,16 +63,15 @@ test("plots Food Compass on X and calorie density on Y in one of four quadrants"
   await stubCameraMatch(page);
   await page.goto("/compass");
 
-  const chart = page.getByRole("region", { name: "Food Compass score vs calorie density" });
-  await expect(chart).toContainText("X: Food Compass score · Y: calorie density (kcal/g)");
-  await expect(chart).toContainText("The four quadrants combine two separate measures");
+  const chart = page.getByRole("region", { name: "Score and calories" });
+  await expect(chart).toBeVisible({ timeout: 10_000 });
 
   const marker = page.getByTestId("nutrition-compass-marker");
   await expect(marker).toHaveAttribute("data-x-percent", "83");
   await expect(marker).toHaveAttribute("data-y-percent", "9.9");
   await expect(marker).toHaveAttribute("data-quadrant", "choose_often");
   await expect(chart).toContainText(
-    "Banana, raw: 83 / 100 Food Compass score · 0.89 kcal/g (89 kcal / 100 g) · Choose often quadrant."
+    "Banana, raw: scores 83 out of 100 · 0.89 calories per gram (89 per 100 g) · Choose often."
   );
   await chart.scrollIntoViewIfNeeded();
 });
@@ -110,11 +108,10 @@ test("keeps general guidance explicit through the camera-first flow", async ({ p
   await stubCameraMatch(page);
   await page.goto("/compass");
 
-  await expect(page.getByRole("heading", { name: "Food Lens functional prototype" })).toBeVisible();
-  await expect(page.getByRole("list", { name: "Prototype flow" })).toContainText(
-    "1Point the camera2Talk naturally3Compare options"
+  await expect(page.getByRole("heading", { name: "Food Lens" })).toBeVisible();
+  await expect(page.locator('[data-guidance-scope="general"]').first()).toContainText(
+    "General nutrition advice — not based on your readings or health history."
   );
-  await expect(page.getByLabel("Guidance source").first()).toContainText("General nutrition: Food Compass only");
   await expect(page.locator('[data-guidance-scope="personalized"]')).toHaveCount(0);
   await expect(page.getByText(/Maria|Brent|blood pressure|lisinopril/i)).toHaveCount(0);
 });
@@ -124,14 +121,9 @@ test("localizes the stateless camera-first flow in Spanish", async ({ page }) =>
   await stubCameraMatch(page);
   await page.goto("/compass?lang=es");
 
-  await expect(page.getByRole("heading", { name: "Prototipo funcional de Lente de Comida" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Lente de Comida" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Cámara de alimentos" })).toBeVisible();
-  await expect(page.getByRole("list", { name: "Flujo del prototipo" })).toContainText(
-    "1Apunta la cámara2Habla naturalmente3Compara opciones"
-  );
-  await expect(
-    page.getByRole("region", { name: "Puntaje Food Compass frente a densidad calórica" })
-  ).toContainText("83");
+  await expect(page.getByRole("region", { name: "Puntaje y calorías" })).toContainText("83");
   await expect(page.getByRole("textbox")).toHaveCount(0);
 });
 
@@ -151,13 +143,15 @@ test("shows a carve-out without collapsing the camera or inventing a score", asy
   });
   await page.goto("/compass");
 
-  await expect(page.getByRole("region", { name: "Food result" }).getByText(/Water is the best choice there is/)).toBeVisible({
+  await expect(
+    page.getByRole("region", { name: "Score for this food" }).getByText(/Water is the best choice there is/)
+  ).toBeVisible({
     timeout: 10_000
   });
   await expect(page.getByRole("region", { name: "Food camera" })).toBeVisible();
   await expect(page.getByText("Camera collapsed")).toHaveCount(0);
   await expect(
-    page.getByRole("region", { name: "Food result" }).getByText("Food Compass score", { exact: true })
+    page.getByRole("region", { name: "Score for this food" }).getByText("Food Compass score", { exact: true })
   ).toHaveCount(0);
   await expect(page.getByTestId("nutrition-compass-marker")).toHaveCount(0);
 });

@@ -20,8 +20,8 @@ describe("FoodViewfinder demo states", () => {
       />
     );
 
-    expect(screen.getByRole("img", { name: "Sample pizza camera preview" })).toBeInTheDocument();
-    expect(screen.getByText(/Camera unavailable in this preview/)).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Pizza in the camera view" })).toBeInTheDocument();
+    expect(screen.getByText("Camera is off. Turn on camera access to talk about your food.")).toBeInTheDocument();
     expect(screen.getByText("Tap start and describe your order.")).toBeInTheDocument();
     expect(screen.queryByText(/Chrome site settings/i)).not.toBeInTheDocument();
   });
@@ -39,9 +39,11 @@ describe("FoodViewfinder demo states", () => {
     );
 
     expect(
-      screen.getByRole("img", { name: "Vista previa de la cámara con una pizza de muestra" })
+      screen.getByRole("img", { name: "Una pizza en la vista de la cámara" })
     ).toBeInTheDocument();
-    expect(screen.getByText(/La cámara no está disponible en esta vista previa/)).toBeInTheDocument();
+    expect(
+      screen.getByText("La cámara está apagada. Permite el acceso a la cámara para hablar sobre tu comida.")
+    ).toBeInTheDocument();
   });
 
   it("makes tap-start voice copy a real control when a voice action is available", async () => {

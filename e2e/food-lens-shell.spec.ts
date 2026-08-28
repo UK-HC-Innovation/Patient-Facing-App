@@ -140,7 +140,7 @@ test("shows a carve-out with no figure, no chart and a way to log it anyway", as
   await expect(page.getByText(/Water is the best choice there is/)).toBeVisible({ timeout: 10_000 });
   // Absent, not zeroed or greyed: a dimmed dash reads as a bad score.
   await expect(page.getByText("of 100")).toHaveCount(0);
-  await expect(page.getByRole("region", { name: "Food Compass score vs calorie density" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Score and calories" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Log it anyway" })).toBeVisible();
 });
 
@@ -178,10 +178,10 @@ test("names the quadrants in a legend beneath the plot, never in its corners", a
   await stubIdentify(page);
   await page.goto("/compass");
 
-  const chart = page.getByRole("region", { name: "Food Compass score vs calorie density" });
+  const chart = page.getByRole("region", { name: "Score and calories" });
   await expect(chart).toBeVisible({ timeout: 10_000 });
 
-  const legend = page.getByRole("group", { name: "What the four quadrants mean" });
+  const legend = page.getByRole("group", { name: "What the colors mean" });
   await expect(legend).toContainText("Choose often — Your food is here");
   await expect(chart).toContainText("Down and to the right is better");
 
@@ -206,6 +206,6 @@ test("never lets the shell widen the page, at either end of the viewport range",
   // whole answer -- nothing may stretch full-bleed at 1440px.
   await page.setViewportSize({ width: 1440, height: 900 });
   expect(await noOverflow()).toBe(true);
-  const column = await page.getByRole("region", { name: "Food details" }).boundingBox();
+  const column = await page.getByRole("region", { name: "About this food" }).boundingBox();
   expect(column!.width).toBeLessThanOrEqual(480);
 });

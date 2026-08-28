@@ -100,7 +100,7 @@ describe("OpenAiVisionProvider", () => {
 
     const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
     const payload = JSON.parse(options.body as string) as { foodContext: string };
-    expect(payload.foodContext).toContain("Together with today's meals, this passes your daily sodium limit.");
+    expect(payload.foodContext).toContain("With today's other meals, this goes over your daily sodium limit.");
     expect(payload.foodContext).toContain("sodium 1400 of 1500 mg (93%)");
     expect(payload.foodContext).toContain("Use the numbers above exactly; do not recompute them.");
   });

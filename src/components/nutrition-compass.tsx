@@ -144,7 +144,6 @@ export function NutritionCompass({
           <h2 className="text-sm font-semibold" id="nutrition-compass-title">
             {t(language, "nutritionCompassTitle")}
           </h2>
-          <p className="text-xs text-ink/75">{t(language, "nutritionCompassAxes")}</p>
         </div>
         {score ? (
           <span className="shrink-0 rounded-control bg-calm px-2 py-1 text-xs font-semibold text-care">
@@ -273,9 +272,6 @@ export function NutritionCompass({
         <figcaption aria-live="polite" className="mt-2 text-xs font-medium text-ink/70">
           {summary}
         </figcaption>
-        <p className="mt-1 text-[11px] text-ink/70">
-          {t(language, "nutritionCompassExplanation")}
-        </p>
       </figure>
     </section>
   );

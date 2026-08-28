@@ -36,7 +36,9 @@ describe("FoodVerdict", () => {
     // A dimmed dash would read as a bad score, so there is no figure and no scale.
     expect(screen.queryByText("of 100")).not.toBeInTheDocument();
     expect(screen.queryByText("Food Compass score")).not.toBeInTheDocument();
-    expect(screen.getByText(/There is no number to show you here/)).toBeInTheDocument();
+    // The carve-out reason line is the only thing in the verdict's position, and it is what
+    // says there is no score.
+    expect(screen.getByText(/Water is the best choice there is/)).toBeInTheDocument();
   });
 
   it("localizes the verdict sentence", () => {
@@ -62,7 +64,7 @@ describe("FoodNoMatch", () => {
       />
     );
 
-    expect(screen.getByText(/No published score for that one/)).toBeInTheDocument();
+    expect(screen.getByText(/We don't have a score for that one/)).toBeInTheDocument();
     expect(screen.getAllByRole("button")).toHaveLength(3);
     await user.click(screen.getByRole("button", { name: "Soup, tomato" }));
     expect(onSelect).toHaveBeenCalledWith("2");

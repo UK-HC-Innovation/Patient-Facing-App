@@ -40,9 +40,9 @@ describe("MealLogList", () => {
     const future = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const localFuture = new Date(future.getTime() - future.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
     fireEvent.change(screen.getByLabelText("Custom meal time"), { target: { value: localFuture } });
-    await user.click(screen.getByRole("button", { name: "Save time" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent("not in the future");
+    expect(screen.getByRole("alert")).toHaveTextContent("isn't in the future");
     expect(onAmendTime).not.toHaveBeenCalled();
   });
 

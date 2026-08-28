@@ -17,7 +17,6 @@ export function FoodGuidanceSource({
 }) {
   return (
     <p
-      aria-label={t(language, "guidanceSourceLabel")}
       className={`w-fit max-w-full break-words rounded-full px-3 py-1.5 text-xs font-semibold ${
         kind === "general" ? "bg-calm text-care" : "bg-amber-100 text-amber-900"
       }`}

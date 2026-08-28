@@ -95,7 +95,6 @@ export function resolveDomainBreakdown(
 /** F9's domain breakdown, unchanged whether it is disclosed inline or hoisted into a slot. */
 export function CompassDomainList({
   breakdown,
-  tier,
   language
 }: {
   breakdown: CompassBreakdown;
@@ -104,7 +103,6 @@ export function CompassDomainList({
 }) {
   return (
     <div className="grid gap-2 text-xs text-ink/70">
-      {tier === "T1" ? <p>{t(language, "compassPublishedDriversNote")}</p> : null}
       <ul className="grid gap-1">
         {breakdown.domains.map((domain) => (
           <li className="flex justify-between gap-3" key={domain.key}>

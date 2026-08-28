@@ -7,7 +7,7 @@ import { COMPASS_PAGE_TITLE } from "./title";
 
 export const metadata: Metadata = {
   title: COMPASS_PAGE_TITLE,
-  description: "Functional demo: scan or describe a food, review its Food Compass score, and ask a question."
+  description: "Point the camera at a food, see its Food Compass score, and ask a question about it."
 };
 
 export default function CompassLayout({ children }: { children: ReactNode }) {

@@ -35,6 +35,43 @@ describe("locale parity", () => {
     expect(new Set(esKeys)).toEqual(new Set(enKeys));
   });
 
+  // The key sets are type-enforced and checked above; the *placeholders* inside
+  // them were not. `t()` silently ignores a supplied var whose token is missing
+  // from the template, so a Spanish rewrite that dropped {percent} or renamed
+  // {servings} would render a sentence with a hole in it — or a literal
+  // "{servings}" — and every existing test would stay green.
+  it("keeps the same placeholders in both languages, for every food lens key", () => {
+    const placeholders = (template: string): string[] =>
+      [...template.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
+
+    const mismatches: string[] = [];
+    for (const key of Object.keys(foodLensStrings.en) as (keyof typeof foodLensStrings.en)[]) {
+      const english = placeholders(foodLensStrings.en[key]);
+      const spanish = placeholders(foodLensStrings.es[key]);
+      if (english.join(",") !== spanish.join(",")) {
+        mismatches.push(`${key}: en {${english.join(", ")}} vs es {${spanish.join(", ")}}`);
+      }
+    }
+
+    expect(mismatches).toEqual([]);
+  });
+
+  // Deleting copy means deleting the key. A value blanked in place renders an
+  // empty element, reads as a missing sentence to the patient, and passes both
+  // the key-set and placeholder guards above.
+  it("never ships an empty food lens string in either language", () => {
+    const blanks: string[] = [];
+    for (const language of ["en", "es"] as const) {
+      for (const [key, copy] of Object.entries(foodLensStrings[language])) {
+        if (copy.trim() === "") {
+          blanks.push(`${language}.${key}`);
+        }
+      }
+    }
+
+    expect(blanks).toEqual([]);
+  });
+
   it("returns Spanish safety strings with equal urgency", () => {
     expect(tSafety("es", "callEmergency")).toBe("Llama al 911");
     expect(tSafety("es", "crisisResponse")).toContain("988");

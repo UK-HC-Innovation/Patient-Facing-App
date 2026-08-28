@@ -44,6 +44,9 @@ import { resolvePortionServings, scaleNutrition } from "@/domain/portion";
 import { foodLookupResponseSchema, mealLogEntrySchema } from "@/domain/schemas";
 import { t } from "@/i18n/strings";
 import { useFoodCamera } from "@/hooks/use-food-camera";
+import { usePasscode } from "@/hooks/use-passcode";
+import { usePageHideTeardown } from "@/hooks/use-page-hide-teardown";
+import { useWhyScore } from "@/hooks/use-why-score";
 import { useBarcodeScan } from "@/hooks/use-barcode-scan";
 import { useFoodVoiceSession, type VoiceSafetyIntercept } from "@/hooks/use-food-voice-session";
 import { useCompassScore } from "@/hooks/use-compass-score";
@@ -100,10 +103,7 @@ export default function FoodPage() {
 
   const crisisOpen = useMemo(() => hasUnacknowledgedCrisis(state), [state]);
   const camera = useFoodCamera();
-  const passcode = useMemo(
-    () => (typeof window === "undefined" ? undefined : new URLSearchParams(window.location.search).get("k") ?? undefined),
-    []
-  );
+  const passcode = usePasscode();
   const [barcodeFood, setBarcodeFood] = useState<IdentifiedFood | null>(null);
   const [labelFood, setLabelFood] = useState<IdentifiedFood | null>(null);
   const [barcodeLookupMiss, setBarcodeLookupMiss] = useState(false);
@@ -112,8 +112,6 @@ export default function FoodPage() {
   const [spokenSize, setSpokenSize] = useState<SpokenFoodSize | null>(null);
   const [plateItems, setPlateItems] = useState<PlateItem[]>([]);
   const [logged, setLogged] = useState(false);
-  const [whyOpen, setWhyOpen] = useState(false);
-  const markerRef = useRef<HTMLButtonElement | null>(null);
   const loggedEntryIdRef = useRef<string | null>(null);
   const exactFoodRequestRef = useRef(0);
   const labelRequestRef = useRef(0);
@@ -147,6 +145,7 @@ export default function FoodPage() {
   }, [live.match, scannedFood]);
 
   const identifiedFoodId = identifiedFood?.id ?? null;
+  const { whyOpen, open: openWhyScore, close: closeWhyScore, markerRef } = useWhyScore(identifiedFoodId);
   const scaledFood = useMemo<IdentifiedFood | null>(() => {
     if (!identifiedFood?.nutrition) {
       return identifiedFood;
@@ -315,8 +314,6 @@ export default function FoodPage() {
     }
     setPantryLoading(true);
     setPantryResult(null);
-    const passcode =
-      typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("k") ?? undefined : undefined;
     const image = camera.grabFrame() ?? undefined;
     try {
       // Same safety gate as every other AI answer: crisis + reading escalation run
@@ -340,27 +337,14 @@ export default function FoodPage() {
     } finally {
       setPantryLoading(false);
     }
-  }, [appendIntercept, appendMessage, camera, pantryLoading]);
+  }, [appendIntercept, appendMessage, camera, passcode, pantryLoading]);
 
   useEffect(() => {
     void camera.start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    const onHidden = () => {
-      if (document.hidden) {
-        camera.stop();
-        voice.stop();
-      }
-    };
-    document.addEventListener("visibilitychange", onHidden);
-    window.addEventListener("pagehide", onHidden);
-    return () => {
-      document.removeEventListener("visibilitychange", onHidden);
-      window.removeEventListener("pagehide", onHidden);
-    };
-  }, [camera, voice]);
+  usePageHideTeardown([camera.stop, voice.stop]);
 
   useEffect(() => {
     let cancelled = false;
@@ -645,22 +629,11 @@ export default function FoodPage() {
     />
   );
 
-  const closeWhyScore = useCallback(() => {
-    setWhyOpen(false);
-    markerRef.current?.focus();
-  }, []);
-
   const backToCamera = useCallback(() => {
     const reduced =
       typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
     window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
   }, []);
-
-  // The panel belongs to the food it explains; a new match closes it rather than
-  // re-labelling the domains under the reader.
-  useEffect(() => {
-    setWhyOpen(false);
-  }, [identifiedFoodId]);
 
   const lastAssistantTurn = useMemo(() => {
     for (let index = foodMessages.length - 1; index >= 0; index -= 1) {
@@ -679,13 +652,6 @@ export default function FoodPage() {
       foodName={scanChip}
       language={language}
       score={compass.score}
-      tierBadge={
-        compass.score.tier === "T2" ? (
-          <span className="mt-1 inline-block rounded-control bg-calm px-2 py-1 text-[11px] font-semibold text-care">
-            {t(language, "compassEstimateBadge")}
-          </span>
-        ) : null
-      }
     />
   ) : live.noMatchCandidates.length > 0 ? (
     <FoodNoMatch
@@ -782,7 +748,7 @@ export default function FoodPage() {
                 foodName={identifiedFood?.name ?? null}
                 language={language}
                 markerRef={markerRef}
-                onMarkerTap={domainBreakdown ? () => setWhyOpen(true) : undefined}
+                onMarkerTap={domainBreakdown ? openWhyScore : undefined}
                 score={compass.score}
               />
             ) : null,
@@ -859,7 +825,7 @@ export default function FoodPage() {
 
               {voice.error ? (
                 <div className="grid gap-2 rounded-control border border-pulse/30 bg-pulse/5 p-3">
-                  <p className="text-sm text-pulse">{voice.error}</p>
+                  <p className="text-sm text-pulse">{t(language, "voiceErrorLine")}</p>
                   <button
                     className="min-h-11 rounded-control border border-care px-3 py-2 text-sm font-semibold text-care"
                     onClick={() => void voice.start()}

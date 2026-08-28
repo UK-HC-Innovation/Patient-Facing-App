@@ -142,7 +142,6 @@ export function FoodNutrientsBlock({
           </button>
         </div>
       </div>
-      <p className="text-xs font-medium text-ink/65">{t(language, "servingsDoNotMoveScore")}</p>
       {food.source === "label_vision" ? (
         <p className="text-xs font-medium text-ink/70">{t(language, "labelPhotoCheck")}</p>
       ) : null}

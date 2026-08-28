@@ -88,10 +88,10 @@ describe("PlateCard", () => {
     );
 
     expect(screen.getByText("Plate average · 2 items")).toBeInTheDocument();
-    // The caveat is what keeps the derivation honest: it names itself as not a score.
-    expect(screen.getByText(/not a Food Compass score/)).toBeInTheDocument();
+    // The note is what keeps the derivation legible: it says how the number was computed.
+    expect(screen.getByText("Average of the items below, weighted by calories.")).toBeInTheDocument();
     expect(screen.getByText("Food Compass 24")).toBeInTheDocument();
-    expect(screen.getByText("Some items are missing nutrition data.")).toBeInTheDocument();
+    expect(screen.getByText("Some items don't have nutrition info.")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Increase servings for Soup" }));
     await user.click(screen.getByRole("button", { name: "Remove Soup" }));

@@ -9,7 +9,7 @@ describe("FoodLabelFallback", () => {
     const onRead = vi.fn();
     render(<FoodLabelFallback language="en" onRead={onRead} state="idle" />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Score from the label" }));
+    await userEvent.click(screen.getByRole("button", { name: "Read the Nutrition Facts label" }));
     expect(onRead).toHaveBeenCalledTimes(1);
   });
 

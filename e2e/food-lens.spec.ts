@@ -57,7 +57,7 @@ test("builds and logs a two-item plate with one shared meal id", async ({ page }
   await expect(plate.getByTestId("plate-item")).toHaveCount(2);
   // At two the headline changes meaning, not just value: label and caveat both switch.
   await expect(plate.getByText("Plate average · 2 items")).toBeVisible();
-  await expect(plate.getByText(/not a Food Compass score/)).toBeVisible();
+  await expect(plate.getByText("Average of the items below, weighted by calories.")).toBeVisible();
   await page.getByRole("button", { name: /Increase servings for Campbell's Condensed Chicken Noodle Soup/ }).click();
   await expect(plate.getByText("2 serving(s)")).toBeVisible();
   await page.getByRole("button", { name: "Log plate" }).click();
@@ -120,7 +120,7 @@ test("hides label-photo scoring when the provider probe is mocked", async ({ pag
 
   await expect(page.getByText(UNKNOWN_BARCODE, { exact: true })).toBeVisible();
   await page.waitForTimeout(750);
-  await expect(page.getByRole("button", { name: "Score from the label" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Read the Nutrition Facts label" })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Nutrition label photo" })).toHaveCount(0);
 });
 
@@ -130,7 +130,7 @@ test("labels the personalized route without inventing a current-food recommendat
 
   await expect(page.getByRole("heading", { name: "Food Lens" })).toBeVisible();
   await expect(page.locator('[data-guidance-scope="personalized"]').first()).toContainText(
-    "considers your recent readings and health profile"
+    "Based on your recent readings and health history."
   );
   await expect(page.getByText("Tap start and describe your food.", { exact: true })).toBeVisible();
   await expect(page.getByText("Tap start to talk about this food.", { exact: true })).toHaveCount(0);
@@ -161,7 +161,9 @@ test("scans a food, asks a typed question, logs the meal, and persists it", asyn
 
   // spec 23: the Food Compass score sits above the flag chips, badged as a label estimate.
   await expect(page.getByTestId("food-verdict")).toContainText("Food Compass score");
-  await expect(page.locator('[data-guidance-scope="general"]')).toContainText("Food Compass only");
+  await expect(page.locator('[data-guidance-scope="general"]')).toContainText(
+    "General nutrition advice — not based on your readings or health history."
+  );
   // Shown twice on purpose: the viewfinder badge and the score row on the card.
   await expect(page.getByText("Estimate from label")).toHaveCount(2);
   await expect(page.getByText("Better options")).toBeVisible();

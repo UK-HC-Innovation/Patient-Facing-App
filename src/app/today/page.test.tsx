@@ -55,6 +55,10 @@ describe("TodayPage nutrition loop", () => {
     expect(screen.getByRole("heading", { name: "Week in Food" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Check your blood sugar" })).toBeInTheDocument();
     const mainText = screen.getByRole("main").textContent ?? "";
+    // indexOf returns -1 for a missing needle, which would silently invert the ordering
+    // comparison below if either title ever changes.
+    expect(mainText).toContain("Home composer");
+    expect(mainText).toContain("Week in Food");
     expect(mainText.indexOf("Home composer")).toBeLessThan(mainText.indexOf("Week in Food"));
   });
 

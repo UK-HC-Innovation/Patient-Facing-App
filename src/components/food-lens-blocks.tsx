@@ -36,15 +36,12 @@ export function FoodVerdict({
   language,
   score,
   foodName,
-  carveOutReason,
-  tierBadge = null
+  carveOutReason
 }: {
   language: Language;
   score: CompassScore | null;
   foodName: string | null;
   carveOutReason: NotScoreableReason | null;
-  /** The T2 estimate caveat, kept beside the number it qualifies. */
-  tierBadge?: ReactNode;
 }) {
   // The sticky strip prints the food's name once the viewfinder is gone, so the verdict
   // stops printing it: the name appears exactly once on any screenful.
@@ -56,7 +53,6 @@ export function FoodVerdict({
         <p className="text-[21px] font-semibold leading-tight tracking-tight">
           {t(language, carveOutStringKey(carveOutReason))}
         </p>
-        <p className="text-[15px] leading-normal text-ink/70">{t(language, "carveOutNoNumber")}</p>
       </section>
     );
   }
@@ -97,7 +93,11 @@ export function FoodVerdict({
         </p>
         <p className="mt-0.5 text-[13px] font-semibold text-ink/55">{t(language, "verdictOutOf100")}</p>
         <p className="mt-0.5 text-[11px] font-medium text-ink/60">{t(language, "compassScoreLabel")}</p>
-        {tierBadge}
+        {score.tier === "T2" ? (
+          <span className="mt-1 inline-block rounded-control bg-calm px-2 py-1 text-[11px] font-semibold text-care">
+            {t(language, "compassEstimateBadge")}
+          </span>
+        ) : null}
       </div>
     </section>
   );

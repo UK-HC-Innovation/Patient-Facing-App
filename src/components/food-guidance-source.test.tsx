@@ -4,20 +4,21 @@ import { describe, expect, it } from "vitest";
 import { FoodGuidanceSource } from "./food-guidance-source";
 
 describe("FoodGuidanceSource", () => {
-  it("labels general guidance and states that health data is not used", () => {
+  // The provenance sentence is the accessible name now: an aria-label on this <p> could be
+  // announced instead of the sentence itself, so the copy has to be readable on its own.
+  it("marks general guidance and states that health data is not used", () => {
     render(<FoodGuidanceSource kind="general" />);
 
-    const source = screen.getByLabelText("Guidance source");
+    const source = screen.getByText(/General nutrition advice/);
     expect(source).toHaveAttribute("data-guidance-scope", "general");
-    expect(source).toHaveTextContent("Food Compass only");
-    expect(source).toHaveTextContent("no recent readings or health profile used");
+    expect(source).toHaveTextContent("not based on your readings or health history");
   });
 
-  it("labels personalized guidance in Spanish", () => {
+  it("marks personalized guidance in Spanish", () => {
     render(<FoodGuidanceSource kind="personalized" language="es" />);
 
-    const source = screen.getByLabelText("Fuente de la orientación");
+    const source = screen.getByText(/tus lecturas recientes/);
     expect(source).toHaveAttribute("data-guidance-scope", "personalized");
-    expect(source).toHaveTextContent("considera tus lecturas recientes");
+    expect(source).toHaveTextContent("tu historial de salud");
   });
 });

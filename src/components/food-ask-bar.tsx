@@ -51,7 +51,6 @@ export function FoodAskBar({
     return (
       <form className="grid gap-2" onSubmit={submit}>
         <AiDataDisclosure compact language={language} mode={dataMode} />
-        <p className="text-sm text-ink/70">{t(language, "holdToTalkHint")}</p>
         <p className="text-sm text-ink/70">{t(language, "liveTypedHint")}</p>
         <input
           aria-label={t(language, "askPlaceholder")}

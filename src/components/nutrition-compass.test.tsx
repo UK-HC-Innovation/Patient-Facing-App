@@ -24,8 +24,8 @@ describe("NutritionCompass", () => {
   it("shows a camera-first waiting state before a food is identified", () => {
     render(<NutritionCompass />);
 
-    expect(screen.getByRole("region", { name: "Food Compass score vs calorie density" })).toBeInTheDocument();
-    expect(screen.getByText("Point the camera at a food to place it on the chart.")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Score and calories" })).toBeInTheDocument();
+    expect(screen.getByText("Point the camera at a food.")).toBeInTheDocument();
     expect(screen.queryByTestId("nutrition-compass-marker")).not.toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
@@ -38,7 +38,7 @@ describe("NutritionCompass", () => {
     expect(marker).toHaveAttribute("data-y-percent", "9.9");
     expect(marker).toHaveAttribute("data-quadrant", "choose_often");
     expect(
-      screen.getByText(/Banana, raw: 83 \/ 100 Food Compass score · 0.89 kcal\/g \(89 kcal \/ 100 g\) · Choose often quadrant/)
+      screen.getByText(/Banana, raw: scores 83 out of 100 · 0.89 calories per gram \(89 per 100 g\) · Choose often\./)
     ).toBeInTheDocument();
   });
 
@@ -51,20 +51,19 @@ describe("NutritionCompass", () => {
     );
 
     expect(screen.queryByTestId("nutrition-compass-marker")).not.toBeInTheDocument();
-    expect(screen.getByText("Calorie density unavailable")).toBeInTheDocument();
-    expect(screen.getByText(/Published legacy food: 83 \/ 100 Food Compass score · calorie density unavailable/)).toBeInTheDocument();
+    expect(screen.getByText("Calories per gram unknown")).toBeInTheDocument();
+    expect(screen.getByText(/Published legacy food: scores 83 out of 100 · calories per gram unknown\./)).toBeInTheDocument();
   });
 
   it("localizes chart chrome and the deterministic caption in Spanish", () => {
     render(<NutritionCompass foodName="Banana, raw" language="es" score={bananaScore} />);
 
     const chart = screen.getByRole("region", {
-      name: "Puntaje Food Compass frente a densidad calórica"
+      name: "Puntaje y calorías"
     });
-    expect(chart).toHaveTextContent("X: puntaje Food Compass · Y: densidad calórica (kcal/g)");
     expect(chart).toHaveTextContent("Elige con frecuencia");
     expect(chart).toHaveTextContent(
-      "Banana, raw: puntaje Food Compass 83 de 100 · 0.89 kcal/g (89 kcal / 100 g) · cuadrante Elige con frecuencia."
+      "Banana, raw: obtiene 83 de 100 · 0.89 calorías por gramo (89 por 100 g) · Elige con frecuencia."
     );
   });
 

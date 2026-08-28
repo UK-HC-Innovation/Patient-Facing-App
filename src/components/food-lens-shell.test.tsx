@@ -78,7 +78,7 @@ describe("FoodLensShell", () => {
       }
     });
 
-    const content = screen.getByRole("region", { name: "Food details" });
+    const content = screen.getByRole("region", { name: "About this food" });
     expect(content.textContent).toBe("verdict blocknutrients blockattribution block");
     expect(screen.queryByText("chart block")).not.toBeInTheDocument();
     expect(FOOD_LENS_SLOT_ORDER.indexOf("verdict")).toBeLessThan(FOOD_LENS_SLOT_ORDER.indexOf("attribution"));

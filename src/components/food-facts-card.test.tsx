@@ -46,7 +46,7 @@ describe("FoodFactsCard", () => {
     render(<FoodFactsCard food={soup} flags={flags} logged={false} canLog onLog={() => {}} language="en" {...portionProps} />);
     expect(screen.getByText("Campbell's Chicken Noodle Soup")).toBeInTheDocument();
     expect(screen.getByText(/890 mg sodium/)).toBeInTheDocument();
-    expect(screen.getByText(/Personalized: considers your recent readings and health profile/)).toBeInTheDocument();
+    expect(screen.getByText(/Based on your recent readings and health history/)).toBeInTheDocument();
   });
 
   it("calls onLog when the log button is pressed", async () => {
@@ -128,12 +128,12 @@ describe("FoodFactsCard", () => {
 
     render(<PortionHarness />);
 
-    expect(screen.getByText("Assuming 1 serving(s) - tap to change.")).toBeInTheDocument();
+    expect(screen.getByText("Set to 1 servings — tap to change.")).toBeInTheDocument();
     expect(screen.getByText("60")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Increase servings" }));
 
-    expect(screen.getByText("Assuming 2 serving(s) - tap to change.")).toBeInTheDocument();
+    expect(screen.getByText("Set to 2 servings — tap to change.")).toBeInTheDocument();
     expect(screen.getByText("120")).toBeInTheDocument();
   });
 
@@ -228,7 +228,7 @@ describe("FoodFactsCard", () => {
     );
 
     expect(screen.getByText("Today so far")).toBeInTheDocument();
-    expect(screen.getByText("Some logged foods are missing this value.")).toBeInTheDocument();
+    expect(screen.getByText("Some foods you logged don't have this number.")).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: /Sodium/ }).firstElementChild).toHaveAttribute(
       "data-tone",
       "amber"
@@ -251,7 +251,7 @@ describe("FoodFactsCard", () => {
       />
     );
 
-    expect(screen.getByText("large ≈ 1.5 servings — adjust?")).toBeInTheDocument();
+    expect(screen.getByText("A large is about 1.5 servings — change it?")).toBeInTheDocument();
   });
 
   it("offers deterministic correction chips for camera matches only", async () => {
@@ -322,17 +322,17 @@ describe("FoodFactsCard — Food Compass row", () => {
 
     expect(screen.getByText("19")).toBeInTheDocument();
     expect(screen.getByText("Minimize")).toBeInTheDocument();
-    expect(screen.getByText(/General nutrition: Food Compass only/)).toBeInTheDocument();
+    expect(screen.getByText(/General nutrition advice — not based on your readings or health history/)).toBeInTheDocument();
     expect(screen.getByText("Estimate from label")).toBeInTheDocument();
     expect(screen.getByText("Why this score?")).toBeInTheDocument();
     expect(screen.getByText("Minerals")).toBeInTheDocument();
     expect(screen.getByText("-5")).toBeInTheDocument();
-    expect(screen.getByText(/Not assessable: Vitamins, Food ingredients/)).toBeInTheDocument();
+    expect(screen.getByText(/No data for: Vitamins, Food ingredients/)).toBeInTheDocument();
     // score 19 with no closer better option: saying "already one of the best" would be a lie
-    expect(screen.getByText(/No closer option with a higher score/)).toBeInTheDocument();
+    expect(screen.getByText(/Nothing similar scores higher/)).toBeInTheDocument();
   });
 
-  it("labels a T1 breakdown as an estimate while preserving the published score", () => {
+  it("shows an estimated T1 breakdown beside the published score", () => {
     render(
       <FoodFactsCard
         canLog
@@ -352,10 +352,9 @@ describe("FoodFactsCard — Food Compass row", () => {
     );
 
     expect(screen.getByText("83")).toBeInTheDocument();
-    expect(screen.getByText(/published number stands/i)).toBeInTheDocument();
     expect(screen.getByText("+4.3")).toBeInTheDocument();
-    expect(screen.getByText(/Not assessable: Food ingredients/)).toBeInTheDocument();
-    expect(screen.getByText(/Only partly assessable: Additives, Phytochemicals/)).toBeInTheDocument();
+    expect(screen.getByText(/No data for: Food ingredients/)).toBeInTheDocument();
+    expect(screen.getByText(/Partial data for: Additives, Plant nutrients/)).toBeInTheDocument();
   });
 
   it("offers a localized favorite toggle for T1 scores only", async () => {

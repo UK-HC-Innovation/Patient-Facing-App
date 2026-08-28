@@ -1,4 +1,4 @@
-// Kept out of layout.tsx: the client page needs this string too, and importing it from the
-// layout would drag a module that exports `metadata` into the client graph, which Next
-// rejects. One constant, so renaming the preview stays a one-line change.
-export const COMPASS_PAGE_TITLE = "Food Lens functional prototype";
+// Feeds `metadata.title` in layout.tsx and nothing else: the client page renders
+// t(language, "compassPageTitle") instead. The two say the same words with nothing keeping
+// them in sync, so change both together.
+export const COMPASS_PAGE_TITLE = "Food Lens";

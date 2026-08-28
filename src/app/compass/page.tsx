@@ -16,6 +16,9 @@ import {
   FoodWhyScore
 } from "@/components/food-lens-blocks";
 import { useFoodCamera } from "@/hooks/use-food-camera";
+import { usePasscode } from "@/hooks/use-passcode";
+import { usePageHideTeardown } from "@/hooks/use-page-hide-teardown";
+import { useWhyScore } from "@/hooks/use-why-score";
 import { useLiveFoodScore, type LiveMatch } from "@/hooks/use-live-food-score";
 import { useFoodVoiceSession } from "@/hooks/use-food-voice-session";
 import {
@@ -34,14 +37,8 @@ import {
 } from "@/domain/food-order-intent";
 import type { NotScoreableReason } from "@/domain/food-compass";
 import type { LiveSessionContext } from "@/ai/types";
-import { t, type FoodLensStringKey, type Language } from "@/i18n/strings";
+import { t, type Language } from "@/i18n/strings";
 import { speak, stopSpeaking } from "@/voice/tts";
-
-const PROTOTYPE_STEPS: readonly [string, FoodLensStringKey][] = [
-  ["1", "compassStepCamera"],
-  ["2", "compassStepTalk"],
-  ["3", "compassStepCompare"]
-] as const;
 
 type FoodCandidate = { code: string; description: string; fcs: number };
 type SortMode = "score" | "density";
@@ -55,7 +52,6 @@ type ConversationTurn = {
   id: string;
   role: "patient" | "assistant";
   text: string;
-  scripted?: boolean;
 };
 
 function sentenceCase(value: string): string {
@@ -72,10 +68,7 @@ function scriptedOpening(match: LiveMatch, language: Language): string {
 export default function CompassPage() {
   const camera = useFoodCamera();
   const { grabFrame, start: startCamera, stop: stopCamera } = camera;
-  const passcode = useMemo(
-    () => (typeof window === "undefined" ? undefined : new URLSearchParams(window.location.search).get("k") ?? undefined),
-    []
-  );
+  const passcode = usePasscode();
 
   // /compass never calls useHealthState. The root layout would hand it a full demo patient
   // with medications and blood-pressure readings, and this page must not carry one.
@@ -88,8 +81,6 @@ export default function CompassPage() {
   const [sortMode, setSortMode] = useState<SortMode>("score");
   const [conversationTurns, setConversationTurns] = useState<ConversationTurn[]>([]);
   const [crisisLocked, setCrisisLocked] = useState(false);
-  const [whyOpen, setWhyOpen] = useState(false);
-  const markerRef = useRef<HTMLButtonElement | null>(null);
   const lastAutoConversationFoodRef = useRef<string | null>(null);
   const shownRef = useRef<ConversationResult | null>(null);
   const voiceResultRef = useRef<ConversationResult | null>(null);
@@ -343,7 +334,7 @@ export default function CompassPage() {
       lastAutoConversationFoodRef.current = liveFoodCode;
       setConversationTurns((turns) => [
         ...turns.slice(-7),
-        { id: crypto.randomUUID(), role: "assistant", text: opening, scripted: true }
+        { id: crypto.randomUUID(), role: "assistant", text: opening }
       ]);
       void speak(opening, { language });
       return;
@@ -375,21 +366,7 @@ export default function CompassPage() {
     void startCamera();
   }, [startCamera]);
 
-  useEffect(() => {
-    const onHidden = () => {
-      if (document.hidden) {
-        stopCamera();
-        stopVoice();
-        stopSpeaking();
-      }
-    };
-    document.addEventListener("visibilitychange", onHidden);
-    window.addEventListener("pagehide", onHidden);
-    return () => {
-      document.removeEventListener("visibilitychange", onHidden);
-      window.removeEventListener("pagehide", onHidden);
-    };
-  }, [stopCamera, stopVoice]);
+  usePageHideTeardown([stopCamera, stopVoice, stopSpeaking]);
 
 
   const matchShown = shown?.kind === "match" ? shown.match : null;
@@ -397,14 +374,9 @@ export default function CompassPage() {
     matchShown?.score ?? null,
     matchShown?.estimatedDomains ?? null
   );
-  const closeWhyScore = useCallback(() => {
-    setWhyOpen(false);
-    markerRef.current?.focus();
-  }, []);
+
   const shownFoodCode = matchShown?.food.code ?? null;
-  useEffect(() => {
-    setWhyOpen(false);
-  }, [shownFoodCode]);
+  const { whyOpen, open: openWhyScore, close: closeWhyScore, markerRef } = useWhyScore(shownFoodCode);
 
   const conversationBlock = (
     <section
@@ -414,9 +386,9 @@ export default function CompassPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold">{t(language, "compassConversationTitle")}</h2>
-          <p className="text-xs text-ink/70">
-            {voiceAvailable ? t(language, "compassConversationLive") : t(language, "compassConversationPreview")}
-          </p>
+          {voiceAvailable ? (
+            <p className="text-xs text-ink/70">{t(language, "compassConversationLive")}</p>
+          ) : null}
         </div>
       </div>
 
@@ -435,9 +407,6 @@ export default function CompassPage() {
                 </span>{" "}
                 {turn.text}
               </p>
-              {turn.scripted ? (
-                <p className="mt-1 text-[11px] text-ink/70">{t(language, "compassScriptedFallback")}</p>
-              ) : null}
             </article>
           ))
         ) : matchShown ? (
@@ -523,9 +492,7 @@ export default function CompassPage() {
               voice.status === "closed"
                 ? t(language, "compassIdleEnded")
                 : matchShown
-                  ? voiceAvailable
-                    ? t(language, "compassIdleStarting")
-                    : t(language, "compassIdleDemo")
+                  ? t(language, "compassIdleStarting")
                   : t(language, "compassIdleAwaiting")
             }
             language={language}
@@ -566,13 +533,6 @@ export default function CompassPage() {
                   foodName={matchShown.food.description}
                   language={language}
                   score={matchShown.score}
-                  tierBadge={
-                    matchShown.score.tier === "T2" ? (
-                      <span className="mt-1 inline-block rounded-control bg-calm px-2 py-1 text-[11px] font-semibold text-care">
-                        {t(language, "compassEstimateBadge")}
-                      </span>
-                    ) : null
-                  }
                 />
               ) : shown?.kind === "none" ? (
                 <FoodNoMatch candidates={[]} language={language} />
@@ -586,7 +546,7 @@ export default function CompassPage() {
               foodName={matchShown.food.description}
               language={language}
               markerRef={markerRef}
-              onMarkerTap={domainBreakdown ? () => setWhyOpen(true) : undefined}
+              onMarkerTap={domainBreakdown ? openWhyScore : undefined}
               score={matchShown.score}
               state={refinementLoading ? "pending" : "idle"}
             />
@@ -768,17 +728,6 @@ export default function CompassPage() {
             <FoodAttribution language={language}>
               <FoodGuidanceSource kind="general" language={language} />
               <p className="text-sm text-ink/65">{t(language, "compassPageDescription")}</p>
-              <ol
-                aria-label={t(language, "compassPrototypeFlow")}
-                className="grid grid-cols-3 gap-2 text-xs font-semibold text-ink/70"
-              >
-                {PROTOTYPE_STEPS.map(([step, labelKey]) => (
-                  <li className="rounded-control bg-calm px-2 py-2 text-center" key={step}>
-                    <span className="mr-1 text-care">{step}</span>
-                    {t(language, labelKey)}
-                  </li>
-                ))}
-              </ol>
               <details className="rounded-control border border-ink/10 bg-white p-3 text-xs text-ink/70">
                 <summary className="cursor-pointer font-semibold text-care">
                   {t(language, "compassHowScoringWorks")}
@@ -786,14 +735,13 @@ export default function CompassPage() {
                 <div className="mt-2 grid gap-1">
                   <p>{t(language, "compassScoreSource")}</p>
                   <p>
-                    {t(language, "compassMethodology")}:{" "}
                     <a
                       className="underline"
                       href="https://arxiv.org/abs/2512.11836"
                       rel="noreferrer noopener"
                       target="_blank"
                     >
-                      arxiv.org/abs/2512.11836
+                      {t(language, "compassMethodology")}
                     </a>
                   </p>
                   <p>{t(language, "compassDisclaimer")}</p>

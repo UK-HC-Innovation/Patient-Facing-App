@@ -16,7 +16,7 @@ test("diabetes-legible loop: time-in-range, food pattern, and a diabetes-complet
   await expect(page.getByRole("heading", { name: "A pattern in your logs" })).toBeVisible();
   await expect(page.getByText(/after higher-carb meals averaged about 65 mg\/dL higher/)).toBeVisible();
   await expect(
-    page.getByText(/after meals with a Food Compass minimize-band item averaged about 65 mg\/dL higher/)
+    page.getByText(/After meals with a low-scoring food, your blood sugar ran about 65 mg\/dL higher/)
   ).toBeVisible();
   await expect(page.getByRole("link", { name: "Check a meal" })).toHaveAttribute("href", "/food");
 

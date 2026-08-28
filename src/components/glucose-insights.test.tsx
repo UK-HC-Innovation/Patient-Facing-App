@@ -33,7 +33,7 @@ const scoreInsight: GlucoseScoreInsight = {
   minimizeSamples: 3,
   otherSamples: 3,
   message:
-    "We noticed your blood-sugar readings after meals with a Food Compass minimize-band item averaged about 60 mg/dL higher than after your other scored meals. This is an observation from your own logs, not a diagnosis — a good thing to mention to your care team."
+    "After meals with a low-scoring food, your blood sugar ran about 60 mg/dL higher than after your other meals. That's what your own logs show, not a diagnosis — worth mentioning to your care team."
 };
 
 describe("GlucoseInsights", () => {
