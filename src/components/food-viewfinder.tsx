@@ -48,7 +48,7 @@ export function FoodViewfinder({
   scoreTier?: "T1" | "T2";
   scoreName?: string;
   onScoreTap?: () => void;
-  /** /food can retry camera permission or acquisition; /compass intentionally keeps its preview fallback. */
+  /** /food can retry camera permission or acquisition; /food/demo intentionally keeps its preview fallback. */
   onCameraRetry?: () => void;
   /** Makes an actionable voice-status message a real, touch-sized control. */
   onVoiceStatusTap?: () => void;

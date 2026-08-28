@@ -2,7 +2,7 @@
 //
 // The two JSON files are ~5 MB together and must never reach a client bundle, which is
 // why nothing in src/components or src/app/**/page.tsx imports this module and why
-// scripts/check-ladder-bundle.mjs enforces per-route budgets for /compass and /food.
+// scripts/check-ladder-bundle.mjs enforces per-route budgets for /food/demo and /food.
 //
 // Read from disk and JSON.parse rather than `import ... from "*.json"`: webpack would
 // otherwise inline 5 MB as a JavaScript object literal, which is far slower to parse at

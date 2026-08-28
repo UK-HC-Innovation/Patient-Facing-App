@@ -65,7 +65,7 @@ export function FoodLensVoiceBar({
   onStart: () => void;
   onStop: () => void;
   onSendText?: (text: string) => void;
-  /** /compass renders no text box at all -- not a hidden one. */
+  /** The public door renders no text box at all -- not a hidden one. */
   typedInput: boolean;
   keyboardPrimary?: boolean;
   idleLabel?: string;

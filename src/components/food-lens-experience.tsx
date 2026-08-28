@@ -103,7 +103,7 @@ export function sharedViewfinderProps(args: {
  * the two slots whose content is identical on both mounts (the verdict and the domain
  * breakdown), and passes the rest through in the shell's fixed order. It never imports the
  * patient store, never reads the route, and receives a crisis only as a rendered node --
- * all three are enforced by scripts/check-compass-store-free.mjs on every check.
+ * all three are enforced by scripts/check-public-door-store-free.mjs on every check.
  */
 export function FoodLensExperience({
   language,

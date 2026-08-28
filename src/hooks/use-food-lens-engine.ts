@@ -24,7 +24,7 @@ export type FoodLensEngine = {
  *
  * What it deliberately does not own: the authority stack. The engine reports what each
  * source currently says; deciding which one wins -- and on what release policy -- is the
- * door's own, because /food's wall-clock correction pin and /compass's scene-stability
+ * door's own, because /food's wall-clock correction pin and /food/demo's scene-stability
  * refinement are two different spending disciplines (docs/specs/26 section 4.1).
  */
 export function useFoodLensEngine(args: {

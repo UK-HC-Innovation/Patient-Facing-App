@@ -75,12 +75,13 @@ assertBudget("Ladder page entry (raw)", pageEntryRaw, budgets.pageEntryRaw);
 // A budget on the two routes that render scores is the enforcement: if src/data/food-compass
 // is ever imported from a client component, these numbers move by megabytes, not kilobytes.
 const compassBudgets = {
+  // The public door is /food/demo since spec 26 P6; /compass is a permanent redirect to it.
   // Measured after spec 23: /compass 162.6 KiB, /food 273.9 KiB gzip. Re-measured after the
   // Food Lens shell rebuild, which cost both routes about 6 KiB of scroll shell, status
   // strip, pinned voice bar and the strings they speak: /compass 186.6 KiB, /food 297.3 KiB.
   // Headroom for normal growth, and still orders of magnitude below the ~1.6 MB a leaked
   // fcs2-foods.json would add -- which is the thing these numbers exist to catch.
-  "/compass/page": 192 * kib,
+  "/food/demo/page": 192 * kib,
   "/food/page": 303 * kib
 };
 

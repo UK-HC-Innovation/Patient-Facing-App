@@ -1,0 +1,19 @@
+{
+  "name": "Food Lens",
+  "short_name": "Food Lens",
+  "description": "Point the camera at a food, see its Food Compass score, and ask a question about it.",
+  "id": "/food/demo",
+  "start_url": "/food/demo",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f6f8fc",
+  "theme_color": "#0033a0",
+  "icons": [
+    {
+      "src": "/food-lens-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -54,7 +54,7 @@ async function scrollViewfinderAway(page: Page) {
 
 test("stops sending frames once the viewfinder scrolls off screen", async ({ page }) => {
   const identifies = await stubIdentify(page);
-  await page.goto("/compass");
+  await page.goto("/food/demo");
 
   await expect(strip(page)).toContainText("Reading the camera", { timeout: 10_000 });
   const before = identifies.image;
@@ -71,7 +71,7 @@ test("stops sending frames once the viewfinder scrolls off screen", async ({ pag
 
 test("scrolling back re-shows the match without a Scan again chip", async ({ page }) => {
   const identifies = await stubIdentify(page);
-  await page.goto("/compass");
+  await page.goto("/food/demo");
 
   await expect(strip(page)).toContainText("Reading the camera", { timeout: 10_000 });
   await scrollViewfinderAway(page);
@@ -89,7 +89,7 @@ test("scrolling back re-shows the match without a Scan again chip", async ({ pag
 
 test("switches the strip between its two modes at one fixed height", async ({ page }) => {
   await stubIdentify(page);
-  await page.goto("/compass");
+  await page.goto("/food/demo");
 
   await expect(strip(page)).toContainText("Reading the camera", { timeout: 10_000 });
   const loopBox = await strip(page).boundingBox();
@@ -122,7 +122,7 @@ test("switches the strip between its two modes at one fixed height", async ({ pa
 
 test("keeps the public mount store-free and gives it no camera button", async ({ page }) => {
   await stubIdentify(page);
-  await page.goto("/compass");
+  await page.goto("/food/demo");
 
   await expect(strip(page)).toContainText("Reading the camera", { timeout: 10_000 });
   await scrollViewfinderAway(page);
@@ -158,7 +158,7 @@ test("opens the domain breakdown from the chart marker and hands focus back on c
       }
     }
   });
-  await page.goto("/compass");
+  await page.goto("/food/demo");
 
   const marker = page.getByTestId("nutrition-compass-marker");
   await expect(marker).toBeVisible({ timeout: 10_000 });
@@ -176,7 +176,7 @@ test("opens the domain breakdown from the chart marker and hands focus back on c
 
 test("names the quadrants in a legend beneath the plot, never in its corners", async ({ page }) => {
   await stubIdentify(page);
-  await page.goto("/compass");
+  await page.goto("/food/demo");
 
   const chart = page.getByRole("region", { name: "Score and calories" });
   await expect(chart).toBeVisible({ timeout: 10_000 });
@@ -193,7 +193,7 @@ test("names the quadrants in a legend beneath the plot, never in its corners", a
 
 test("never lets the shell widen the page, at either end of the viewport range", async ({ page }) => {
   await stubIdentify(page);
-  await page.goto("/compass");
+  await page.goto("/food/demo");
   await expect(strip(page)).toContainText("Reading the camera", { timeout: 10_000 });
 
   // A single unbreakable line inside the pinned bar once widened the document to four

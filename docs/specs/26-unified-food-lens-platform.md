@@ -1,6 +1,6 @@
 # Unified Food Lens Platform — One Engine, Two Doors
 
-> **Status: P0–P5 SHIPPED AND DEPLOYED 2026-08-28; P6 held (see section 8).** Application commit `d584540`; production deployment `dpl_91VJKNgyp5kfWDSUx498pFH3QqNm` at `https://patient-centered.vercel.app`; ledger line in `docs/ops/DEPLOYS.jsonl`. Redeploy with `vercel --prod --archive=tgz`; `git push` does nothing on this project.
+> **Status: P0–P6 COMPLETE. P0–P5 deployed 2026-08-28; P6 (the namespace move) built the same day.** Application commit `d584540`; production deployment `dpl_91VJKNgyp5kfWDSUx498pFH3QqNm` at `https://patient-centered.vercel.app`; ledger line in `docs/ops/DEPLOYS.jsonl`. Redeploy with `vercel --prod --archive=tgz`; `git push` does nothing on this project.
 >
 > **Design provenance:** Authored 2026-08-27 from an adversarial design panel: two code scouts (responsibility diff matrix, constraint sweep), three independent architectures with opposing priors (minimal extraction · radical one-URL · full platform-adapter), three judges (clinical-safety/privacy auditor, pragmatic implementer, product advocate). Every load-bearing claim below was verified against the working tree at `9fb547d`; the two losing designs both contained judge-verified mechanism errors on the authority-stack seam, which is itself a finding this spec records.
 >
@@ -76,7 +76,7 @@ Slots that stay **pure pass-through from the doors** (verified divergent, not un
 5. All `dynamic()` imports stay in `food/page.tsx` so the chunk graph — and both bundle budgets — move minimally.
 6. The doors own their voice configuration entirely (`compass-instructions.ts` / `food-instructions.ts` are never merged — the compass persona's "there is no patient here" is a safety property).
 
-## 3 · The store-free witness — `scripts/check-compass-store-free.mjs` (new, Phase 0)
+## 3 · The store-free witness — `scripts/check-public-door-store-free.mjs` (new, Phase 0; renamed with the route in P6)
 
 Converts spec 24 decision 5 from an e2e-pinned convention into a build-time-proven property. Designed around two verified subtleties that break the naive approaches:
 
@@ -87,7 +87,7 @@ Converts spec 24 decision 5 from an e2e-pinned convention into a build-time-prov
 
 **Negative fixture:** the script also asserts `src/app/food/page.tsx` *does* reach `store.tsx` — permanent proof the walker works.
 
-**Wiring:** `"compass:storefree"` script; `check` becomes `lint && test && compass:storefree && build && bundle:ladder`. `check-ladder-bundle.mjs` is untouched — the ~110 KiB `/food`-minus-`/compass` gzip delta stays as the independent second witness, and the 900 KiB single-chunk trap keeps guarding the 5 MB data assets. ESLint `no-restricted-imports` may be added later for editor feedback but is not the guarantee (not transitive).
+**Wiring:** `"storefree"` script; `check` becomes `lint && test && storefree && build && bundle:ladder`. `check-ladder-bundle.mjs` is untouched — the ~110 KiB `/food`-minus-`/compass` gzip delta stays as the independent second witness, and the 900 KiB single-chunk trap keeps guarding the 5 MB data assets. ESLint `no-restricted-imports` may be added later for editor feedback but is not the guarantee (not transitive).
 
 ## 4 · What deliberately stays per-mount (and the recorded model for ever changing it)
 
@@ -168,10 +168,57 @@ the request fired.
 `family-orientation-interview` and one Playwright legend test each failed once under
 full-suite load and passed immediately in isolation — the documented precedent for this repo.
 
+## 7.2 · P6, as built
+
+The public door moved from `/compass` to `/food/demo` — under the product it is a door onto.
+`src/app/compass/{page,layout,title,page.test}` moved to `src/app/food/demo/`, `e2e/compass.spec.ts`
+became `e2e/food-demo.spec.ts`, and `next.config.mjs` gained a permanent redirect beside the
+existing `/family → /ladder` one. Next carries the query string through, so `?lang=es` survives
+the hop — which two new e2e tests assert, along with the status code being **308** and not a
+temporary 307.
+
+**The move created one new risk, and closed it.** At `/compass` the public door inherited only
+the app root layout. At `/food/demo` it also inherits anything at `src/app/food/layout.tsx` —
+a file that does not exist today, would apply to the public door without appearing anywhere in
+its own directory, and is exactly where someone would put a provider. The store-free witness now
+walks the inherited wrapper chain between the app root and the route, with the root itself the one
+documented exception (it mounts `HealthStateProvider` around everything by design). Both wrapper
+kinds are walked: a `template.tsx` wraps children exactly as a layout does, so it is the same leak
+surface under a different filename. Verified by planting a store-importing `src/app/food/layout.tsx`
+and then a `template.tsx`, and confirming the check fails with the chain printed.
+
+That walk finds nothing today, which made it the easiest thing in the file to delete or mis-seed
+with every gate still green. So `--self-test` now drives it off a stub tree, and one function
+builds the whole seed rather than two spreads that can drift apart. Five mutations were run
+against it — drop `template.tsx`, seed at the app root, walk into the route's own directory, drop
+the wrappers from the seed, drop the route files from the seed — and all five are caught.
+
+**The public door was still advertising the patient app's installed identity.** Next merges
+metadata field by field, so the demo layout declaring only `title` kept the root layout's
+`manifest` and `icons`. Installing the shared link offered "My Health" with the patient icon and
+opened `/today`. `/ladder` hit this exact bug first and fixed it the same way, so the public door
+now ships `public/food-lens.webmanifest` (start_url `/food/demo`, scope `/` so the `/compass`
+redirect still resolves inside the installed window) and `public/food-lens-icon.svg`, pinned by
+`src/app/food/demo/layout.test.tsx`.
+
+**Three capability flags were declared and read nowhere.** `sampleScan` duplicated the hard-coded
+`demoPreview` prop; `plate` and `personalized` read as enforcement while enforcing nothing. All
+three are deleted, and the type's header now records where that enforcement actually lives: the
+import-graph proof, not a boolean a future edit can forget.
+
+Reachability is unchanged: `/food/demo` joins neither the menu nor the route classifier, so the
+public door still cannot be reached from inside the patient app, and the lockstep test never
+notices. The route budget followed the route (`/food/demo/page`, same 192 KiB ceiling, measured
+186.2 KiB).
+
+One naming asymmetry left deliberately: `src/ai/compass-instructions.ts`, `compass-score.tsx`
+and the `compass*` string keys keep their names. Those are Food Compass — the published scoring
+system — not the old URL, and renaming them would be churn with no reader benefit.
+
 ## 8 · Owner decision points
 
 1. **Approve P0–P4** (the engine + identity — no product-visible change, decision 5 strengthened to a build-time proof). *Recommended: yes.*
 2. **P5 parity on `/food`** — the first user-visible payoff of unification. *Recommended: yes.*
-3. **P6 namespace move** (`/compass` → `/food/demo` + permanent redirect) — the step that makes "one platform" legible externally. Reopens only the spec-23 URL framing; the old link never breaks. *Recommended: yes, after P5 has soaked.*
+3. **P6 namespace move** (`/compass` → `/food/demo` + permanent redirect) — ✅ **done** (see §7.2). The old link never breaks: 308 with the query string preserved, asserted in `e2e/food-demo.spec.ts`.
 4. **Sort modes on `/food`** — *recommended: no* (phone-fit), capability stays one flip away.
 5. **Authority-stack unification** — *recommended: not now.* If ever, as its own spec starting from the §4.1 model.

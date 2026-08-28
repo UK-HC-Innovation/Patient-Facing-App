@@ -44,7 +44,7 @@ async function stubCameraMatch(page: Page, match = bananaMatch) {
 test("keeps the camera in place and starts the food conversation automatically", async ({ page }) => {
   await stubRealtime(page);
   await stubCameraMatch(page);
-  await page.goto("/compass");
+  await page.goto("/food/demo");
 
   // The verdict says band, sentence and number; the food name rides its subline.
   await expect(page.getByTestId("food-verdict")).toContainText("Banana, raw", { timeout: 10_000 });
@@ -61,7 +61,7 @@ test("keeps the camera in place and starts the food conversation automatically",
 test("plots Food Compass on X and calorie density on Y in one of four quadrants", async ({ page }) => {
   await stubRealtime(page);
   await stubCameraMatch(page);
-  await page.goto("/compass");
+  await page.goto("/food/demo");
 
   const chart = page.getByRole("region", { name: "Score and calories" });
   await expect(chart).toBeVisible({ timeout: 10_000 });
@@ -106,7 +106,7 @@ test("understands restaurant details spoken after the camera sees pizza", async 
 test("keeps general guidance explicit through the camera-first flow", async ({ page }) => {
   await stubRealtime(page);
   await stubCameraMatch(page);
-  await page.goto("/compass");
+  await page.goto("/food/demo");
 
   await expect(page.getByRole("heading", { name: "Food Lens" })).toBeVisible();
   await expect(page.locator('[data-guidance-scope="general"]').first()).toContainText(
@@ -119,7 +119,7 @@ test("keeps general guidance explicit through the camera-first flow", async ({ p
 test("localizes the stateless camera-first flow in Spanish", async ({ page }) => {
   await stubRealtime(page);
   await stubCameraMatch(page);
-  await page.goto("/compass?lang=es");
+  await page.goto("/food/demo?lang=es");
 
   await expect(page.getByRole("heading", { name: "Lente de Comida" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Cámara de alimentos" })).toBeVisible();
@@ -141,7 +141,7 @@ test("shows a carve-out without collapsing the camera or inventing a score", asy
       body: JSON.stringify({ mode: "carve_out", reason: "zero_calorie" })
     });
   });
-  await page.goto("/compass");
+  await page.goto("/food/demo");
 
   await expect(
     page.getByRole("region", { name: "Score for this food" }).getByText(/Water is the best choice there is/)
@@ -154,4 +154,33 @@ test("shows a carve-out without collapsing the camera or inventing a score", asy
     page.getByRole("region", { name: "Score for this food" }).getByText("Food Compass score", { exact: true })
   ).toHaveCount(0);
   await expect(page.getByTestId("nutrition-compass-marker")).toHaveCount(0);
+});
+
+/**
+ * The public door moved to /food/demo in spec 26 P6. The old link is in the wild -- it was
+ * shared outside the project -- so these are the assertions that say it never breaks.
+ */
+test("keeps the shared /compass link working, query string and all", async ({ page }) => {
+  await stubRealtime(page);
+  await stubCameraMatch(page);
+
+  const landed = await page.goto("/compass");
+  expect(landed?.status()).toBe(200);
+  expect(new URL(page.url()).pathname).toBe("/food/demo");
+  await expect(page.getByRole("region", { name: "Food camera" })).toBeVisible();
+
+  // The language a recipient was sent in has to survive the hop, or a Spanish-speaking
+  // reader lands on an English page.
+  await page.goto("/compass?lang=es");
+  const spanish = new URL(page.url());
+  expect(spanish.pathname).toBe("/food/demo");
+  expect(spanish.searchParams.get("lang")).toBe("es");
+  await expect(page.getByRole("region", { name: "Cámara de alimentos" })).toBeVisible();
+});
+
+test("answers the old link with a permanent redirect, not a temporary one", async ({ request }) => {
+  // 308, so caches and search engines are told the move is real.
+  const response = await request.get("/compass", { maxRedirects: 0 });
+  expect(response.status()).toBe(308);
+  expect(response.headers().location).toBe("/food/demo");
 });

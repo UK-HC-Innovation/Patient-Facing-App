@@ -58,16 +58,18 @@ export const FOOD_LENS_SLOT_ORDER: readonly FoodLensSlot[] = [
  * Every difference between the two mounts is a capability, not a route check. No
  * `if (pathname)` anywhere in the shell -- that is what keeps the public mount's
  * store-free, input-shape-frozen contract testable from the outside.
+ *
+ * Only rendering differences live here. The bigger difference -- that the public door never
+ * touches the patient record at all -- is not a flag, because a flag can be forgotten. It is
+ * an import-graph proof in `scripts/check-public-door-store-free.mjs`, which fails the build
+ * if anything the public door ships can reach the store. Plate, portions, day totals, flags
+ * and favourites are all that record, so they are covered there rather than by a boolean
+ * here; the shared layer has no render site for them either way, since the doors pass their
+ * own slots.
  */
 export type FoodLensCapabilities = {
   /** Typed input alongside voice (F4). */
   typedInput: boolean;
-  /** Plate, portions and day totals. */
-  plate: boolean;
-  /** Personalized flags, logging and favourites. */
-  personalized: boolean;
-  /** A deterministic sample scan when the camera is unavailable. */
-  sampleScan: boolean;
   /** The camera button in the status strip. Off where there is nowhere else to be. */
   stripCameraButton: boolean;
   /** The visibility gate. */
@@ -82,9 +84,6 @@ export type FoodLensCapabilities = {
 
 export const FOOD_LENS_CAPABILITIES: FoodLensCapabilities = {
   typedInput: true,
-  plate: true,
-  personalized: true,
-  sampleScan: false,
   stripCameraButton: true,
   gate: true,
   chartPlaceholder: false
@@ -92,9 +91,6 @@ export const FOOD_LENS_CAPABILITIES: FoodLensCapabilities = {
 
 export const COMPASS_CAPABILITIES: FoodLensCapabilities = {
   typedInput: false,
-  plate: false,
-  personalized: false,
-  sampleScan: true,
   stripCameraButton: false,
   gate: true,
   chartPlaceholder: true
@@ -203,9 +199,9 @@ function FoodLensStatusStrip({
 /**
  * One scroll surface: viewfinder, sticky strip, the block slots, pinned voice bar.
  *
- * Wide viewports get a clamp rather than a layout -- /compass is public, so desktop
- * arrivals are certain, and one 480px column keeps the sticky geometry and the gate
- * thresholds identical to the phone.
+ * Wide viewports get a clamp rather than a layout -- the public door's link gets shared
+ * outside the project, so desktop arrivals are certain, and one 480px column keeps the
+ * sticky geometry and the gate thresholds identical to the phone.
  *
  * Nothing inside the scroller uses `backdrop-filter` or a `drop-shadow` filter. Both were
  * accomplices in a scroll that saturated the main thread; a viewfinder that scrolls is a

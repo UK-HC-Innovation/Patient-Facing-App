@@ -36,7 +36,7 @@ export function useFoodVoiceSession(args: {
   getContext: () => LiveSessionContext;
   onFinalTranscript: (role: "patient" | "assistant", text: string) => void;
   onSafetyIntercept: (intercept: VoiceSafetyIntercept) => void;
-  // Optional overrides so a surface with no patient (/compass) can reuse the whole voice
+  // Optional overrides so a surface with no patient (/food/demo) can reuse the whole voice
   // stack — token, safety gate, output guard — with its own persona and context. Omitted,
   // /food behaves exactly as before.
   buildInstructions?: (state: AppState) => string;
@@ -66,7 +66,7 @@ export function useFoodVoiceSession(args: {
   requestContextResponse: () => void;
 } {
   const { language, getState, getContext, onFinalTranscript, onSafetyIntercept } = args;
-  // Held in refs, not read from the closure: /compass rebuilds these every render (its
+  // Held in refs, not read from the closure: /food/demo rebuilds these every render (its
   // context closes over whichever food is on screen), and start() is a useCallback. Read
   // straight from args and a session started once would keep answering with the first
   // render's food forever.

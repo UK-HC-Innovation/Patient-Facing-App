@@ -7,7 +7,7 @@ import { buildCompassContext } from "./food-instructions";
 export const COMPASS_PROMPT_VERSION = "compass-v0.3-2026-08-19";
 
 /**
- * The /compass voice persona.
+ * The public door's voice persona.
  *
  * Deliberately not the food-lens persona: there is no patient here, no care plan to speak
  * of and no medications, so anything that reads a patient's history would be inventing
@@ -34,7 +34,7 @@ export function buildCompassInstructions(language: Language = "en"): string {
   ].join("\n\n");
 }
 
-/** The camera context for /compass: the deterministic score, and nothing about a patient. */
+/** The camera context for the public door: the deterministic score, and nothing about a patient. */
 export function buildCompassVoiceContext(
   compass: CompassContext | null,
   foodName: string | null,

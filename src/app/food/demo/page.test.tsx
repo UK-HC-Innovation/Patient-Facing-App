@@ -86,7 +86,7 @@ vi.mock("@/hooks/use-food-voice-session", () => ({
 
 describe("CompassPage camera-first conversation", () => {
   beforeEach(() => {
-    window.history.replaceState({}, "", "/compass");
+    window.history.replaceState({}, "", "/food/demo");
     mocks.onFinalTranscript = null;
     mocks.beforePatientResponse = null;
     mocks.getContext = null;
@@ -171,7 +171,7 @@ describe("CompassPage camera-first conversation", () => {
   });
 
   it("uses Spanish chrome from the mount-time query without adding a text input", () => {
-    window.history.replaceState({}, "", "/compass?lang=es");
+    window.history.replaceState({}, "", "/food/demo?lang=es");
 
     render(<CompassPage />);
 
@@ -189,7 +189,7 @@ describe("CompassPage camera-first conversation", () => {
 });
 
 /**
- * Behaviors the /compass door owns today that nothing pinned before spec 26 P1.
+ * Behaviors the public door owns today that nothing pinned before spec 26 P1.
  *
  * They are the reason the authority stack stays per-mount: a spoken refinement suppresses
  * the camera frame and releases only on scene stability, which is a different spending
@@ -201,7 +201,7 @@ describe("CompassPage spoken-refinement authority", () => {
   // does not reach them, so without it a leaked banana match makes the pizza precondition
   // silently untrue and the refinement assertions run against the wrong scene.
   beforeEach(() => {
-    window.history.replaceState({}, "", "/compass");
+    window.history.replaceState({}, "", "/food/demo");
     mocks.onFinalTranscript = null;
     mocks.beforePatientResponse = null;
     mocks.getContext = null;

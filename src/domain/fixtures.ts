@@ -170,11 +170,11 @@ export const deletedDemoState: AppState = {
 };
 
 /**
- * The state /compass runs on.
+ * The state the public door runs on.
  *
  * The root layout wraps every route in HealthStateProvider, which seeds a full demo
  * patient with medications and blood-pressure readings. A shareable food-scoring page
- * that touched that state would leak a fictional patient into its prompts, so /compass
+ * that touched that state would leak a fictional patient into its prompts, so the public door
  * builds this instead: no medications, no readings, no history, and a care plan that
  * exists only because grounding requires the provider to cite a carePlan.id before any
  * clinical-adjacent phrasing is allowed through.

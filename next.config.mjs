@@ -43,6 +43,14 @@ const nextConfig = {
         source: "/family",
         destination: "/ladder",
         permanent: true
+      },
+      {
+        // The public Food Lens door moved under the product it is a door onto. This link is
+        // in the wild -- shared outside the project -- so it keeps working forever. Next
+        // carries the query string through, which is what preserves ?lang=es.
+        source: "/compass",
+        destination: "/food/demo",
+        permanent: true
       }
     ];
   }

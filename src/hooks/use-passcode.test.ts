@@ -12,12 +12,12 @@ describe("readPasscode", () => {
   });
 
   it("is undefined with no passcode, which is how production runs", () => {
-    window.history.replaceState({}, "", "/compass");
+    window.history.replaceState({}, "", "/food/demo");
     expect(readPasscode()).toBeUndefined();
   });
 
   it("survives other query parameters", () => {
-    window.history.replaceState({}, "", "/compass?lang=es&k=Tama");
+    window.history.replaceState({}, "", "/food/demo?lang=es&k=Tama");
     expect(readPasscode()).toBe("Tama");
   });
 

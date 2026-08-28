@@ -68,7 +68,7 @@ export default function CompassPage() {
   const { camera, live, passcode } = useFoodLensEngine({ crisis: crisisLocked });
   const { grabFrame, stop: stopCamera } = camera;
 
-  // /compass never calls useHealthState. The root layout would hand it a full demo patient
+  // This door never calls useHealthState. The root layout would hand it a full demo patient
   // with medications and blood-pressure readings, and this page must not carry one.
   const state = useMemo(() => blankCompassState(), []);
   const stateRef = useRef(state);
