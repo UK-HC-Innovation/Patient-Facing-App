@@ -57,7 +57,10 @@ const MAX_PLATE_GRAMS = 2_000;
  */
 export const CARB_RANGE_BAND = 0.3;
 
-const MIN_PROPOSED_SERVINGS = 0.5;
+/** The floor the plate steppers already assume, and the floor a halving chip stops at. */
+export const MIN_PLATE_SERVINGS = 0.5;
+/** A hand-set ceiling. `changePlateServings` was uncapped before this. */
+export const MAX_PLATE_SERVINGS = 20;
 const MAX_PROPOSED_SERVINGS = 6;
 
 /**
@@ -70,7 +73,42 @@ export function servingsFromGrams(grams: number | null): number | null {
     return null;
   }
   const halfSteps = Math.round((grams / 100) * 2) / 2;
-  return Math.min(MAX_PROPOSED_SERVINGS, Math.max(MIN_PROPOSED_SERVINGS, halfSteps));
+  return Math.min(MAX_PROPOSED_SERVINGS, Math.max(MIN_PLATE_SERVINGS, halfSteps));
+}
+
+export function clampPlateServings(servings: number): number {
+  if (!Number.isFinite(servings)) {
+    return MIN_PLATE_SERVINGS;
+  }
+  return Math.min(MAX_PLATE_SERVINGS, Math.max(MIN_PLATE_SERVINGS, servings));
+}
+
+/**
+ * The chips deliberately do NOT snap to half steps. Halving 1.5 to 0.75 and doubling it back
+ * has to land on 1.5 exactly, and a snap would send it to 1 and then 2. Nutrition is derived
+ * from the unscaled food every render, so the odd fraction costs nothing.
+ */
+export function halvePlateServings(servings: number): number {
+  return Math.max(MIN_PLATE_SERVINGS, servings * 0.5);
+}
+
+export function doublePlateServings(servings: number): number {
+  return Math.min(MAX_PLATE_SERVINGS, servings * 2);
+}
+
+/**
+ * Any correction -- a chip, a stepper tap, even "About right" -- is the patient taking
+ * ownership of the portion. That flips the origin, which is what retires the chips and the
+ * photo-estimate copy for that item.
+ */
+export function withPlateServings<
+  T extends { servings: number; portion?: { origin: "vision" | "user"; basis: string | null } }
+>(item: T, servings: number): T {
+  const next = clampPlateServings(servings);
+  if (!item.portion || item.portion.origin === "user") {
+    return { ...item, servings: next };
+  }
+  return { ...item, servings: next, portion: { ...item.portion, origin: "user" } };
 }
 
 // Each field fails independently to null, following the label-extraction schema: one

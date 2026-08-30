@@ -41,7 +41,7 @@ import { computeFoodFlags, type FoodFlag } from "@/domain/food-flags";
 import { foodHistoryVoiceLine, lastTimeYouAte } from "@/domain/glucose-correlation";
 import { buildMealLogEntry } from "@/domain/meal-log";
 import { buildPlateEntries, formatPlateContext, summarizePlate, type PlateItem } from "@/domain/plate";
-import type { PlateCandidate, PlateResponse } from "@/domain/plate-scan";
+import { withPlateServings, type PlateCandidate, type PlateResponse } from "@/domain/plate-scan";
 import { recentFoodPicks } from "@/domain/food-recents";
 import { resolvePortionServings, scaleNutrition } from "@/domain/portion";
 import { foodLookupResponseSchema, mealLogEntrySchema } from "@/domain/schemas";
@@ -519,7 +519,7 @@ export default function FoodPage() {
 
   const changePlateServings = useCallback((index: number, servings: number) => {
     setPlateItems((items) =>
-      items.map((item, itemIndex) => (itemIndex === index ? { ...item, servings } : item))
+      items.map((item, itemIndex) => (itemIndex === index ? withPlateServings(item, servings) : item))
     );
   }, []);
 

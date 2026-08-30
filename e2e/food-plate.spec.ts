@@ -265,3 +265,20 @@ test("says the scan needs a key rather than failing silently", async ({ page }) 
   await expect(page.getByText("Plate scan needs the live camera key.")).toBeVisible();
   await expect(page.getByTestId("plate-card")).toHaveCount(0);
 });
+
+test("corrects a photo portion in one tap and then stops offering to", async ({ page }) => {
+  await stubPlateDoor(page);
+  await page.goto("/food");
+  await scan(page);
+
+  const plate = page.getByTestId("plate-card");
+  const quinoa = plate.getByTestId("plate-item").first();
+  await expect(quinoa.getByText("1.5 serving(s)")).toBeVisible();
+
+  await quinoa.getByRole("button", { name: "Half that", exact: true }).click();
+  // Halving 1.5 lands on 0.75, which the servings label rounds for display only.
+  await expect(quinoa.getByText("0.8 serving(s)")).toBeVisible();
+  // The portion is the patient's now, so the app stops second-guessing it.
+  await expect(quinoa.getByTestId("plate-item-portion-chips")).toHaveCount(0);
+  await expect(plate.getByTestId("plate-item-portion-chips")).toHaveCount(1);
+});

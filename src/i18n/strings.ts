@@ -48,6 +48,9 @@ export type FoodLensStringKey =
   | "portionLabel"
   | "portionDecrease"
   | "portionIncrease"
+  | "portionChipHalf"
+  | "portionChipAbout"
+  | "portionChipDouble"
   | "nutritionCalories"
   | "nutritionSodium"
   | "nutritionCarbs"
@@ -334,6 +337,9 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     portionLabel: "Servings",
     portionDecrease: "Decrease servings",
     portionIncrease: "Increase servings",
+    portionChipHalf: "Half that",
+    portionChipAbout: "About right",
+    portionChipDouble: "Double it",
     nutritionCalories: "Calories",
     nutritionSodium: "Sodium",
     nutritionCarbs: "Carbs",
@@ -621,6 +627,9 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     portionLabel: "Porciones",
     portionDecrease: "Disminuir porciones",
     portionIncrease: "Aumentar porciones",
+    portionChipHalf: "La mitad",
+    portionChipAbout: "Así está bien",
+    portionChipDouble: "El doble",
     nutritionCalories: "Calorias",
     nutritionSodium: "Sodio",
     nutritionCarbs: "Carbohidratos",

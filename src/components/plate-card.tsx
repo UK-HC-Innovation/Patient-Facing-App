@@ -4,7 +4,11 @@ import React from "react";
 import type { FoodFlag, FoodFlagSeverity } from "@/domain/food-flags";
 import type { CompassBand } from "@/domain/food-compass";
 import type { PlateItem, PlateSummary } from "@/domain/plate";
-import type { PlateCandidate } from "@/domain/plate-scan";
+import {
+  doublePlateServings,
+  halvePlateServings,
+  type PlateCandidate
+} from "@/domain/plate-scan";
 import { t, type FoodLensStringKey, type Language } from "@/i18n/strings";
 import { FoodGuidanceSource } from "./food-guidance-source";
 
@@ -85,6 +89,16 @@ export function PlateCard({
           const itemCandidates = itemId ? (candidates?.[itemId] ?? []) : [];
           const selectCandidate =
             itemId && onSelectCandidate ? (foodId: string) => onSelectCandidate(itemId, foodId) : null;
+          // The chips are the one-tap correction for a portion the photo guessed. The first
+          // correction of any kind retires them, so the row never argues with itself.
+          const portionChips: Array<{ key: FoodLensStringKey; servings: number }> =
+            item.portion?.origin === "vision"
+              ? [
+                  { key: "portionChipHalf", servings: halvePlateServings(item.servings) },
+                  { key: "portionChipAbout", servings: item.servings },
+                  { key: "portionChipDouble", servings: doublePlateServings(item.servings) }
+                ]
+              : [];
           return (
             <li className="rounded-control border border-ink/10 bg-white p-3" data-testid="plate-item" key={item.id ?? `${item.food.id}-${index}`}>
               <div className="flex items-start justify-between gap-3">
@@ -139,6 +153,20 @@ export function PlateCard({
                   +
                 </button>
               </div>
+              {portionChips.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-2" data-testid="plate-item-portion-chips">
+                  {portionChips.map((chip) => (
+                    <button
+                      className="min-h-11 rounded-full border border-care/25 bg-white px-3 py-1 text-sm font-medium text-care"
+                      key={chip.key}
+                      onClick={() => onServingsChange(index, chip.servings)}
+                      type="button"
+                    >
+                      {t(language, chip.key)}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               {itemCandidates.length > 0 && selectCandidate ? (
                 <div className="mt-2 flex flex-wrap gap-2" data-testid="plate-item-candidates">
                   {itemCandidates.slice(0, 3).map((candidate) => (

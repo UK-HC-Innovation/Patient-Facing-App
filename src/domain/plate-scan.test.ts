@@ -1,10 +1,17 @@
 import { describe, expect, it } from "vitest";
+import { scaleNutrition } from "./portion";
+import type { NutritionFacts } from "./types";
 import {
   CARB_RANGE_BAND,
   MAX_PLATE_FOODS,
+  MAX_PLATE_SERVINGS,
+  clampPlateServings,
+  doublePlateServings,
+  halvePlateServings,
   normalizePlateFoods,
   plateChoiceRows,
-  servingsFromGrams
+  servingsFromGrams,
+  withPlateServings
 } from "./plate-scan";
 
 describe("servingsFromGrams", () => {
@@ -111,5 +118,81 @@ describe("plateChoiceRows", () => {
 describe("CARB_RANGE_BAND", () => {
   it("is the +/-30% band the displayed carb range is built from", () => {
     expect(CARB_RANGE_BAND).toBe(0.3);
+  });
+});
+
+describe("plate servings", () => {
+  it.each([
+    [0.1, 0.5],
+    [0.5, 0.5],
+    [1.5, 1.5],
+    [40, MAX_PLATE_SERVINGS],
+    [Number.NaN, 0.5]
+  ])("clamps %s to %s", (servings, expected) => {
+    expect(clampPlateServings(servings)).toBe(expected);
+  });
+
+  it("halves and doubles within the same bounds", () => {
+    expect(halvePlateServings(1)).toBe(0.5);
+    expect(halvePlateServings(0.5)).toBe(0.5);
+    expect(doublePlateServings(1.5)).toBe(3);
+    expect(doublePlateServings(15)).toBe(MAX_PLATE_SERVINGS);
+  });
+
+  it("round-trips a half-step proposal exactly, because the chips never snap", () => {
+    expect(doublePlateServings(halvePlateServings(1.5))).toBe(1.5);
+  });
+
+  it("flips a photo portion to the patient's own on any correction, including About right", () => {
+    const scanned = { servings: 1.5, portion: { origin: "vision" as const, basis: "about two cups" } };
+    expect(withPlateServings(scanned, 1.5)).toEqual({
+      servings: 1.5,
+      portion: { origin: "user", basis: "about two cups" }
+    });
+    expect(withPlateServings(scanned, 3).portion?.origin).toBe("user");
+  });
+
+  it("clamps through the flip and leaves a hand-built item without a portion alone", () => {
+    const scanned = { servings: 2, portion: { origin: "vision" as const, basis: null } };
+    expect(withPlateServings(scanned, 99).servings).toBe(MAX_PLATE_SERVINGS);
+    expect(withPlateServings({ servings: 1 }, 0.1)).toEqual({ servings: 0.5 });
+  });
+});
+
+describe("portion rounding", () => {
+  const per100g: NutritionFacts = {
+    servingSize: "per 100 g",
+    servingGrams: 100,
+    basis: "per_100g",
+    calories: 120,
+    sodiumMg: 163,
+    potassiumMg: 171,
+    totalSugarsG: 0.87,
+    addedSugarsG: null,
+    saturatedFatG: 0.23,
+    fiberG: 2.8,
+    proteinG: 4.38,
+    carbsG: 21.21,
+    totalFatG: 1.91,
+    monoFatG: 0.526,
+    polyFatG: 1.074,
+    transFatG: null,
+    cholesterolMg: 0,
+    calciumMg: 17,
+    ironMg: 1.48
+  };
+
+  // scaleNutrition rounds to integers and to 0.1 g. Rescaling a scaled value would compound
+  // that; deriving from the unscaled food every time is what keeps a half-then-double exact.
+  it("returns the x1 numbers after halving and doubling", () => {
+    const once = scaleNutrition(per100g, 1);
+    const there = halvePlateServings(1);
+    const back = doublePlateServings(there);
+    expect(scaleNutrition(per100g, back)).toEqual(once);
+  });
+
+  it("stays exact from an odd half-step too", () => {
+    const once = scaleNutrition(per100g, 1.5);
+    expect(scaleNutrition(per100g, doublePlateServings(halvePlateServings(1.5)))).toEqual(once);
   });
 });

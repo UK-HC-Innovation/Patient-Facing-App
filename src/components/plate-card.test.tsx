@@ -101,3 +101,90 @@ describe("PlateCard", () => {
     expect(onLog).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("PlateCard portion chips", () => {
+  const scanned: PlateItem[] = [
+    {
+      id: "scan-1",
+      food,
+      servings: 1.5,
+      compassScore: { fcs: 89, band: "encourage", tier: "T1" },
+      portion: { origin: "vision", basis: "about two cups" }
+    }
+  ];
+
+  function renderCard(items: PlateItem[], onServingsChange = vi.fn()) {
+    render(
+      <PlateCard
+        items={items}
+        summary={summarizePlate(items)}
+        flags={[]}
+        language="en"
+        onServingsChange={onServingsChange}
+        onRemove={vi.fn()}
+        onLog={vi.fn()}
+      />
+    );
+    return onServingsChange;
+  }
+
+  it("names the photo estimate and offers the three corrections", () => {
+    renderCard(scanned);
+    expect(screen.getByText("Photo estimate: about two cups")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Half that" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "About right" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Double it" })).toBeInTheDocument();
+  });
+
+  it("halves and doubles the current servings without snapping", async () => {
+    const user = userEvent.setup();
+    const onServingsChange = renderCard(scanned);
+
+    await user.click(screen.getByRole("button", { name: "Half that" }));
+    expect(onServingsChange).toHaveBeenCalledWith(0, 0.75);
+
+    await user.click(screen.getByRole("button", { name: "Double it" }));
+    expect(onServingsChange).toHaveBeenCalledWith(0, 3);
+  });
+
+  it('sends "About right" through the same path, so a confirmation still retires the chips', async () => {
+    const user = userEvent.setup();
+    const onServingsChange = renderCard(scanned);
+
+    await user.click(screen.getByRole("button", { name: "About right" }));
+    expect(onServingsChange).toHaveBeenCalledWith(0, 1.5);
+  });
+
+  it("hides the chips once the portion is the patient's own", () => {
+    renderCard([{ ...scanned[0], portion: { origin: "user", basis: "about two cups" } }]);
+    expect(screen.queryByTestId("plate-item-portion-chips")).not.toBeInTheDocument();
+    // The basis line stays: it is still where this portion came from.
+    expect(screen.getByText("Photo estimate: about two cups")).toBeInTheDocument();
+  });
+
+  it("shows no chips on a hand-built plate item", () => {
+    renderCard(items);
+    expect(screen.queryByTestId("plate-item-portion-chips")).not.toBeInTheDocument();
+  });
+
+  it("offers candidate rows only while the scan left some, one tap to swap", async () => {
+    const user = userEvent.setup();
+    const onSelectCandidate = vi.fn();
+    render(
+      <PlateCard
+        items={scanned}
+        summary={summarizePlate(scanned)}
+        flags={[]}
+        language="en"
+        onServingsChange={vi.fn()}
+        onRemove={vi.fn()}
+        onLog={vi.fn()}
+        candidates={{ "scan-1": [{ code: "56204010", description: "Quinoa, fat added", fcs: 81 }] }}
+        onSelectCandidate={onSelectCandidate}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Quinoa, fat added" }));
+    expect(onSelectCandidate).toHaveBeenCalledWith("scan-1", "56204010");
+  });
+});
