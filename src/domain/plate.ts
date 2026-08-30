@@ -151,7 +151,11 @@ export function formatPlateContext(items: PlateItem[], summary: PlateSummary): s
       : summary.plateAverage
         ? `Display-only plate average: ${summary.plateAverage.fcs} (${summary.plateAverage.band}). Call this the plate average, never a Food Compass Score for a food.`
         : "Display-only plate average: unavailable.";
-  return `Plate items and per-item Food Compass scores: ${itemLines}. ${averageLine}`;
+  // The two compose: state the numbers exactly AND say where the portions came from.
+  const estimateLine = items.some((item) => item.portion?.origin === "vision")
+    ? " Portions were estimated from a photo; call the carb and calorie numbers rough estimates."
+    : "";
+  return `Plate items and per-item Food Compass scores: ${itemLines}. ${averageLine}${estimateLine}`;
 }
 
 export function buildPlateEntries(args: {

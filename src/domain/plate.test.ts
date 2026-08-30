@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPlateEntries, summarizePlate, type PlateItem } from "./plate";
+import { buildPlateEntries, formatPlateContext, summarizePlate, type PlateItem } from "./plate";
 import type { IdentifiedFood, NutritionFacts } from "./types";
 
 function food(id: string, calories: number | null, carbsG: number | null, sodiumMg = 100): IdentifiedFood {
@@ -85,5 +85,35 @@ describe("buildPlateEntries", () => {
     expect(entries[0].food.nutrition?.carbsG).toBe(20);
     expect(entries[0].servings).toBe(2);
     expect(entries.map((entry) => entry.compassScore?.fcs)).toEqual([20, 80]);
+  });
+});
+
+describe("formatPlateContext photo-portion line", () => {
+  const scannedItem: PlateItem = {
+    id: "scan-1",
+    food: {
+      id: "fndds:56204005",
+      barcode: null,
+      name: "Quinoa, no added fat",
+      brand: null,
+      category: "1000_Grains",
+      nutrition: null,
+      source: "fndds_lookup",
+      ingredientText: null
+    },
+    servings: 1.5,
+    compassScore: { fcs: 89, band: "encourage", tier: "T1" },
+    portion: { origin: "vision", basis: "about two thirds of a cup" }
+  };
+
+  it("tells the coach the portions were estimated, alongside the exact-numbers rule", () => {
+    const line = formatPlateContext([scannedItem], summarizePlate([scannedItem]));
+    expect(line).toContain("Portions were estimated from a photo");
+    expect(line).toContain("rough estimates");
+  });
+
+  it("says nothing about photos once every portion is the patient's own", () => {
+    const owned: PlateItem = { ...scannedItem, portion: { origin: "user", basis: "about two thirds of a cup" } };
+    expect(formatPlateContext([owned], summarizePlate([owned]))).not.toContain("estimated from a photo");
   });
 });

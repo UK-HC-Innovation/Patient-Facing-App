@@ -229,3 +229,54 @@ describe("verifyGrounding", () => {
     expect(result.blockedReasons).toContain("unknown_citation:does-not-exist");
   });
 });
+
+describe("plate-scan safety guards", () => {
+  // A photo carb number is an estimate. Turning it into a dose is the one thing it must
+  // never do, so the shapes that offer that arithmetic are blocked outright.
+  it.each([
+    "You can calculate your insulin dose by dividing 60 grams of carbs by your ratio of 10.",
+    "To cover 45 grams of carbs you would need about 4 units of insulin.",
+    "Figure out your bolus for this plate: it is roughly 30 g of carbs.",
+    "Your insulin-to-carb ratio of 1:10 makes this plate about 3 units.",
+    "Puedo calcular tu insulina: son unos 4 unidades para 45 g."
+  ])("blocks dose-calculation help: %s", (answer) => {
+    const result = verifyGrounding({ answer, sourceFacts: facts, citationIds: ["med-metformin"] });
+    expect(result.allowed).toBe(false);
+    expect(result.blockedReasons).toContain("insulin_dose_calculation");
+  });
+
+  it.each([
+    // The hedge this app itself prints under a scanned plate. If the verifier ever matched
+    // it, every compliant answer would be swapped for the generic fallback.
+    "Carb numbers from a photo are rough. Never use them for insulin math; follow your care team's plan.",
+    "Do not stop or change the dose without asking your clinician.",
+    "This plate has about 30 to 45 g of carbs.",
+    "Insulin is part of your plan, and this plate is about 40 g of carbs."
+  ])("leaves an honest answer alone: %s", (answer) => {
+    const result = verifyGrounding({ answer, sourceFacts: facts, citationIds: ["med-metformin"] });
+    expect(result.blockedReasons).not.toContain("insulin_dose_calculation");
+  });
+
+  it.each([
+    "Yes, this is safe for your peanut allergy.",
+    "That is fine with your celiac.",
+    "This is okay for your child.",
+    "Your 4-year-old can eat this.",
+    "It does not contain any peanuts.",
+    "Su hijo puede comer esto."
+  ])("blocks an allergy or child clearance: %s", (answer) => {
+    const result = verifyGrounding({ answer, sourceFacts: facts, citationIds: ["med-metformin"] });
+    expect(result.allowed).toBe(false);
+    expect(result.blockedReasons).toContain("allergy_or_child_clearance");
+  });
+
+  it.each([
+    "This is high in peanuts.",
+    "Peanut butter is high in fat.",
+    "Peanuts are the first ingredient listed on the label.",
+    "Check the label and ask your care team about the peanut allergy."
+  ])("leaves a plain nutrition statement alone: %s", (answer) => {
+    const result = verifyGrounding({ answer, sourceFacts: facts, citationIds: ["med-metformin"] });
+    expect(result.blockedReasons).not.toContain("allergy_or_child_clearance");
+  });
+});

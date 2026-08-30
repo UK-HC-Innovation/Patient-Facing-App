@@ -5,6 +5,7 @@ import type { FoodFlag, FoodFlagSeverity } from "@/domain/food-flags";
 import type { CompassBand } from "@/domain/food-compass";
 import type { PlateItem, PlateSummary } from "@/domain/plate";
 import {
+  carbRangeGrams,
   doublePlateServings,
   halvePlateServings,
   type PlateCandidate
@@ -68,6 +69,16 @@ export function PlateCard({
     return null;
   }
 
+  // Derived from the UNSCALED ledger row every render: rescaling a scaled value compounds
+  // scaleNutrition's rounding, and the range is never stored anywhere.
+  const carbRanges = items.map((item) =>
+    item.portion?.origin === "vision" && item.food.nutrition?.carbsG !== null &&
+    item.food.nutrition?.carbsG !== undefined
+      ? carbRangeGrams(item.food.nutrition.carbsG * item.servings)
+      : null
+  );
+  const showsCarbEstimate = carbRanges.some((range) => range !== null);
+
   const nutritionRows = summary.nutrition
     ? [
         { key: "nutritionCalories" as const, value: summary.nutrition.calories, unit: "" },
@@ -119,6 +130,14 @@ export function PlateCard({
                   {item.portion?.basis ? (
                     <p className="mt-1 text-xs text-ink/65">
                       {t(language, "platePortionBasis", { basis: item.portion.basis })}
+                    </p>
+                  ) : null}
+                  {carbRanges[index] ? (
+                    <p className="mt-1 text-xs text-ink/65" data-testid="plate-item-carb-range">
+                      {t(language, "plateCarbRange", {
+                        low: carbRanges[index]!.low,
+                        high: carbRanges[index]!.high
+                      })}
                     </p>
                   ) : null}
                 </div>
@@ -221,6 +240,14 @@ export function PlateCard({
             ))}
           </dl>
         </div>
+      ) : null}
+
+      {/* One line for the whole plate, under every lens: the insulin sentence is safe copy
+          for every patient, and the range above it is the reason it has to be here. */}
+      {showsCarbEstimate ? (
+        <p className="mt-2 text-xs text-ink/70" data-testid="plate-carb-estimate-note">
+          {t(language, "plateCarbEstimateNote")}
+        </p>
       ) : null}
 
       {summary.incomplete ? <p className="mt-2 text-xs text-ink/65">{t(language, "plateIncomplete")}</p> : null}

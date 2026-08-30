@@ -35,6 +35,8 @@ export type GroundingFindingCode =
   | "unsupported_result_claim"
   | "diagnosis_claim"
   | "medication_change"
+  | "dose_calculation"
+  | "clearance_claim"
   // Dormant: retained for API parity with the source module; never emitted here.
   | "unsupported_claim";
 
@@ -102,6 +104,49 @@ const MEDICATION_CHANGE_PATTERNS = [
   /\byou\s+should\s+(?:stop|start|change|lower|raise|increase|decrease)\b/i,
   /\btake\s+\d+(?:\.\d+)?\s*(?:mg|units?)\b/i
 ];
+
+// Photo-derived carb numbers must never become insulin arithmetic. The anchor is dose math
+// inside ONE sentence -- an insulin term, a computation verb, and a digit -- never proximity
+// to a bare "for". That is what lets the hedge this app prints itself ("Never use them for
+// insulin math; follow your care team's plan") and the mock safety note both keep passing.
+const INSULIN_TERM = /\b(?:insulin|insulina|bolus|bolo)\b/i;
+const DOSE_COMPUTE_VERB =
+  /\b(?:calcul\w+|comput\w+|figure\s+out|work\s+out|cover\w*|cubr\w+|divid\w+|multipl\w+)\b/i;
+const CARB_RATIO_TERM =
+  /\b(?:insulin[-\s]?to[-\s]?carb(?:ohydrate)?|carb(?:ohydrate)?|carbohidratos?)[-\s](?:ratio|raz[oó]n)\b|\braz[oó]n\s+de\s+carbohidratos\b/i;
+
+function splitSentences(answer: string): string[] {
+  return answer.split(/(?<=[.!?;])\s+|\n+/);
+}
+
+/** Dose-calculation help, in either language. Stated doses are already blocked upstream. */
+export function containsDoseCalculationHelp(answer: string): boolean {
+  return splitSentences(answer).some((sentence) => {
+    if (!/\d/.test(sentence)) {
+      return false;
+    }
+    if (CARB_RATIO_TERM.test(sentence)) {
+      return true;
+    }
+    return INSULIN_TERM.test(sentence) && DOSE_COMPUTE_VERB.test(sentence);
+  });
+}
+
+// Ingredient recall from a photo is wrong about a third of the time, so the coach never
+// clears a food for an allergy or a child. Shape-anchored, not keyword-anchored, so a plain
+// nutrition statement -- "this is high in peanuts" -- still passes.
+const CLEARANCE_CLAIM_PATTERNS = [
+  /\b(?:safe|fine|okay|ok)\s+(?:for|with)\s+(?:your|his|her|their|the)\s+[\w\s-]{0,30}\b(?:allerg\w+|celiac|coeliac|intolerance)\b/i,
+  /\b(?:safe|fine|okay|ok)\s+(?:for|to\s+give)\s+(?:your|a|his|her|their)\s+(?:child|kid|son|daughter|baby|toddler|\d+[-\s]?year[-\s]?old)\b/i,
+  /\b(?:your|his|her|their)\s+(?:child|kid|son|daughter|baby|toddler|\d+[-\s]?year[-\s]?old)\s+(?:can|may|could)\s+(?:safely\s+)?(?:eat|have|drink|try)\b/i,
+  /\b(?:does\s+not|does\s?n['’]?t|will\s+not|wo\s?n['’]?t)\s+contain\s+(?:any\s+)?(?:peanut|tree\s*nut|nut|gluten|dairy|milk|egg|soy|shellfish|wheat|sesame)\w*\b/i,
+  /\b(?:seguro|segura|est[aá]\s+bien|no\s+hay\s+problema)\s+para\s+(?:su|tu)\s+[\w\s-]{0,30}\b(?:alergia|celiaqu[ií]a|intolerancia)\b/i,
+  /\b(?:su|tu)\s+(?:hij[oa]|ni[ñn][oa]|beb[eé])\s+(?:puede|podr[ií]a)\s+(?:comer|tomar|probar)\b/i
+];
+
+export function containsClearanceClaim(answer: string): boolean {
+  return CLEARANCE_CLAIM_PATTERNS.some((pattern) => pattern.test(answer));
+}
 
 const NORMAL_RESULT_PATTERNS = [
   /\b(?:reading|readings|blood\s+pressure|bp)\s+(?:came\s+back|is|are|was|were)\s+(?:normal|fine|healthy|in\s+range|great|perfect)\b/i,
@@ -243,6 +288,26 @@ export function verifyGrounding(input: GroundingVerificationInput): GroundingVer
         "medication_change",
         "medication_change_claim",
         "The coach cannot recommend medication or dose changes."
+      )
+    );
+  }
+
+  if (containsDoseCalculationHelp(input.answer)) {
+    findings.push(
+      finding(
+        "dose_calculation",
+        "insulin_dose_calculation",
+        "The coach cannot help work out an insulin dose."
+      )
+    );
+  }
+
+  if (containsClearanceClaim(input.answer)) {
+    findings.push(
+      finding(
+        "clearance_claim",
+        "allergy_or_child_clearance",
+        "The coach cannot clear a food for an allergy or for a child."
       )
     );
   }

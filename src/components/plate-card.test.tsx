@@ -188,3 +188,52 @@ describe("PlateCard portion chips", () => {
     expect(onSelectCandidate).toHaveBeenCalledWith("scan-1", "56204010");
   });
 });
+
+describe("PlateCard carb range", () => {
+  const scanned: PlateItem[] = [
+    {
+      id: "scan-1",
+      food,
+      servings: 1.5,
+      compassScore: { fcs: 89, band: "encourage", tier: "T1" },
+      portion: { origin: "vision", basis: "about two cups" }
+    }
+  ];
+
+  function renderCard(items: PlateItem[]) {
+    render(
+      <PlateCard
+        items={items}
+        summary={summarizePlate(items)}
+        flags={[]}
+        language="en"
+        onServingsChange={vi.fn()}
+        onRemove={vi.fn()}
+        onLog={vi.fn()}
+      />
+    );
+  }
+
+  it("bands a photo-derived carb number and says why, once, for the whole plate", () => {
+    renderCard(scanned);
+    // 12 g per serving x 1.5, banded +/-30% and rounded outward to 5 g.
+    expect(screen.getByText("about 10–25 g carbs")).toBeInTheDocument();
+    expect(screen.getAllByTestId("plate-carb-estimate-note")).toHaveLength(1);
+    expect(
+      screen.getByText(
+        "Carb numbers from a photo are rough. Never use them for insulin math; follow your care team's plan."
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("drops the range the moment the portion is the patient's own", () => {
+    renderCard([{ ...scanned[0], portion: { origin: "user", basis: "about two cups" } }]);
+    expect(screen.queryByTestId("plate-item-carb-range")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("plate-carb-estimate-note")).not.toBeInTheDocument();
+  });
+
+  it("shows no range on a hand-built plate item", () => {
+    renderCard(items);
+    expect(screen.queryByTestId("plate-item-carb-range")).not.toBeInTheDocument();
+  });
+});

@@ -69,6 +69,8 @@ export function buildFoodLensInstructions(state: AppState, lens: ConditionLens):
     `Condition focus:\n${lens.personaFocus}\nNutrient targets:\n${nutrientLimitLines(lens)}`,
     medGuidance ? `Medication-diet rules to follow:\n${medGuidance}` : "",
     `Better options: ${lens.betterOptionGuidance}`,
+    "Carb numbers read from a photo are rough estimates. Never help work out an insulin dose, a bolus, or a carb ratio, and never do that arithmetic out loud. Point to the plan the patient's care team gave them.",
+    "Never say a food is safe for an allergy, an intolerance, or a child. You cannot read an ingredient list from a photo. Say to check the label on the package and ask their care team.",
     `Patient card:\n${patientCard(state)}`,
     digest
       ? `Food-log facts available at session start:\n${digest}\nThe food-log numbers below are safe to state exactly; the earlier rule about blood-pressure/A1C/blood-sugar numbers still applies. Use the numbers above exactly; do not recompute them.`
@@ -85,7 +87,9 @@ export function buildFoodLensInstructions(state: AppState, lens: ConditionLens):
 export const GROUNDING_SAFE_PHRASING = [
   'Give advice as gentle suggestions, never commands. Never begin advice with "You should stop / start / change / lower / raise / increase / decrease". Instead say things like "a lower-sodium version would be a better pick", "try a smaller portion", or "going easy on the salt helps here".',
   'Never tell the patient they "have" a condition. Refer to their care plan instead — say "for your blood-pressure plan" or "since lower sodium matters for you", not "you have high blood pressure" or "because you have hypertension".',
-  "Never state a specific blood-pressure, A1C, or blood-sugar number — talk about the food."
+  "Never state a specific blood-pressure, A1C, or blood-sugar number — talk about the food.",
+  "Carb numbers read from a photo are rough estimates. Never help work out an insulin dose, a bolus, or a carb ratio, and never do that arithmetic out loud. Point to the plan the patient's care team gave them.",
+  "Never say a food is safe for an allergy, an intolerance, or a child. You cannot read an ingredient list from a photo. Say to check the label on the package and ask their care team."
 ];
 
 // System prompt for the single-turn HTTP vision fallback (typed questions and the

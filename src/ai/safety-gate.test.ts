@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { brentState, demoState } from "@/domain/fixtures";
-import { safetyStrings, tSafety } from "@/i18n/strings";
+import { safetyStrings, t, tSafety } from "@/i18n/strings";
 import { verifyGrounding } from "@/domain/grounding";
 import { collectSourceFacts } from "./grounding-facts";
 import { MockHealthAiProvider } from "./mock-provider";
@@ -1034,5 +1034,47 @@ describe("grounding leaves every mock canned answer intact", () => {
     expect(gated.safety).toBe("allowed");
     expect(gated.content).toContain("Your report from");
     expect(gated.content).toContain("closer look by an eye doctor");
+  });
+});
+
+describe("plate-scan guards survive the whole gate", () => {
+  function answering(content: string): HealthAiProvider {
+    return { respond: vi.fn().mockResolvedValue({ content, safety: "allowed" as const, sources: [] }) };
+  }
+
+  it.each([
+    ["insulin dose arithmetic", "For 45 grams of carbs you can calculate about 4 units of insulin.", "insulin_dose_calculation"],
+    ["a carb-ratio calculation", "Your insulin-to-carb ratio of 1:10 makes this plate about 3 units.", "insulin_dose_calculation"],
+    ["an allergy clearance", "Yes, this is safe for your peanut allergy.", "allergy_or_child_clearance"],
+    ["a child clearance", "Your 4-year-old can eat this.", "allergy_or_child_clearance"]
+  ])("replaces %s with the care-team fallback", async (_label, answer, reason) => {
+    const response = await createSafeAiResponse(
+      { mode: "food", patientInput: "what is on this plate?", state: demoState },
+      answering(answer)
+    );
+
+    expect(response.safety).toBe("blocked");
+    expect(response.content).toBe(tSafety("en", "groundingFallback"));
+    expect(response.actions).toEqual(CARE_TEAM_ACTIONS);
+    expect(response.grounding?.blockedReasons).toContain(reason);
+  });
+
+  // The other half of the same rule: the hedge the plate card prints has to survive the
+  // verifier, or every compliant answer that repeats it gets swapped for the fallback.
+  const facts = collectSourceFacts(demoState);
+  it.each([
+    ["the carb-estimate hedge", t("en", "plateCarbEstimateNote")],
+    ["its Spanish twin", t("es", "plateCarbEstimateNote")],
+    ["a plain carb statement", "This plate has about 30 to 45 g of carbs."],
+    ["a plain allergen statement", "This is high in peanuts."],
+    ["a plain fat statement", "Peanut butter is high in fat."],
+    ["the existing dose safety note", "Do not stop or change the dose without asking your clinician."]
+  ])("leaves %s alone", (_label, answer) => {
+    const result = verifyGrounding({
+      answer,
+      sourceFacts: facts,
+      citationIds: facts.map((fact) => fact.id)
+    });
+    expect(result.allowed).toBe(true);
   });
 });

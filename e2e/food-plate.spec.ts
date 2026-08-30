@@ -178,6 +178,15 @@ test("turns one photo into two scored plate items with photo-estimate portions",
   await expect(plate.getByText("1 serving(s)")).toBeVisible();
   await expect(plate.getByText("Food Compass 89")).toBeVisible();
   await expect(plate.getByText("Food Compass 95")).toBeVisible();
+
+  // 21.21 g of carbs per 100 g at 1.5 servings and 13.81 at 1, banded +/-30% and rounded
+  // outward to 5 g. The insulin sentence sits under the plate once, whatever the lens.
+  await expect(plate.getByText("about 20–45 g carbs")).toBeVisible();
+  await expect(plate.getByText("about 5–20 g carbs")).toBeVisible();
+  await expect(plate.getByTestId("plate-carb-estimate-note")).toHaveCount(1);
+  await expect(plate.getByTestId("plate-carb-estimate-note")).toContainText(
+    "Never use them for insulin math"
+  );
 });
 
 test("swaps a scanned item for a candidate row and logs the plate under one meal id", async ({ page }) => {
@@ -281,4 +290,7 @@ test("corrects a photo portion in one tap and then stops offering to", async ({ 
   // The portion is the patient's now, so the app stops second-guessing it.
   await expect(quinoa.getByTestId("plate-item-portion-chips")).toHaveCount(0);
   await expect(plate.getByTestId("plate-item-portion-chips")).toHaveCount(1);
+  // The range went with it: this portion is no longer a photo estimate.
+  await expect(quinoa.getByTestId("plate-item-carb-range")).toHaveCount(0);
+  await expect(plate.getByTestId("plate-carb-estimate-note")).toHaveCount(1);
 });

@@ -76,6 +76,23 @@ export function servingsFromGrams(grams: number | null): number | null {
   return Math.min(MAX_PROPOSED_SERVINGS, Math.max(MIN_PLATE_SERVINGS, halfSteps));
 }
 
+const CARB_RANGE_STEP = 5;
+
+/**
+ * The displayed band around a photo-derived carb estimate, rounded outward to 5 g so the
+ * number never wears precision the photo did not have. Display only: what gets logged is
+ * still the point estimate, so day totals and flags are untouched.
+ */
+export function carbRangeGrams(scaledCarbsG: number): { low: number; high: number } | null {
+  if (!Number.isFinite(scaledCarbsG) || scaledCarbsG <= 0) {
+    return null;
+  }
+  return {
+    low: Math.floor((scaledCarbsG * (1 - CARB_RANGE_BAND)) / CARB_RANGE_STEP) * CARB_RANGE_STEP,
+    high: Math.ceil((scaledCarbsG * (1 + CARB_RANGE_BAND)) / CARB_RANGE_STEP) * CARB_RANGE_STEP
+  };
+}
+
 export function clampPlateServings(servings: number): number {
   if (!Number.isFinite(servings)) {
     return MIN_PLATE_SERVINGS;

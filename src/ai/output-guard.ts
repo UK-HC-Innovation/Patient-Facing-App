@@ -1,4 +1,5 @@
 import { containsFamilyDiagnosisClaim } from "@/domain/family-diagnosis-lint";
+import { containsClearanceClaim, containsDoseCalculationHelp } from "@/domain/grounding";
 import { classifyCrisis, classifySafety } from "@/domain/safety";
 import { tSafety, type Language } from "@/i18n/strings";
 import { tVoice } from "@/i18n/voice-strings";
@@ -21,6 +22,10 @@ function hasBlockedClaim(text: string): boolean {
     classifySafety(text).level === "blocked" ||
     directConditionClaim.test(text) ||
     containsFamilyDiagnosisClaim(text) ||
+    // The live voice session never runs verifyGrounding, so the two plate-scan guards are
+    // repeated here or spoken insulin arithmetic would reach the patient unchallenged.
+    containsDoseCalculationHelp(text) ||
+    containsClearanceClaim(text) ||
     specificNumberAssertions.some((pattern) => pattern.test(text))
   );
 }

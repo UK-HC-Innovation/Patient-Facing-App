@@ -18,7 +18,11 @@ describe("createOutputTranscriptGuard", () => {
     "Your blood pressure is 180 over 110.",
     "Your A1C is 9.2.",
     "Your blood sugar is 245 mg/dL.",
-    "Your child has autism."
+    "Your child has autism.",
+    "To cover 45 grams of carbs you would need about 4 units of insulin.",
+    "Your insulin-to-carb ratio of 1:10 makes this plate about 3 units.",
+    "Yes, this is safe for your peanut allergy.",
+    "Your 4-year-old can eat this."
   ])("cancels and flushes blocked output before surfacing it: %s", (text) => {
     const { guard, order } = harness();
     guard.observeDelta(text);
@@ -83,6 +87,20 @@ describe("createOutputTranscriptGuard", () => {
     "Ask your care team before changing medicine.",
     "You mentioned a reading, but I cannot verify a number here."
   ])("allows benign output: %s", (text) => {
+    const { guard, send, onEvent } = harness();
+    guard.observeDelta(text);
+    expect(send).not.toHaveBeenCalled();
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe("createOutputTranscriptGuard leaves honest food answers alone", () => {
+  it.each([
+    "Carb numbers from a photo are rough. Never use them for insulin math; follow your care team's plan.",
+    "This plate is about 40 g of carbs.",
+    "This is high in peanuts.",
+    "Check the label and ask your care team about the peanut allergy."
+  ])("does not cancel: %s", (text) => {
     const { guard, send, onEvent } = harness();
     guard.observeDelta(text);
     expect(send).not.toHaveBeenCalled();
