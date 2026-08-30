@@ -70,6 +70,13 @@ export type FoodLensStringKey =
   | "plateServings"
   | "plateNutritionTitle"
   | "plateLog"
+  | "plateScanButton"
+  | "plateScanBusy"
+  | "plateScanFailed"
+  | "plateScanUnavailable"
+  | "plateScanEmpty"
+  | "plateSkipped"
+  | "platePortionBasis"
   | "recentMealsTitle"
   | "noMealsYet"
   | "foodNotThis"
@@ -349,6 +356,13 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     plateServings: "{count} serving(s)",
     plateNutritionTitle: "Plate nutrition",
     plateLog: "Log plate",
+    plateScanButton: "Scan the plate",
+    plateScanBusy: "Reading the plate…",
+    plateScanFailed: "Could not read the plate. Try again.",
+    plateScanUnavailable: "Plate scan needs the live camera key.",
+    plateScanEmpty: "No separate foods found. Get the whole plate in view and try again.",
+    plateSkipped: "Skipped: {items} (not scored)",
+    platePortionBasis: "Photo estimate: {basis}",
     recentMealsTitle: "Recent meals",
     noMealsYet: "No meals logged yet.",
     foodNotThis: "Not this?",
@@ -629,6 +643,13 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     plateServings: "{count} porción(es)",
     plateNutritionTitle: "Nutrición del plato",
     plateLog: "Registrar plato",
+    plateScanButton: "Escanear el plato",
+    plateScanBusy: "Leyendo el plato…",
+    plateScanFailed: "No se pudo leer el plato. Inténtalo de nuevo.",
+    plateScanUnavailable: "El escaneo del plato necesita la clave de la cámara.",
+    plateScanEmpty: "No se encontraron alimentos separados. Enfoca todo el plato e inténtalo de nuevo.",
+    plateSkipped: "Omitido: {items} (sin puntaje)",
+    platePortionBasis: "Estimado de la foto: {basis}",
     recentMealsTitle: "Comidas recientes",
     noMealsYet: "Aún no hay comidas guardadas.",
     foodNotThis: "¿No es esto?",

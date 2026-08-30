@@ -12,6 +12,12 @@ export type PlateItem = {
   food: IdentifiedFood;
   servings: number;
   compassScore: PlateItemScore | null;
+  /**
+   * Where this item's serving count came from, for the surfaces that hedge a photo estimate.
+   * Session-only by construction: `summarizePlate` and `buildPlateEntries` both ignore it, so
+   * nothing here reaches `mealLogEntrySchema` or the stored state.
+   */
+  portion?: { origin: "vision" | "user"; basis: string | null };
 };
 
 export type PlateAverage = {

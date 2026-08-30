@@ -17,6 +17,11 @@ import {
 import { FoodLensVoiceBar } from "@/components/food-lens-voice-bar";
 import { FoodAttribution, FoodCrisisLock } from "@/components/food-lens-blocks";
 import {
+  EMPTY_PLATE_SCAN_OUTCOME,
+  PlateScanButton,
+  type PlateScanOutcome
+} from "@/components/plate-scan-button";
+import {
   FoodActionsBlock,
   FoodCorrectionChips,
   FoodFavoriteButton,
@@ -36,6 +41,7 @@ import { computeFoodFlags, type FoodFlag } from "@/domain/food-flags";
 import { foodHistoryVoiceLine, lastTimeYouAte } from "@/domain/glucose-correlation";
 import { buildMealLogEntry } from "@/domain/meal-log";
 import { buildPlateEntries, formatPlateContext, summarizePlate, type PlateItem } from "@/domain/plate";
+import type { PlateCandidate, PlateResponse } from "@/domain/plate-scan";
 import { recentFoodPicks } from "@/domain/food-recents";
 import { resolvePortionServings, scaleNutrition } from "@/domain/portion";
 import { foodLookupResponseSchema, mealLogEntrySchema } from "@/domain/schemas";
@@ -101,8 +107,12 @@ export default function FoodPage() {
   const [portionServings, setPortionServings] = useState(1);
   const [spokenSize, setSpokenSize] = useState<SpokenFoodSize | null>(null);
   const [plateItems, setPlateItems] = useState<PlateItem[]>([]);
+  const [plateCandidates, setPlateCandidates] = useState<Record<string, PlateCandidate[]>>({});
+  const [plateScanBusy, setPlateScanBusy] = useState(false);
+  const [plateScanOutcome, setPlateScanOutcome] = useState<PlateScanOutcome | null>(null);
   const [logged, setLogged] = useState(false);
   const loggedEntryIdRef = useRef<string | null>(null);
+  const plateScanRequestRef = useRef(0);
   const exactFoodRequestRef = useRef(0);
   const labelRequestRef = useRef(0);
   const labelReadingRef = useRef(false);
@@ -513,9 +523,210 @@ export default function FoodPage() {
     );
   }, []);
 
-  const removePlateItem = useCallback((index: number) => {
-    setPlateItems((items) => items.filter((_, itemIndex) => itemIndex !== index));
-  }, []);
+  const removePlateItem = useCallback(
+    (index: number) => {
+      const removedId = plateItems[index]?.id;
+      setPlateItems((items) => items.filter((_, itemIndex) => itemIndex !== index));
+      if (removedId) {
+        setPlateCandidates((current) => {
+          const next = { ...current };
+          delete next[removedId];
+          return next;
+        });
+      }
+    },
+    [plateItems]
+  );
+
+  /**
+   * One photo, up to five scored plate items. Every number still comes from the ledger row
+   * each name resolved to; the model contributed the names and a rough mass, nothing else.
+   */
+  const scanPlate = useCallback(async () => {
+    if (plateScanBusy) {
+      return;
+    }
+    const image = camera.grabFrame();
+    if (!image) {
+      setPlateScanOutcome({ ...EMPTY_PLATE_SCAN_OUTCOME, notice: "plateScanFailed" });
+      return;
+    }
+    const requestId = ++plateScanRequestRef.current;
+    setPlateScanBusy(true);
+    setPlateScanOutcome(null);
+    try {
+      const response = await fetch("/api/food/plate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image, passcode, patientId: stateRef.current.patient.id })
+      });
+      const json = (await response.json()) as PlateResponse;
+      if (requestId !== plateScanRequestRef.current) {
+        return;
+      }
+      if (json.mode === "unconfigured" || json.mode === "locked") {
+        setPlateScanOutcome({ ...EMPTY_PLATE_SCAN_OUTCOME, notice: "plateScanUnavailable" });
+        return;
+      }
+      if (json.mode !== "plate") {
+        setPlateScanOutcome({
+          ...EMPTY_PLATE_SCAN_OUTCOME,
+          notice: json.mode === "none" ? "plateScanEmpty" : "plateScanFailed"
+        });
+        return;
+      }
+
+      const added: PlateItem[] = [];
+      const scanCandidates: Record<string, PlateCandidate[]> = {};
+      const outcome: PlateScanOutcome = { notice: null, skipped: [], unmatched: [] };
+      for (const item of json.items) {
+        if (item.kind === "carve_out") {
+          outcome.skipped.push(item.name);
+          continue;
+        }
+        if (item.kind === "none") {
+          if (item.candidates.length === 0) {
+            outcome.skipped.push(item.name);
+          } else {
+            outcome.unmatched.push({
+              id: `${item.name}-${outcome.unmatched.length}`,
+              name: item.name,
+              candidates: item.candidates
+            });
+          }
+          continue;
+        }
+        const id = crypto.randomUUID();
+        added.push({
+          id,
+          // The same transform the live lens uses, per item: FcsFood requires the filler
+          // fields, and the score below is the published one either way.
+          food: toIdentifiedFood(
+            {
+              ...item.match.food,
+              fcs2: item.match.score.fcs,
+              fcs1: 0,
+              nova: 1,
+              hsr: 0,
+              nutriScore: "C",
+              ambiguous: item.match.score.ambiguous
+            },
+            item.match.nutrients
+          ),
+          servings: item.proposedServings ?? 1,
+          compassScore: { fcs: item.match.score.fcs, band: item.match.score.band, tier: item.match.score.tier },
+          portion: { origin: "vision", basis: item.basis }
+        });
+        if (item.candidates.length > 0) {
+          scanCandidates[id] = item.candidates;
+        }
+      }
+
+      if (added.length > 0) {
+        setPlateItems((items) => [...items, ...added]);
+        setPlateCandidates((current) => ({ ...current, ...scanCandidates }));
+        // Only a landed scan rearms: a plate that found nothing must not clear the lens.
+        rearmLiveScore();
+        setBarcodeFood(null);
+        setLabelFood(null);
+        setBarcodeLookupMiss(false);
+        setLogged(false);
+      }
+      const foundNothing = added.length === 0 && outcome.skipped.length === 0 && outcome.unmatched.length === 0;
+      setPlateScanOutcome(foundNothing ? { ...outcome, notice: "plateScanEmpty" } : outcome);
+    } catch {
+      if (requestId === plateScanRequestRef.current) {
+        setPlateScanOutcome({ ...EMPTY_PLATE_SCAN_OUTCOME, notice: "plateScanFailed" });
+      }
+    } finally {
+      if (requestId === plateScanRequestRef.current) {
+        setPlateScanBusy(false);
+      }
+    }
+  }, [camera, passcode, plateScanBusy, rearmLiveScore]);
+
+  const fetchExactMatch = useCallback(
+    async (foodId: string): Promise<Omit<LiveMatch, "candidates"> | null> => {
+      try {
+        const response = await fetch("/api/food/identify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ foodId, passcode })
+        });
+        const json = (await response.json()) as { mode: string; match?: Omit<LiveMatch, "candidates"> };
+        return json.mode === "match" && json.match ? json.match : null;
+      } catch {
+        // Keep whatever is already on screen: it is still grounded.
+        return null;
+      }
+    },
+    [passcode]
+  );
+
+  /** The `page.tsx:124` transform, per item: FcsFood needs the filler fields to typecheck. */
+  const scoredFromMatch = useCallback(
+    (match: Omit<LiveMatch, "candidates">): Pick<PlateItem, "food" | "compassScore"> => ({
+      food: toIdentifiedFood(
+        {
+          ...match.food,
+          fcs2: match.score.fcs,
+          fcs1: 0,
+          nova: 1,
+          hsr: 0,
+          nutriScore: "C",
+          ambiguous: match.score.ambiguous
+        },
+        match.nutrients
+      ),
+      compassScore: { fcs: match.score.fcs, band: match.score.band, tier: match.score.tier }
+    }),
+    []
+  );
+
+  /**
+   * A swap chip on a scanned item. Deterministic re-score, zero model spend -- and
+   * deliberately not `adoptMatch`: pinning here would silence the camera for 60 seconds.
+   */
+  const correctPlateItem = useCallback(
+    async (itemId: string, foodId: string) => {
+      const match = await fetchExactMatch(foodId);
+      if (!match) {
+        return;
+      }
+      const scored = scoredFromMatch(match);
+      setPlateItems((items) => items.map((item) => (item.id === itemId ? { ...item, ...scored } : item)));
+      setPlateCandidates((current) => {
+        const next = { ...current };
+        delete next[itemId];
+        return next;
+      });
+      setLogged(false);
+    },
+    [fetchExactMatch, scoredFromMatch]
+  );
+
+  /** An unmatched scan name resolved by chip: the row lands as a fresh plate item. */
+  const addPlateItemByFoodId = useCallback(
+    async (foodId: string) => {
+      const match = await fetchExactMatch(foodId);
+      if (!match) {
+        return;
+      }
+      setPlateItems((items) => [...items, { id: crypto.randomUUID(), servings: 1, ...scoredFromMatch(match) }]);
+      setPlateScanOutcome((current) =>
+        current
+          ? {
+              ...current,
+              unmatched: current.unmatched.filter(
+                (item) => !item.candidates.some((candidate) => candidate.code === foodId)
+              )
+            }
+          : current
+      );
+      setLogged(false);
+    },
+    [fetchExactMatch, scoredFromMatch]
+  );
 
   const logPlate = useCallback(() => {
     if (plateItems.length === 0) {
@@ -544,6 +755,8 @@ export default function FoodPage() {
       dispatch({ type: "addMealLogEntry", entry });
     }
     setPlateItems([]);
+    setPlateCandidates({});
+    setPlateScanOutcome(null);
     setLogged(false);
   }, [dayTotals, dispatch, language, lens, plateItems]);
 
@@ -697,11 +910,13 @@ export default function FoodPage() {
       slots={{
         plate: (
           <PlateCard
+            candidates={plateCandidates}
             flags={plateFlags}
             items={plateItems}
             language={language}
             onLog={logPlate}
             onRemove={removePlateItem}
+            onSelectCandidate={(itemId, foodId) => void correctPlateItem(itemId, foodId)}
             onServingsChange={changePlateServings}
             summary={plateSummary}
           />
@@ -791,6 +1006,16 @@ export default function FoodPage() {
             ) : null}
 
             {identifiedFood ? savedPicks : null}
+
+            <PlateScanButton
+              busy={plateScanBusy}
+              disabled={camera.status !== "active"}
+              language={language}
+              onScan={() => void scanPlate()}
+              onSelectCandidate={(foodId) => void addPlateItemByFoodId(foodId)}
+              outcome={plateScanOutcome}
+              unavailable={live.disarmReason === "provider"}
+            />
 
             <button
               className="min-h-14 w-full rounded-control border border-care bg-white px-4 py-2 font-semibold text-care disabled:opacity-40"

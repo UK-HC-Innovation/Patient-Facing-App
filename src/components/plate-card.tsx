@@ -4,6 +4,7 @@ import React from "react";
 import type { FoodFlag, FoodFlagSeverity } from "@/domain/food-flags";
 import type { CompassBand } from "@/domain/food-compass";
 import type { PlateItem, PlateSummary } from "@/domain/plate";
+import type { PlateCandidate } from "@/domain/plate-scan";
 import { t, type FoodLensStringKey, type Language } from "@/i18n/strings";
 import { FoodGuidanceSource } from "./food-guidance-source";
 
@@ -44,7 +45,9 @@ export function PlateCard({
   language,
   onServingsChange,
   onRemove,
-  onLog
+  onLog,
+  candidates,
+  onSelectCandidate
 }: {
   items: PlateItem[];
   summary: PlateSummary;
@@ -53,6 +56,9 @@ export function PlateCard({
   onServingsChange: (index: number, servings: number) => void;
   onRemove: (index: number) => void;
   onLog: () => void;
+  /** Ledger rows a scanned item could also have been, keyed by plate-item id. */
+  candidates?: Record<string, PlateCandidate[]>;
+  onSelectCandidate?: (itemId: string, foodId: string) => void;
 }) {
   if (items.length === 0) {
     return null;
@@ -73,6 +79,12 @@ export function PlateCard({
       <ul className="mt-3 grid gap-3">
         {items.map((item, index) => {
           const name = item.food.brand ? `${item.food.brand} ${item.food.name}` : item.food.name;
+          const itemId = item.id;
+          // A scanned item keeps its swap chips until the patient either picks one or
+          // corrects the portion; a hand-built plate item never had any.
+          const itemCandidates = itemId ? (candidates?.[itemId] ?? []) : [];
+          const selectCandidate =
+            itemId && onSelectCandidate ? (foodId: string) => onSelectCandidate(itemId, foodId) : null;
           return (
             <li className="rounded-control border border-ink/10 bg-white p-3" data-testid="plate-item" key={item.id ?? `${item.food.id}-${index}`}>
               <div className="flex items-start justify-between gap-3">
@@ -90,6 +102,11 @@ export function PlateCard({
                   ) : (
                     <p className="mt-1 text-xs text-ink/60">{t(language, "plateNoScore")}</p>
                   )}
+                  {item.portion?.basis ? (
+                    <p className="mt-1 text-xs text-ink/65">
+                      {t(language, "platePortionBasis", { basis: item.portion.basis })}
+                    </p>
+                  ) : null}
                 </div>
                 <button
                   aria-label={t(language, "plateRemove", { food: name })}
@@ -122,6 +139,20 @@ export function PlateCard({
                   +
                 </button>
               </div>
+              {itemCandidates.length > 0 && selectCandidate ? (
+                <div className="mt-2 flex flex-wrap gap-2" data-testid="plate-item-candidates">
+                  {itemCandidates.slice(0, 3).map((candidate) => (
+                    <button
+                      className="min-h-11 max-w-full break-words rounded-full border border-care/25 bg-white px-3 py-1 text-left text-sm font-medium text-care"
+                      key={candidate.code}
+                      onClick={() => selectCandidate(candidate.code)}
+                      type="button"
+                    >
+                      {candidate.description}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </li>
           );
         })}
