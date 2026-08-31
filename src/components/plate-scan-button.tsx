@@ -17,7 +17,13 @@ export type PlateScanOutcome = {
   /** Carve-outs and dead ends, named once so the patient knows what did not land. */
   skipped: string[];
   /** Named but unmatched: the ledger rows worth offering as a one-tap add. */
-  unmatched: Array<{ id: string; name: string; candidates: PlateCandidate[] }>;
+  unmatched: Array<{
+    id: string;
+    name: string;
+    candidates: PlateCandidate[];
+    proposedServings?: number | null;
+    basis?: string | null;
+  }>;
 };
 
 export const EMPTY_PLATE_SCAN_OUTCOME: PlateScanOutcome = { notice: null, skipped: [], unmatched: [] };
@@ -38,7 +44,7 @@ export function PlateScanButton({
   disabled?: boolean;
   onScan: () => void;
   outcome?: PlateScanOutcome | null;
-  onSelectCandidate?: (foodId: string) => void;
+  onSelectCandidate?: (itemId: string, foodId: string) => void;
 }) {
   // A button that silently does nothing is banned; an unavailable scan says why instead.
   const notice = unavailable ? "plateScanUnavailable" : (outcome?.notice ?? null);
@@ -70,7 +76,7 @@ export function PlateScanButton({
               <button
                 className="min-h-11 max-w-full break-words rounded-full border border-care/25 bg-white px-3 py-1 text-left text-sm font-medium text-care"
                 key={candidate.code}
-                onClick={() => onSelectCandidate?.(candidate.code)}
+                onClick={() => onSelectCandidate?.(item.id, candidate.code)}
                 type="button"
               >
                 {candidate.description}

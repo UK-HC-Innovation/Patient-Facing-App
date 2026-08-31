@@ -82,6 +82,10 @@ export type FoodLensStringKey =
   | "platePortionBasis"
   | "plateCarbRange"
   | "plateCarbEstimateNote"
+  | "refineOilQuestion"
+  | "refineNoOil"
+  | "refineWithOil"
+  | "refineFried"
   | "recentMealsTitle"
   | "noMealsYet"
   | "foodNotThis"
@@ -390,6 +394,10 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     plateCarbRange: "about {low}\u2013{high} g carbs",
     plateCarbEstimateNote:
       "Carb numbers from a photo are rough. Never use them for insulin math; follow your care team's plan.",
+    refineOilQuestion: "Cooked with oil or butter?",
+    refineNoOil: "No oil",
+    refineWithOil: "With oil or butter",
+    refineFried: "Fried",
     recentMealsTitle: "Recent meals",
     noMealsYet: "No meals logged yet.",
     foodNotThis: "Not this?",
@@ -699,6 +707,10 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     plateCarbRange: "unos {low}\u2013{high} g de carbohidratos",
     plateCarbEstimateNote:
       "Los carbohidratos calculados con una foto son aproximados. No los uses para calcular la insulina; sigue el plan de tu equipo de salud.",
+    refineOilQuestion: "¿Cocinado con aceite o mantequilla?",
+    refineNoOil: "Sin aceite",
+    refineWithOil: "Con aceite o mantequilla",
+    refineFried: "Frito",
     recentMealsTitle: "Comidas recientes",
     noMealsYet: "Aún no hay comidas guardadas.",
     foodNotThis: "¿No es esto?",

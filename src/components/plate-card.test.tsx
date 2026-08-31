@@ -237,3 +237,73 @@ describe("PlateCard carb range", () => {
     expect(screen.queryByTestId("plate-item-carb-range")).not.toBeInTheDocument();
   });
 });
+
+describe("PlateCard refine question", () => {
+  const scanned: PlateItem[] = [
+    {
+      id: "scan-1",
+      food: { ...food, name: "Quinoa, no added fat" },
+      servings: 1,
+      compassScore: { fcs: 89, band: "encourage", tier: "T1" },
+      portion: { origin: "vision", basis: "about a cup" }
+    }
+  ];
+
+  it("asks the oil question and folds the row it offers out of the swap chips", async () => {
+    const user = userEvent.setup();
+    const onSelectCandidate = vi.fn();
+    render(
+      <PlateCard
+        items={scanned}
+        summary={summarizePlate(scanned)}
+        flags={[]}
+        language="en"
+        onServingsChange={vi.fn()}
+        onRemove={vi.fn()}
+        onLog={vi.fn()}
+        candidates={{
+          "scan-1": [
+            { code: "56204010", description: "Quinoa, fat added", fcs: 81 },
+            { code: "56204015", description: "Quinoa, NS as to fat", fcs: 85 }
+          ]
+        }}
+        onSelectCandidate={onSelectCandidate}
+        refine={{
+          itemId: "scan-1",
+          question: { question: "refineOilQuestion", options: [{ foodId: "56204010", labelKey: "refineWithOil" }] }
+        }}
+      />
+    );
+
+    expect(screen.getByText("Cooked with oil or butter?")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Quinoa, fat added" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Quinoa, NS as to fat" })).toBeInTheDocument();
+
+    // The answer is the same deterministic swap the correction chips already run.
+    await user.click(screen.getByRole("button", { name: "With oil or butter" }));
+    expect(onSelectCandidate).toHaveBeenCalledWith("scan-1", "56204010");
+  });
+
+  it("asks nothing on an item the question was not attached to", () => {
+    render(
+      <PlateCard
+        items={scanned}
+        summary={summarizePlate(scanned)}
+        flags={[]}
+        language="en"
+        onServingsChange={vi.fn()}
+        onRemove={vi.fn()}
+        onLog={vi.fn()}
+        candidates={{ "scan-1": [{ code: "56204010", description: "Quinoa, fat added", fcs: 81 }] }}
+        onSelectCandidate={vi.fn()}
+        refine={{
+          itemId: "another-item",
+          question: { question: "refineOilQuestion", options: [{ foodId: "56204010", labelKey: "refineWithOil" }] }
+        }}
+      />
+    );
+
+    expect(screen.queryByTestId("plate-item-refine")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Quinoa, fat added" })).toBeInTheDocument();
+  });
+});

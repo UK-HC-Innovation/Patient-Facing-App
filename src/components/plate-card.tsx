@@ -4,6 +4,7 @@ import React from "react";
 import type { FoodFlag, FoodFlagSeverity } from "@/domain/food-flags";
 import type { CompassBand } from "@/domain/food-compass";
 import type { PlateItem, PlateSummary } from "@/domain/plate";
+import type { PlateRefineQuestion } from "@/domain/plate-refine";
 import {
   carbRangeGrams,
   doublePlateServings,
@@ -52,7 +53,8 @@ export function PlateCard({
   onRemove,
   onLog,
   candidates,
-  onSelectCandidate
+  onSelectCandidate,
+  refine
 }: {
   items: PlateItem[];
   summary: PlateSummary;
@@ -64,6 +66,8 @@ export function PlateCard({
   /** Ledger rows a scanned item could also have been, keyed by plate-item id. */
   candidates?: Record<string, PlateCandidate[]>;
   onSelectCandidate?: (itemId: string, foodId: string) => void;
+  /** At most one per scan: the single question worth asking, on the item worth asking it of. */
+  refine?: { itemId: string; question: PlateRefineQuestion } | null;
 }) {
   if (items.length === 0) {
     return null;
@@ -97,7 +101,15 @@ export function PlateCard({
           const itemId = item.id;
           // A scanned item keeps its swap chips until the patient either picks one or
           // corrects the portion; a hand-built plate item never had any.
-          const itemCandidates = itemId ? (candidates?.[itemId] ?? []) : [];
+          const refineQuestion = refine && itemId && refine.itemId === itemId ? refine.question : null;
+          // The scan hands back the matched row first, and a row the question already offers
+          // is not also a swap chip. A chip that swaps an item for itself is not a choice.
+          const ownCode = item.food.id.replace(/^fndds:/, "");
+          const itemCandidates = (itemId ? (candidates?.[itemId] ?? []) : []).filter(
+            (candidate) =>
+              candidate.code !== ownCode &&
+              !refineQuestion?.options.some((option) => option.foodId === candidate.code)
+          );
           const selectCandidate =
             itemId && onSelectCandidate ? (foodId: string) => onSelectCandidate(itemId, foodId) : null;
           // The chips are the one-tap correction for a portion the photo guessed. The first
@@ -184,6 +196,25 @@ export function PlateCard({
                       {t(language, chip.key)}
                     </button>
                   ))}
+                </div>
+              ) : null}
+              {refineQuestion && selectCandidate ? (
+                <div className="mt-2 grid gap-1" data-testid="plate-item-refine">
+                  <p className="text-[13px] font-semibold text-ink/70">
+                    {t(language, refineQuestion.question)}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {refineQuestion.options.map((option) => (
+                      <button
+                        className="min-h-11 rounded-full border border-care/25 bg-white px-3 py-1 text-sm font-medium text-care"
+                        key={option.foodId}
+                        onClick={() => selectCandidate(option.foodId)}
+                        type="button"
+                      >
+                        {t(language, option.labelKey)}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ) : null}
               {itemCandidates.length > 0 && selectCandidate ? (

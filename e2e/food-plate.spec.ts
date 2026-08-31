@@ -94,7 +94,10 @@ const platePayload = {
         score: appleScore,
         nutrients: appleNutrients
       },
-      candidates: [],
+      candidates: [
+        { code: "63101000", description: "Apple, raw", fcs: 95 },
+        { code: "62101100", description: "Apple, dried", fcs: 85 }
+      ],
       proposedServings: 1,
       basis: "one small apple"
     }
@@ -150,13 +153,20 @@ async function stubPlateDoor(page: Page, plateBody: object = platePayload) {
   );
 }
 
-async function scan(page: Page) {
+async function scan(page: Page, confirmMatches = true) {
   // The camera reports "active" the moment its capture interval starts, half a second before
   // the first frame lands in the ring. Confirming the image candidate proves a frame exists
   // while preserving the no-score-before-confirmation invariant.
   await page.getByRole("button", { name: "Yes, use this food" }).click();
   await expect(page.getByTestId("food-verdict")).toContainText("Food Compass score", { timeout: 20_000 });
   await page.getByRole("button", { name: "Scan the plate" }).click();
+  if (confirmMatches) {
+    const review = page.getByTestId("plate-scan");
+    await expect(review.getByRole("button", { name: "Quinoa, no added fat", exact: true })).toBeVisible();
+    await expect(page.getByTestId("plate-card")).toHaveCount(0);
+    await review.getByRole("button", { name: "Quinoa, no added fat", exact: true }).click();
+    await review.getByRole("button", { name: "Apple, raw", exact: true }).click();
+  }
 }
 
 test("turns one photo into two scored plate items with photo-estimate portions", async ({ page }) => {
@@ -191,22 +201,27 @@ test("turns one photo into two scored plate items with photo-estimate portions",
   );
 });
 
-test("swaps a scanned item for a candidate row and logs the plate under one meal id", async ({ page }) => {
+test("answers the one question, swaps a row, and logs the plate under one meal id", async ({ page }) => {
   await stubPlateDoor(page);
   await page.goto("/food");
   await scan(page);
 
   const plate = page.getByTestId("plate-card");
   await expect(plate.getByTestId("plate-item")).toHaveCount(2);
+
+  // One question per scan, on the item where the answer moves the most calories. Quinoa
+  // carries it; the apple keeps its ordinary swap chip.
+  await expect(plate.getByTestId("plate-item-refine")).toHaveCount(1);
+  await expect(plate.getByText("Cooked with oil or butter?")).toBeVisible();
   await expect(plate.getByTestId("plate-item-candidates")).toHaveCount(1);
 
-  // The chip re-scores against the real ledger: 81 is the published value for the fat-added
-  // row, and it arrives without a model call.
-  await plate.getByRole("button", { name: "Quinoa, fat added", exact: true }).click();
+  // Answering re-scores against the real ledger: 81 is the published value for the
+  // fat-added row, and it arrives without a model call.
+  await plate.getByRole("button", { name: "With oil or butter", exact: true }).click();
   await expect(plate.getByRole("button", { name: "Remove Quinoa, fat added", exact: true })).toBeVisible();
   await expect(plate.getByText("Food Compass 81")).toBeVisible();
-  await expect(plate.getByTestId("plate-item-candidates")).toHaveCount(0);
-  // A swap corrects the food, never the portion the photo proposed.
+  await expect(plate.getByTestId("plate-item-refine")).toHaveCount(0);
+  // The answer corrects the food, never the portion the photo proposed.
   await expect(plate.getByText("1.5 serving(s)")).toBeVisible();
 
   await page.getByRole("button", { name: "Log plate" }).click();
@@ -245,7 +260,7 @@ test("names what it skipped and offers rows for what it could not place", async 
     ]
   });
   await page.goto("/food");
-  await scan(page);
+  await scan(page, false);
 
   await expect(page.getByText("Skipped: water (not scored)")).toBeVisible();
 
@@ -260,7 +275,7 @@ test("names what it skipped and offers rows for what it could not place", async 
 test("says the plate was empty instead of inventing an item", async ({ page }) => {
   await stubPlateDoor(page, { mode: "none" });
   await page.goto("/food");
-  await scan(page);
+  await scan(page, false);
 
   await expect(
     page.getByText("No separate foods found. Get the whole plate in view and try again.")
@@ -271,10 +286,25 @@ test("says the plate was empty instead of inventing an item", async ({ page }) =
 test("says the scan needs a key rather than failing silently", async ({ page }) => {
   await stubPlateDoor(page, { mode: "unconfigured" });
   await page.goto("/food");
-  await scan(page);
+  await scan(page, false);
 
   await expect(page.getByText("Plate scan needs the live camera key.")).toBeVisible();
   await expect(page.getByTestId("plate-card")).toHaveCount(0);
+});
+
+test("swaps an item for a different ledger row in one tap", async ({ page }) => {
+  await stubPlateDoor(page);
+  await page.goto("/food");
+  await scan(page);
+
+  const plate = page.getByTestId("plate-card");
+  const apple = plate.getByTestId("plate-item").nth(1);
+  // A chip that swaps an item for itself is not a choice, so the matched row is not offered.
+  await expect(apple.getByRole("button", { name: "Apple, raw", exact: true })).toHaveCount(0);
+
+  await apple.getByRole("button", { name: "Apple, dried", exact: true }).click();
+  await expect(apple.getByRole("button", { name: "Remove Apple, dried", exact: true })).toBeVisible();
+  await expect(apple.getByTestId("plate-item-candidates")).toHaveCount(0);
 });
 
 test("corrects a photo portion in one tap and then stops offering to", async ({ page }) => {

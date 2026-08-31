@@ -31,6 +31,7 @@ import { computeFoodFlags, type FoodFlag } from "@/domain/food-flags";
 import { foodHistoryVoiceLine, lastTimeYouAte } from "@/domain/glucose-correlation";
 import { buildMealLogEntry } from "@/domain/meal-log";
 import { buildPlateEntries, formatPlateContext, summarizePlate, type PlateItem } from "@/domain/plate";
+import { plateRefineQuestion } from "@/domain/plate-refine";
 import { withPlateServings, type PlateCandidate, type PlateResponse } from "@/domain/plate-scan";
 import { recentFoodPicks } from "@/domain/food-recents";
 import { resolvePortionServings, scaleNutrition } from "@/domain/portion";
@@ -264,6 +265,26 @@ export default function FoodPage() {
     [dayTotals, language, lens, plateSummary.flagsFood, state.medications, state.readings]
   );
   const plateLine = useMemo(() => formatPlateContext(plateItems, plateSummary) ?? undefined, [plateItems, plateSummary]);
+  // One question per scan, on the item where the answer moves the most calories. Two chips
+  // under one plate item is a refinement; five is an interrogation.
+  const plateRefine = useMemo(() => {
+    let best: { itemId: string; question: ReturnType<typeof plateRefineQuestion>; calories: number } | null = null;
+    for (const item of plateItems) {
+      const rows = item.id ? plateCandidates[item.id] : undefined;
+      if (!item.id || !rows) {
+        continue;
+      }
+      const question = plateRefineQuestion(item.food.name, rows);
+      if (!question) {
+        continue;
+      }
+      const calories = (item.food.nutrition?.calories ?? 0) * item.servings;
+      if (!best || calories > best.calories) {
+        best = { itemId: item.id, question, calories };
+      }
+    }
+    return best?.question ? { itemId: best.itemId, question: best.question } : null;
+  }, [plateCandidates, plateItems]);
   const foodHistory = useMemo(() => {
     if (!identifiedFoodId) {
       return null;
@@ -659,8 +680,6 @@ export default function FoodPage() {
         });
         return;
       }
-      const added: PlateItem[] = [];
-      const scanCandidates: Record<string, PlateCandidate[]> = {};
       const outcome: PlateScanOutcome = { notice: null, skipped: [], unmatched: [] };
       for (const item of json.items) {
         if (item.kind === "carve_out") {
@@ -679,33 +698,17 @@ export default function FoodPage() {
           }
           continue;
         }
-        const id = crypto.randomUUID();
-        added.push({
-          id,
-          food: toIdentifiedFood(
-            {
-              ...item.match.food,
-              fcs2: item.match.score.fcs,
-              fcs1: 0,
-              nova: 1,
-              hsr: 0,
-              nutriScore: "C",
-              ambiguous: item.match.score.ambiguous
-            },
-            item.match.nutrients
-          ),
-          servings: item.proposedServings ?? 1,
-          compassScore: { fcs: item.match.score.fcs, band: item.match.score.band, tier: item.match.score.tier },
-          portion: { origin: "vision", basis: item.basis }
+        // Image matches are review candidates. The route may resolve a ledger row, but its
+        // score stays hidden until the patient explicitly chooses that named row.
+        outcome.unmatched.push({
+          id: crypto.randomUUID(),
+          name: item.match.food.description,
+          candidates: item.candidates,
+          proposedServings: item.proposedServings,
+          basis: item.basis
         });
-        if (item.candidates.length > 0) scanCandidates[id] = item.candidates;
       }
-      if (added.length > 0) {
-        setPlateItems((items) => [...items, ...added]);
-        setPlateCandidates((current) => ({ ...current, ...scanCandidates }));
-        setLogged(false);
-      }
-      const foundNothing = added.length === 0 && outcome.skipped.length === 0 && outcome.unmatched.length === 0;
+      const foundNothing = outcome.skipped.length === 0 && outcome.unmatched.length === 0;
       setPlateScanOutcome(foundNothing ? { ...outcome, notice: "plateScanEmpty" } : outcome);
     } catch {
       if (
@@ -770,42 +773,28 @@ export default function FoodPage() {
    */
   const correctPlateItem = useCallback(
     async (itemId: string, foodId: string) => {
-      if (foodResolutionActiveRef.current) return;
-      suspendLiveScore();
-      const requestEpoch = authority.snapshot();
-      const controller = new AbortController();
-      plateChoiceAbortRef.current?.controller.abort();
-      plateChoiceAbortRef.current = { controller, epoch: requestEpoch };
-      try {
-        const match = await fetchExactMatch(foodId, controller.signal);
-        if (
-          !match ||
-          controller.signal.aborted ||
-          !authority.isCurrent(requestEpoch) ||
-          foodResolutionActiveRef.current
-        ) {
-          return;
-        }
-        const scored = scoredFromMatch(match);
-        setPlateItems((items) => items.map((item) => (item.id === itemId ? { ...item, ...scored } : item)));
-        setPlateCandidates((current) => {
-          const next = { ...current };
-          delete next[itemId];
-          return next;
-        });
-        setLogged(false);
-      } finally {
-        if (plateChoiceAbortRef.current?.controller === controller) plateChoiceAbortRef.current = null;
-        if (authority.isCurrent(requestEpoch) && !foodResolutionActiveRef.current) rearmLiveScore();
+      const match = await fetchExactMatch(foodId);
+      if (!match) {
+        return;
       }
+      const scored = scoredFromMatch(match);
+      setPlateItems((items) => items.map((item) => (item.id === itemId ? { ...item, ...scored } : item)));
+      setPlateCandidates((current) => {
+        const next = { ...current };
+        delete next[itemId];
+        return next;
+      });
+      setLogged(false);
     },
-    [authority, fetchExactMatch, rearmLiveScore, scoredFromMatch, suspendLiveScore]
+    [fetchExactMatch, scoredFromMatch]
   );
 
   /** An unmatched scan name resolved by chip: the row lands as a fresh plate item. */
   const addPlateItemByFoodId = useCallback(
-    async (foodId: string) => {
+    async (reviewId: string, foodId: string) => {
       if (foodResolutionActiveRef.current) return;
+      const pending = plateScanOutcome?.unmatched.find((item) => item.id === reviewId);
+      if (!pending) return;
       suspendLiveScore();
       const requestEpoch = authority.snapshot();
       const controller = new AbortController();
@@ -824,17 +813,16 @@ export default function FoodPage() {
         const itemId = crypto.randomUUID();
         setPlateItems((items) => [
           ...items,
-          { id: itemId, servings: 1, ...scoredFromMatch(match) }
+          {
+            id: itemId,
+            servings: pending.proposedServings ?? 1,
+            portion: { origin: "vision", basis: pending.basis ?? null },
+            ...scoredFromMatch(match)
+          }
         ]);
+        setPlateCandidates((current) => ({ ...current, [itemId]: pending.candidates }));
         setPlateScanOutcome((current) =>
-          current
-            ? {
-                ...current,
-                unmatched: current.unmatched.filter(
-                  (item) => !item.candidates.some((candidate) => candidate.code === foodId)
-                )
-              }
-            : current
+          current ? { ...current, unmatched: current.unmatched.filter((item) => item.id !== reviewId) } : current
         );
         setLogged(false);
       } finally {
@@ -842,7 +830,7 @@ export default function FoodPage() {
         if (authority.isCurrent(requestEpoch) && !foodResolutionActiveRef.current) rearmLiveScore();
       }
     },
-    [authority, fetchExactMatch, rearmLiveScore, scoredFromMatch, suspendLiveScore]
+    [authority, fetchExactMatch, plateScanOutcome, rearmLiveScore, scoredFromMatch, suspendLiveScore]
   );
 
   const logPlate = useCallback(() => {
@@ -1043,6 +1031,7 @@ export default function FoodPage() {
             onRemove={removePlateItem}
             onSelectCandidate={(itemId, foodId) => void correctPlateItem(itemId, foodId)}
             onServingsChange={changePlateServings}
+            refine={plateRefine}
             summary={plateSummary}
           />
         ),
@@ -1165,7 +1154,7 @@ export default function FoodPage() {
               disabled={camera.status !== "active" || plateScanBlocked}
               language={language}
               onScan={() => void scanPlate()}
-              onSelectCandidate={(foodId) => void addPlateItemByFoodId(foodId)}
+              onSelectCandidate={(itemId, foodId) => void addPlateItemByFoodId(itemId, foodId)}
               outcome={plateScanOutcome}
               unavailable={live.disarmReason === "provider"}
             />
