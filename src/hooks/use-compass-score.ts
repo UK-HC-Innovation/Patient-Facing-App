@@ -38,9 +38,12 @@ export function useCompassScore(
     if (!food || !enabled) {
       return { score: null, carveOut: null };
     }
+    const labelDerived = food.source === "label_vision";
     const scoreability = classifyScoreability({
-      name: food.name,
-      category: food.category,
+      // Package-front text is identity evidence only. It cannot turn otherwise identical
+      // confirmed label values into an alcohol/infant/specialized carve-out.
+      name: labelDerived ? "" : food.name,
+      category: labelDerived ? null : food.category,
       nutrition: food.nutrition
     });
     if (!scoreability.scoreable) {
@@ -53,7 +56,8 @@ export function useCompassScore(
       score: computeLabelScore(food.nutrition, {
         name: food.name,
         category: food.category,
-        ingredientText: food.ingredientText
+        ingredientText: food.ingredientText,
+        allowIdentityHeuristics: !labelDerived
       }),
       carveOut: null
     };
@@ -63,7 +67,10 @@ export function useCompassScore(
   const [alternativesLoading, setAlternativesLoading] = useState(false);
   const requestId = useRef(0);
 
-  const foodName = food?.name ?? null;
+  // A package-front identity is display evidence, not a catalogue key. Label-photo
+  // foods therefore never feed their name back into fuzzy FNDDS matching, even for
+  // alternatives; barcode and explicit catalogue foods retain the existing path.
+  const foodName = food?.source === "label_vision" ? null : food?.name ?? null;
   useEffect(() => {
     const id = (requestId.current += 1);
     if (!foodName || !local.score) {

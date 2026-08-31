@@ -152,7 +152,9 @@ async function stubPlateDoor(page: Page, plateBody: object = platePayload) {
 
 async function scan(page: Page) {
   // The camera reports "active" the moment its capture interval starts, half a second before
-  // the first frame lands in the ring. A live verdict proves a frame exists to scan.
+  // the first frame lands in the ring. Confirming the image candidate proves a frame exists
+  // while preserving the no-score-before-confirmation invariant.
+  await page.getByRole("button", { name: "Yes, use this food" }).click();
   await expect(page.getByTestId("food-verdict")).toContainText("Food Compass score", { timeout: 20_000 });
   await page.getByRole("button", { name: "Scan the plate" }).click();
 }

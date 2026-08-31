@@ -115,4 +115,26 @@ describe("resolveBarcode", () => {
 
     expect(result).toEqual({ found: false });
   });
+
+  it("propagates a caller abort and never falls through from OFF to FDC", async () => {
+    const controller = new AbortController();
+    let upstreamSignal: AbortSignal | undefined;
+    const fetchImpl = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      upstreamSignal = init?.signal as AbortSignal | undefined;
+      return new Promise<Response>((_resolve, reject) => {
+        upstreamSignal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), { once: true });
+      });
+    });
+    const lookup = resolveBarcode("555", baseDeps({
+      fdcApiKey: "DEMO_KEY",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      signal: controller.signal
+    }));
+
+    controller.abort(new DOMException("page hidden", "AbortError"));
+
+    await expect(lookup).rejects.toMatchObject({ name: "AbortError" });
+    expect(upstreamSignal?.aborted).toBe(true);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
 });

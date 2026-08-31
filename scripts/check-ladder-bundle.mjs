@@ -103,6 +103,29 @@ for (const [route, budget] of Object.entries(compassBudgets)) {
   }
 }
 
+// The opt-in package scanner may have its own deferred chunk in an off-by-default build,
+// but that chunk must not become part of /food's initial JavaScript. This is the build-time
+// half of the flag-off isolation witness; the browser suite also proves it is not requested.
+const foodFiles = javascriptFiles("/food/page");
+const packageSplit = Object.entries(dynamicManifest).find(
+  ([key]) => key.endsWith(" -> @/components/food-package-scan-bridge")
+);
+if (packageSplit?.[1].files.some((file) => foodFiles.includes(file))) {
+  throw new Error("The flag-gated package scanner leaked into /food's initial page manifest.");
+}
+const foodInitialSource = foodFiles
+  .map((file) => readFileSync(resolve(nextRoot, file), "utf8"))
+  .join("\n");
+for (const sentinel of [
+  "/api/food/package/session",
+  "/api/food/package",
+  "current package photo will be sent to OpenAI"
+]) {
+  if (foodInitialSource.includes(sentinel)) {
+    throw new Error(`Flag-off /food JavaScript contains package-only code: ${sentinel}`);
+  }
+}
+
 console.log(`Food Compass route budgets passed: ${compassReport.join(", ")}`);
 
 console.log(
@@ -111,6 +134,6 @@ console.log(
     `first-load ${(firstLoad.gzip / kib).toFixed(1)} KiB gzip`,
     `route-only ${(routeOnly.gzip / kib).toFixed(1)} KiB gzip`,
     `page entry ${(pageEntryRaw / kib).toFixed(1)} KiB raw`,
-    `${requiredSplits.length} deferred surfaces verified`
+    `${requiredSplits.length + (packageSplit ? 1 : 0)} deferred surfaces verified`
   ].join(" ")
 );

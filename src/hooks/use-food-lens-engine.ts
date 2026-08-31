@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { FoodAuthority } from "@/domain/food-authority";
 import { useFoodCamera, type CameraStatus } from "@/hooks/use-food-camera";
 import { useBarcodeScan } from "@/hooks/use-barcode-scan";
 import { useLiveFoodScore, type LiveScoreState } from "@/hooks/use-live-food-score";
@@ -15,6 +16,7 @@ export type FoodLensEngine = {
   cameraStatus: CameraStatus;
   /** Camera denied or absent: the viewfinder gives up its height and the voice bar inverts. */
   cameraBlocked: boolean;
+  authority: FoodAuthority;
 };
 
 /**
@@ -44,8 +46,24 @@ export function useFoodLensEngine(args: {
   const camera = useFoodCamera();
   const passcode = usePasscode();
   const cameraActive = camera.status === "active";
+  const authorityRef = useRef(0);
+  const [authorityEpoch, setAuthorityEpoch] = useState(0);
+  const invalidateAuthority = useCallback(() => {
+    const next = authorityRef.current + 1;
+    authorityRef.current = next;
+    setAuthorityEpoch(next);
+    return next;
+  }, []);
+  const snapshotAuthority = useCallback(() => authorityRef.current, []);
+  const isAuthorityCurrent = useCallback((epoch: number) => authorityRef.current === epoch, []);
+  const authority = useMemo<FoodAuthority>(() => ({
+    epoch: authorityEpoch,
+    snapshot: snapshotAuthority,
+    isCurrent: isAuthorityCurrent,
+    invalidate: invalidateAuthority
+  }), [authorityEpoch, invalidateAuthority, isAuthorityCurrent, snapshotAuthority]);
 
-  const { start } = camera;
+  const { start, stop } = camera;
   useEffect(() => {
     void start();
   }, [start]);
@@ -62,15 +80,28 @@ export function useFoodLensEngine(args: {
     cameraActive,
     barcodeActive: activeBarcode !== null,
     crisis,
-    passcode
+    passcode,
+    authority
   });
 
+  const stopCamera = useCallback(() => {
+    // Stopping media is an authority transition, including pagehide/bfcache teardown.
+    // Every live, barcode, and package request that captured the prior epoch becomes inert.
+    invalidateAuthority();
+    stop();
+  }, [invalidateAuthority, stop]);
+  const authorityAwareCamera = useMemo(
+    () => ({ ...camera, stop: stopCamera }),
+    [camera, stopCamera]
+  );
+
   return {
-    camera,
+    camera: authorityAwareCamera,
     live,
     passcode,
     activeBarcode,
     cameraStatus: camera.status,
-    cameraBlocked: camera.status === "denied" || camera.status === "unavailable"
+    cameraBlocked: camera.status === "denied" || camera.status === "unavailable",
+    authority
   };
 }

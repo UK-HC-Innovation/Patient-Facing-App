@@ -94,6 +94,41 @@ describe("useFoodVoiceSession context injection", () => {
     expect(restartedBuilder().text).toContain(JSON.stringify(food));
   });
 
+  it("strips raw package-label OCR from realtime and fallback voice context", async () => {
+    const packageFood: IdentifiedFood = {
+      ...food,
+      id: "label-food-1",
+      source: "label_vision",
+      ingredientText: "SECRET RAW OCR INGREDIENTS"
+    };
+    const getContext = () => ({
+      frameDataUrl: null,
+      identifiedFood: packageFood,
+      flagTexts: []
+    });
+    const { result } = renderHook(() => useFoodVoiceSession({
+      language: "en",
+      getState: () => demoState,
+      getContext,
+      onFinalTranscript: vi.fn(),
+      onSafetyIntercept: vi.fn()
+    }));
+
+    await act(async () => result.current.start());
+    const builder = mocks.connect.mock.calls[0][0].buildContextMessage as () => { text: string };
+    const contextMessage = builder().text;
+    expect(contextMessage).not.toContain("SECRET RAW OCR INGREDIENTS");
+    expect(contextMessage).toContain('"ingredientText":null');
+
+    act(() => result.current.stop());
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ mode: "mock", reason: "provider_unavailable" }))
+    ));
+    await act(async () => result.current.start());
+    const localInit = mocks.openLocal.mock.calls[0][0] as { getContext: () => { identifiedFood: IdentifiedFood | null } };
+    expect(localInit.getContext().identifiedFood?.ingredientText).toBeNull();
+  });
+
   it("closes on a safety intercept and suppresses trailing transcript events", async () => {
     const onFinalTranscript = vi.fn();
     const onSafetyIntercept = vi.fn();

@@ -422,6 +422,12 @@ export type LabelScoreOptions = {
   name: string;
   category?: string | null;
   ingredientText?: string | null;
+  /**
+   * Package-front wording is not nutrition evidence. Label-photo scores set this false
+   * so a guessed or edited name such as "jerky" cannot change D5/D6; confirmed printed
+   * ingredients remain eligible evidence.
+   */
+  allowIdentityHeuristics?: boolean;
   /** Gate result from the P1 harness; when false, D6 is omitted rather than guessed. */
   useUpfDetector?: boolean;
 };
@@ -442,7 +448,10 @@ export function computeLabelScore(nutrition: NutritionFacts, options: LabelScore
   const domains: { key: DomainKey; value: number }[] = [];
   const included: DomainKey[] = [];
   const ingredients = options.ingredientText ?? "";
-  const haystack = `${options.name} ${options.category ?? ""} ${ingredients}`;
+  const identityEvidence =
+    options.allowIdentityHeuristics === false
+      ? ingredients
+      : `${options.name} ${options.category ?? ""} ${ingredients}`;
 
   const perKcalFactor = kcal !== null && kcal > 0 ? 100 / kcal : null;
   const per100kcal = (value: number | null): number | null =>
@@ -510,7 +519,7 @@ export function computeLabelScore(nutrition: NutritionFacts, options: LabelScore
     }
     return ((nutrition.addedSugarsG * 4) / kcal) * 100;
   })();
-  const curedMeat = CURED_MEAT_PATTERN.test(haystack);
+  const curedMeat = CURED_MEAT_PATTERN.test(identityEvidence);
   if (addedSugarPercent !== null || additives.length > 0 || curedMeat) {
     const parts: number[] = [];
     if (addedSugarPercent !== null) {

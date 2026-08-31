@@ -33,7 +33,7 @@ describe("usePageHideTeardown", () => {
 
   it("also catches a tab being swiped shut, which visibilitychange can miss", () => {
     const stop = vi.fn();
-    hide(true);
+    hide(false);
     render(<Probe stops={[stop]} />);
 
     act(() => {

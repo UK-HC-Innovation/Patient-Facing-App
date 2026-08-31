@@ -28,9 +28,18 @@ async function stubFoodLens(page: import("@playwright/test").Page) {
   );
 }
 
+async function confirmBarcode(page: import("@playwright/test").Page) {
+  const useProduct = page.getByRole("button", { name: "Use this product" });
+  await expect(useProduct).toBeVisible();
+  await expect(page.getByTestId("food-verdict")).toHaveCount(0);
+  await useProduct.click();
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior }));
+}
+
 test("builds and logs a two-item plate with one shared meal id", async ({ page }) => {
   await stubFoodLens(page);
   await page.goto("/food");
+  await confirmBarcode(page);
 
   await expect(page.getByTestId("food-verdict")).toContainText("Chicken Noodle Soup");
   await expect(page.getByTestId("food-verdict")).toContainText("Food Compass score");
@@ -49,6 +58,7 @@ test("builds and logs a two-item plate with one shared meal id", async ({ page }
   // the food's name while the sticky strip is printing it. Back to the top to read it.
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior }));
   // The scanner requires two consecutive 500 ms detections before changing.
+  await confirmBarcode(page);
   await expect(page.getByTestId("food-verdict")).toContainText("Old Fashioned Oats");
   await expect(page.getByTestId("food-verdict")).toContainText("Food Compass score");
   await page.getByRole("button", { name: "Add to plate" }).click();
@@ -116,12 +126,25 @@ async function stubUnknownBarcode(page: import("@playwright/test").Page) {
 
 test("hides label-photo scoring when the provider probe is mocked", async ({ page }) => {
   await stubUnknownBarcode(page);
+  const packageAssets: string[] = [];
+  const packageApiRequests: string[] = [];
+  page.on("request", (request) => {
+    const url = decodeURIComponent(request.url());
+    if (/food-package-scan/iu.test(url)) packageAssets.push(url);
+    if (/\/api\/food\/package(?:\/|\?|$)/u.test(new URL(url).pathname)) {
+      packageApiRequests.push(url);
+    }
+  });
   await page.goto("/food");
 
-  await expect(page.getByText(UNKNOWN_BARCODE, { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Food camera").getByText(UNKNOWN_BARCODE, { exact: true })).toBeVisible();
   await page.waitForTimeout(750);
+  await expect(page.getByText(/not in the product databases/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Scan a package" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Read the Nutrition Facts label" })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Nutrition label photo" })).toHaveCount(0);
+  expect(packageAssets).toEqual([]);
+  expect(packageApiRequests).toEqual([]);
 });
 
 test("labels the personalized route without inventing a current-food recommendation", async ({ page }) => {
@@ -145,6 +168,7 @@ test("scans a food, asks a typed question, logs the meal, and persists it", asyn
   await page.goto("/today");
   await page.goto("/food");
   await expect(page.getByRole("heading", { name: "Food Lens" })).toBeVisible();
+  await confirmBarcode(page);
 
   await expect(page.getByTestId("food-verdict")).toContainText("Chicken Noodle Soup");
   await expect(page.getByText(/mg sodium/)).toBeVisible();
@@ -242,6 +266,7 @@ test("keeps existing state when migrating a pre-mealLog save", async ({ page }) 
   await expect(page.getByText("137/86")).toBeVisible();
 
   await page.goto("/food");
+  await confirmBarcode(page);
   await page.getByLabel("Ask about this food…").fill("Is this okay?");
   await page.getByRole("button", { name: "Ask" }).click();
   // The published alternatives arrive last and move everything below them, so wait for the

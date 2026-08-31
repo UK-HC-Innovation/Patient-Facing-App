@@ -25,6 +25,21 @@ export type VoiceMode = "unknown" | "live" | "mock";
 
 const IDLE_TIMEOUT_MS = 180000;
 
+/**
+ * Package ingredient text is raw OCR evidence. It may inform the confirmed in-memory
+ * score, but it is not needed by voice and must not cross either voice transport.
+ */
+export function sanitizeFoodVoiceContext(context: LiveSessionContext): LiveSessionContext {
+  const food = context.identifiedFood;
+  if (!food || food.source !== "label_vision" || food.ingredientText === null) {
+    return context;
+  }
+  return {
+    ...context,
+    identifiedFood: { ...food, ingredientText: null }
+  };
+}
+
 type TokenResponse =
   | { mode: "live"; clientSecret: string; model: string; expiresAt: number | null }
   | { mode: "mock"; reason: string }
@@ -211,13 +226,14 @@ export function useFoodVoiceSession(args: {
     }
 
     const state = getState();
+    const getSafeContext = () => sanitizeFoodVoiceContext(getContext());
 
     if (token.mode === "live") {
       setMode("live");
       setDataMode(aiDataModeForVoiceTransport(token));
       let lastInjectedFoodId: string | null = null;
       const buildContextMessage = (): { text: string; imageDataUrl: string | null } => {
-        const context = getContext();
+        const context = getSafeContext();
         const override = overridesRef.current.buildContext;
         if (override) {
           return { imageDataUrl: context.frameDataUrl, text: override(context) };
@@ -293,7 +309,7 @@ export function useFoodVoiceSession(args: {
       {
         language,
         getState,
-        getContext,
+        getContext: getSafeContext,
         onEvent: (event) => {
           if (generation === startGenerationRef.current) {
             handleEvent(event);

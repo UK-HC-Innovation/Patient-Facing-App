@@ -1,0 +1,235 @@
+{
+  "schemaVersion": 2,
+  "corpusId": "<replace-with-reviewed-opaque-corpus-id>",
+  "releasePolicyVersion": "package-label-v1",
+  "notes": "Copy to manifest.local.json. Use opaque case IDs, keep images/local manifests out of git, replace hashes/models/prices with reviewed values, and have two people independently transcribe each case before adjudication.",
+  "expectedModels": {
+    "package": ["replace-with-actual-package-response-model"],
+    "live": ["replace-with-actual-live-response-model"]
+  },
+  "priceCard": {
+    "currency": "USD",
+    "asOf": "2026-08-31",
+    "models": {
+      "replace-with-actual-package-response-model": {
+        "serviceTiers": {
+          "default": {
+            "inputUsdPer1MTokens": 1,
+            "outputUsdPer1MTokens": 2
+          }
+        }
+      },
+      "replace-with-actual-live-response-model": {
+        "serviceTiers": {
+          "default": {
+            "inputUsdPer1MTokens": 1,
+            "outputUsdPer1MTokens": 2
+          }
+        }
+      }
+    }
+  },
+  "releaseCriteria": {
+    "requiredSubgroups": {
+      "front": {
+        "language": ["en", "es"],
+        "packageType": ["pouch", "bag", "box", "can", "bottle"],
+        "glare": ["none", "present"],
+        "skew": ["none", "present"],
+        "crop": ["none", "partial"],
+        "size": ["small", "medium", "large"]
+      },
+      "nutrition": {
+        "language": ["en", "es"],
+        "packageType": ["pouch", "bag", "box", "can", "bottle"],
+        "glare": ["none", "present"],
+        "skew": ["none", "present"],
+        "crop": ["none", "partial"],
+        "size": ["small", "medium", "large"]
+      }
+    },
+    "requiredConditions": [
+      "condition_001",
+      "condition_002",
+      "condition_003",
+      "condition_004"
+    ],
+    "maxMeanUpperBoundCostUsd": 0.02,
+    "maxCaseUpperBoundCostUsd": 0.05,
+    "maxP95LatencyMs": 30000
+  },
+  "cases": [
+    {
+      "id": "front-001",
+      "kind": "front",
+      "path": "private-images/edamame-ranch-front.jpg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "clear": true,
+      "reviewers": ["reviewer-a", "reviewer-b"],
+      "expected": {
+        "primaryMode": "front",
+        "alternateModes": ["needs_rescan"],
+        "allowedRescanReasons": [
+          "poor_quality",
+          "unreadable",
+          "low_confidence",
+          "missing_identity",
+          "insufficient_evidence"
+        ]
+      },
+      "expectedCounts": {
+        "routeRequests": 1,
+        "allowedUpstreamCalls": [1]
+      },
+      "subgroups": {
+        "language": "en",
+        "packageType": "pouch",
+        "glare": "none",
+        "skew": "none",
+        "crop": "none",
+        "size": "medium",
+        "conditions": ["condition_004", "condition_003"]
+      },
+      "identity": {
+        "requiredTokens": ["edamame", "ranch"],
+        "forbiddenTokens": ["doritos"],
+        "categoryTokens": ["edamame"]
+      }
+    },
+    {
+      "id": "nutrition-001",
+      "kind": "nutrition",
+      "path": "private-images/edamame-ranch-nutrition.jpg",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "clear": true,
+      "reviewers": ["reviewer-a", "reviewer-b"],
+      "expected": {
+        "primaryMode": "nutrition",
+        "alternateModes": ["needs_rescan"],
+        "allowedRescanReasons": ["poor_quality", "unreadable", "missing_required_rows"]
+      },
+      "expectedCounts": {
+        "routeRequests": 1,
+        "allowedUpstreamCalls": [1]
+      },
+      "subgroups": {
+        "language": "en",
+        "packageType": "pouch",
+        "glare": "none",
+        "skew": "none",
+        "crop": "none",
+        "size": "medium",
+        "conditions": []
+      },
+      "servingBasis": "per_serving",
+      "columnTarget": "per_serving",
+      "servingTruth": {
+        "servingSize": "1 package (28g)",
+        "servingGrams": 28,
+        "servingsPerContainer": "1",
+        "selectedColumnHeading": "Amount per serving"
+      },
+      "nutritionTruth": {
+        "calories": { "state": "exact", "value": 130 },
+        "sodiumMg": { "state": "exact", "value": 180 },
+        "potassiumMg": { "state": "null", "reason": "omitted" },
+        "totalSugarsG": { "state": "exact", "value": 2 },
+        "addedSugarsG": { "state": "exact", "value": 0 },
+        "saturatedFatG": { "state": "exact", "value": 1 },
+        "fiberG": { "state": "exact", "value": 5 },
+        "proteinG": { "state": "exact", "value": 13 },
+        "carbsG": { "state": "exact", "value": 11 },
+        "totalFatG": { "state": "exact", "value": 5 },
+        "monoFatG": { "state": "null", "reason": "omitted" },
+        "polyFatG": { "state": "null", "reason": "omitted" },
+        "transFatG": { "state": "exact", "value": 0 },
+        "cholesterolMg": { "state": "exact", "value": 0 },
+        "calciumMg": { "state": "null", "reason": "omitted" },
+        "ironMg": { "state": "null", "reason": "omitted" }
+      }
+    },
+    {
+      "id": "live-001",
+      "kind": "live",
+      "path": "private-images/edamame-ranch-live.jpg",
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "clear": true,
+      "reviewers": ["reviewer-a", "reviewer-b"],
+      "expected": {
+        "primaryMode": "package",
+        "alternateModes": ["none"],
+        "allowedRescanReasons": []
+      },
+      "expectedCounts": {
+        "routeRequests": 1,
+        "allowedUpstreamCalls": [1]
+      },
+      "subgroups": {
+        "language": "en",
+        "packageType": "pouch",
+        "glare": "none",
+        "skew": "none",
+        "crop": "none",
+        "size": "medium",
+        "conditions": ["condition_004"]
+      },
+      "identity": {
+        "requiredTokens": ["edamame", "ranch"],
+        "forbiddenTokens": ["doritos"],
+        "categoryTokens": ["edamame"]
+      }
+    },
+    {
+      "id": "nutrition-002",
+      "kind": "nutrition",
+      "path": "private-images/dual-column.jpg",
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "clear": false,
+      "reviewers": ["reviewer-a", "reviewer-b"],
+      "expected": {
+        "primaryMode": "needs_rescan",
+        "alternateModes": [],
+        "allowedRescanReasons": ["ambiguous_columns", "multiple_columns", "per_container_column"]
+      },
+      "expectedCounts": {
+        "routeRequests": 1,
+        "allowedUpstreamCalls": [1]
+      },
+      "subgroups": {
+        "language": "en",
+        "packageType": "box",
+        "glare": "none",
+        "skew": "none",
+        "crop": "none",
+        "size": "large",
+        "conditions": ["condition_001"]
+      }
+    },
+    {
+      "id": "front-002",
+      "kind": "front",
+      "path": "private-images/multiple-packages.jpg",
+      "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "clear": false,
+      "reviewers": ["reviewer-a", "reviewer-b"],
+      "expected": {
+        "primaryMode": "needs_rescan",
+        "alternateModes": [],
+        "allowedRescanReasons": ["multiple_packages"]
+      },
+      "expectedCounts": {
+        "routeRequests": 1,
+        "allowedUpstreamCalls": [1]
+      },
+      "subgroups": {
+        "language": "en",
+        "packageType": "mixed",
+        "glare": "none",
+        "skew": "none",
+        "crop": "none",
+        "size": "large",
+        "conditions": ["condition_002"]
+      }
+    }
+  ]
+}

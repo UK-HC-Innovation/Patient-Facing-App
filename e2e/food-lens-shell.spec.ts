@@ -31,15 +31,22 @@ async function stubIdentify(page: Page, body: unknown = { mode: "match", match: 
     })
   );
   await page.route("**/api/food/identify", async (route) => {
-    const posted = route.request().postDataJSON() as { image?: string };
-    if (!posted.image) {
-      await route.continue();
+    const posted = route.request().postDataJSON() as { image?: string; foodId?: string };
+    if (posted.foodId && (body as { mode?: string }).mode === "match") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
       return;
     }
     counter.image += 1;
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+    const imageBody = (body as { mode?: string; match?: typeof bananaMatch }).mode === "match"
+      ? { mode: "candidate", candidate: { food: (body as { match: typeof bananaMatch }).match.food }, candidates: [] }
+      : body;
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(imageBody) });
   });
   return counter;
+}
+
+async function confirmCameraCandidate(page: Page) {
+  await page.getByRole("button", { name: "Yes, use this food" }).click();
 }
 
 function strip(page: Page) {
@@ -55,6 +62,7 @@ async function scrollViewfinderAway(page: Page) {
 test("stops sending frames once the viewfinder scrolls off screen", async ({ page }) => {
   const identifies = await stubIdentify(page);
   await page.goto("/food/demo");
+  await confirmCameraCandidate(page);
 
   await expect(strip(page)).toContainText("Reading the camera", { timeout: 10_000 });
   const before = identifies.image;
@@ -72,6 +80,7 @@ test("stops sending frames once the viewfinder scrolls off screen", async ({ pag
 test("scrolling back re-shows the match without a Scan again chip", async ({ page }) => {
   const identifies = await stubIdentify(page);
   await page.goto("/food/demo");
+  await confirmCameraCandidate(page);
 
   await expect(strip(page)).toContainText("Reading the camera", { timeout: 10_000 });
   await scrollViewfinderAway(page);
@@ -90,6 +99,7 @@ test("scrolling back re-shows the match without a Scan again chip", async ({ pag
 test("switches the strip between its two modes at one fixed height", async ({ page }) => {
   await stubIdentify(page);
   await page.goto("/food/demo");
+  await confirmCameraCandidate(page);
 
   await expect(strip(page)).toContainText("Reading the camera", { timeout: 10_000 });
   const loopBox = await strip(page).boundingBox();
@@ -123,6 +133,7 @@ test("switches the strip between its two modes at one fixed height", async ({ pa
 test("keeps the public mount store-free and gives it no camera button", async ({ page }) => {
   await stubIdentify(page);
   await page.goto("/food/demo");
+  await confirmCameraCandidate(page);
 
   await expect(strip(page)).toContainText("Reading the camera", { timeout: 10_000 });
   await scrollViewfinderAway(page);
@@ -133,15 +144,15 @@ test("keeps the public mount store-free and gives it no camera button", async ({
   await expect(strip(page).getByRole("button")).toHaveCount(0);
 });
 
-test("shows a carve-out with no figure, no chart and a way to log it anyway", async ({ page }) => {
+test("turns an image-only carve-out into a safe no-match with no score or log action", async ({ page }) => {
   await stubIdentify(page, { mode: "carve_out", reason: "zero_calorie" });
   await page.goto("/food");
 
-  await expect(page.getByText(/Water is the best choice there is/)).toBeVisible({ timeout: 10_000 });
-  // Absent, not zeroed or greyed: a dimmed dash reads as a bad score.
-  await expect(page.getByText("of 100")).toHaveCount(0);
-  await expect(page.getByRole("region", { name: "Score and calories" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Log it anyway" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "No match" })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("region", { name: "Food camera" })).toBeVisible();
+  await expect(page.getByTestId("food-verdict")).toHaveCount(0);
+  await expect(page.getByTestId("nutrition-compass-marker")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Log it anyway" })).toHaveCount(0);
 });
 
 test("opens the domain breakdown from the chart marker and hands focus back on close", async ({ page }) => {
@@ -159,6 +170,7 @@ test("opens the domain breakdown from the chart marker and hands focus back on c
     }
   });
   await page.goto("/food/demo");
+  await confirmCameraCandidate(page);
 
   const marker = page.getByTestId("nutrition-compass-marker");
   await expect(marker).toBeVisible({ timeout: 10_000 });
@@ -177,6 +189,7 @@ test("opens the domain breakdown from the chart marker and hands focus back on c
 test("names the quadrants in a legend beneath the plot, never in its corners", async ({ page }) => {
   await stubIdentify(page);
   await page.goto("/food/demo");
+  await confirmCameraCandidate(page);
 
   const chart = page.getByRole("region", { name: "Score and calories" });
   await expect(chart).toBeVisible({ timeout: 10_000 });
@@ -194,6 +207,7 @@ test("names the quadrants in a legend beneath the plot, never in its corners", a
 test("never lets the shell widen the page, at either end of the viewport range", async ({ page }) => {
   await stubIdentify(page);
   await page.goto("/food/demo");
+  await confirmCameraCandidate(page);
   await expect(strip(page)).toContainText("Reading the camera", { timeout: 10_000 });
 
   // A single unbreakable line inside the pinned bar once widened the document to four

@@ -3,11 +3,12 @@
 import React, { useCallback, type ReactNode, type RefObject } from "react";
 import type { Language } from "@/i18n/strings";
 import type { CompassScore, NotScoreableReason } from "@/domain/food-compass";
-import type { LiveCandidate, LiveLoopState, LiveScoreBadge } from "@/hooks/use-live-food-score";
+import type { LiveCandidate, LiveIdentityCandidate, LiveLoopState, LiveScoreBadge } from "@/hooks/use-live-food-score";
 import type { CameraStatus } from "@/hooks/use-food-camera";
 import type { LiveSessionStatus } from "@/ai/types";
 import type { CompassBreakdown } from "./compass-score";
 import { NutritionCompass } from "./nutrition-compass";
+import { FoodIdentityReview, FoodPackageAbstention } from "./food-identity-review";
 import {
   FoodEmptyState,
   FoodNoMatch,
@@ -43,6 +44,10 @@ export type FoodLensView = {
   noMatchCandidates: LiveCandidate[];
   /** True when the route answered "none" -- distinct from having seen nothing yet. */
   noMatch: boolean;
+  /** Image-only identity proposal. It is deliberately unscored until confirmation. */
+  candidate: LiveIdentityCandidate | null;
+  /** Semantic package abstention; the shared layer never learns whether scanning exists. */
+  packageDetected: boolean;
 };
 
 export type FoodLensChart = {
@@ -121,6 +126,8 @@ export function FoodLensExperience({
   voiceBarOffsetPx = 0,
   verdictRegionLabel,
   onSelectCandidate,
+  onConfirmIdentity,
+  onRejectIdentity,
   emptyStateChildren,
   wrapper
 }: {
@@ -141,13 +148,24 @@ export function FoodLensExperience({
   /** The public mount names its result region; the personal one does not need to. */
   verdictRegionLabel?: string;
   onSelectCandidate?: (foodId: string) => void;
+  onConfirmIdentity?: (foodId: string) => void;
+  onRejectIdentity?: () => void;
   /** A store-backed mount can offer a food you have had before; a store-free one cannot. */
   emptyStateChildren?: ReactNode;
   wrapper?: (children: ReactNode) => ReactNode;
 }) {
   const backToCamera = useCallback(() => scrollToViewfinder(), []);
 
-  const verdict = view.carveOut ? (
+  const verdict = view.candidate && onConfirmIdentity && onRejectIdentity ? (
+    <FoodIdentityReview
+      candidate={view.candidate}
+      language={language}
+      onConfirm={onConfirmIdentity}
+      onReject={onRejectIdentity}
+    />
+  ) : view.packageDetected ? (
+    <FoodPackageAbstention language={language} onScanAgain={onRejectIdentity} />
+  ) : view.carveOut ? (
     <FoodVerdict carveOutReason={view.carveOut} foodName={view.name} language={language} score={null} />
   ) : view.score ? (
     <FoodVerdict carveOutReason={null} foodName={view.name} language={language} score={view.score} />

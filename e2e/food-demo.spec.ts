@@ -28,23 +28,32 @@ async function stubRealtime(page: Page) {
 
 async function stubCameraMatch(page: Page, match = bananaMatch) {
   await page.route("**/api/food/identify", async (route) => {
-    const body = route.request().postDataJSON() as { image?: string };
-    if (!body.image) {
-      await route.continue();
+    const body = route.request().postDataJSON() as { image?: string; foodId?: string };
+    if (body.foodId) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ mode: "match", match, candidates: [] })
+      });
       return;
     }
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ mode: "match", match })
+      body: JSON.stringify({ mode: "candidate", candidate: { food: match.food }, candidates: [] })
     });
   });
+}
+
+async function confirmCameraCandidate(page: Page, language: "en" | "es" = "en") {
+  await page.getByRole("button", { name: language === "es" ? "Sí, usar esta comida" : "Yes, use this food" }).click();
 }
 
 test("keeps the camera in place and starts the food conversation automatically", async ({ page }) => {
   await stubRealtime(page);
   await stubCameraMatch(page);
   await page.goto("/food/demo");
+  await confirmCameraCandidate(page);
 
   // The verdict says band, sentence and number; the food name rides its subline.
   await expect(page.getByTestId("food-verdict")).toContainText("Banana, raw", { timeout: 10_000 });
@@ -62,6 +71,7 @@ test("plots Food Compass on X and calorie density on Y in one of four quadrants"
   await stubRealtime(page);
   await stubCameraMatch(page);
   await page.goto("/food/demo");
+  await confirmCameraCandidate(page);
 
   const chart = page.getByRole("region", { name: "Score and calories" });
   await expect(chart).toBeVisible({ timeout: 10_000 });
@@ -74,6 +84,116 @@ test("plots Food Compass on X and calorie density on Y in one of four quadrants"
     "Banana, raw: scores 83 out of 100 · 0.89 calories per gram (89 per 100 g) · Choose often."
   );
   await chart.scrollIntoViewIfNeeded();
+});
+
+test("keeps a newly detected package authoritative over a late sort response", async ({ page }) => {
+  const appleMatch = {
+    ...bananaMatch,
+    food: { code: "63101000", description: "Apple, raw", group: "2000_Fruit" },
+    score: { ...bananaMatch.score, fcs: 75 }
+  };
+  await stubRealtime(page);
+  await page.addInitScript(() => {
+    const testWindow = window as typeof window & {
+      __refinementStarted?: boolean;
+      __releaseRefinement?: () => void;
+    };
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      const body = typeof init?.body === "string"
+        ? JSON.parse(init.body) as { text?: string; preferLowerCalorieDensity?: boolean }
+        : null;
+      if (
+        String(input).includes("/api/food/identify") &&
+        body?.text &&
+        body.preferLowerCalorieDensity === true
+      ) {
+        testWindow.__refinementStarted = true;
+        return new Promise<Response>((resolve) => {
+          testWindow.__releaseRefinement = () => resolve(new Response(JSON.stringify({
+            mode: "match",
+            match: {
+              food: { code: "99999999", description: "Late stale result", group: "9999_Other" },
+              score: {
+                fcs: 1,
+                band: "minimize",
+                tier: "T1",
+                ambiguous: false,
+                range: null,
+                calorieDensity: { kcalPer100g: 999, band: "high" },
+                domains: null,
+                coverage: null
+              },
+              alternatives: [],
+              nutrients: null
+            },
+            candidates: []
+          }), { status: 200, headers: { "Content-Type": "application/json" } }));
+        });
+      }
+      return originalFetch(input, init);
+    }) as typeof window.fetch;
+
+    const originalGetImageData = CanvasRenderingContext2D.prototype.getImageData;
+    let signatureSample = 0;
+    CanvasRenderingContext2D.prototype.getImageData = function (...args) {
+      const data = originalGetImageData.apply(this, args);
+      data.data.fill(signatureSample++ % 2 === 0 ? 0 : 255);
+      return data;
+    };
+  });
+
+  let packageScene = false;
+  let nextSceneIsApple = false;
+  await page.route("**/api/food/identify", async (route) => {
+    const body = route.request().postDataJSON() as { image?: string; foodId?: string };
+    if (body.foodId) {
+      const match = body.foodId === appleMatch.food.code ? appleMatch : bananaMatch;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ mode: "match", match, candidates: [] })
+      });
+      return;
+    }
+    const response = packageScene
+      ? { mode: "package" }
+      : {
+          mode: "candidate",
+          candidate: { food: nextSceneIsApple ? appleMatch.food : bananaMatch.food },
+          candidates: []
+        };
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response) });
+  });
+
+  await page.goto("/food/demo");
+  await confirmCameraCandidate(page);
+  await expect(page.getByTestId("food-verdict")).toContainText("Banana, raw", { timeout: 10_000 });
+
+  await page.getByRole("radio", { name: "Lowest calorie density first" }).click();
+  await expect.poll(() => page.evaluate(() => Boolean(
+    (window as typeof window & { __refinementStarted?: boolean }).__refinementStarted
+  ))).toBe(true);
+
+  packageScene = true;
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+  await expect(page.getByRole("region", { name: "Food camera" })).toBeInViewport();
+  await expect(page.getByRole("region", { name: "This looks packaged" })).toBeVisible({ timeout: 12_000 });
+  await page.evaluate(() => {
+    (window as typeof window & { __releaseRefinement?: () => void }).__releaseRefinement?.();
+  });
+  await expect(page.getByRole("region", { name: "This looks packaged" })).toBeVisible();
+  await expect(page.getByText("Late stale result")).toHaveCount(0);
+  await expect(page.getByTestId("food-verdict")).toHaveCount(0);
+  await expect(page.getByTestId("nutrition-compass-marker")).toHaveCount(0);
+
+  packageScene = false;
+  nextSceneIsApple = true;
+  await page.getByRole("button", { name: "Scan again" }).evaluate((element) => (element as HTMLButtonElement).click());
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+  await expect(page.getByText(/I think this is Apple, raw/)).toBeVisible({ timeout: 10_000 });
+  await confirmCameraCandidate(page);
+  await expect(page.getByTestId("food-verdict")).toContainText("Apple, raw", { timeout: 10_000 });
 });
 
 test("understands restaurant details spoken after the camera sees pizza", async ({ request }) => {
@@ -120,6 +240,7 @@ test("localizes the stateless camera-first flow in Spanish", async ({ page }) =>
   await stubRealtime(page);
   await stubCameraMatch(page);
   await page.goto("/food/demo?lang=es");
+  await confirmCameraCandidate(page, "es");
 
   await expect(page.getByRole("heading", { name: "Lente de Comida" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Cámara de alimentos" })).toBeVisible();
@@ -127,7 +248,7 @@ test("localizes the stateless camera-first flow in Spanish", async ({ page }) =>
   await expect(page.getByRole("textbox")).toHaveCount(0);
 });
 
-test("shows a carve-out without collapsing the camera or inventing a score", async ({ page }) => {
+test("turns an image-only carve-out into a safe no-match without collapsing the camera", async ({ page }) => {
   await stubRealtime(page);
   await page.route("**/api/food/identify", async (route) => {
     const body = route.request().postDataJSON() as { image?: string };
@@ -143,17 +264,12 @@ test("shows a carve-out without collapsing the camera or inventing a score", asy
   });
   await page.goto("/food/demo");
 
-  await expect(
-    page.getByRole("region", { name: "Score for this food" }).getByText(/Water is the best choice there is/)
-  ).toBeVisible({
-    timeout: 10_000
-  });
+  await expect(page.getByRole("region", { name: "No match" })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByRole("region", { name: "Food camera" })).toBeVisible();
   await expect(page.getByText("Camera collapsed")).toHaveCount(0);
-  await expect(
-    page.getByRole("region", { name: "Score for this food" }).getByText("Food Compass score", { exact: true })
-  ).toHaveCount(0);
+  await expect(page.getByTestId("food-verdict")).toHaveCount(0);
   await expect(page.getByTestId("nutrition-compass-marker")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Log it anyway" })).toHaveCount(0);
 });
 
 /**

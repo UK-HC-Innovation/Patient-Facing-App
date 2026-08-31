@@ -9,6 +9,7 @@ import type {
   ScoreDomainBreakdown
 } from "@/domain/food-compass";
 import type { FoodMatchProvenance, FoodOrderIntent } from "@/domain/food-order-intent";
+import type { FoodAuthority } from "@/domain/food-authority";
 import { GATE_PAUSE_BELOW, GATE_RESUME_ABOVE } from "@/domain/viewfinder-gate";
 
 export const LIVE_INTERVAL_MS = 2_500;
@@ -25,6 +26,11 @@ const SIGNATURE_EDGE = 32;
 
 export type LiveCandidate = { code: string; description: string; fcs: number };
 
+export type LiveIdentityCandidate = {
+  food: { code: string; description: string; group: string };
+  candidates: LiveCandidate[];
+};
+
 export type LiveMatch = {
   food: { code: string; description: string; group: string };
   score: CompassScore;
@@ -37,7 +43,7 @@ export type LiveMatch = {
 };
 
 export type LiveScoreBadge = "hidden" | "idle" | "pending" | "score" | "carve_out" | "scan_again";
-export type LiveDisarmReason = "idle" | "provider" | "offscreen" | "crisis" | null;
+export type LiveDisarmReason = "idle" | "provider" | "offscreen" | "crisis" | "review" | null;
 
 /**
  * What the loop pill says. Four states, not two: no pill at all is a real answer, because a
@@ -49,6 +55,10 @@ export type LiveScoreState = {
   badge: LiveScoreBadge;
   loopState: LiveLoopState;
   match: LiveMatch | null;
+  /** An image-proposed database row. It has no score until the patient confirms it. */
+  candidate: LiveIdentityCandidate | null;
+  /** The route saw retail packaging and deliberately withheld an FNDDS candidate. */
+  packageDetected: boolean;
   carveOut: NotScoreableReason | null;
   /**
    * Published category names to offer when nothing matched. FNDDS names read straight from
@@ -61,7 +71,9 @@ export type LiveScoreState = {
   disarmReason: LiveDisarmReason;
   /** A paid image-identify match has succeeded at least once during this mount. */
   liveIdentifySucceeded: boolean;
-  adoptMatch: (match: LiveMatch) => void;
+  adoptMatch: (match: LiveMatch, options?: { pin?: boolean }) => void;
+  /** Clear all current authority and stop paid identification until rearm(). */
+  suspend: () => void;
   rearm: () => void;
   /**
    * How much of the viewfinder is on screen, 0-1. Imperative on purpose: the caller measures
@@ -134,12 +146,15 @@ export function useLiveFoodScore(args: {
   crisis?: boolean;
   passcode?: string;
   enabled?: boolean;
+  authority?: FoodAuthority;
   now?: () => number;
 }): LiveScoreState {
   const { videoRef, grabFrame, cameraActive, barcodeActive, crisis = false, passcode, enabled = true } = args;
   const now = args.now ?? (() => Date.now());
 
   const [match, setMatch] = useState<LiveMatch | null>(null);
+  const [candidate, setCandidate] = useState<LiveIdentityCandidate | null>(null);
+  const [packageDetected, setPackageDetected] = useState(false);
   const [carveOut, setCarveOut] = useState<NotScoreableReason | null>(null);
   const [noMatchCandidates, setNoMatchCandidates] = useState<LiveCandidate[]>([]);
   const [noMatch, setNoMatch] = useState(false);
@@ -151,9 +166,12 @@ export function useLiveFoodScore(args: {
   const signatureRef = useRef<number[] | null>(null);
   const lastChangeRef = useRef<number>(0);
   const inFlightRef = useRef(false);
+  const identifyAbortRef = useRef<AbortController | null>(null);
   const disarmedRef = useRef(false);
   const disarmReasonRef = useRef<LiveDisarmReason>(null);
   const matchRef = useRef<LiveMatch | null>(null);
+  const candidateRef = useRef<LiveIdentityCandidate | null>(null);
+  const packageDetectedRef = useRef(false);
   const correctionPinnedUntilRef = useRef(0);
   const stashRef = useRef<{ match: LiveMatch | null; carveOut: NotScoreableReason | null; at: number } | null>(null);
   const barcodeActiveRef = useRef(barcodeActive);
@@ -176,12 +194,41 @@ export function useLiveFoodScore(args: {
   grabFrameRef.current = grabFrame;
   const passcodeRef = useRef(passcode);
   passcodeRef.current = passcode;
+  const fallbackAuthorityRef = useRef(0);
+  const externalAuthoritySnapshot = args.authority?.snapshot;
+  const externalAuthorityIsCurrent = args.authority?.isCurrent;
+  const externalAuthorityInvalidate = args.authority?.invalidate;
+  const snapshotAuthority = useCallback(
+    () => externalAuthoritySnapshot?.() ?? fallbackAuthorityRef.current,
+    [externalAuthoritySnapshot]
+  );
+  const isAuthorityCurrent = useCallback(
+    (epoch: number) => externalAuthorityIsCurrent?.(epoch) ?? fallbackAuthorityRef.current === epoch,
+    [externalAuthorityIsCurrent]
+  );
+  const invalidateAuthority = useCallback(() => {
+    if (externalAuthorityInvalidate) {
+      return externalAuthorityInvalidate();
+    }
+    fallbackAuthorityRef.current += 1;
+    return fallbackAuthorityRef.current;
+  }, [externalAuthorityInvalidate]);
 
   const armed = enabled && cameraActive && disarmReason === null && !barcodeActive;
 
   const commitMatch = useCallback((next: LiveMatch | null) => {
     matchRef.current = next;
     setMatch(next);
+  }, []);
+
+  const commitCandidate = useCallback((next: LiveIdentityCandidate | null) => {
+    candidateRef.current = next;
+    setCandidate(next);
+  }, []);
+
+  const commitPackageDetected = useCallback((next: boolean) => {
+    packageDetectedRef.current = next;
+    setPackageDetected(next);
   }, []);
 
   const candidateList = useCallback((candidates: LiveCandidate[] | undefined, matchedCode: string) => {
@@ -201,20 +248,39 @@ export function useLiveFoodScore(args: {
   }, []);
 
   const adoptMatch = useCallback(
-    (adopted: LiveMatch) => {
-      const previousCandidates = matchRef.current?.candidates ?? [];
+    (adopted: LiveMatch, options: { pin?: boolean } = {}) => {
+      invalidateAuthority();
+      const previousCandidates = candidateRef.current?.candidates ?? matchRef.current?.candidates ?? [];
       const suppliedCandidates = candidateList(adopted.candidates, adopted.food.code);
       const candidates =
         suppliedCandidates.length > 0
           ? suppliedCandidates
           : candidateList(previousCandidates, adopted.food.code);
       const next = { ...adopted, candidates };
-      correctionPinnedUntilRef.current = nowRef.current() + CORRECTION_PIN_MS;
+      const pin = options.pin !== false;
+      correctionPinnedUntilRef.current = pin ? nowRef.current() + CORRECTION_PIN_MS : 0;
+      if (!pin) {
+        // A confirmed camera proposal is not a 60-second manual correction. Resume the
+        // scene loop without immediately proposing the same still frame again: the first
+        // tick seeds its signature while this short hold is active, then a changed scene
+        // can be identified normally.
+        offscreenResumeRef.current = true;
+        resumeHoldUntilRef.current = nowRef.current() + LIVE_INTERVAL_MS * 2;
+      }
+      commitCandidate(null);
+      commitPackageDetected(false);
       commitMatch(next);
       setCarveOut(null);
+      setNoMatchCandidates([]);
+      setNoMatch(false);
+      if (disarmReasonRef.current === "review") {
+        disarmedRef.current = false;
+        disarmReasonRef.current = null;
+        setDisarmReason(null);
+      }
       stashRef.current = { match: next, carveOut: null, at: nowRef.current() };
     },
-    [candidateList, commitMatch]
+    [candidateList, commitCandidate, commitMatch, commitPackageDetected, invalidateAuthority]
   );
 
   const identify = useCallback(async () => {
@@ -225,31 +291,52 @@ export function useLiveFoodScore(args: {
     if (resumeHoldUntilRef.current > nowRef.current()) {
       return;
     }
+    if (candidateRef.current) {
+      return;
+    }
+    if (packageDetectedRef.current) {
+      return;
+    }
     const image = grabFrameRef.current();
     if (!image) {
       return;
     }
+    // A request is only launched after the scene-change gate has accepted a new frame.
+    // The old scene must stop being authoritative at that point, even if this request
+    // later times out, fails to parse, or returns an error. Keeping the prior match while
+    // a different scene is being identified can expose and log a stale score indefinitely.
+    correctionPinnedUntilRef.current = 0;
+    stashRef.current = null;
+    commitCandidate(null);
+    commitMatch(null);
+    setCarveOut(null);
+    commitPackageDetected(false);
+    setNoMatchCandidates([]);
+    setNoMatch(false);
     inFlightRef.current = true;
     setInFlight(true);
+    const requestEpoch = snapshotAuthority();
+    const controller = new AbortController();
+    identifyAbortRef.current?.abort();
+    identifyAbortRef.current = controller;
     try {
       const response = await fetch("/api/food/identify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image, passcode: passcodeRef.current })
+        body: JSON.stringify({ image, passcode: passcodeRef.current }),
+        signal: controller.signal
       });
       const json = (await response.json()) as {
         mode: string;
         reason?: NotScoreableReason;
         match?: Omit<LiveMatch, "candidates">;
+        candidate?: { food: LiveIdentityCandidate["food"] };
         candidates?: LiveCandidate[];
       };
 
-      if (json.mode === "match" && json.match) {
-        setLiveIdentifySucceeded(true);
-      }
-
-      // A barcode may have taken over while this was in flight; its answer wins.
-      if (barcodeActiveRef.current) {
+      // Every authority transition advances synchronously. The old response is inert even
+      // in the small window before React re-renders and aborts its fetch.
+      if (controller.signal.aborted || !isAuthorityCurrent(requestEpoch) || barcodeActiveRef.current) {
         return;
       }
 
@@ -259,47 +346,78 @@ export function useLiveFoodScore(args: {
         setDisarmReason("provider");
         return;
       }
+      if (json.mode === "candidate" || (json.mode === "match" && json.match)) {
+        setLiveIdentifySucceeded(true);
+      }
       // A correction may have landed while this paid request was in flight.
       if (correctionPinnedUntilRef.current > nowRef.current()) {
         return;
       }
-      if (json.mode === "none") {
-        // "none" keeps whatever was last shown rather than flashing empty, but the route
-        // still names the nearest published categories -- offer them instead of a dead end.
-        setNoMatchCandidates((json.candidates ?? []).slice(0, 3));
+      if (json.mode === "none" || json.mode === "carve_out") {
+        // A semantic abstention belongs to the current scene. Keeping an older match here
+        // would make the abstention invisible and could expose a stale score. A live image
+        // is also never allowed to publish a carve-out without confirmation.
+        correctionPinnedUntilRef.current = 0;
+        stashRef.current = null;
+        commitCandidate(null);
+        commitMatch(null);
+        setCarveOut(null);
+        commitPackageDetected(false);
+        setNoMatchCandidates(json.mode === "none" ? (json.candidates ?? []).slice(0, 3) : []);
         setNoMatch(true);
+        return;
+      }
+      if (json.mode === "package") {
+        invalidateAuthority();
+        correctionPinnedUntilRef.current = 0;
+        stashRef.current = null;
+        commitCandidate(null);
+        commitMatch(null);
+        setCarveOut(null);
+        setNoMatchCandidates([]);
+        setNoMatch(false);
+        commitPackageDetected(true);
         return;
       }
       setNoMatchCandidates([]);
       setNoMatch(false);
-      if (json.mode === "carve_out" && json.reason) {
-        setCarveOut(json.reason);
-        commitMatch(null);
-        stashRef.current = { match: null, carveOut: json.reason, at: nowRef.current() };
-        return;
-      }
-      if (json.mode === "match" && json.match) {
-        const next: LiveMatch = {
-          ...json.match,
-          candidates: candidateList(json.candidates, json.match.food.code)
+      commitPackageDetected(false);
+      const proposedFood = json.candidate?.food ?? json.match?.food;
+      if ((json.mode === "candidate" || json.mode === "match") && proposedFood) {
+        invalidateAuthority();
+        const next: LiveIdentityCandidate = {
+          food: proposedFood,
+          candidates: candidateList(json.candidates, proposedFood.code)
         };
-        commitMatch(next);
+        commitCandidate(next);
+        commitMatch(null);
         setCarveOut(null);
-        stashRef.current = { match: next, carveOut: null, at: nowRef.current() };
+        stashRef.current = null;
+        disarmedRef.current = true;
+        disarmReasonRef.current = "review";
+        setDisarmReason("review");
       }
-      // "error": keep whatever was last shown rather than flashing empty.
+      // "error": the previous scene was cleared when this changed-scene request began.
     } catch {
       // network hiccup -- the next tick tries again
     } finally {
-      inFlightRef.current = false;
-      setInFlight(false);
+      if (identifyAbortRef.current === controller) {
+        identifyAbortRef.current = null;
+        inFlightRef.current = false;
+        setInFlight(false);
+      }
     }
-  }, [candidateList, commitMatch]);
+  }, [candidateList, commitCandidate, commitMatch, commitPackageDetected, invalidateAuthority, isAuthorityCurrent, snapshotAuthority]);
 
   const rearm = useCallback(() => {
     if (disarmReasonRef.current === "provider") {
       return;
     }
+    invalidateAuthority();
+    identifyAbortRef.current?.abort();
+    identifyAbortRef.current = null;
+    inFlightRef.current = false;
+    setInFlight(false);
     // "offscreen" and "crisis" each re-arm on their own condition alone. An explicit rearm
     // may clear the current food, but it must never claim the viewfinder is back on screen,
     // and it must never put a "Scan again" chip in front of a scroll.
@@ -308,8 +426,12 @@ export function useLiveFoodScore(args: {
     correctionPinnedUntilRef.current = 0;
     // Dropping the stash too, or scrolling back would restore the food that was just plated.
     stashRef.current = null;
+    commitCandidate(null);
     commitMatch(null);
     setCarveOut(null);
+    commitPackageDetected(false);
+    setNoMatchCandidates([]);
+    setNoMatch(false);
     if (gated) {
       return;
     }
@@ -327,7 +449,26 @@ export function useLiveFoodScore(args: {
     ) {
       void identify();
     }
-  }, [commitMatch, identify]);
+  }, [commitCandidate, commitMatch, commitPackageDetected, identify, invalidateAuthority]);
+
+  const suspend = useCallback(() => {
+    invalidateAuthority();
+    identifyAbortRef.current?.abort();
+    identifyAbortRef.current = null;
+    inFlightRef.current = false;
+    setInFlight(false);
+    correctionPinnedUntilRef.current = 0;
+    stashRef.current = null;
+    commitCandidate(null);
+    commitMatch(null);
+    commitPackageDetected(false);
+    setCarveOut(null);
+    setNoMatchCandidates([]);
+    setNoMatch(false);
+    disarmedRef.current = true;
+    disarmReasonRef.current = "review";
+    setDisarmReason("review");
+  }, [commitCandidate, commitMatch, commitPackageDetected, invalidateAuthority]);
 
   const setVisibleRatio = useCallback(
     (ratio: number) => {
@@ -361,9 +502,22 @@ export function useLiveFoodScore(args: {
     [commitMatch]
   );
 
+  useEffect(() => {
+    identifyAbortRef.current?.abort();
+    identifyAbortRef.current = null;
+    inFlightRef.current = false;
+    setInFlight(false);
+  }, [args.authority?.epoch]);
+
+  useEffect(() => () => {
+    identifyAbortRef.current?.abort();
+    identifyAbortRef.current = null;
+  }, []);
+
   // --- crisis: an explicit disarm, never a side effect of an unmounted camera ---
   useEffect(() => {
     if (crisis) {
+      invalidateAuthority();
       disarmedRef.current = true;
       disarmReasonRef.current = "crisis";
       setDisarmReason("crisis");
@@ -374,31 +528,35 @@ export function useLiveFoodScore(args: {
       disarmReasonRef.current = null;
       setDisarmReason(null);
     }
-  }, [crisis]);
+  }, [crisis, invalidateAuthority]);
 
-  // --- barcode preemption and restore ---
+  // --- barcode preemption ---
   useEffect(() => {
     const wasActive = barcodeActiveRef.current;
     barcodeActiveRef.current = barcodeActive;
     if (barcodeActive && !wasActive) {
-      // Stand down; the stash keeps the vision answer for a short while.
+      // A detected barcode is a new authority claim. Never restore the preceding scene
+      // after the code leaves the frame while its lookup or review is still in progress.
       correctionPinnedUntilRef.current = 0;
+      stashRef.current = null;
+      commitCandidate(null);
       commitMatch(null);
       setCarveOut(null);
+      commitPackageDetected(false);
+      setNoMatchCandidates([]);
+      setNoMatch(false);
       return;
     }
     if (!barcodeActive && wasActive) {
-      const stash = stashRef.current;
-      if (stash && nowRef.current() - stash.at < VISION_RESTORE_MS) {
-        commitMatch(stash.match);
-        setCarveOut(stash.carveOut);
-      } else {
-        stashRef.current = null;
-        commitMatch(null);
-        setCarveOut(null);
-      }
+      stashRef.current = null;
+      commitCandidate(null);
+      commitMatch(null);
+      setCarveOut(null);
+      commitPackageDetected(false);
+      setNoMatchCandidates([]);
+      setNoMatch(false);
     }
-  }, [barcodeActive, commitMatch]);
+  }, [barcodeActive, commitCandidate, commitMatch, commitPackageDetected]);
 
   // --- the loop ---
   useEffect(() => {
@@ -449,7 +607,12 @@ export function useLiveFoodScore(args: {
   }, [armed, identify, videoRef]);
 
   const badge: LiveScoreBadge =
-    !enabled || !cameraActive || disarmReason === "provider" || disarmReason === "crisis"
+    !enabled ||
+    !cameraActive ||
+    packageDetected ||
+    disarmReason === "provider" ||
+    disarmReason === "crisis" ||
+    disarmReason === "review"
       ? "hidden"
       : disarmReason === "idle"
         ? "scan_again"
@@ -467,9 +630,11 @@ export function useLiveFoodScore(args: {
     !enabled ||
     !cameraActive ||
     barcodeActive ||
+    packageDetected ||
     disarmReason === "provider" ||
     disarmReason === "crisis" ||
-    disarmReason === "idle"
+    disarmReason === "idle" ||
+    disarmReason === "review"
       ? "unavailable"
       : disarmReason === "offscreen"
         ? "paused_offscreen"
@@ -481,6 +646,8 @@ export function useLiveFoodScore(args: {
     badge,
     loopState,
     match,
+    candidate,
+    packageDetected,
     carveOut,
     noMatchCandidates,
     noMatch,
@@ -488,6 +655,7 @@ export function useLiveFoodScore(args: {
     disarmReason,
     liveIdentifySucceeded,
     adoptMatch,
+    suspend,
     rearm,
     setVisibleRatio
   };

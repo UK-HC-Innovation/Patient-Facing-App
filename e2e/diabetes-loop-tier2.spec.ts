@@ -41,6 +41,9 @@ test("tier-2 diabetes loop: dose-log tags and editable portion scaling", async (
   );
   await page.goto("/food");
   await foodLookupResponse;
+  await expect(page.getByTestId("food-verdict")).toHaveCount(0);
+  await page.getByRole("button", { name: "Use this product" }).click();
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior }));
   await expect(page.getByTestId("food-verdict")).toContainText("Condensed Chicken Noodle Soup");
   await expect(page.getByText("Set to 1 servings — tap to change.")).toBeVisible();
   await expect(page.getByText("60")).toBeVisible();

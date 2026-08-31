@@ -3,10 +3,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { AppShell } from "@/components/app-shell";
-import { AiDataDisclosure } from "@/components/ai-data-disclosure";
-import { FoodSavedPicks } from "@/components/food-saved-picks";
-import { FoodGuidanceSource } from "@/components/food-guidance-source";
-import type { LabelFallbackState } from "@/components/food-label-fallback";
 import { FoodViewfinder } from "@/components/food-viewfinder";
 import { FOOD_LENS_CAPABILITIES } from "@/components/food-lens-shell";
 import {
@@ -16,11 +12,7 @@ import {
 } from "@/components/food-lens-experience";
 import { FoodLensVoiceBar } from "@/components/food-lens-voice-bar";
 import { FoodAttribution, FoodCrisisLock } from "@/components/food-lens-blocks";
-import {
-  EMPTY_PLATE_SCAN_OUTCOME,
-  PlateScanButton,
-  type PlateScanOutcome
-} from "@/components/plate-scan-button";
+import type { PlateScanOutcome } from "@/components/plate-scan-button";
 import {
   FoodActionsBlock,
   FoodCorrectionChips,
@@ -33,8 +25,6 @@ import {
 } from "@/components/food-facts-card";
 import { CompassAlternatives, resolveDomainBreakdown } from "@/components/compass-score";
 import { hasUnacknowledgedCrisis } from "@/state/selectors";
-import { createSafeAiResponse } from "@/ai/safety-gate";
-import { PantryProvider, PANTRY_REQUEST_TEXT } from "@/ai/pantry-provider";
 import { activeConditions, selectLenses } from "@/domain/condition-lens";
 import { formatDayTotalsContext, selectFoodLensDayTotals, summarizeDayTotals } from "@/domain/day-totals";
 import { computeFoodFlags, type FoodFlag } from "@/domain/food-flags";
@@ -44,7 +34,7 @@ import { buildPlateEntries, formatPlateContext, summarizePlate, type PlateItem }
 import { withPlateServings, type PlateCandidate, type PlateResponse } from "@/domain/plate-scan";
 import { recentFoodPicks } from "@/domain/food-recents";
 import { resolvePortionServings, scaleNutrition } from "@/domain/portion";
-import { foodLookupResponseSchema, mealLogEntrySchema } from "@/domain/schemas";
+import { mealLogEntrySchema } from "@/domain/schemas";
 import { t } from "@/i18n/strings";
 import { useFoodLensEngine } from "@/hooks/use-food-lens-engine";
 import { usePageHideTeardown } from "@/hooks/use-page-hide-teardown";
@@ -59,16 +49,53 @@ import type { AiMessage, IdentifiedFood, PantryResult } from "@/domain/types";
 import type { LiveSessionContext } from "@/ai/types";
 import type { SpokenFoodSize } from "@/domain/food-order-intent";
 
+const PACKAGE_SCAN_CLOUD_ENABLED = process.env.NEXT_PUBLIC_FOOD_PACKAGE_SCAN === "1";
+
+type FoodResolutionSnapshot = {
+  active: boolean;
+  resolvedFood: IdentifiedFood | null;
+  barcode: string | null;
+};
+
+const EMPTY_FOOD_RESOLUTION_SNAPSHOT: FoodResolutionSnapshot = {
+  active: false,
+  resolvedFood: null,
+  barcode: null
+};
+const EMPTY_PLATE_SCAN_OUTCOME: PlateScanOutcome = { notice: null, skipped: [], unmatched: [] };
+
 // These below-the-fold/after-action surfaces do not belong in the camera-first
 // critical bundle and load as independent client chunks.
 const PantryRecipes = dynamic(
   () => import("@/components/pantry-recipes").then((module) => module.PantryRecipes),
   { ssr: false }
 );
-const FoodLabelFallback = dynamic(
-  () => import("@/components/food-label-fallback").then((module) => module.FoodLabelFallback),
+const FoodSavedPicks = dynamic(
+  () => import("@/components/food-saved-picks").then((module) => module.FoodSavedPicks),
   { ssr: false }
 );
+const PlateScanButton = dynamic(
+  () => import("@/components/plate-scan-button").then((module) => module.PlateScanButton),
+  { ssr: false }
+);
+const AiDataDisclosure = dynamic(
+  () => import("@/components/ai-data-disclosure").then((module) => module.AiDataDisclosure),
+  { ssr: false }
+);
+const FoodGuidanceSource = dynamic(
+  () => import("@/components/food-guidance-source").then((module) => module.FoodGuidanceSource),
+  { ssr: false }
+);
+const FoodBarcodeReviewBridge = dynamic(
+  () => import("@/components/food-barcode-review-bridge").then((module) => module.FoodBarcodeReviewBridge),
+  { ssr: false }
+);
+const FoodPackageScanBridge = PACKAGE_SCAN_CLOUD_ENABLED
+  ? dynamic(
+      () => import("@/components/food-package-scan-bridge").then((module) => module.FoodPackageScanBridge),
+      { ssr: false }
+    )
+  : null;
 const FoodConversation = dynamic(
   () => import("@/components/food-conversation").then((module) => module.FoodConversation),
   { ssr: false }
@@ -100,10 +127,6 @@ export default function FoodPage() {
 
   const crisisOpen = useMemo(() => hasUnacknowledgedCrisis(state), [state]);
 
-  const [barcodeFood, setBarcodeFood] = useState<IdentifiedFood | null>(null);
-  const [labelFood, setLabelFood] = useState<IdentifiedFood | null>(null);
-  const [barcodeLookupMiss, setBarcodeLookupMiss] = useState(false);
-  const [labelFallbackState, setLabelFallbackState] = useState<LabelFallbackState>("idle");
   const [portionServings, setPortionServings] = useState(1);
   const [spokenSize, setSpokenSize] = useState<SpokenFoodSize | null>(null);
   const [plateItems, setPlateItems] = useState<PlateItem[]>([]);
@@ -113,17 +136,57 @@ export default function FoodPage() {
   const [logged, setLogged] = useState(false);
   const loggedEntryIdRef = useRef<string | null>(null);
   const plateScanRequestRef = useRef(0);
+  const plateScanAbortRef = useRef<{ controller: AbortController; epoch: number } | null>(null);
+  const plateChoiceAbortRef = useRef<{ controller: AbortController; epoch: number } | null>(null);
   const exactFoodRequestRef = useRef(0);
-  const labelRequestRef = useRef(0);
-  const labelReadingRef = useRef(false);
-  const { camera, live, passcode, activeBarcode, cameraBlocked } = useFoodLensEngine({
+  const exactFoodAbortRef = useRef<{ controller: AbortController; epoch: number } | null>(null);
+  const [barcodeReviewCode, setBarcodeReviewCode] = useState<string | null>(null);
+  const [foodResolutionState, setFoodResolutionState] = useState<FoodResolutionSnapshot>(
+    EMPTY_FOOD_RESOLUTION_SNAPSHOT
+  );
+  const foodResolutionCancelRef = useRef<(() => void) | null>(null);
+  const { camera, live, passcode, activeBarcode, cameraBlocked, authority } = useFoodLensEngine({
     crisis: crisisOpen,
-    barcode: { onDetect: () => setLogged(false) }
+    barcode: {
+      onDetect: (barcode) => {
+        setLogged(false);
+        if (!PACKAGE_SCAN_CLOUD_ENABLED) {
+          setBarcodeReviewCode(barcode);
+          setFoodResolutionState({ active: true, resolvedFood: null, barcode });
+        }
+      }
+    }
   });
   const adoptLiveMatch = live.adoptMatch;
   const rearmLiveScore = live.rearm;
-
-  const scannedFood = barcodeFood ?? labelFood;
+  const suspendLiveScore = live.suspend;
+  const updateFoodResolutionState = useCallback((next: FoodResolutionSnapshot) => {
+    setFoodResolutionState(next);
+  }, []);
+  const updateFoodResolutionCancel = useCallback((cancel: (() => void) | null) => {
+    foodResolutionCancelRef.current = cancel;
+  }, []);
+  const dismissBarcodeReview = useCallback(() => {
+    foodResolutionCancelRef.current = null;
+    setBarcodeReviewCode(null);
+    setFoodResolutionState(EMPTY_FOOD_RESOLUTION_SNAPSHOT);
+  }, []);
+  const cancelFoodResolution = useCallback(() => {
+    const cancel = foodResolutionCancelRef.current;
+    if (cancel) {
+      cancel();
+    } else if (!PACKAGE_SCAN_CLOUD_ENABLED) {
+      dismissBarcodeReview();
+      rearmLiveScore();
+    }
+  }, [dismissBarcodeReview, rearmLiveScore]);
+  const foodResolutionActive = foodResolutionState.active;
+  const scannedFood = foodResolutionState.resolvedFood;
+  const foodResolutionActiveRef = useRef(foodResolutionActive);
+  foodResolutionActiveRef.current = foodResolutionActive;
+  const packageDraftOpen = foodResolutionActive && scannedFood === null;
+  const liveSceneUnconfirmed = live.candidate !== null || live.packageDetected || live.noMatch;
+  const plateScanBlocked = foodResolutionActive || live.packageDetected || live.candidate !== null;
 
   // A barcode or its one-shot label transcription is authoritative while it is
   // on screen; otherwise the live vision match is.
@@ -131,8 +194,11 @@ export default function FoodPage() {
     if (scannedFood) {
       return scannedFood;
     }
+    if (packageDraftOpen || liveSceneUnconfirmed) {
+      return null;
+    }
     return live.match ? toIdentifiedFood({ ...live.match.food, fcs2: live.match.score.fcs, fcs1: 0, nova: 1, hsr: 0, nutriScore: "C", ambiguous: live.match.score.ambiguous }, live.match.nutrients) : null;
-  }, [live.match, scannedFood]);
+  }, [live.match, liveSceneUnconfirmed, packageDraftOpen, scannedFood]);
 
   const identifiedFoodId = identifiedFood?.id ?? null;
   const { whyOpen, open: openWhyScore, close: closeWhyScore, markerRef } = useWhyScore(identifiedFoodId);
@@ -306,6 +372,10 @@ export default function FoodPage() {
     setPantryResult(null);
     const image = camera.grabFrame() ?? undefined;
     try {
+      const [{ createSafeAiResponse }, { PantryProvider, PANTRY_REQUEST_TEXT }] = await Promise.all([
+        import("@/ai/safety-gate"),
+        import("@/ai/pantry-provider")
+      ]);
       // Same safety gate as every other AI answer: crisis + reading escalation run
       // on the synthetic pantry utterance, and grounding runs on the recipe summary.
       const response = await createSafeAiResponse(
@@ -329,88 +399,16 @@ export default function FoodPage() {
     }
   }, [appendIntercept, appendMessage, camera, passcode, pantryLoading]);
 
-  usePageHideTeardown([camera.stop, voice.stop]);
-
-  useEffect(() => {
-    let cancelled = false;
-    labelRequestRef.current += 1;
-    labelReadingRef.current = false;
-    setLabelFood(null);
-    setBarcodeLookupMiss(false);
-    setLabelFallbackState("idle");
-    if (!activeBarcode) {
-      // Only the barcode's own identification is cleared here. A vision match lives in
-      // the live-score hook, which owns preemption and the 60 s restore window.
-      setBarcodeFood(null);
-      return;
+  usePageHideTeardown([
+    camera.stop,
+    voice.stop,
+    () => {
+      exactFoodAbortRef.current?.controller.abort();
+      exactFoodAbortRef.current = null;
+      cancelFoodResolution();
+      live.suspend();
     }
-    setBarcodeFood(null);
-    void fetch(`/api/food/lookup?barcode=${activeBarcode}`)
-      .then((response) => response.json())
-      .then((json) => {
-        if (cancelled) {
-          return;
-        }
-        const parsed = foodLookupResponseSchema.safeParse(json);
-        if (parsed.success && parsed.data.found) {
-          setBarcodeFood(parsed.data.food);
-          setBarcodeLookupMiss(false);
-        } else {
-          setBarcodeFood(null);
-          // Only a validated `{ found:false }` may unlock the label-photo path.
-          setBarcodeLookupMiss(parsed.success && !parsed.data.found);
-        }
-        setLogged(false);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setBarcodeFood(null);
-          setBarcodeLookupMiss(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeBarcode]);
-
-  const readLabelPhoto = useCallback(async () => {
-    if (!activeBarcode || labelFallbackState !== "idle" || labelReadingRef.current) {
-      return;
-    }
-    labelReadingRef.current = true;
-    const requestId = ++labelRequestRef.current;
-    setLabelFallbackState("reading");
-    let result: Awaited<ReturnType<typeof import("@/ai/label-extraction")["extractNutritionLabel"]>>;
-    try {
-      // The transcription schema and provider are label-only; load them after the
-      // explicit action so the camera-first /food bundle stays inside its budget.
-      const { extractNutritionLabel } = await import("@/ai/label-extraction");
-      result = await extractNutritionLabel({
-        image: camera.grabFrame(),
-        barcode: activeBarcode,
-        patientId: stateRef.current.patient.id,
-        language,
-        passcode
-      });
-    } catch {
-      if (requestId === labelRequestRef.current) {
-        labelReadingRef.current = false;
-        setLabelFallbackState("error");
-      }
-      return;
-    }
-    if (requestId !== labelRequestRef.current) {
-      return;
-    }
-    labelReadingRef.current = false;
-    if (!result.ok) {
-      setLabelFallbackState("error");
-      return;
-    }
-    setLabelFood(result.food);
-    setBarcodeLookupMiss(false);
-    setLogged(false);
-  }, [activeBarcode, camera, labelFallbackState, language, passcode]);
+  ]);
 
   useEffect(() => {
     if (!identifiedFoodId) {
@@ -441,37 +439,111 @@ export default function FoodPage() {
     setLogged(false);
   }, []);
 
-  const correctCameraMatch = useCallback(
-    async (foodId: string) => {
+  const resolveCameraMatch = useCallback(
+    async (foodId: string, pin: boolean) => {
+      if (foodResolutionActive) {
+        cancelFoodResolution();
+      }
+      exactFoodAbortRef.current?.controller.abort();
       const requestId = ++exactFoodRequestRef.current;
+      const requestEpoch = authority.invalidate();
+      const controller = new AbortController();
+      exactFoodAbortRef.current = { controller, epoch: requestEpoch };
       try {
         const response = await fetch("/api/food/identify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ foodId, passcode })
+          body: JSON.stringify({ foodId, passcode }),
+          signal: controller.signal
         });
         const json = (await response.json()) as {
           mode: string;
           match?: Omit<LiveMatch, "candidates">;
           candidates?: LiveCandidate[];
         };
-        if (requestId === exactFoodRequestRef.current && json.mode === "match" && json.match) {
-          adoptLiveMatch({ ...json.match, candidates: json.candidates ?? [] });
-          // A saved-food tap is an explicit choice and temporarily wins over a
-          // barcode that happens to remain in frame, just like a correction chip.
-          setBarcodeFood(null);
-          setLabelFood(null);
-          setBarcodeLookupMiss(false);
+        if (
+          requestId === exactFoodRequestRef.current &&
+          !controller.signal.aborted &&
+          authority.isCurrent(requestEpoch) &&
+          json.mode === "match" &&
+          json.match
+        ) {
+          adoptLiveMatch({ ...json.match, candidates: json.candidates ?? [] }, { pin });
           setLogged(false);
         }
       } catch {
         // Keep the current, still-grounded match when a deterministic correction request fails.
+      } finally {
+        if (exactFoodAbortRef.current?.controller === controller) {
+          exactFoodAbortRef.current = null;
+        }
       }
     },
-    [adoptLiveMatch, passcode]
+    [adoptLiveMatch, authority, cancelFoodResolution, foodResolutionActive, passcode]
   );
 
-  const canLog = scaledFood !== null || lastAssistantRef.current !== null;
+  const correctCameraMatch = useCallback(
+    (foodId: string) => resolveCameraMatch(foodId, true),
+    [resolveCameraMatch]
+  );
+
+  const confirmCameraCandidate = useCallback(
+    (foodId: string) => {
+      if (live.candidate?.food.code !== foodId) return Promise.resolve();
+      return resolveCameraMatch(foodId, false);
+    },
+    [live.candidate?.food.code, resolveCameraMatch]
+  );
+
+  const rejectCameraCandidate = useCallback(() => {
+    exactFoodAbortRef.current?.controller.abort();
+    exactFoodAbortRef.current = null;
+    rearmLiveScore();
+  }, [rearmLiveScore]);
+
+  useEffect(() => {
+    const pending = exactFoodAbortRef.current;
+    if (pending && !authority.isCurrent(pending.epoch)) {
+      pending.controller.abort();
+      exactFoodAbortRef.current = null;
+    }
+  }, [authority.epoch, authority]);
+
+  useEffect(() => () => exactFoodAbortRef.current?.controller.abort(), []);
+
+  useEffect(() => {
+    for (const pending of [plateScanAbortRef.current, plateChoiceAbortRef.current]) {
+      if (pending && !authority.isCurrent(pending.epoch)) pending.controller.abort();
+    }
+    if (plateScanAbortRef.current && !authority.isCurrent(plateScanAbortRef.current.epoch)) {
+      plateScanAbortRef.current = null;
+      setPlateScanBusy(false);
+    }
+    if (plateChoiceAbortRef.current && !authority.isCurrent(plateChoiceAbortRef.current.epoch)) {
+      plateChoiceAbortRef.current = null;
+    }
+  }, [authority.epoch, authority]);
+
+  useEffect(() => {
+    if (!foodResolutionActive) return;
+    plateScanRequestRef.current += 1;
+    plateScanAbortRef.current?.controller.abort();
+    plateScanAbortRef.current = null;
+    plateChoiceAbortRef.current?.controller.abort();
+    plateChoiceAbortRef.current = null;
+    setPlateScanBusy(false);
+    setPlateScanOutcome(null);
+  }, [foodResolutionActive]);
+
+  useEffect(() => () => {
+    plateScanAbortRef.current?.controller.abort();
+    plateChoiceAbortRef.current?.controller.abort();
+  }, []);
+
+  const canLog =
+    !packageDraftOpen &&
+    !liveSceneUnconfirmed &&
+    (scaledFood !== null || lastAssistantRef.current !== null);
 
   const onLog = useCallback(() => {
     const scored = compassRef.current.score;
@@ -507,15 +579,16 @@ export default function FoodPage() {
         compassScore: score ? { fcs: score.fcs, band: score.band, tier: score.tier } : null
       }
     ]);
-    rearmLiveScore();
-    setBarcodeFood(null);
-    setLabelFood(null);
-    setBarcodeLookupMiss(false);
+    if (foodResolutionActive) {
+      cancelFoodResolution();
+    } else {
+      rearmLiveScore();
+    }
     setPortionServings(1);
     setSpokenSize(null);
     setLogged(false);
     lastPortionFoodIdRef.current = null;
-  }, [identifiedFood, portionServings, rearmLiveScore]);
+  }, [cancelFoodResolution, foodResolutionActive, identifiedFood, portionServings, rearmLiveScore]);
 
   const changePlateServings = useCallback((index: number, servings: number) => {
     setPlateItems((items) =>
@@ -543,7 +616,7 @@ export default function FoodPage() {
    * each name resolved to; the model contributed the names and a rough mass, nothing else.
    */
   const scanPlate = useCallback(async () => {
-    if (plateScanBusy) {
+    if (plateScanBusy || plateScanBlocked) {
       return;
     }
     const image = camera.grabFrame();
@@ -552,16 +625,27 @@ export default function FoodPage() {
       return;
     }
     const requestId = ++plateScanRequestRef.current;
+    suspendLiveScore();
+    const requestEpoch = authority.snapshot();
+    const controller = new AbortController();
+    plateScanAbortRef.current?.controller.abort();
+    plateScanAbortRef.current = { controller, epoch: requestEpoch };
     setPlateScanBusy(true);
     setPlateScanOutcome(null);
     try {
       const response = await fetch("/api/food/plate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image, passcode, patientId: stateRef.current.patient.id })
+        body: JSON.stringify({ image, passcode, patientId: stateRef.current.patient.id }),
+        signal: controller.signal
       });
       const json = (await response.json()) as PlateResponse;
-      if (requestId !== plateScanRequestRef.current) {
+      if (
+        requestId !== plateScanRequestRef.current ||
+        controller.signal.aborted ||
+        !authority.isCurrent(requestEpoch) ||
+        foodResolutionActiveRef.current
+      ) {
         return;
       }
       if (json.mode === "unconfigured" || json.mode === "locked") {
@@ -575,7 +659,6 @@ export default function FoodPage() {
         });
         return;
       }
-
       const added: PlateItem[] = [];
       const scanCandidates: Record<string, PlateCandidate[]> = {};
       const outcome: PlateScanOutcome = { notice: null, skipped: [], unmatched: [] };
@@ -599,8 +682,6 @@ export default function FoodPage() {
         const id = crypto.randomUUID();
         added.push({
           id,
-          // The same transform the live lens uses, per item: FcsFood requires the filler
-          // fields, and the score below is the published one either way.
           food: toIdentifiedFood(
             {
               ...item.match.food,
@@ -617,41 +698,41 @@ export default function FoodPage() {
           compassScore: { fcs: item.match.score.fcs, band: item.match.score.band, tier: item.match.score.tier },
           portion: { origin: "vision", basis: item.basis }
         });
-        if (item.candidates.length > 0) {
-          scanCandidates[id] = item.candidates;
-        }
+        if (item.candidates.length > 0) scanCandidates[id] = item.candidates;
       }
-
       if (added.length > 0) {
         setPlateItems((items) => [...items, ...added]);
         setPlateCandidates((current) => ({ ...current, ...scanCandidates }));
-        // Only a landed scan rearms: a plate that found nothing must not clear the lens.
-        rearmLiveScore();
-        setBarcodeFood(null);
-        setLabelFood(null);
-        setBarcodeLookupMiss(false);
         setLogged(false);
       }
       const foundNothing = added.length === 0 && outcome.skipped.length === 0 && outcome.unmatched.length === 0;
       setPlateScanOutcome(foundNothing ? { ...outcome, notice: "plateScanEmpty" } : outcome);
     } catch {
-      if (requestId === plateScanRequestRef.current) {
+      if (
+        requestId === plateScanRequestRef.current &&
+        !controller.signal.aborted &&
+        authority.isCurrent(requestEpoch) &&
+        !foodResolutionActiveRef.current
+      ) {
         setPlateScanOutcome({ ...EMPTY_PLATE_SCAN_OUTCOME, notice: "plateScanFailed" });
       }
     } finally {
-      if (requestId === plateScanRequestRef.current) {
+      if (plateScanAbortRef.current?.controller === controller) plateScanAbortRef.current = null;
+      if (requestId === plateScanRequestRef.current && authority.isCurrent(requestEpoch)) {
         setPlateScanBusy(false);
+        if (!foodResolutionActiveRef.current) rearmLiveScore();
       }
     }
-  }, [camera, passcode, plateScanBusy, rearmLiveScore]);
+  }, [authority, camera, passcode, plateScanBlocked, plateScanBusy, rearmLiveScore, suspendLiveScore]);
 
   const fetchExactMatch = useCallback(
-    async (foodId: string): Promise<Omit<LiveMatch, "candidates"> | null> => {
+    async (foodId: string, signal?: AbortSignal): Promise<Omit<LiveMatch, "candidates"> | null> => {
       try {
         const response = await fetch("/api/food/identify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ foodId, passcode })
+          body: JSON.stringify({ foodId, passcode }),
+          signal
         });
         const json = (await response.json()) as { mode: string; match?: Omit<LiveMatch, "candidates"> };
         return json.mode === "match" && json.match ? json.match : null;
@@ -689,43 +770,79 @@ export default function FoodPage() {
    */
   const correctPlateItem = useCallback(
     async (itemId: string, foodId: string) => {
-      const match = await fetchExactMatch(foodId);
-      if (!match) {
-        return;
+      if (foodResolutionActiveRef.current) return;
+      suspendLiveScore();
+      const requestEpoch = authority.snapshot();
+      const controller = new AbortController();
+      plateChoiceAbortRef.current?.controller.abort();
+      plateChoiceAbortRef.current = { controller, epoch: requestEpoch };
+      try {
+        const match = await fetchExactMatch(foodId, controller.signal);
+        if (
+          !match ||
+          controller.signal.aborted ||
+          !authority.isCurrent(requestEpoch) ||
+          foodResolutionActiveRef.current
+        ) {
+          return;
+        }
+        const scored = scoredFromMatch(match);
+        setPlateItems((items) => items.map((item) => (item.id === itemId ? { ...item, ...scored } : item)));
+        setPlateCandidates((current) => {
+          const next = { ...current };
+          delete next[itemId];
+          return next;
+        });
+        setLogged(false);
+      } finally {
+        if (plateChoiceAbortRef.current?.controller === controller) plateChoiceAbortRef.current = null;
+        if (authority.isCurrent(requestEpoch) && !foodResolutionActiveRef.current) rearmLiveScore();
       }
-      const scored = scoredFromMatch(match);
-      setPlateItems((items) => items.map((item) => (item.id === itemId ? { ...item, ...scored } : item)));
-      setPlateCandidates((current) => {
-        const next = { ...current };
-        delete next[itemId];
-        return next;
-      });
-      setLogged(false);
     },
-    [fetchExactMatch, scoredFromMatch]
+    [authority, fetchExactMatch, rearmLiveScore, scoredFromMatch, suspendLiveScore]
   );
 
   /** An unmatched scan name resolved by chip: the row lands as a fresh plate item. */
   const addPlateItemByFoodId = useCallback(
     async (foodId: string) => {
-      const match = await fetchExactMatch(foodId);
-      if (!match) {
-        return;
+      if (foodResolutionActiveRef.current) return;
+      suspendLiveScore();
+      const requestEpoch = authority.snapshot();
+      const controller = new AbortController();
+      plateChoiceAbortRef.current?.controller.abort();
+      plateChoiceAbortRef.current = { controller, epoch: requestEpoch };
+      try {
+        const match = await fetchExactMatch(foodId, controller.signal);
+        if (
+          !match ||
+          controller.signal.aborted ||
+          !authority.isCurrent(requestEpoch) ||
+          foodResolutionActiveRef.current
+        ) {
+          return;
+        }
+        const itemId = crypto.randomUUID();
+        setPlateItems((items) => [
+          ...items,
+          { id: itemId, servings: 1, ...scoredFromMatch(match) }
+        ]);
+        setPlateScanOutcome((current) =>
+          current
+            ? {
+                ...current,
+                unmatched: current.unmatched.filter(
+                  (item) => !item.candidates.some((candidate) => candidate.code === foodId)
+                )
+              }
+            : current
+        );
+        setLogged(false);
+      } finally {
+        if (plateChoiceAbortRef.current?.controller === controller) plateChoiceAbortRef.current = null;
+        if (authority.isCurrent(requestEpoch) && !foodResolutionActiveRef.current) rearmLiveScore();
       }
-      setPlateItems((items) => [...items, { id: crypto.randomUUID(), servings: 1, ...scoredFromMatch(match) }]);
-      setPlateScanOutcome((current) =>
-        current
-          ? {
-              ...current,
-              unmatched: current.unmatched.filter(
-                (item) => !item.candidates.some((candidate) => candidate.code === foodId)
-              )
-            }
-          : current
-      );
-      setLogged(false);
     },
-    [fetchExactMatch, scoredFromMatch]
+    [authority, fetchExactMatch, rearmLiveScore, scoredFromMatch, suspendLiveScore]
   );
 
   const logPlate = useCallback(() => {
@@ -769,12 +886,6 @@ export default function FoodPage() {
         ? ("score" as const)
         : ("idle" as const)
     : live.badge;
-  const labelProviderKnown = voice.dataMode === "live_voice" || live.liveIdentifySucceeded;
-  const showLabelFallback =
-    activeBarcode !== null &&
-    barcodeLookupMiss &&
-    (labelProviderKnown || labelFallbackState !== "idle");
-
   const recentMeals = state.mealLog.slice(-5).reverse();
   const savedRecents = useMemo(() => recentFoodPicks(state.mealLog), [state.mealLog]);
   const favoriteFoodCandidate =
@@ -802,10 +913,20 @@ export default function FoodPage() {
       }
     });
   }, [dispatch, favoriteFoodId]);
-  const scanChip = identifiedFood ? (identifiedFood.brand ? `${identifiedFood.brand} ${identifiedFood.name}` : identifiedFood.name) : activeBarcode;
+  const pinnedBarcode = foodResolutionState.barcode;
+  const scanChip = identifiedFood
+    ? identifiedFood.brand
+      ? `${identifiedFood.brand} ${identifiedFood.name}`
+      : identifiedFood.name
+    : pinnedBarcode ?? activeBarcode;
 
   const domainBreakdown = resolveDomainBreakdown(compass.score, compass.estimatedDomains);
   const correctionCandidates = !scannedFood ? live.match?.candidates ?? [] : [];
+  const packageProvenance = scannedFood
+    ? t(language, "packageConfirmed", {
+        food: [scannedFood.brand, scannedFood.name].filter(Boolean).join(" ")
+      })
+    : null;
   const showGeneralGuidance = compass.score !== null || compass.carveOut !== null;
   const savedPicks = (
     <FoodSavedPicks
@@ -829,13 +950,15 @@ export default function FoodPage() {
   // barcode, the label photo, a correction chip or the vision loop won the right to say so.
   // That precedence, and the 60-second pin it runs on, stay inside this door.
   const view: FoodLensView = {
-    name: scanChip,
+    name: scanChip ?? live.candidate?.food.description ?? null,
     identified: identifiedFood !== null,
     score: compass.score,
     carveOut: compass.carveOut,
     badge: badgeState,
     noMatchCandidates: live.noMatchCandidates,
-    noMatch: live.noMatch
+    noMatch: live.noMatch,
+    candidate: identifiedFood ? null : live.candidate,
+    packageDetected: identifiedFood === null && live.packageDetected
   };
 
   const conversation = (
@@ -870,6 +993,8 @@ export default function FoodPage() {
       emptyStateChildren={savedPicks}
       language={language}
       loopState={live.loopState}
+      onConfirmIdentity={(foodId) => void confirmCameraCandidate(foodId)}
+      onRejectIdentity={rejectCameraCandidate}
       onSelectCandidate={(foodId) => void correctCameraMatch(foodId)}
       onVisibleRatio={live.setVisibleRatio}
       view={view}
@@ -922,12 +1047,17 @@ export default function FoodPage() {
           />
         ),
         weHeard:
-          identifiedFood?.source === "fndds_lookup" && correctionCandidates.length > 0 ? (
-            <FoodCorrectionChips
-              candidates={correctionCandidates}
-              language={language}
-              onCorrection={(foodId) => void correctCameraMatch(foodId)}
-            />
+          packageProvenance || (identifiedFood?.source === "fndds_lookup" && correctionCandidates.length > 0) ? (
+            <div className="grid gap-2">
+              {packageProvenance ? <p className="text-sm font-semibold text-ink/75">{packageProvenance}</p> : null}
+              {identifiedFood?.source === "fndds_lookup" && correctionCandidates.length > 0 ? (
+                <FoodCorrectionChips
+                  candidates={correctionCandidates}
+                  language={language}
+                  onCorrection={(foodId) => void correctCameraMatch(foodId)}
+                />
+              ) : null}
+            </div>
           ) : null,
         flags: <FoodFlagsBlock flags={flags} language={language} />,
         totals: (
@@ -979,6 +1109,33 @@ export default function FoodPage() {
             onAddToPlate={identifiedFood ? onAddToPlate : undefined}
             onLog={onLog}
           >
+            {PACKAGE_SCAN_CLOUD_ENABLED && FoodPackageScanBridge ? (
+              <FoodPackageScanBridge
+                authority={authority}
+                barcode={activeBarcode}
+                captureDetailedFrame={camera.captureDetailedFrame}
+                language={language}
+                onCancelChange={updateFoodResolutionCancel}
+                onStateChange={updateFoodResolutionState}
+                passcode={passcode}
+                patientId={state.patient.id}
+                promoted={live.packageDetected}
+                resumeLive={live.rearm}
+                suspendLive={live.suspend}
+              />
+            ) : barcodeReviewCode ? (
+              <FoodBarcodeReviewBridge
+                authority={authority}
+                barcode={barcodeReviewCode}
+                language={language}
+                onCancelChange={updateFoodResolutionCancel}
+                onDismiss={dismissBarcodeReview}
+                onStateChange={updateFoodResolutionState}
+                resumeLive={live.rearm}
+                suspendLive={live.suspend}
+              />
+            ) : null}
+
             {favoriteFoodId && compass.score?.tier === "T1" ? (
               <FoodFavoriteButton
                 favorite={isFavorite}
@@ -1001,15 +1158,11 @@ export default function FoodPage() {
               </div>
             ) : null}
 
-            {showLabelFallback ? (
-              <FoodLabelFallback language={language} onRead={() => void readLabelPhoto()} state={labelFallbackState} />
-            ) : null}
-
             {identifiedFood ? savedPicks : null}
 
             <PlateScanButton
               busy={plateScanBusy}
-              disabled={camera.status !== "active"}
+              disabled={camera.status !== "active" || plateScanBlocked}
               language={language}
               onScan={() => void scanPlate()}
               onSelectCandidate={(foodId) => void addPlateItemByFoodId(foodId)}
@@ -1019,7 +1172,7 @@ export default function FoodPage() {
 
             <button
               className="min-h-14 w-full rounded-control border border-care bg-white px-4 py-2 font-semibold text-care disabled:opacity-40"
-              disabled={pantryLoading || camera.status !== "active"}
+              disabled={pantryLoading || camera.status !== "active" || packageDraftOpen}
               onClick={() => void findPantryRecipes()}
               type="button"
             >

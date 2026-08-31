@@ -32,7 +32,7 @@ export function buildMealLogEntry(args: {
   compassScore?: { fcs: number; band: CompassBand; tier: CompassTier } | null;
 }): MealLogEntry {
   const id = args.id ?? crypto.randomUUID();
-  const food: IdentifiedFood = args.food ?? {
+  const resolvedFood: IdentifiedFood = args.food ?? {
     id,
     barcode: null,
     name: t(args.language, "unknownFood"),
@@ -42,6 +42,11 @@ export function buildMealLogEntry(args: {
     source: "vision_estimate",
     ingredientText: null
   };
+  // A confirmed ingredient transcription may influence the in-memory label score, but it
+  // remains OCR-derived evidence and is not needed once that score is logged.
+  const food: IdentifiedFood = resolvedFood.source === "label_vision"
+    ? { ...resolvedFood, ingredientText: null }
+    : resolvedFood;
 
   return {
     id,

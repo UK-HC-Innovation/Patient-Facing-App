@@ -454,6 +454,26 @@ describe("computeLabelScore", () => {
     expect(upf.coverage.included).toContain("D6");
     expect(upf.domains.find((d) => d.key === "D6")!.value).toBe(-5);
   });
+
+  it("keeps label-photo scores invariant to package-front name and category guesses", () => {
+    const options = {
+      ingredientText: "soybeans, sunflower oil, seasoning",
+      allowIdentityHeuristics: false
+    } as const;
+    const edamame = computeLabelScore(soup, {
+      ...options,
+      name: "Edamame Ranch",
+      category: "Bean snack"
+    });
+    const misnamed = computeLabelScore(soup, {
+      ...options,
+      name: "Beef jerky",
+      category: "Cured meat"
+    });
+
+    expect(misnamed.fcs).toBe(edamame.fcs);
+    expect(misnamed.domains).toEqual(edamame.domains);
+  });
 });
 
 describe("findAlternatives", () => {

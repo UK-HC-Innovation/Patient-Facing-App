@@ -18,7 +18,8 @@ export async function GET(request: Request): Promise<Response> {
   const result = await resolveBarcode(parsed.data, {
     cache,
     seed: demoFoodSeed,
-    fdcApiKey: process.env.USDA_FDC_API_KEY ?? null
+    fdcApiKey: process.env.USDA_FDC_API_KEY ?? null,
+    signal: request.signal
   });
 
   return Response.json(result, {

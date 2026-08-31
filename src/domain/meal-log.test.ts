@@ -36,6 +36,22 @@ describe("buildMealLogEntry", () => {
     expect(mealLogEntrySchema.safeParse(entry).success).toBe(true);
   });
 
+  it("does not persist OCR-derived package ingredient text", () => {
+    const entry = buildMealLogEntry({
+      patientId: "p1",
+      food: {
+        ...soup,
+        source: "label_vision",
+        ingredientText: "soybeans, sunflower oil, ranch seasoning"
+      },
+      flags: [],
+      lastAssistantText: null,
+      language: "en"
+    });
+
+    expect(entry.food.ingredientText).toBeNull();
+  });
+
   it("uses a placeholder food when none was identified", () => {
     const entry = buildMealLogEntry({
       patientId: "patient-1",

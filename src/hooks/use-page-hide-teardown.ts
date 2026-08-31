@@ -19,18 +19,23 @@ export function usePageHideTeardown(stops: ReadonlyArray<() => void>): void {
   stopsRef.current = stops;
 
   useEffect(() => {
-    const teardown = () => {
-      if (document.hidden) {
-        for (const stop of stopsRef.current) {
-          stop();
-        }
+    const stopAll = () => {
+      for (const stop of stopsRef.current) {
+        stop();
       }
     };
-    document.addEventListener("visibilitychange", teardown);
-    window.addEventListener("pagehide", teardown);
+    const teardownHidden = () => {
+      if (document.hidden) {
+        stopAll();
+      }
+    };
+    // pagehide is itself definitive; some browsers dispatch it before `document.hidden`
+    // changes, especially when placing the page in the back-forward cache.
+    document.addEventListener("visibilitychange", teardownHidden);
+    window.addEventListener("pagehide", stopAll);
     return () => {
-      document.removeEventListener("visibilitychange", teardown);
-      window.removeEventListener("pagehide", teardown);
+      document.removeEventListener("visibilitychange", teardownHidden);
+      window.removeEventListener("pagehide", stopAll);
     };
   }, []);
 }

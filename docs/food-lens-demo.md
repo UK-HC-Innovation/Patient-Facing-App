@@ -155,6 +155,43 @@ threshold), and an empty meal log.
 - Session error mid-demo → **Try again** re-mints the token and reconnects;
   transcripts are already saved.
 
+### Package-label prototype (local evaluation only)
+
+Package scanning is implemented but deliberately disabled in production. To exercise it
+against fictional/test packaging on a local reviewed build, add all of the following:
+
+```
+NEXT_PUBLIC_FOOD_PACKAGE_SCAN=1
+FOOD_PACKAGE_SCAN_ENABLED=1
+FOOD_PACKAGE_SESSION_SECRET=<at least 32 random bytes>
+DEMO_PASSCODE=<local invite>
+HEALTH_AI_PROVIDER=openai
+HEALTH_AI_API_KEY=<local evaluation key>
+HEALTH_AI_PACKAGE_MODEL=gpt-5.6-luna
+```
+
+The flow is confirmation-first: the low-detail camera proposes a food without showing a
+score; a barcode proposes a database product without showing a score; and a package-front
+photo proposes only brand/product/flavor. Nutrition Facts is captured separately, every
+score-changing row is read back, and a label-derived score appears only after identity and
+nutrition are both confirmed. A package-front name is never sent into fuzzy FNDDS matching.
+
+Run `npm run eval:package-label -- --self-test` for the harness check. A release evaluation
+requires a private, adjudicated image manifest copied from
+`docs/qa/package-label-eval/manifest.example.json` and
+`npm run eval:package-label -- --manifest <private manifest> --release`. Images and the
+local manifest are gitignored; its reviewed opaque corpus ID is copied into each report, while
+generated reports contain neither images, image-source or manifest hashes, nor OCR text. Release mode rejects `--base-url`, validates that the corpus can satisfy every structural
+gate, builds this checkout into an isolated ignored directory, starts that exact attested build
+on loopback, verifies its artifact ID before and after the run, and confirms shutdown before
+removing it and publishing PASS. A session-renewal failure aborts the run rather than turning
+into a retryable case result.
+
+The flags must remain off in production even after a local quality run: the current rate and
+concurrency controls are process-local and cannot enforce one deployment-wide spend ceiling.
+Production also requires the adjudicated corpus and legal, privacy, clinical, regulatory, and
+provider approvals described in spec 28.
+
 ---
 
 ### What cannot be automated — verify on the real S25

@@ -17,6 +17,9 @@ export default defineConfig({
     env: {
       HEALTH_AI_PROVIDER: "mock",
       HEALTH_AI_API_KEY: "",
+      NEXT_PUBLIC_FOOD_PACKAGE_SCAN: "0",
+      FOOD_PACKAGE_SCAN_ENABLED: "0",
+      FOOD_PACKAGE_SESSION_SECRET: "",
       SCREENING_LIVE_EXTRACT: "0"
     }
   },

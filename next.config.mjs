@@ -2,11 +2,25 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const projectRoot = dirname(fileURLToPath(import.meta.url));
+const requestedDistDir = process.env.NEXT_DIST_DIR;
+if (requestedDistDir && !/^\.next-package-eval-[a-f0-9]{24}$/u.test(requestedDistDir)) {
+  throw new Error("NEXT_DIST_DIR must be an evaluator-owned .next-package-eval-* directory");
+}
+const requestedEvalBuildId = process.env.PACKAGE_LABEL_EVAL_BUILD_ID;
+if (requestedDistDir && (!requestedEvalBuildId || !/^eval-[a-f0-9]{32}$/u.test(requestedEvalBuildId))) {
+  throw new Error("An evaluator build needs its precommitted PACKAGE_LABEL_EVAL_BUILD_ID");
+}
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: projectRoot,
+  ...(requestedDistDir
+    ? {
+        distDir: requestedDistDir,
+        generateBuildId: async () => requestedEvalBuildId
+      }
+    : {}),
   async headers() {
     return [
       {

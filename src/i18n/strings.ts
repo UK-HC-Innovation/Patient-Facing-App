@@ -282,6 +282,22 @@ export type FoodLensStringKey =
   | "notScored"
   | "noMatchLabel"
   | "sayOneOfThese"
+  | "identityReviewLabel"
+  | "identityReviewRead"
+  | "identityReviewConfirm"
+  | "identityReviewReject"
+  | "packageDetectedTitle"
+  | "packageDetectedBody"
+  | "packageScanRegion"
+  | "packageDisclosureNotNow"
+  | "packageBarcodeLooking"
+  | "packageBarcodeFound"
+  | "packageBarcodeUse"
+  | "packageBarcodeReject"
+  | "packageBarcodeError"
+  | "barcodeReviewMiss"
+  | "packageConfirmed"
+  | "packageScanAnother"
   | "micReadyOrType"
   | "voiceBarRegion"
   | "transcriptExpand"
@@ -576,6 +592,22 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     notScored: "Not scored",
     noMatchLabel: "No match",
     sayOneOfThese: "Say one of these instead",
+    identityReviewLabel: "Confirm the food",
+    identityReviewRead: "I think this is {food}.",
+    identityReviewConfirm: "Yes, use this food",
+    identityReviewReject: "No, scan again",
+    packageDetectedTitle: "This looks packaged",
+    packageDetectedBody: "I need the package front, barcode, or Nutrition Facts label before I can score it.",
+    packageScanRegion: "Package scan",
+    packageDisclosureNotNow: "Not now",
+    packageBarcodeLooking: "Looking up barcode {barcode}…",
+    packageBarcodeFound: "Barcode found: {food}",
+    packageBarcodeUse: "Use this product",
+    packageBarcodeReject: "Not this",
+    packageBarcodeError: "That barcode lookup was interrupted or unavailable. Try it again.",
+    barcodeReviewMiss: "That barcode was not in the product databases, so I will not score it.",
+    packageConfirmed: "Confirmed package: {food}",
+    packageScanAnother: "Scan another food",
     micReadyOrType: "Tap the mic, or type your question.",
     voiceBarRegion: "Voice",
     transcriptExpand: "Show the conversation",
@@ -870,6 +902,22 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     notScored: "Sin puntaje",
     noMatchLabel: "Sin coincidencia",
     sayOneOfThese: "Di una de estas en su lugar",
+    identityReviewLabel: "Confirma la comida",
+    identityReviewRead: "Creo que esto es {food}.",
+    identityReviewConfirm: "Sí, usar esta comida",
+    identityReviewReject: "No, escanear de nuevo",
+    packageDetectedTitle: "Parece un producto empacado",
+    packageDetectedBody: "Necesito el frente del paquete, el código de barras o la etiqueta de información nutricional antes de darle un puntaje.",
+    packageScanRegion: "Escaneo del paquete",
+    packageDisclosureNotNow: "Ahora no",
+    packageBarcodeLooking: "Buscando el código {barcode}…",
+    packageBarcodeFound: "Código encontrado: {food}",
+    packageBarcodeUse: "Usar este producto",
+    packageBarcodeReject: "No es este",
+    packageBarcodeError: "La búsqueda del código se interrumpió o no está disponible. Inténtalo de nuevo.",
+    barcodeReviewMiss: "Ese código no apareció en las bases de productos, así que no le asignaré un puntaje.",
+    packageConfirmed: "Paquete confirmado: {food}",
+    packageScanAnother: "Escanear otra comida",
     micReadyOrType: "Toca el micrófono o escribe tu pregunta.",
     voiceBarRegion: "Voz",
     transcriptExpand: "Mostrar la conversación",

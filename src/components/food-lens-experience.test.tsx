@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { CompassScore } from "@/domain/food-compass";
 import {
@@ -27,7 +27,9 @@ const emptyView: FoodLensView = {
   carveOut: null,
   badge: "idle",
   noMatchCandidates: [],
-  noMatch: false
+  noMatch: false,
+  candidate: null,
+  packageDetected: false
 };
 
 function renderExperience(overrides: Partial<React.ComponentProps<typeof FoodLensExperience>> = {}) {
@@ -47,6 +49,32 @@ function renderExperience(overrides: Partial<React.ComponentProps<typeof FoodLen
 }
 
 describe("FoodLensExperience", () => {
+  it("shows an unscored camera candidate until the patient confirms it", () => {
+    const onConfirmIdentity = vi.fn();
+    renderExperience({
+      onConfirmIdentity,
+      onRejectIdentity: vi.fn(),
+      view: {
+        ...emptyView,
+        name: "Edamame, cooked",
+        candidate: {
+          food: { code: "11113000", description: "Edamame, cooked", group: "vegetables" },
+          candidates: []
+        }
+      }
+    });
+
+    expect(screen.queryByTestId("food-verdict")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Yes, use this food" }));
+    expect(onConfirmIdentity).toHaveBeenCalledWith("11113000");
+  });
+
+  it("renders package detection as an explicit no-score abstention", () => {
+    renderExperience({ view: { ...emptyView, packageDetected: true } });
+    expect(screen.getByText("This looks packaged")).toBeInTheDocument();
+    expect(screen.queryByTestId("food-verdict")).not.toBeInTheDocument();
+  });
+
   it("keeps the public capability set incapable of asking for anything typed", () => {
     renderExperience({
       capabilities: COMPASS_CAPABILITIES,

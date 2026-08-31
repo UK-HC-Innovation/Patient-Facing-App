@@ -65,7 +65,7 @@ export default function CompassPage() {
   const [crisisLocked, setCrisisLocked] = useState(false);
   // No barcode reader on the public door: there is no packaged-food path to feed, and the
   // scanner's detector chunk is never fetched.
-  const { camera, live, passcode } = useFoodLensEngine({ crisis: crisisLocked });
+  const { camera, live, passcode, authority } = useFoodLensEngine({ crisis: crisisLocked });
   const { grabFrame, stop: stopCamera } = camera;
 
   // This door never calls useHealthState. The root layout would hand it a full demo patient
@@ -82,10 +82,22 @@ export default function CompassPage() {
   const shownRef = useRef<ConversationResult | null>(null);
   const voiceResultRef = useRef<ConversationResult | null>(null);
   const pizzaIntentRef = useRef<FoodOrderIntent | null>(null);
+  const exactFoodAbortRef = useRef<{ controller: AbortController; epoch: number } | null>(null);
+  const refinementAbortRef = useRef<{ controller: AbortController; epoch: number } | null>(null);
+  const adoptLiveMatch = live.adoptMatch;
+  const liveCandidate = live.candidate;
+  const rearmLive = live.rearm;
+  const suspendLive = live.suspend;
 
   // A spoken refinement is explicit and outranks the raw camera match until the
   // lens has held on a different food long enough to establish a new scene.
   const shown = useMemo<ConversationResult | null>(() => {
+    if (live.candidate || live.packageDetected) {
+      return null;
+    }
+    if (live.noMatch) {
+      return { kind: "none" };
+    }
     if (refinement) {
       return refinement;
     }
@@ -93,7 +105,7 @@ export default function CompassPage() {
       return { kind: "match", match: live.match, candidates: [], input: "", cameraFoodCode: live.match.food.code };
     }
     return live.carveOut ? { kind: "carve_out", reason: live.carveOut } : null;
-  }, [refinement, live.match, live.carveOut]);
+  }, [refinement, live.candidate, live.packageDetected, live.noMatch, live.match, live.carveOut]);
   shownRef.current = shown;
 
   const runQuery = useCallback(
@@ -107,6 +119,10 @@ export default function CompassPage() {
       if (trimmed.length === 0) {
         return null;
       }
+      refinementAbortRef.current?.controller.abort();
+      const requestEpoch = authority.snapshot();
+      const controller = new AbortController();
+      refinementAbortRef.current = { controller, epoch: requestEpoch };
       setRefinementLoading(true);
       try {
         const response = await fetch("/api/food/identify", {
@@ -118,7 +134,8 @@ export default function CompassPage() {
             passcode,
             preferHigherScore: requestedSort === "score",
             preferLowerCalorieDensity: requestedSort === "density"
-          })
+          }),
+          signal: controller.signal
         });
         const json = (await response.json()) as {
           mode: string;
@@ -126,6 +143,7 @@ export default function CompassPage() {
           match?: LiveMatch;
           candidates?: FoodCandidate[];
         };
+        if (controller.signal.aborted || !authority.isCurrent(requestEpoch)) return null;
         let next: ConversationResult;
         if (json.mode === "carve_out" && json.reason) {
           next = { kind: "carve_out", reason: json.reason };
@@ -145,16 +163,20 @@ export default function CompassPage() {
         setRefinement(next);
         return next;
       } catch {
+        if (controller.signal.aborted || !authority.isCurrent(requestEpoch)) return null;
         const next: ConversationResult = { kind: "none" };
         voiceResultRef.current = next;
         shownRef.current = next;
         setRefinement(next);
         return next;
       } finally {
-        setRefinementLoading(false);
+        if (refinementAbortRef.current?.controller === controller) {
+          refinementAbortRef.current = null;
+          setRefinementLoading(false);
+        }
       }
     },
-    [live.match?.food.code, passcode, sortMode]
+    [authority, live.match?.food.code, passcode, sortMode]
   );
 
   // Re-run so the selected, mutually exclusive sort mode updates the visible alternatives.
@@ -173,6 +195,88 @@ export default function CompassPage() {
     },
     [live.match?.food.code, refinement, runQuery, shown, sortMode]
   );
+
+  const confirmLiveCandidate = useCallback(
+    async (foodId: string) => {
+      const candidate = liveCandidate;
+      if (!candidate || candidate.food.code !== foodId) return;
+      exactFoodAbortRef.current?.controller.abort();
+      const requestEpoch = authority.invalidate();
+      const controller = new AbortController();
+      exactFoodAbortRef.current = { controller, epoch: requestEpoch };
+      try {
+        const response = await fetch("/api/food/identify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ foodId, passcode }),
+          signal: controller.signal
+        });
+        const json = await response.json() as {
+          mode: string;
+          match?: Omit<LiveMatch, "candidates">;
+          candidates?: FoodCandidate[];
+        };
+        if (
+          !controller.signal.aborted &&
+          authority.isCurrent(requestEpoch) &&
+          json.mode === "match" &&
+          json.match
+        ) {
+          adoptLiveMatch({ ...json.match, candidates: json.candidates ?? [] }, { pin: false });
+        }
+      } catch {
+        // Keep the candidate review visible; confirmation can be tried again.
+      } finally {
+        if (exactFoodAbortRef.current?.controller === controller) {
+          exactFoodAbortRef.current = null;
+        }
+      }
+    },
+    [adoptLiveMatch, authority, liveCandidate, passcode]
+  );
+
+  const rejectLiveCandidate = useCallback(() => {
+    exactFoodAbortRef.current?.controller.abort();
+    exactFoodAbortRef.current = null;
+    rearmLive();
+  }, [rearmLive]);
+
+  const stopPendingFoodRequests = useCallback(() => {
+    exactFoodAbortRef.current?.controller.abort();
+    exactFoodAbortRef.current = null;
+    refinementAbortRef.current?.controller.abort();
+    refinementAbortRef.current = null;
+    suspendLive();
+  }, [suspendLive]);
+
+  useEffect(() => {
+    const pending = exactFoodAbortRef.current;
+    if (pending && !authority.isCurrent(pending.epoch)) {
+      pending.controller.abort();
+      exactFoodAbortRef.current = null;
+    }
+    const pendingRefinement = refinementAbortRef.current;
+    if (pendingRefinement && !authority.isCurrent(pendingRefinement.epoch)) {
+      pendingRefinement.controller.abort();
+      refinementAbortRef.current = null;
+      setRefinementLoading(false);
+    }
+  }, [authority.epoch, authority]);
+
+  useEffect(() => () => {
+    exactFoodAbortRef.current?.controller.abort();
+    refinementAbortRef.current?.controller.abort();
+  }, []);
+
+  useEffect(() => {
+    if (!live.candidate && !live.packageDetected && !live.noMatch) return;
+    refinementAbortRef.current?.controller.abort();
+    refinementAbortRef.current = null;
+    setRefinementLoading(false);
+    voiceResultRef.current = null;
+    pizzaIntentRef.current = null;
+    setRefinement(null);
+  }, [live.candidate, live.noMatch, live.packageDetected]);
 
   const handleVoiceTranscript = useCallback(
     (role: "patient" | "assistant", text: string) => {
@@ -350,7 +454,7 @@ export default function CompassPage() {
     voiceAvailable
   ]);
 
-  usePageHideTeardown([stopCamera, stopVoice, stopSpeaking]);
+  usePageHideTeardown([stopCamera, stopVoice, stopSpeaking, stopPendingFoodRequests]);
 
 
   const matchShown = shown?.kind === "match" ? shown.match : null;
@@ -452,13 +556,15 @@ export default function CompassPage() {
   // -- the lens, or a spoken refinement holding until a different food is stable -- stays
   // inside this door.
   const view: FoodLensView = {
-    name: matchShown?.food.description ?? null,
+    name: matchShown?.food.description ?? live.candidate?.food.description ?? null,
     identified: matchShown !== null,
     score: matchShown?.score ?? null,
     carveOut: shown?.kind === "carve_out" ? shown.reason : null,
     badge: matchShown ? "score" : shown?.kind === "carve_out" ? "carve_out" : live.badge,
     noMatchCandidates: [],
-    noMatch: shown?.kind === "none"
+    noMatch: shown?.kind === "none",
+    candidate: live.candidate,
+    packageDetected: live.packageDetected
   };
 
   return (
@@ -472,6 +578,8 @@ export default function CompassPage() {
       crisis={crisisLocked ? <FoodCrisisLock language={language}>{conversationBlock}</FoodCrisisLock> : null}
       language={language}
       loopState={live.loopState}
+      onConfirmIdentity={(foodId) => void confirmLiveCandidate(foodId)}
+      onRejectIdentity={rejectLiveCandidate}
       onVisibleRatio={live.setVisibleRatio}
       verdictRegionLabel={t(language, "compassResultRegion")}
       view={view}
