@@ -1,6 +1,7 @@
 # Plate scan — one photo to a scored plate
 
-> **Status: PLANNED — not started.**
+> **Status: ✅ BUILT + DEPLOYED 2026-09-02 (P0–P5).** Prod = `6181f82`, `dpl_B72QMMHk2xq1JQbRBgS5nQtTuP39`, ledger line in `docs/ops/DEPLOYS.jsonl`.
+> One deviation from §7 P1, deliberate: matched foods no longer append straight to the plate. Spec 28 (package label scan) established a confirmation-first invariant app-wide — no score before the patient confirms a named row — and the plate scan came under it, so a scan produces a review list and nothing is scored or added until a row is tapped. Stricter reading of the same safety goal.
 > Scope: the /food door only. The public door /food/demo gains nothing (spec 24 owner decision 5, reaffirmed by spec 26, stands).
 > Gate per phase: `npm run check` (bare, never piped) + `npm run crisis:gate` + Playwright chromium **and** mobile.
 > Redeploy with `vercel --prod --archive=tgz`; git push does not deploy on this project.
