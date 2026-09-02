@@ -773,20 +773,38 @@ export default function FoodPage() {
    */
   const correctPlateItem = useCallback(
     async (itemId: string, foodId: string) => {
-      const match = await fetchExactMatch(foodId);
-      if (!match) {
-        return;
+      if (foodResolutionActiveRef.current) return;
+      suspendLiveScore();
+      const requestEpoch = authority.snapshot();
+      const controller = new AbortController();
+      // Shared with addPlateItemByFoodId on purpose: one plate choice may be in flight at a
+      // time, so two quick taps cannot land in the order their responses happen to return.
+      plateChoiceAbortRef.current?.controller.abort();
+      plateChoiceAbortRef.current = { controller, epoch: requestEpoch };
+      try {
+        const match = await fetchExactMatch(foodId, controller.signal);
+        if (
+          !match ||
+          controller.signal.aborted ||
+          !authority.isCurrent(requestEpoch) ||
+          foodResolutionActiveRef.current
+        ) {
+          return;
+        }
+        const scored = scoredFromMatch(match);
+        setPlateItems((items) => items.map((item) => (item.id === itemId ? { ...item, ...scored } : item)));
+        setPlateCandidates((current) => {
+          const next = { ...current };
+          delete next[itemId];
+          return next;
+        });
+        setLogged(false);
+      } finally {
+        if (plateChoiceAbortRef.current?.controller === controller) plateChoiceAbortRef.current = null;
+        if (authority.isCurrent(requestEpoch) && !foodResolutionActiveRef.current) rearmLiveScore();
       }
-      const scored = scoredFromMatch(match);
-      setPlateItems((items) => items.map((item) => (item.id === itemId ? { ...item, ...scored } : item)));
-      setPlateCandidates((current) => {
-        const next = { ...current };
-        delete next[itemId];
-        return next;
-      });
-      setLogged(false);
     },
-    [fetchExactMatch, scoredFromMatch]
+    [authority, fetchExactMatch, rearmLiveScore, scoredFromMatch, suspendLiveScore]
   );
 
   /** An unmatched scan name resolved by chip: the row lands as a fresh plate item. */
