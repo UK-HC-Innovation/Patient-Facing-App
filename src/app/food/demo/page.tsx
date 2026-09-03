@@ -66,8 +66,8 @@ export default function CompassPage() {
   const [crisisLocked, setCrisisLocked] = useState(false);
   // No barcode reader on the public door: there is no packaged-food path to feed, and the
   // scanner's detector chunk is never fetched.
-  const { camera, live, passcode, authority } = useFoodLensEngine({ crisis: crisisLocked });
-  const { grabFrame, stop: stopCamera } = camera;
+  const { camera, live, passcode, authority, scan, scanPending } = useFoodLensEngine({ crisis: crisisLocked });
+  const { stop: stopCamera } = camera;
 
   // This door never calls useHealthState. The root layout would hand it a full demo patient
   // with medications and blood-pressure readings, and this page must not carry one.
@@ -288,13 +288,15 @@ export default function CompassPage() {
     },
     []
   );
-  const language = useMemo<Language>(
-    () =>
-      typeof window !== "undefined" && new URLSearchParams(window.location.search).get("lang") === "es"
-        ? "es"
-        : "en",
-    []
-  );
+  // Start with the same language on the server and first client render, then apply
+  // the URL preference after hydration. Reading window during render makes React
+  // replace the camera subtree on ?lang=es, which can drop an in-progress scan.
+  const [language, setLanguage] = useState<Language>("en");
+  const [languageReady, setLanguageReady] = useState(false);
+  useEffect(() => {
+    setLanguage(new URLSearchParams(window.location.search).get("lang") === "es" ? "es" : "en");
+    setLanguageReady(true);
+  }, []);
 
   const prepareVoiceResponse = useCallback(
     async (text: string) => {
@@ -321,9 +323,7 @@ export default function CompassPage() {
     (): LiveSessionContext => {
       const current = voiceResultRef.current ?? shownRef.current;
       return {
-        // Once conversational details override the raw camera match, avoid pairing
-        // a later frame with a restaurant-specific interpretation it may not depict.
-        frameDataUrl: voiceResultRef.current ? null : grabFrame(),
+        frameDataUrl: null,
         identifiedFood: null,
         flagTexts: [],
         compass:
@@ -334,8 +334,15 @@ export default function CompassPage() {
               : null
       };
     },
-    [grabFrame]
+    []
   );
+
+  const scanCurrentFrame = useCallback(() => {
+    setRefinement(null);
+    voiceResultRef.current = null;
+    pizzaIntentRef.current = null;
+    void scan();
+  }, [scan]);
 
   const buildVoiceContext = useCallback((context: LiveSessionContext) => {
     const current = voiceResultRef.current ?? shownRef.current;
@@ -415,7 +422,7 @@ export default function CompassPage() {
 
   useEffect(() => {
     const match = live.match;
-    if (!match || refinement || !liveFoodCode || voiceMode === "unknown") {
+    if (!languageReady || !match || refinement || !liveFoodCode || voiceMode === "unknown") {
       return;
     }
     if (lastAutoConversationFoodRef.current === liveFoodCode) {
@@ -447,6 +454,7 @@ export default function CompassPage() {
     live.match,
     liveFoodCode,
     language,
+    languageReady,
     refinement,
     requestContextResponse,
     startWithContextResponse,
@@ -604,6 +612,7 @@ export default function CompassPage() {
         <FoodViewfinder
           {...sharedViewfinderProps({ camera, view, language, sessionStatus: voice.status })}
           demoPreview
+          hasScanResult={shown !== null || live.candidate !== null || live.noMatch || live.packageDetected}
           idleLabel={
             voice.status === "closed"
               ? t(language, "compassIdleEnded")
@@ -611,6 +620,10 @@ export default function CompassPage() {
                 ? t(language, "compassIdleStarting")
                 : t(language, "compassIdleAwaiting")
           }
+          onScan={scanCurrentFrame}
+          scanDisabled={live.candidate !== null || live.packageDetected}
+          scanError={live.scanError}
+          scanPending={scanPending}
           scoreName={matchShown?.food.description}
           trustPill={<FoodGuidanceSource kind="general" language={language} />}
         />

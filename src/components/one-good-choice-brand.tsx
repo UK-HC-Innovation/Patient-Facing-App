@@ -14,7 +14,7 @@ export function OneGoodChoiceBrand({ title }: { title: string }) {
       </span>
       <div>
         <p className="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-care">
-          Food Compass
+          University of Kentucky
         </p>
         <h1 className="text-2xl font-black lowercase tracking-[-0.035em] text-ink">{title}</h1>
       </div>

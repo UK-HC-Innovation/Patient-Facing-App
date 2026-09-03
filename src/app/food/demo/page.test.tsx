@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   voiceStop: vi.fn(),
   requestContextResponse: vi.fn(),
   startWithContextResponse: vi.fn(),
+  liveScan: vi.fn(async () => undefined),
   // Mutable so a test can move the lens onto a different food mid-render.
   liveMatch: null as unknown,
   voiceStatus: "idle" as string,
@@ -44,16 +45,21 @@ vi.mock("@/hooks/use-food-camera", () => ({
   })
 }));
 
-vi.mock("@/hooks/use-live-food-score", () => ({
-  useLiveFoodScore: () => ({
+vi.mock("@/hooks/use-manual-food-score", () => ({
+  useManualFoodScore: () => ({
     badge: "score",
     loopState: "sending",
     match: mocks.liveMatch,
+    candidate: null,
+    packageDetected: false,
     carveOut: null,
     noMatchCandidates: [],
+    noMatch: false,
     armed: true,
     disarmReason: null,
     liveIdentifySucceeded: false,
+    scanError: null,
+    scan: mocks.liveScan,
     adoptMatch: () => {},
     rearm: () => {},
     setVisibleRatio: () => {}
@@ -98,6 +104,7 @@ describe("CompassPage camera-first conversation", () => {
     mocks.cameraStart.mockClear();
     mocks.cameraStop.mockClear();
     mocks.voiceStop.mockClear();
+    mocks.liveScan.mockClear();
   });
 
   afterEach(() => {
@@ -176,6 +183,7 @@ describe("CompassPage camera-first conversation", () => {
     render(<CompassPage />);
 
     expect(screen.getByRole("heading", { name: "1 good choice" })).toBeInTheDocument();
+    expect(screen.getByText("University of Kentucky")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Cámara de alimentos" })).toBeInTheDocument();
     expect(screen.getAllByText("22").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Consejo general de nutrición/)[0]).toHaveAttribute(
@@ -213,6 +221,7 @@ describe("CompassPage spoken-refinement authority", () => {
     mocks.cameraStart.mockClear();
     mocks.cameraStop.mockClear();
     mocks.voiceStop.mockClear();
+    mocks.liveScan.mockClear();
   });
 
   afterEach(() => {
@@ -248,75 +257,47 @@ describe("CompassPage spoken-refinement authority", () => {
     return fetchMock;
   }
 
-  it("stops sending the camera frame once a spoken refinement holds", async () => {
+  it("never attaches an unrequested camera frame to voice context", async () => {
     stubIdentify();
     render(<CompassPage />);
 
-    // Before any refinement the frame is the whole point of the context.
-    expect(mocks.getContext?.().frameDataUrl).toBe("data:image/jpeg;base64,FRAME");
+    expect(mocks.getContext?.().frameDataUrl).toBeNull();
 
     await act(async () => mocks.beforePatientResponse?.("This came from Papa John's, pepperoni."));
 
-    // After it, a later frame could be paired with a restaurant-specific interpretation it
-    // does not depict, so no frame goes out at all.
     expect(mocks.getContext?.().frameDataUrl).toBeNull();
   });
 
-  it("returns control to the lens only after a different food holds for five seconds", async () => {
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    try {
-      const fetchMock = stubIdentify();
-      const view = render(<CompassPage />);
-      await act(async () => mocks.beforePatientResponse?.("This came from Papa John's, pepperoni."));
-      expect(fetchMock).toHaveBeenCalled();
-      expect(mocks.getContext?.().frameDataUrl).toBeNull();
+  it("keeps voice context image-free when a different food is shown", async () => {
+    stubIdentify();
+    const view = render(<CompassPage />);
+    await act(async () => mocks.beforePatientResponse?.("This came from Papa John's, pepperoni."));
 
-      // The lens wobbling onto a different food is not enough on its own.
-      mocks.liveMatch = banana;
-      await act(async () => {
-        view.rerender(<CompassPage />);
-      });
-      await act(async () => {
-        vi.advanceTimersByTime(4_900);
-      });
-      expect(mocks.getContext?.().frameDataUrl).toBeNull();
+    mocks.liveMatch = banana;
+    await act(async () => view.rerender(<CompassPage />));
 
-      await act(async () => {
-        vi.advanceTimersByTime(200);
-      });
-      expect(mocks.getContext?.().frameDataUrl).toBe("data:image/jpeg;base64,FRAME");
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(mocks.getContext?.().frameDataUrl).toBeNull();
   });
 
-  it("clears the pizza order context with the refinement, so a loose detail is not a new order", async () => {
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    try {
-      const fetchMock = stubIdentify();
-      const view = render(<CompassPage />);
-      await act(async () => mocks.beforePatientResponse?.("This came from Papa John's, pepperoni."));
-      const callsWithPizzaContext = fetchMock.mock.calls.length;
+  it("clears the pizza order context when the user starts a new scan", async () => {
+    const fetchMock = stubIdentify();
+    const view = render(<CompassPage />);
+    await act(async () => mocks.beforePatientResponse?.("This came from Papa John's, pepperoni."));
+    const callsWithPizzaContext = fetchMock.mock.calls.length;
 
-      // While the pizza order is held, a loose topping merges into it and re-queries.
-      await act(async () => mocks.beforePatientResponse?.("with sausage"));
-      expect(fetchMock.mock.calls.length).toBeGreaterThan(callsWithPizzaContext);
+    await act(async () => mocks.beforePatientResponse?.("with sausage"));
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(callsWithPizzaContext);
 
-      mocks.liveMatch = banana;
-      await act(async () => {
-        view.rerender(<CompassPage />);
-      });
-      await act(async () => {
-        vi.advanceTimersByTime(5_100);
-      });
+    await act(async () => {
+      screen.getByRole("button", { name: "Tap to scan again" }).click();
+    });
+    expect(mocks.liveScan).toHaveBeenCalledTimes(1);
+    mocks.liveMatch = banana;
+    await act(async () => view.rerender(<CompassPage />));
 
-      // Released onto a banana, a loose topping is not a pizza detail and buys nothing.
-      const callsAfterRelease = fetchMock.mock.calls.length;
-      await act(async () => mocks.beforePatientResponse?.("with sausage"));
-      expect(fetchMock.mock.calls.length).toBe(callsAfterRelease);
-    } finally {
-      vi.useRealTimers();
-    }
+    const callsAfterReset = fetchMock.mock.calls.length;
+    await act(async () => mocks.beforePatientResponse?.("with sausage"));
+    expect(fetchMock.mock.calls.length).toBe(callsAfterReset);
   });
 
   it("asks a live session for a context response instead of restarting it", async () => {

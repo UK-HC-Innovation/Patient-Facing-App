@@ -5,6 +5,7 @@ import { t, type Language } from "@/i18n/strings";
 import type { CameraStatus } from "@/hooks/use-food-camera";
 import type { LiveSessionStatus } from "@/ai/types";
 import type { CompassBand } from "@/domain/food-compass";
+import type { LiveScanError } from "@/hooks/use-live-food-score";
 import { CompassViewfinderBadge } from "./compass-score";
 
 const statusKey: Record<LiveSessionStatus, Parameters<typeof t>[1]> = {
@@ -15,6 +16,17 @@ const statusKey: Record<LiveSessionStatus, Parameters<typeof t>[1]> = {
   speaking: "statusSpeaking",
   error: "statusError",
   closed: "statusIdle"
+};
+
+const scanErrorKey: Record<LiveScanError, Parameters<typeof t>[1]> = {
+  camera_not_ready: "scanCameraNotReady",
+  unconfigured: "scanUnconfigured",
+  locked: "scanLocked",
+  provider_quota: "scanProviderQuota",
+  provider_rate_limit: "scanProviderRateLimit",
+  provider_auth: "scanProviderAuth",
+  provider_unavailable: "scanProviderUnavailable",
+  network: "scanNetworkError"
 };
 
 export function FoodViewfinder({
@@ -29,6 +41,11 @@ export function FoodViewfinder({
   scoreTier,
   scoreName,
   onScoreTap,
+  onScan,
+  scanPending = false,
+  scanDisabled = false,
+  scanError = null,
+  hasScanResult = false,
   onCameraRetry,
   onVoiceStatusTap,
   showVoiceStatus = true,
@@ -48,6 +65,12 @@ export function FoodViewfinder({
   scoreTier?: "T1" | "T2";
   scoreName?: string;
   onScoreTap?: () => void;
+  /** The full camera surface is the explicit capture control. */
+  onScan?: () => void;
+  scanPending?: boolean;
+  scanDisabled?: boolean;
+  scanError?: LiveScanError | null;
+  hasScanResult?: boolean;
   /** /food can retry camera permission or acquisition; /food/demo intentionally keeps its preview fallback. */
   onCameraRetry?: () => void;
   /** Makes an actionable voice-status message a real, touch-sized control. */
@@ -92,6 +115,10 @@ export function FoodViewfinder({
       <span>{voiceStatus}</span>
     </>
   );
+  const scanLabel = t(
+    language,
+    scanPending ? "scanInProgress" : hasScanResult ? "tapToScanAgain" : "tapToScan"
+  );
 
   return (
     <div className="relative overflow-clip bg-ink" style={{ height }}>
@@ -115,7 +142,7 @@ export function FoodViewfinder({
       ) : null}
 
       {!demoPreview && cameraStatus === "denied" ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-ink/80 p-6 text-center text-sm text-white">
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-ink/80 p-6 text-center text-sm text-white">
           <p>{t(language, "cameraDenied")}</p>
           {onCameraRetry ? (
             <button className="min-h-11 rounded-control bg-white px-4 py-2 font-semibold text-care" onClick={onCameraRetry} type="button">
@@ -125,7 +152,7 @@ export function FoodViewfinder({
         </div>
       ) : null}
       {!demoPreview && cameraStatus === "unavailable" ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-ink/80 p-6 text-center text-sm text-white">
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-ink/80 p-6 text-center text-sm text-white">
           <p>{t(language, "cameraUnavailable")}</p>
           {onCameraRetry ? (
             <button className="min-h-11 rounded-control bg-white px-4 py-2 font-semibold text-care" onClick={onCameraRetry} type="button">
@@ -136,7 +163,7 @@ export function FoodViewfinder({
       ) : null}
 
       {trustPill ? (
-        <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-3 bg-gradient-to-b from-slate-900/75 to-transparent p-3">
+        <div className="absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 bg-gradient-to-b from-slate-900/75 to-transparent p-3">
           <span className="pt-1 font-mono text-xs font-bold tracking-[.16em] text-white/90">
             {t(language, "shellWordmark")}
           </span>
@@ -144,16 +171,39 @@ export function FoodViewfinder({
         </div>
       ) : null}
 
+      {onScan && cameraStatus === "active" && (!scanDisabled || scanPending) ? (
+        <button
+          aria-label={scanLabel}
+          className="absolute inset-0 z-10 flex cursor-pointer items-center justify-center bg-transparent focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-[-4px] focus-visible:outline-white disabled:cursor-wait"
+          disabled={scanPending}
+          onClick={onScan}
+          type="button"
+        >
+          <span className="flex min-h-12 items-center rounded-full border-2 border-white/90 bg-care px-6 py-3 text-base font-bold text-white shadow-lg transition active:scale-[0.98] motion-reduce:transition-none">
+            {scanLabel}
+          </span>
+        </button>
+      ) : null}
+
+      {scanError ? (
+        <p
+          className="absolute inset-x-4 top-[64%] z-20 rounded-control bg-white px-3 py-2 text-center text-sm font-semibold text-pulse shadow-lg"
+          role="alert"
+        >
+          {t(language, scanErrorKey[scanError])}
+        </p>
+      ) : null}
+
       {scanChip ? (
         <div
-          className={`absolute left-3 rounded-full bg-white/95 px-3 py-2 text-xs font-semibold text-ink ${
+          className={`absolute left-3 z-20 rounded-full bg-white/95 px-3 py-2 text-xs font-semibold text-ink ${
             trustPill ? "bottom-3 max-w-[70%] truncate" : "top-3"
           }`}
         >
           {scanChip}
         </div>
       ) : (
-        <div className={`absolute left-3 rounded-control bg-black/75 px-3 py-1 text-xs font-medium text-white ${trustPill ? "bottom-3" : "top-3"}`}>
+        <div className={`absolute left-3 z-20 rounded-control bg-black/75 px-3 py-1 text-xs font-medium text-white ${trustPill ? "bottom-3" : "top-3"}`}>
           {t(language, "scanHint")}
         </div>
       )}
@@ -170,7 +220,7 @@ export function FoodViewfinder({
       />
 
       {showVoiceStatus ? (
-        <div aria-live="polite" className="absolute inset-x-0 bottom-3 flex justify-center">
+        <div aria-live="polite" className="absolute inset-x-0 bottom-3 z-20 flex justify-center">
           {onVoiceStatusTap ? (
             <button
               className={`${voiceStatusClassName} cursor-pointer transition hover:bg-calm active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white`}

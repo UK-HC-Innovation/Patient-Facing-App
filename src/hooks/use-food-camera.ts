@@ -4,11 +4,9 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 
 export type CameraStatus = "idle" | "starting" | "active" | "denied" | "unavailable";
 
-const RING_SIZE = 3;
 const MAX_EDGE = 768;
 export const DETAILED_MAX_EDGE = 2048;
 export const DETAILED_MAX_DATA_URL_CHARS = 3_600_000;
-const CAPTURE_INTERVAL_MS = 500;
 
 const DETAILED_QUALITIES = [0.9, 0.82, 0.74, 0.66, 0.58] as const;
 const RASTER_IMAGE_TYPES = new Set([
@@ -27,6 +25,26 @@ type BrowserImageCapture = {
 };
 
 type BrowserImageCaptureConstructor = new (track: MediaStreamTrack) => BrowserImageCapture;
+
+async function waitForVideoFrame(video: HTMLVideoElement): Promise<void> {
+  if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) return;
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      video.removeEventListener("loadeddata", finish);
+      video.removeEventListener("canplay", finish);
+      video.removeEventListener("resize", finish);
+      resolve();
+    };
+    const timeout = window.setTimeout(finish, 2_000);
+    video.addEventListener("loadeddata", finish, { once: true });
+    video.addEventListener("canplay", finish, { once: true });
+    video.addEventListener("resize", finish, { once: true });
+  });
+}
 
 function detailedDimensions(width: number, height: number, maxEdge = DETAILED_MAX_EDGE) {
   const scale = Math.min(1, maxEdge / Math.max(width, height));
@@ -144,41 +162,11 @@ export function useFoodCamera(): {
 } {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const canvasesRef = useRef<HTMLCanvasElement[]>([]);
-  const newestRef = useRef<number>(-1);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const generationRef = useRef(0);
   const mountedRef = useRef(true);
   const [status, setStatus] = useState<CameraStatus>("idle");
 
-  const captureFrame = useCallback(() => {
-    const video = videoRef.current;
-    if (!video || video.videoWidth === 0 || document.hidden) {
-      return;
-    }
-    if (canvasesRef.current.length === 0) {
-      canvasesRef.current = Array.from({ length: RING_SIZE }, () => document.createElement("canvas"));
-    }
-    const scale = Math.min(1, MAX_EDGE / Math.max(video.videoWidth, video.videoHeight));
-    const width = Math.round(video.videoWidth * scale);
-    const height = Math.round(video.videoHeight * scale);
-    const next = (newestRef.current + 1) % RING_SIZE;
-    const canvas = canvasesRef.current[next];
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      return;
-    }
-    ctx.drawImage(video, 0, 0, width, height);
-    newestRef.current = next;
-  }, []);
-
   const clearCamera = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
@@ -186,12 +174,6 @@ export function useFoodCamera(): {
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
-    for (const canvas of canvasesRef.current) {
-      canvas.width = 0;
-      canvas.height = 0;
-    }
-    canvasesRef.current = [];
-    newestRef.current = -1;
   }, []);
 
   const stop = useCallback(() => {
@@ -222,6 +204,7 @@ export function useFoodCamera(): {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play().catch(() => undefined);
+        await waitForVideoFrame(videoRef.current);
       }
       if (!mountedRef.current || generationRef.current !== generation) {
         if (videoRef.current?.srcObject === stream) videoRef.current.srcObject = null;
@@ -229,28 +212,33 @@ export function useFoodCamera(): {
         if (streamRef.current === stream) streamRef.current = null;
         return;
       }
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-      intervalRef.current = setInterval(captureFrame, CAPTURE_INTERVAL_MS);
       setStatus("active");
     } catch {
       if (mountedRef.current && generationRef.current === generation) setStatus("denied");
     }
-  }, [captureFrame, clearCamera]);
+  }, [clearCamera]);
 
   const grabFrame = useCallback((): string | null => {
-    if (newestRef.current < 0) {
+    const video = videoRef.current;
+    if (!video || video.videoWidth < 1 || video.videoHeight < 1 || document.hidden) {
       return null;
     }
-    const canvas = canvasesRef.current[newestRef.current];
-    if (!canvas) {
-      return null;
-    }
+    const scale = Math.min(1, MAX_EDGE / Math.max(video.videoWidth, video.videoHeight));
+    const width = Math.max(1, Math.round(video.videoWidth * scale));
+    const height = Math.max(1, Math.round(video.videoHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
     try {
+      const context = canvas.getContext("2d");
+      if (!context) return null;
+      context.drawImage(video, 0, 0, width, height);
       return canvas.toDataURL("image/jpeg", 0.7);
     } catch {
       return null;
+    } finally {
+      canvas.width = 0;
+      canvas.height = 0;
     }
   }, []);
 

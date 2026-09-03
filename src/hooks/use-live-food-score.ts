@@ -44,6 +44,15 @@ export type LiveMatch = {
 
 export type LiveScoreBadge = "hidden" | "idle" | "pending" | "score" | "carve_out" | "scan_again";
 export type LiveDisarmReason = "idle" | "provider" | "offscreen" | "crisis" | "review" | null;
+export type LiveScanError =
+  | "camera_not_ready"
+  | "unconfigured"
+  | "locked"
+  | "provider_quota"
+  | "provider_rate_limit"
+  | "provider_auth"
+  | "provider_unavailable"
+  | "network";
 
 /**
  * What the loop pill says. Four states, not two: no pill at all is a real answer, because a
@@ -71,6 +80,9 @@ export type LiveScoreState = {
   disarmReason: LiveDisarmReason;
   /** A paid image-identify match has succeeded at least once during this mount. */
   liveIdentifySucceeded: boolean;
+  scanError: LiveScanError | null;
+  /** Capture and identify one frame after an explicit user action. */
+  scan: () => Promise<void>;
   adoptMatch: (match: LiveMatch, options?: { pin?: boolean }) => void;
   /** Clear all current authority and stop paid identification until rearm(). */
   suspend: () => void;
@@ -146,10 +158,21 @@ export function useLiveFoodScore(args: {
   crisis?: boolean;
   passcode?: string;
   enabled?: boolean;
+  /** Disables the scheduler so image capture happens only through scan(). */
+  manual?: boolean;
   authority?: FoodAuthority;
   now?: () => number;
 }): LiveScoreState {
-  const { videoRef, grabFrame, cameraActive, barcodeActive, crisis = false, passcode, enabled = true } = args;
+  const {
+    videoRef,
+    grabFrame,
+    cameraActive,
+    barcodeActive,
+    crisis = false,
+    passcode,
+    enabled = true,
+    manual = false
+  } = args;
   const now = args.now ?? (() => Date.now());
 
   const [match, setMatch] = useState<LiveMatch | null>(null);
@@ -161,12 +184,14 @@ export function useLiveFoodScore(args: {
   const [inFlight, setInFlight] = useState(false);
   const [disarmReason, setDisarmReason] = useState<LiveDisarmReason>(null);
   const [liveIdentifySucceeded, setLiveIdentifySucceeded] = useState(false);
+  const [scanError, setScanError] = useState<LiveScanError | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const signatureRef = useRef<number[] | null>(null);
   const lastChangeRef = useRef<number>(0);
   const inFlightRef = useRef(false);
   const identifyAbortRef = useRef<AbortController | null>(null);
+  const identifyEpochRef = useRef<number | null>(null);
   const disarmedRef = useRef(false);
   const disarmReasonRef = useRef<LiveDisarmReason>(null);
   const matchRef = useRef<LiveMatch | null>(null);
@@ -283,24 +308,30 @@ export function useLiveFoodScore(args: {
     [candidateList, commitCandidate, commitMatch, commitPackageDetected, invalidateAuthority]
   );
 
-  const identify = useCallback(async () => {
-    if (correctionPinnedUntilRef.current > nowRef.current()) {
+  const identify = useCallback(async (options: { force?: boolean } = {}) => {
+    const force = options.force === true;
+    if (inFlightRef.current) {
+      return;
+    }
+    if (!force && correctionPinnedUntilRef.current > nowRef.current()) {
       return;
     }
     // The viewfinder came back on screen less than an interval ago; hold the first send.
-    if (resumeHoldUntilRef.current > nowRef.current()) {
+    if (!force && resumeHoldUntilRef.current > nowRef.current()) {
       return;
     }
-    if (candidateRef.current) {
+    if (!force && candidateRef.current) {
       return;
     }
-    if (packageDetectedRef.current) {
+    if (!force && packageDetectedRef.current) {
       return;
     }
     const image = grabFrameRef.current();
     if (!image) {
+      if (manual || force) setScanError("camera_not_ready");
       return;
     }
+    if (force) invalidateAuthority();
     // A request is only launched after the scene-change gate has accepted a new frame.
     // The old scene must stop being authoritative at that point, even if this request
     // later times out, fails to parse, or returns an error. Keeping the prior match while
@@ -316,6 +347,7 @@ export function useLiveFoodScore(args: {
     inFlightRef.current = true;
     setInFlight(true);
     const requestEpoch = snapshotAuthority();
+    identifyEpochRef.current = requestEpoch;
     const controller = new AbortController();
     identifyAbortRef.current?.abort();
     identifyAbortRef.current = controller;
@@ -328,7 +360,7 @@ export function useLiveFoodScore(args: {
       });
       const json = (await response.json()) as {
         mode: string;
-        reason?: NotScoreableReason;
+        reason?: NotScoreableReason | LiveScanError;
         match?: Omit<LiveMatch, "candidates">;
         candidate?: { food: LiveIdentityCandidate["food"] };
         candidates?: LiveCandidate[];
@@ -341,6 +373,10 @@ export function useLiveFoodScore(args: {
       }
 
       if (json.mode === "unconfigured" || json.mode === "locked") {
+        if (manual || force) {
+          setScanError(json.mode);
+          return;
+        }
         disarmedRef.current = true;
         disarmReasonRef.current = "provider";
         setDisarmReason("provider");
@@ -348,6 +384,18 @@ export function useLiveFoodScore(args: {
       }
       if (json.mode === "candidate" || (json.mode === "match" && json.match)) {
         setLiveIdentifySucceeded(true);
+      }
+      if (json.mode === "error") {
+        const reason = json.reason;
+        setScanError(
+          reason === "provider_quota" ||
+            reason === "provider_rate_limit" ||
+            reason === "provider_auth" ||
+            reason === "provider_unavailable"
+            ? reason
+            : "network"
+        );
+        return;
       }
       // A correction may have landed while this paid request was in flight.
       if (correctionPinnedUntilRef.current > nowRef.current()) {
@@ -399,23 +447,42 @@ export function useLiveFoodScore(args: {
       }
       // "error": the previous scene was cleared when this changed-scene request began.
     } catch {
-      // network hiccup -- the next tick tries again
+      if ((manual || force) && !controller.signal.aborted) setScanError("network");
+      // In scheduled mode a network hiccup is retried on the next tick.
     } finally {
       if (identifyAbortRef.current === controller) {
         identifyAbortRef.current = null;
+        identifyEpochRef.current = null;
         inFlightRef.current = false;
         setInFlight(false);
       }
     }
-  }, [candidateList, commitCandidate, commitMatch, commitPackageDetected, invalidateAuthority, isAuthorityCurrent, snapshotAuthority]);
+  }, [candidateList, commitCandidate, commitMatch, commitPackageDetected, invalidateAuthority, isAuthorityCurrent, manual, snapshotAuthority]);
+
+  const scan = useCallback(async () => {
+    if (
+      !manual ||
+      !enabledRef.current ||
+      !cameraActiveRef.current ||
+      crisis ||
+      barcodeActiveRef.current ||
+      disarmReasonRef.current === "review" ||
+      inFlightRef.current
+    ) {
+      return;
+    }
+    setScanError(null);
+    await identify({ force: true });
+  }, [crisis, identify, manual]);
 
   const rearm = useCallback(() => {
-    if (disarmReasonRef.current === "provider") {
+    if (disarmReasonRef.current === "provider" && !manual) {
       return;
     }
     invalidateAuthority();
     identifyAbortRef.current?.abort();
     identifyAbortRef.current = null;
+    identifyEpochRef.current = null;
     inFlightRef.current = false;
     setInFlight(false);
     // "offscreen" and "crisis" each re-arm on their own condition alone. An explicit rearm
@@ -432,6 +499,7 @@ export function useLiveFoodScore(args: {
     commitPackageDetected(false);
     setNoMatchCandidates([]);
     setNoMatch(false);
+    setScanError(null);
     if (gated) {
       return;
     }
@@ -441,6 +509,7 @@ export function useLiveFoodScore(args: {
     lastChangeRef.current = nowRef.current();
     setDisarmReason(null);
     if (
+      !manual &&
       !wasDisarmed &&
       enabledRef.current &&
       cameraActiveRef.current &&
@@ -449,12 +518,13 @@ export function useLiveFoodScore(args: {
     ) {
       void identify();
     }
-  }, [commitCandidate, commitMatch, commitPackageDetected, identify, invalidateAuthority]);
+  }, [commitCandidate, commitMatch, commitPackageDetected, identify, invalidateAuthority, manual]);
 
   const suspend = useCallback(() => {
     invalidateAuthority();
     identifyAbortRef.current?.abort();
     identifyAbortRef.current = null;
+    identifyEpochRef.current = null;
     inFlightRef.current = false;
     setInFlight(false);
     correctionPinnedUntilRef.current = 0;
@@ -473,6 +543,9 @@ export function useLiveFoodScore(args: {
   const setVisibleRatio = useCallback(
     (ratio: number) => {
       visibleRatioRef.current = ratio;
+      if (manual) {
+        return;
+      }
       if (disarmReasonRef.current === "offscreen") {
         if (ratio < GATE_RESUME_ABOVE) {
           return;
@@ -499,19 +572,23 @@ export function useLiveFoodScore(args: {
         setDisarmReason("offscreen");
       }
     },
-    [commitMatch]
+    [commitMatch, manual]
   );
 
   useEffect(() => {
+    const identifyEpoch = identifyEpochRef.current;
+    if (identifyEpoch === null || isAuthorityCurrent(identifyEpoch)) return;
     identifyAbortRef.current?.abort();
     identifyAbortRef.current = null;
+    identifyEpochRef.current = null;
     inFlightRef.current = false;
     setInFlight(false);
-  }, [args.authority?.epoch]);
+  }, [args.authority?.epoch, isAuthorityCurrent]);
 
   useEffect(() => () => {
     identifyAbortRef.current?.abort();
     identifyAbortRef.current = null;
+    identifyEpochRef.current = null;
   }, []);
 
   // --- crisis: an explicit disarm, never a side effect of an unmounted camera ---
@@ -560,6 +637,9 @@ export function useLiveFoodScore(args: {
 
   // --- the loop ---
   useEffect(() => {
+    if (manual) {
+      return;
+    }
     if (!armed || disarmedRef.current) {
       return;
     }
@@ -604,7 +684,7 @@ export function useLiveFoodScore(args: {
 
     const timer = setInterval(tick, LIVE_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [armed, identify, videoRef]);
+  }, [armed, identify, manual, videoRef]);
 
   const badge: LiveScoreBadge =
     !enabled ||
@@ -626,15 +706,25 @@ export function useLiveFoodScore(args: {
 
   // An idle disarm already carries its own "Scan again" affordance on the badge, so it shows
   // no pill: the pill only ever reports a loop that is running, or one the gate paused.
-  const loopState: LiveLoopState =
-    !enabled ||
-    !cameraActive ||
-    barcodeActive ||
-    packageDetected ||
-    disarmReason === "provider" ||
-    disarmReason === "crisis" ||
-    disarmReason === "idle" ||
-    disarmReason === "review"
+  const loopState: LiveLoopState = manual
+    ? !enabled ||
+      !cameraActive ||
+      barcodeActive ||
+      packageDetected ||
+      disarmReason === "crisis" ||
+      disarmReason === "review"
+      ? "unavailable"
+      : inFlight
+        ? "sending"
+        : "searching"
+    : !enabled ||
+        !cameraActive ||
+        barcodeActive ||
+        packageDetected ||
+        disarmReason === "provider" ||
+        disarmReason === "crisis" ||
+        disarmReason === "idle" ||
+        disarmReason === "review"
       ? "unavailable"
       : disarmReason === "offscreen"
         ? "paused_offscreen"
@@ -654,6 +744,8 @@ export function useLiveFoodScore(args: {
     armed,
     disarmReason,
     liveIdentifySucceeded,
+    scanError,
+    scan,
     adoptMatch,
     suspend,
     rearm,

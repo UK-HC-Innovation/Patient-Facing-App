@@ -131,6 +131,43 @@ type ModelAnswer = {
   usage: { inputTokens: number; outputTokens: number; totalTokens: number } | null;
 };
 
+type ProviderFailureReason =
+  | "provider_quota"
+  | "provider_rate_limit"
+  | "provider_auth"
+  | "provider_unavailable";
+
+class ProviderRequestError extends Error {
+  constructor(
+    readonly reason: ProviderFailureReason,
+    readonly upstreamStatus: number,
+    readonly providerCode: string | null
+  ) {
+    super(reason);
+    this.name = "ProviderRequestError";
+  }
+}
+
+function providerFailureReason(status: number, providerCode: string | null): ProviderFailureReason {
+  if (status === 429) {
+    return providerCode === "insufficient_quota" ? "provider_quota" : "provider_rate_limit";
+  }
+  if (status === 401 || status === 403) {
+    return "provider_auth";
+  }
+  return "provider_unavailable";
+}
+
+function readProviderCode(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  const error = (value as { error?: unknown }).error;
+  if (!error || typeof error !== "object") return null;
+  const code = (error as { code?: unknown; type?: unknown }).code;
+  const type = (error as { type?: unknown }).type;
+  const candidate = typeof code === "string" ? code : typeof type === "string" ? type : null;
+  return candidate && /^[a-z0-9_.-]{1,80}$/iu.test(candidate) ? candidate : null;
+}
+
 async function readBody(request: Request): Promise<IdentifyBody> {
   try {
     const parsed = (await request.json()) as unknown;
@@ -278,14 +315,17 @@ async function askModel(args: {
   }
 
   if (!upstream.ok) {
-    return {
-      content: null,
-      model: args.model,
-      modelComplete: false,
-      serviceTier: "unknown",
-      serviceTierComplete: false,
-      usage: null
-    };
+    let providerCode: string | null = null;
+    try {
+      providerCode = readProviderCode(await upstream.json());
+    } catch {
+      // Status is sufficient for a safe public category when the body is not JSON.
+    }
+    throw new ProviderRequestError(
+      providerFailureReason(upstream.status, providerCode),
+      upstream.status,
+      providerCode
+    );
   }
   const data = (await upstream.json()) as {
     model?: unknown;
@@ -333,6 +373,7 @@ function parseJson(content: string | null): Record<string, unknown> | null {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  const startedAt = Date.now();
   const body = await readBody(request);
   const text = typeof body.text === "string" ? body.text.slice(0, MAX_TEXT_CHARS).trim() : "";
   const interpretation = text ? parseFoodOrderIntent(text) : null;
@@ -510,7 +551,22 @@ export async function POST(request: Request): Promise<Response> {
       return imageResponse({ mode: "none", candidates: [] });
     }
     return buildImageCandidate(candidates[index].food, auditHeaders());
-  } catch {
-    return imageResponse({ mode: "error", message: "identify_request_error" }, 502);
+  } catch (error) {
+    const providerFailure = error instanceof ProviderRequestError ? error : null;
+    console.error(JSON.stringify({
+      event: "food_identify_failed",
+      durationMs: Date.now() - startedAt,
+      upstreamCalls,
+      upstreamStatus: providerFailure?.upstreamStatus ?? null,
+      providerCode: providerFailure?.providerCode ?? null,
+      reason: providerFailure?.reason ?? "network"
+    }));
+    return imageResponse(
+      {
+        mode: "error",
+        reason: providerFailure?.reason ?? "network"
+      },
+      providerFailure ? 503 : 502
+    );
   }
 }

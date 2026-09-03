@@ -29,6 +29,7 @@ async function stubFoodLens(page: import("@playwright/test").Page) {
 }
 
 async function confirmBarcode(page: import("@playwright/test").Page) {
+  await page.getByRole("button", { name: /Tap to scan(?: again)?/ }).click();
   const useProduct = page.getByRole("button", { name: "Use this product" });
   await expect(useProduct).toBeVisible();
   await expect(page.getByTestId("food-verdict")).toHaveCount(0);
@@ -136,6 +137,7 @@ test("hides label-photo scoring when the provider probe is mocked", async ({ pag
     }
   });
   await page.goto("/food");
+  await page.getByRole("button", { name: "Tap to scan" }).click();
 
   await expect(page.getByLabel("Food camera").getByText(UNKNOWN_BARCODE, { exact: true })).toBeVisible();
   await page.waitForTimeout(750);

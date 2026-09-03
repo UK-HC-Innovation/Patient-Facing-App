@@ -40,6 +40,7 @@ test("tier-2 diabetes loop: dose-log tags and editable portion scaling", async (
     (response) => response.url().includes(`/api/food/lookup?barcode=${SOUP_BARCODE}`) && response.ok()
   );
   await page.goto("/food");
+  await page.getByRole("button", { name: "Tap to scan" }).click();
   await foodLookupResponse;
   await expect(page.getByTestId("food-verdict")).toHaveCount(0);
   await page.getByRole("button", { name: "Use this product" }).click();

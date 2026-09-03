@@ -5,6 +5,17 @@ export type FoodLensStringKey =
   | "navLabel"
   | "viewfinderHint"
   | "scanHint"
+  | "tapToScan"
+  | "tapToScanAgain"
+  | "scanInProgress"
+  | "scanCameraNotReady"
+  | "scanUnconfigured"
+  | "scanLocked"
+  | "scanProviderQuota"
+  | "scanProviderRateLimit"
+  | "scanProviderAuth"
+  | "scanProviderUnavailable"
+  | "scanNetworkError"
   | "statusConnecting"
   | "statusListening"
   | "statusThinking"
@@ -314,8 +325,19 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
   en: {
     pageTitle: "1 good choice",
     navLabel: "Food",
-    viewfinderHint: "Point at a food and just ask.",
-    scanHint: "Point at any food and ask about it.",
+    viewfinderHint: "Point at one food, then tap to scan.",
+    scanHint: "Point at one food, then tap to scan.",
+    tapToScan: "Tap to scan",
+    tapToScanAgain: "Tap to scan again",
+    scanInProgress: "Checking this photo…",
+    scanCameraNotReady: "The camera is not ready. Hold still and tap again.",
+    scanUnconfigured: "Scanning is not configured on this site.",
+    scanLocked: "Scanning is locked on this site.",
+    scanProviderQuota: "Scanning needs service billing or credits attention.",
+    scanProviderRateLimit: "Too many scans right now. Wait a moment and tap again.",
+    scanProviderAuth: "Scanning setup needs attention.",
+    scanProviderUnavailable: "Scanning is unavailable right now. Tap to try again.",
+    scanNetworkError: "The scan could not connect. Tap to try again.",
     statusConnecting: "Connecting…",
     statusListening: "Listening — just talk.",
     statusThinking: "Thinking…",
@@ -574,11 +596,11 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     nutritionCompassScoreAxis: "Score →",
     nutritionCompassHigherDensity: "↑ More calories per gram",
     shellWordmark: "1 GOOD CHOICE",
-    loopSending: "Reading the camera",
-    loopSearching: "Looking for food…",
-    loopPausedOffscreen: "Camera paused — nothing sent",
+    loopSending: "Checking this photo…",
+    loopSearching: "Ready to scan",
+    loopPausedOffscreen: "Ready to scan",
     cameraPrivacyLabel: "Camera & privacy",
-    gatePrivacyClaim: "The camera sends pictures only while it's on your screen. Scroll past it and nothing is sent.",
+    gatePrivacyClaim: "Pictures are sent only after you choose Scan or another camera action.",
     stripRegion: "1 good choice status",
     stripCameraButton: "Camera",
     stripCameraButtonLabel: "Back to the camera",
@@ -627,8 +649,19 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
   es: {
     pageTitle: "1 good choice",
     navLabel: "Comida",
-    viewfinderHint: "Apunta a una comida y pregunta.",
-    scanHint: "Apunta a cualquier comida y pregunta.",
+    viewfinderHint: "Apunta a una comida y toca para escanear.",
+    scanHint: "Apunta a una comida y toca para escanear.",
+    tapToScan: "Toca para escanear",
+    tapToScanAgain: "Toca para volver a escanear",
+    scanInProgress: "Revisando esta foto…",
+    scanCameraNotReady: "La cámara no está lista. Mantén el teléfono quieto y vuelve a tocar.",
+    scanUnconfigured: "El escaneo no está configurado en este sitio.",
+    scanLocked: "El escaneo está bloqueado en este sitio.",
+    scanProviderQuota: "La facturación o los créditos del servicio de escaneo requieren atención.",
+    scanProviderRateLimit: "Hay demasiados escaneos ahora. Espera un momento y vuelve a tocar.",
+    scanProviderAuth: "La configuración del escaneo requiere atención.",
+    scanProviderUnavailable: "El escaneo no está disponible ahora. Toca para volver a intentar.",
+    scanNetworkError: "No se pudo conectar el escaneo. Toca para volver a intentar.",
     statusConnecting: "Conectando…",
     statusListening: "Escuchando — solo habla.",
     statusThinking: "Pensando…",
@@ -888,11 +921,11 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     nutritionCompassScoreAxis: "Puntaje →",
     nutritionCompassHigherDensity: "↑ Más calorías por gramo",
     shellWordmark: "1 GOOD CHOICE",
-    loopSending: "Leyendo la cámara",
-    loopSearching: "Buscando comida…",
-    loopPausedOffscreen: "Cámara en pausa — no se envía nada",
+    loopSending: "Revisando esta foto…",
+    loopSearching: "Listo para escanear",
+    loopPausedOffscreen: "Listo para escanear",
     cameraPrivacyLabel: "Cámara y privacidad",
-    gatePrivacyClaim: "La cámara envía fotos solo mientras está en tu pantalla. Si la desplazas fuera de la vista, no se envía nada.",
+    gatePrivacyClaim: "Las fotos se envían solo cuando eliges Escanear u otra acción de la cámara.",
     stripRegion: "Estado de 1 good choice",
     stripCameraButton: "Cámara",
     stripCameraButtonLabel: "Volver a la cámara",

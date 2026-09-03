@@ -46,6 +46,7 @@ async function stubCameraMatch(page: Page, match = bananaMatch) {
 }
 
 async function confirmCameraCandidate(page: Page, language: "en" | "es" = "en") {
+  await page.getByRole("button", { name: language === "es" ? "Toca para escanear" : "Tap to scan" }).click();
   await page.getByRole("button", { name: language === "es" ? "Sí, usar esta comida" : "Yes, use this food" }).click();
 }
 
@@ -178,6 +179,7 @@ test("keeps a newly detected package authoritative over a late sort response", a
   packageScene = true;
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
   await expect(page.getByRole("region", { name: "Food camera" })).toBeInViewport();
+  await page.getByRole("button", { name: "Tap to scan again" }).click();
   await expect(page.getByRole("region", { name: "This looks packaged" })).toBeVisible({ timeout: 12_000 });
   await page.evaluate(() => {
     (window as typeof window & { __releaseRefinement?: () => void }).__releaseRefinement?.();
@@ -191,8 +193,9 @@ test("keeps a newly detected package authoritative over a late sort response", a
   nextSceneIsApple = true;
   await page.getByRole("button", { name: "Scan again" }).evaluate((element) => (element as HTMLButtonElement).click());
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+  await page.getByRole("button", { name: "Tap to scan" }).click();
   await expect(page.getByText(/I think this is Apple, raw/)).toBeVisible({ timeout: 10_000 });
-  await confirmCameraCandidate(page);
+  await page.getByRole("button", { name: "Yes, use this food" }).click();
   await expect(page.getByTestId("food-verdict")).toContainText("Apple, raw", { timeout: 10_000 });
 });
 
@@ -263,6 +266,7 @@ test("turns an image-only carve-out into a safe no-match without collapsing the 
     });
   });
   await page.goto("/food/demo");
+  await page.getByRole("button", { name: "Tap to scan" }).click();
 
   await expect(page.getByRole("region", { name: "No match" })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByRole("region", { name: "Food camera" })).toBeVisible();

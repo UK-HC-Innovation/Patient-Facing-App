@@ -142,4 +142,67 @@ describe("FoodViewfinder demo states", () => {
     await userEvent.click(screen.getByRole("button", { name: "Scan again" }));
     expect(onScanAgain).toHaveBeenCalledTimes(1);
   });
+
+  it("makes the full active camera an explicit scan control", async () => {
+    const onScan = vi.fn();
+    const { rerender } = render(
+      <FoodViewfinder
+        cameraStatus="active"
+        language="en"
+        onScan={onScan}
+        scanChip={null}
+        sessionStatus="idle"
+        showVoiceStatus={false}
+        videoRef={videoRef}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Tap to scan" }));
+    expect(onScan).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <FoodViewfinder
+        cameraStatus="active"
+        hasScanResult
+        language="en"
+        onScan={onScan}
+        scanChip="Banana, raw"
+        sessionStatus="idle"
+        showVoiceStatus={false}
+        videoRef={videoRef}
+      />
+    );
+    expect(screen.getByRole("button", { name: "Tap to scan again" })).toBeInTheDocument();
+  });
+
+  it("shows pending and provider errors on the camera", () => {
+    const { rerender } = render(
+      <FoodViewfinder
+        cameraStatus="active"
+        language="en"
+        onScan={vi.fn()}
+        scanChip={null}
+        scanPending
+        sessionStatus="idle"
+        showVoiceStatus={false}
+        videoRef={videoRef}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Checking this photo…" })).toBeDisabled();
+
+    rerender(
+      <FoodViewfinder
+        cameraStatus="active"
+        language="en"
+        onScan={vi.fn()}
+        scanChip={null}
+        scanError="provider_quota"
+        sessionStatus="idle"
+        showVoiceStatus={false}
+        videoRef={videoRef}
+      />
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Scanning needs service billing or credits attention.");
+  });
 });

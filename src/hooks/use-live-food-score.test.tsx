@@ -481,6 +481,57 @@ describe("useLiveFoodScore", () => {
   });
 });
 
+describe("useLiveFoodScore manual scans", () => {
+  it("sends nothing until scan is called, then sends exactly one frame", async () => {
+    const { result } = setup({ manual: true });
+    await flush();
+    await act(async () => {
+      vi.advanceTimersByTime(LIVE_INTERVAL_MS * 20);
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.current.loopState).toBe("searching");
+
+    await act(async () => result.current.scan());
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.current.loopState).toBe("searching");
+  });
+
+  it("shows a camera error without sending when no frame is ready", async () => {
+    const { result } = setup({ manual: true, grabFrame: () => null });
+
+    await act(async () => result.current.scan());
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.current.scanError).toBe("camera_not_ready");
+  });
+
+  it("keeps a provider quota failure visible instead of retrying", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ mode: "error", reason: "provider_quota" }));
+    const { result } = setup({ manual: true });
+
+    await act(async () => result.current.scan());
+    await act(async () => {
+      vi.advanceTimersByTime(LIVE_INTERVAL_MS * 20);
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.current.scanError).toBe("provider_quota");
+  });
+
+  it("does not scan when visibility changes or the result is reset", async () => {
+    const { result } = setup({ manual: true });
+
+    act(() => result.current.setVisibleRatio(0));
+    act(() => result.current.setVisibleRatio(1));
+    act(() => result.current.rearm());
+    await flush();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.current.disarmReason).toBeNull();
+  });
+});
+
 describe("useLiveFoodScore — the visibility gate", () => {
   it("stops sending while less than half the viewfinder is on screen", async () => {
     const clock = { value: 1_000 };

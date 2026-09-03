@@ -148,3 +148,42 @@ describe("camera start cancellation", () => {
     expect(pending.stop).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("manual camera capture", () => {
+  it("does not draw a frame until grabFrame is called", async () => {
+    const drawImage = vi.fn();
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: () => ({ drawImage }),
+      toDataURL: () => "data:image/jpeg;base64,manual"
+    } as unknown as HTMLCanvasElement;
+    const originalCreate = document.createElement.bind(document);
+    const createElement = vi.spyOn(document, "createElement").mockImplementation((tagName: string) =>
+      tagName === "canvas" ? canvas : originalCreate(tagName)
+    );
+    const stream = {
+      getTracks: () => [{ stop: vi.fn() }],
+      getVideoTracks: () => []
+    } as unknown as MediaStream;
+    vi.stubGlobal("navigator", {
+      mediaDevices: { getUserMedia: vi.fn(async () => stream) }
+    });
+    const video = {
+      readyState: 4,
+      videoWidth: 1280,
+      videoHeight: 720,
+      srcObject: null,
+      play: vi.fn(async () => undefined)
+    } as unknown as HTMLVideoElement;
+    const { result } = renderHook(() => useFoodCamera());
+    result.current.videoRef.current = video;
+
+    await act(async () => result.current.start());
+
+    expect(createElement).not.toHaveBeenCalledWith("canvas");
+    expect(drawImage).not.toHaveBeenCalled();
+    expect(result.current.grabFrame()).toBe("data:image/jpeg;base64,manual");
+    expect(drawImage).toHaveBeenCalledTimes(1);
+  });
+});

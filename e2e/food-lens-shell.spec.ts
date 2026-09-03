@@ -17,9 +17,7 @@ const bananaMatch = {
 };
 
 /**
- * The camera loop, stubbed and counted. Every assertion about the gate is ultimately an
- * assertion about this number: frames must stop going out while the viewfinder is off
- * screen, and coming back must not cost a fresh identify.
+ * Image identification, stubbed and counted. The number changes only after an explicit tap.
  */
 async function stubIdentify(page: Page, body: unknown = { mode: "match", match: bananaMatch }) {
   const counter = { image: 0 };
@@ -46,6 +44,7 @@ async function stubIdentify(page: Page, body: unknown = { mode: "match", match: 
 }
 
 async function confirmCameraCandidate(page: Page) {
+  await page.getByRole("button", { name: "Tap to scan" }).click();
   await page.getByRole("button", { name: "Yes, use this food" }).click();
 }
 
@@ -63,22 +62,36 @@ async function scrollViewfinderAway(page: Page) {
   await expect(strip(page)).toHaveAttribute("data-strip-mode", "food");
 }
 
-test("stops sending frames once the viewfinder scrolls off screen", async ({ page }) => {
+test("sends no more frames after an explicit scan", async ({ page }) => {
   const identifies = await stubIdentify(page);
   await page.goto("/food/demo");
+  await expect(strip(page)).toContainText("Ready to scan");
+  await page.waitForTimeout(3_000);
+  expect(identifies.image).toBe(0);
   await confirmCameraCandidate(page);
 
-  await expect(strip(page)).toContainText("Reading the camera", { timeout: 10_000 });
+  await expect(strip(page)).toContainText("Ready to scan", { timeout: 10_000 });
   const before = identifies.image;
   expect(before).toBeGreaterThan(0);
 
   await scrollViewfinderAway(page);
-  await expect(strip(page)).toContainText("Camera paused — nothing sent");
   const paused = identifies.image;
 
-  // Four full intervals with the camera off screen must cost nothing.
+  // Waiting and scrolling are both free. Only another tap can send another picture.
   await page.waitForTimeout(3_000);
   expect(identifies.image).toBe(paused);
+});
+
+test("shows an OpenAI quota problem after one tap and does not retry", async ({ page }) => {
+  const identifies = await stubIdentify(page, { mode: "error", reason: "provider_quota" });
+  await page.goto("/food/demo");
+
+  await page.getByRole("button", { name: "Tap to scan" }).click();
+  await expect(page.getByText("Scanning needs service billing or credits attention.", { exact: true })).toBeVisible();
+  expect(identifies.image).toBe(1);
+
+  await page.waitForTimeout(3_000);
+  expect(identifies.image).toBe(1);
 });
 
 test("scrolling back re-shows the match without a Scan again chip", async ({ page }) => {
@@ -86,17 +99,16 @@ test("scrolling back re-shows the match without a Scan again chip", async ({ pag
   await page.goto("/food/demo");
   await confirmCameraCandidate(page);
 
-  await expect(strip(page)).toContainText("Reading the camera", { timeout: 10_000 });
+  await expect(strip(page)).toContainText("Ready to scan", { timeout: 10_000 });
   await scrollViewfinderAway(page);
   await expect(strip(page)).toContainText("Banana, raw · 83");
   const paused = identifies.image;
 
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior }));
   await expect(strip(page)).toHaveAttribute("data-strip-mode", "loop");
-  // The stash re-shows the last match; the loop re-arms on ratio recovery alone.
+  // The result stays put when the viewfinder returns.
   await expect(page.getByTestId("food-verdict")).toContainText("Banana, raw");
-  await expect(page.getByText("Scan again")).toHaveCount(0);
-  // The resume holds one full interval before the first send.
+  await expect(page.getByRole("button", { name: "Tap to scan again" })).toBeVisible();
   expect(identifies.image).toBe(paused);
 });
 
@@ -105,7 +117,7 @@ test("switches the strip between its two modes at one fixed height", async ({ pa
   await page.goto("/food/demo");
   await confirmCameraCandidate(page);
 
-  await expect(strip(page)).toContainText("Reading the camera", { timeout: 10_000 });
+  await expect(strip(page)).toContainText("Ready to scan", { timeout: 10_000 });
   const loopBox = await strip(page).boundingBox();
   expect(loopBox?.height).toBe(44);
   // While the camera is up the viewfinder names the food, so the strip does not.
@@ -139,7 +151,7 @@ test("keeps the public mount store-free and gives it no camera button", async ({
   await page.goto("/food/demo");
   await confirmCameraCandidate(page);
 
-  await expect(strip(page)).toContainText("Reading the camera", { timeout: 10_000 });
+  await expect(strip(page)).toContainText("Ready to scan", { timeout: 10_000 });
   await scrollViewfinderAway(page);
 
   // Decision 5: the text box is never rendered, not hidden, and the strip has nowhere
@@ -151,6 +163,7 @@ test("keeps the public mount store-free and gives it no camera button", async ({
 test("turns an image-only carve-out into a safe no-match with no score or log action", async ({ page }) => {
   await stubIdentify(page, { mode: "carve_out", reason: "zero_calorie" });
   await page.goto("/food");
+  await page.getByRole("button", { name: "Tap to scan" }).click();
 
   await expect(page.getByRole("region", { name: "No match" })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByRole("region", { name: "Food camera" })).toBeVisible();
@@ -212,7 +225,7 @@ test("never lets the shell widen the page, at either end of the viewport range",
   await stubIdentify(page);
   await page.goto("/food/demo");
   await confirmCameraCandidate(page);
-  await expect(strip(page)).toContainText("Reading the camera", { timeout: 10_000 });
+  await expect(strip(page)).toContainText("Ready to scan", { timeout: 10_000 });
 
   // A single unbreakable line inside the pinned bar once widened the document to four
   // times the screen, and the phone answered by shrinking the whole page to fit.

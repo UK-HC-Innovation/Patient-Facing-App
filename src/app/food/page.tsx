@@ -146,7 +146,17 @@ export default function FoodPage() {
     EMPTY_FOOD_RESOLUTION_SNAPSHOT
   );
   const foodResolutionCancelRef = useRef<(() => void) | null>(null);
-  const { camera, live, passcode, activeBarcode, cameraBlocked, authority } = useFoodLensEngine({
+  const {
+    camera,
+    live,
+    passcode,
+    activeBarcode,
+    cameraBlocked,
+    authority,
+    scan,
+    scanPending,
+    clearBarcode
+  } = useFoodLensEngine({
     crisis: crisisOpen,
     barcode: {
       onDetect: (barcode) => {
@@ -169,9 +179,10 @@ export default function FoodPage() {
   }, []);
   const dismissBarcodeReview = useCallback(() => {
     foodResolutionCancelRef.current = null;
+    clearBarcode();
     setBarcodeReviewCode(null);
     setFoodResolutionState(EMPTY_FOOD_RESOLUTION_SNAPSHOT);
-  }, []);
+  }, [clearBarcode]);
   const cancelFoodResolution = useCallback(() => {
     const cancel = foodResolutionCancelRef.current;
     if (cancel) {
@@ -324,7 +335,7 @@ export default function FoodPage() {
   const getContext = useCallback((): LiveSessionContext => {
     const current = compassRef.current;
     return {
-      frameDataUrl: camera.grabFrame(),
+      frameDataUrl: null,
       identifiedFood: foodRef.current,
       flagTexts: flagsRef.current.map((flag) => flag.text),
       historyLine: historyLineRef.current,
@@ -334,7 +345,7 @@ export default function FoodPage() {
         ? { kind: "carve_out", reason: current.carveOut }
         : toCompassContext(current.score, current.alternatives, current.estimatedDomains)
     };
-  }, [camera]);
+  }, []);
 
   const appendMessage = useCallback(
     (role: "patient" | "assistant", content: string) => {
@@ -1009,7 +1020,11 @@ export default function FoodPage() {
           {...sharedViewfinderProps({ camera, view, language, sessionStatus: voice.status })}
           idleLabel={identifiedFood ? undefined : t(language, "statusIdleNoFood")}
           onCameraRetry={() => void camera.start()}
-          onScoreTap={badgeState === "scan_again" ? live.rearm : undefined}
+          hasScanResult={Boolean(identifiedFood || live.candidate || live.noMatch || live.packageDetected)}
+          onScan={() => void scan()}
+          scanDisabled={foodResolutionActive || live.candidate !== null || live.packageDetected}
+          scanError={live.scanError}
+          scanPending={scanPending}
           // The chip beside it already carries the brand, so the badge names the food alone.
           scoreName={identifiedFood?.name}
           trustPill={<FoodGuidanceSource kind="personalized" language={language} />}
