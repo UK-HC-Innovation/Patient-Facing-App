@@ -1018,7 +1018,7 @@ export const privacyStrings: Record<Language, Record<PrivacyStringKey, string>> 
     cloudTitle: "AI mode: cloud service may be used",
     cloudBody: "When you use an AI feature, your question, current image, and relevant care context may be sent to OpenAI to create an answer.",
     liveTitle: "AI mode: live voice",
-    liveBody: "Microphone audio, a current camera frame, and relevant food and care-plan context are sent to OpenAI while the session is active.",
+    liveBody: "Microphone audio and relevant food and care-plan context are sent to OpenAI while the session is active.",
     coachCheckingTitle: "Coach connection: checking",
     coachCheckingBody:
       "Checking whether the Coach's online connection is available. This status does not describe Ladder text.",
@@ -1046,7 +1046,7 @@ export const privacyStrings: Record<Language, Record<PrivacyStringKey, string>> 
     cloudTitle: "Modo de IA: puede usar un servicio en la nube",
     cloudBody: "Cuando usas una función de IA, tu pregunta, la imagen actual y el contexto de salud relevante pueden enviarse a OpenAI para crear una respuesta.",
     liveTitle: "Modo de IA: voz en vivo",
-    liveBody: "El audio del micrófono, una imagen actual de la cámara y el contexto relevante de comida y del plan de salud se envían a OpenAI mientras la sesión está activa.",
+    liveBody: "El audio del micrófono y el contexto relevante de comida y del plan de salud se envían a OpenAI mientras la sesión está activa.",
     coachCheckingTitle: "Conexión del asistente: comprobando",
     coachCheckingBody:
       "Estamos comprobando si la conexión en línea del asistente está disponible. Este estado no describe el texto de Ladder.",
