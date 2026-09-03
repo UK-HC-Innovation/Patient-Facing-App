@@ -13,13 +13,13 @@ const summary = {
 };
 
 describe("WeekInFoodCard", () => {
-  it("shows the weekly score summary and links back to Food Lens", () => {
+  it("shows the weekly score summary and links back to 1 good choice", () => {
     render(<WeekInFoodCard summary={summary} language="en" />);
 
     expect(screen.getByRole("heading", { name: "Week in Food" })).toBeInTheDocument();
     expect(screen.getByText("61")).toBeInTheDocument();
     expect(screen.getByText("Encourage: 1")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open Food Lens" })).toHaveAttribute("href", "/food");
+    expect(screen.getByRole("link", { name: "Open 1 good choice" })).toHaveAttribute("href", "/food");
   });
 
   it("renders Spanish copy", () => {

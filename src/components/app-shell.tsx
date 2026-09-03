@@ -3,6 +3,7 @@
 import { Home, LayoutGrid } from "lucide-react";
 import Link from "next/link";
 import React, { type ReactNode } from "react";
+import { OneGoodChoiceBrand } from "@/components/one-good-choice-brand";
 import { tHome } from "@/i18n/home-strings";
 import { useHealthState } from "@/state/store";
 
@@ -14,17 +15,35 @@ const navItems = [
   { href: "/menu", labelKey: "navMenu" as const, icon: LayoutGrid }
 ];
 
-export function AppShell({ title, children }: { title: string; children: ReactNode }) {
+export function AppShell({
+  title,
+  children,
+  brand
+}: {
+  title: string;
+  children: ReactNode;
+  brand?: "one-good-choice";
+}) {
   const { state } = useHealthState();
 
   return (
     <div className="min-h-screen bg-paper text-ink">
-      <header className="border-b border-ink/10 bg-white">
+      <header
+        className={
+          brand === "one-good-choice"
+            ? "border-b-4 border-care bg-white"
+            : "border-b border-ink/10 bg-white"
+        }
+      >
         <div className="mx-auto flex max-w-5xl items-start justify-between gap-3 px-4 py-4">
-          <div>
-            <p className="text-sm font-medium text-care">Home Health Ownership</p>
-            <h1 className="text-2xl font-semibold">{title}</h1>
-          </div>
+          {brand === "one-good-choice" ? (
+            <OneGoodChoiceBrand title={title} />
+          ) : (
+            <div>
+              <p className="text-sm font-medium text-care">Home Health Ownership</p>
+              <h1 className="text-2xl font-semibold">{title}</h1>
+            </div>
+          )}
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-5 pb-28 sm:pb-24">{children}</main>

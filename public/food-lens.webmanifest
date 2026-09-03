@@ -1,6 +1,6 @@
 {
-  "name": "Food Lens",
-  "short_name": "Food Lens",
+  "name": "1 good choice",
+  "short_name": "1 good choice",
   "description": "Point the camera at a food, see its Food Compass score, and ask a question about it.",
   "id": "/food/demo",
   "start_url": "/food/demo",

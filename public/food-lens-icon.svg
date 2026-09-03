@@ -1,6 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>1 good choice</title>
   <rect width="512" height="512" rx="112" fill="#0033a0"/>
-  <path d="M136 168h58l26-40h72l26 40h58a32 32 0 0 1 32 32v152a32 32 0 0 1-32 32H136a32 32 0 0 1-32-32V200a32 32 0 0 1 32-32Z" fill="#fff"/>
-  <circle cx="256" cy="276" r="74" fill="#0033a0"/>
-  <circle cx="256" cy="276" r="52" fill="#047857"/>
+  <path d="M185 177 264 124h55v264h-79V224l-55 34Z" fill="#fff"/>
+  <circle cx="353" cy="348" r="74" fill="#fff"/>
+  <path d="m314 348 27 27 53-61" fill="none" stroke="#0033a0" stroke-linecap="round" stroke-linejoin="round" stroke-width="26"/>
 </svg>

@@ -1037,7 +1037,11 @@ export default function FoodPage() {
         breakdown: domainBreakdown,
         tier: compass.score?.tier ?? "T1"
       }}
-      wrapper={(children) => <AppShell title={t(language, "pageTitle")}>{children}</AppShell>}
+      wrapper={(children) => (
+        <AppShell brand="one-good-choice" title={t(language, "pageTitle")}>
+          {children}
+        </AppShell>
+      )}
       slots={{
         plate: (
           <PlateCard

@@ -35,7 +35,7 @@ function scrollTo(rect: DOMRect) {
 }
 
 function strip() {
-  return screen.getByRole("region", { name: "Food Lens status" });
+  return screen.getByRole("region", { name: "1 good choice status" });
 }
 
 beforeEach(() => {
@@ -157,7 +157,7 @@ describe("FoodLensShell", () => {
     renderShell({ crisis: <p>crisis lock</p> });
     expect(screen.getByText("crisis lock")).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Food camera" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "Food Lens status" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "1 good choice status" })).not.toBeInTheDocument();
     expect(screen.queryByText("voice bar")).not.toBeInTheDocument();
   });
 });

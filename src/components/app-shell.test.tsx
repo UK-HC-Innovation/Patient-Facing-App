@@ -32,6 +32,17 @@ describe("AppShell", () => {
     expect(screen.queryByRole("link", { name: /911/i })).not.toBeInTheDocument();
   });
 
+  it("renders the UK-blue 1 good choice lockup on the food page", () => {
+    render(
+      <AppShell brand="one-good-choice" title="1 good choice">
+        <p>Body</p>
+      </AppShell>
+    );
+
+    expect(screen.getByTestId("one-good-choice-brand")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "1 good choice" })).toBeVisible();
+  });
+
   it("renders the page body content in the main region", () => {
     render(
       <AppShell title="Today">

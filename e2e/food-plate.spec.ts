@@ -172,7 +172,7 @@ async function scan(page: Page, confirmMatches = true) {
 test("turns one photo into two scored plate items with photo-estimate portions", async ({ page }) => {
   await stubPlateDoor(page);
   await page.goto("/food");
-  await expect(page.getByRole("heading", { name: "Food Lens" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "1 good choice" })).toBeVisible();
 
   await scan(page);
 

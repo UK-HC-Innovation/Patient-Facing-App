@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FoodViewfinder } from "@/components/food-viewfinder";
 import { FoodGuidanceSource } from "@/components/food-guidance-source";
+import { OneGoodChoiceBrand } from "@/components/one-good-choice-brand";
 import { CompassAlternatives, resolveDomainBreakdown } from "@/components/compass-score";
 import { COMPASS_CAPABILITIES } from "@/components/food-lens-shell";
 import {
@@ -591,9 +592,11 @@ export default function CompassPage() {
       }}
       wrapper={(children) => (
         <main className="min-h-screen bg-paper">
-          <div className="mx-auto w-full max-w-[480px] px-4 py-2">
-            <h1 className="text-base font-semibold">{t(language, "compassPageTitle")}</h1>
-          </div>
+          <header className="border-b-4 border-care bg-white">
+            <div className="mx-auto w-full max-w-[480px] px-4 py-4">
+              <OneGoodChoiceBrand title={t(language, "compassPageTitle")} />
+            </div>
+          </header>
           {children}
         </main>
       )}

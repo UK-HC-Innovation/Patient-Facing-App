@@ -151,7 +151,7 @@ test("labels the personalized route without inventing a current-food recommendat
   await stubEmptyFoodLens(page);
   await page.goto("/food");
 
-  await expect(page.getByRole("heading", { name: "Food Lens" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "1 good choice" })).toBeVisible();
   await expect(page.locator('[data-guidance-scope="personalized"]').first()).toContainText(
     "Based on your recent readings and health history."
   );
@@ -167,7 +167,7 @@ test("scans a food, asks a typed question, logs the meal, and persists it", asyn
 
   await page.goto("/today");
   await page.goto("/food");
-  await expect(page.getByRole("heading", { name: "Food Lens" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "1 good choice" })).toBeVisible();
   await confirmBarcode(page);
 
   await expect(page.getByTestId("food-verdict")).toContainText("Chicken Noodle Soup");
