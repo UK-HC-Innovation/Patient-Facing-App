@@ -137,6 +137,12 @@ type ProviderFailureReason =
   | "provider_auth"
   | "provider_unavailable";
 
+const PROVIDER_QUOTA_CODES = new Set([
+  "billing_hard_limit_reached",
+  "credit_balance_exhausted",
+  "insufficient_quota"
+]);
+
 class ProviderRequestError extends Error {
   constructor(
     readonly reason: ProviderFailureReason,
@@ -150,7 +156,9 @@ class ProviderRequestError extends Error {
 
 function providerFailureReason(status: number, providerCode: string | null): ProviderFailureReason {
   if (status === 429) {
-    return providerCode === "insufficient_quota" ? "provider_quota" : "provider_rate_limit";
+    return providerCode && PROVIDER_QUOTA_CODES.has(providerCode)
+      ? "provider_quota"
+      : "provider_rate_limit";
   }
   if (status === 401 || status === 403) {
     return "provider_auth";

@@ -405,25 +405,28 @@ describe("POST /api/food/identify — image gating", () => {
     expect(((await response.json()) as IdentifyJson).mode).toBe("error");
   });
 
-  it("surfaces insufficient quota as a safe, actionable error", async () => {
-    process.env.HEALTH_AI_PROVIDER = "openai";
-    process.env.HEALTH_AI_API_KEY = "key";
-    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      Response.json(
-        { error: { message: "secret upstream detail", type: "insufficient_quota", code: "insufficient_quota" } },
-        { status: 429 }
-      )
-    );
+  it.each(["insufficient_quota", "credit_balance_exhausted"])(
+    "surfaces %s as a safe, actionable quota error",
+    async (providerCode) => {
+      process.env.HEALTH_AI_PROVIDER = "openai";
+      process.env.HEALTH_AI_API_KEY = "key";
+      const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        Response.json(
+          { error: { message: "secret upstream detail", type: providerCode, code: providerCode } },
+          { status: 429 }
+        )
+      );
 
-    const response = await POST(request({ image: TINY_IMAGE }));
-    const json = (await response.json()) as IdentifyJson;
+      const response = await POST(request({ image: TINY_IMAGE }));
+      const json = (await response.json()) as IdentifyJson;
 
-    expect(response.status).toBe(503);
-    expect(json).toMatchObject({ mode: "error", reason: "provider_quota" });
-    expect(errorLog).toHaveBeenCalledTimes(1);
-    expect(String(errorLog.mock.calls[0][0])).not.toContain("secret upstream detail");
-  });
+      expect(response.status).toBe(503);
+      expect(json).toMatchObject({ mode: "error", reason: "provider_quota" });
+      expect(errorLog).toHaveBeenCalledTimes(1);
+      expect(String(errorLog.mock.calls[0][0])).not.toContain("secret upstream detail");
+    }
+  );
 
   it("distinguishes an invalid provider key from a no-food result", async () => {
     process.env.HEALTH_AI_PROVIDER = "openai";
