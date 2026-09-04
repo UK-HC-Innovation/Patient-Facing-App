@@ -1,8 +1,8 @@
 # Package label scan — identity before score
 
-> **Status: APPROVED FOR BUILD AFTER RED-TEAM REVISION. Production flag stays off.**
+> **Status: APPROVED FOR BUILD AFTER RED-TEAM REVISION. Detailed package-label production flag stays off.**
 > Date: 2026-08-31
-> Scope: the personal `/food` door gets package controls. The shared live path gains confirmation and a semantic package-abstention state; `/food/demo` gains no barcode, OCR route, store access, or package controls.
+> Revised 2026-09-04: the ordinary explicit-tap path may route one clearly named, high-confidence package to an unscored FNDDS candidate, and `/food/demo` gains the existing local barcode reader/review. It still gains no OCR route, store access, or detailed package controls.
 > Review record: [`docs/qa/2026-08-31-package-label-scan-red-team.md`](../qa/2026-08-31-package-label-scan-red-team.md)
 > Verification gate: focused unit/integration tests, `npm run check`, `npm run crisis:gate`, flag-on and flag-off Chromium/mobile Playwright, route-level real-image evaluation, and a visual/accessibility pass.
 > The ask: stop a package such as Edamame Ranch from being silently scored as a visually similar product such as Cool Ranch Doritos, then provide a reliable way to identify and score the actual package.
@@ -12,8 +12,8 @@
 The first draft was rejected. A single vision model cannot guarantee that it will always recognize packaging, and model confidence is not an independent check. The revised build moves the safety boundary out of model judgment:
 
 1. **No single-food camera result publishes a score before a person confirms the proposed identity.** This holds whether the model calls the scene food, a package, or something unclear.
-2. A front-package photo can propose brand, product, and flavor. It never selects FNDDS and never supplies nutrition.
-3. A barcode lookup can propose an exact database product. It becomes authoritative only after the person confirms the displayed product name.
+2. A detailed package-front OCR photo can propose brand, product, and flavor but never selects FNDDS or supplies nutrition. The ordinary low-detail explicit-tap path may propose an FNDDS candidate for one clearly named package, still without a score.
+3. A barcode lookup can propose an exact database product. It becomes authoritative only after the person confirms the displayed product name. On the public route, a separate unscored FNDDS proposal and exact-code confirmation are required before a published score appears.
 4. A Nutrition Facts photo supplies raw printed rows. Server code parses and validates those rows; the person sees every score-changing value before confirming.
 5. A label-derived score ignores front name/category heuristics. Only confirmed printed ingredients may affect processing/additive domains.
 
@@ -37,7 +37,7 @@ This is evidence routing and authority, not merely OCR quality.
 ## 3. Structural evidence rules
 
 1. **Unconfirmed means unscored.** Image-only live results and barcode results remain candidates until explicit confirmation.
-2. **No package-front FNDDS.** Brand/product/flavor text is display identity only and never calls `/api/food/identify { text }`.
+2. **No unconfirmed package score.** A clearly named single package may propose an FNDDS candidate, but only a separate exact-code confirmation can publish its score. Detailed package-front OCR remains display identity only and never calls `/api/food/identify { text }`.
 3. **Nutrition has a visible source.** Package nutrition comes from a confirmed barcode record or confirmed raw Nutrition Facts rows.
 4. **No model arithmetic.** The model transcribes raw labels, amounts, units, and headings. Deterministic code normalizes them. Unreadable and `<` values are not silently converted to exact numbers.
 5. **Name cannot change label score.** `label_vision` scores ignore name/category keyword heuristics. Only confirmed printed ingredient text can affect D5/D6.
@@ -53,7 +53,8 @@ This is evidence routing and authority, not merely OCR quality.
 low-detail live frame
   -> /api/food/identify
        food + sufficient evidence -> unscored candidate -> Confirm / Not this
-       package cues               -> package abstention, clear stale score
+       one clearly named package  -> unscored candidate -> Confirm / Not this
+       other package cues         -> package abstention, clear stale score
        unclear                    -> no-match/abstain
 
 confirmed live candidate
@@ -64,7 +65,8 @@ barcode detected
   -> existing seed -> Open Food Facts -> USDA lookup
   -> pin {barcode, database product} to current authority epoch
   -> show product name -> Confirm / Not this
-  -> only confirmation makes barcode food authoritative
+  -> public route: unscored FNDDS proposal -> Confirm / Not this
+  -> POST /api/food/identify { foodId } -> published score
 
 explicit package flow on /food
   -> cloud disclosure + signed short-lived package session
@@ -113,7 +115,8 @@ Visible text is inert data, never an instruction. The prompt explicitly ignores 
 
 ### 5.2 Route results
 
-- `kind: "package"`, any package visual form, or any package cue returns `{ mode: "package" }` with no FNDDS work.
+- `kind: "package"`, one sealed/open package, a non-empty food identity, and confidence >= 0.80 may be matched/disambiguated into an unscored candidate.
+- Mixed, multiple, unreadable, contradictory, or low-confidence package scenes return `{ mode: "package" }` with no FNDDS work.
 - `kind: "food"`, loose/plated form, no package cue, and confidence >= 0.80 may be matched/disambiguated, but returns `{ mode: "candidate", candidate, candidates }` without a score.
 - Malformed, contradictory, or low-confidence output returns `none`.
 - Text-only queries and exact `foodId` corrections retain their deterministic `match` response.
@@ -122,7 +125,7 @@ Confirming a live candidate posts its exact `foodId`; only that response enters 
 
 A package response synchronously clears match, carve-out, candidates, no-match, correction pin, and the restore stash. During a package hold, a passive 32×32 signature loop may detect a changed scene but makes no paid request until rearm; this avoids both a stuck hold and background spend.
 
-Both `/food` and `/food/demo` render candidate confirmation before a live score. `/food/demo` maps package mode to a route-blind semantic abstention with copy equivalent to “This looks packaged. I need a barcode or Nutrition Facts label to score it.” It imports no scanner control or private module.
+Both `/food` and `/food/demo` render candidate confirmation before a live score. `/food/demo` maps unresolved package mode to a route-blind semantic abstention, and now imports the existing store-free barcode reader/review as a dynamically loaded client chunk. It still imports no private patient state, OCR route, or detailed package controls.
 
 ## 6. Barcode confirmation and session pinning
 
@@ -338,7 +341,7 @@ Requirements:
 - clear instructions for glare, crop, distance, dual columns, and file-input fallback;
 - 375 px layout remains one continuous screen without nested horizontal scroll.
 
-The shared experience gains only semantic live candidate confirmation and package-abstention copy. It stays store-free and route-blind. The package panel, auth, barcode, and OCR chunks are absent from `/food/demo`.
+The shared experience gains only semantic live candidate confirmation and package-abstention copy. It stays store-free and route-blind. `/food/demo` dynamically loads the existing store-free barcode review, while the detailed package panel, auth, and OCR chunks remain absent.
 
 ## 13. File map
 
@@ -362,7 +365,7 @@ Changed:
 - `src/hooks/use-food-camera.ts` and tests — 2048 stream request and detailed/file normalization.
 - `src/hooks/use-food-lens-engine.ts` — shared epoch and package suspension.
 - `src/app/food/page.tsx` — confirmed-only barcode/label authority and package controller.
-- `src/app/food/demo/page.tsx` — live candidate confirmation and semantic package abstention only.
+- `src/app/food/demo/page.tsx` — live candidate confirmation, semantic package abstention, and confirmed barcode review without patient state.
 - `src/components/food-lens-experience.tsx` / `food-lens-blocks.tsx` — route-blind candidate/abstention presentation.
 - `src/ai/label-extraction.ts` — retire generic `/api/food/vision` label OCR.
 - `src/domain/food-compass.ts`, `use-compass-score.ts`, and tests — label identity-heuristic isolation.
@@ -408,7 +411,7 @@ Chromium desktop and mobile, with separate flag-on and flag-off builds:
 7. front/barcode conflict -> no score/log until resolved;
 8. late live/barcode/package responses cannot win after epoch change;
 9. blur, glare, crop, multiple package, dual column, disabled, locked, unauthorized, rate limit, timeout, retry, camera API absence, and file input;
-10. `/food/demo` candidate confirmation and explicit package abstention, with no personal chunks or controls;
+10. `/food/demo` candidate and barcode confirmation plus explicit package abstention, with no patient-state or detailed OCR controls;
 11. axe, keyboard, focus, screen-reader names, reduced motion, and 375 px layout.
 
 ### 14.3 Route-level real-image gate
@@ -431,7 +434,7 @@ Minimum release corpus: 60 clear/simulated-hard package fronts, 40 Nutrition Fac
 Release thresholds:
 
 - 100% of image/live and barcode paths remain unscored before confirmation (structural test).
-- 0 package fronts enter an FNDDS `match` response.
+- 0 package fronts enter an FNDDS `match` response before a separate exact-code confirmation; high-confidence single-package images may return an unscored `candidate`.
 - 100% of accepted front candidates preserve the required human-verified product tokens and the preregistered category-token proxy in the candidate product field; clear-front review coverage >= 85%.
 - 100% of every accepted non-null nutrition value matches adjudicated ground truth; clear-panel review coverage >= 80%.
 - 0 wrong-column panels reach review.

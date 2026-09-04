@@ -29,16 +29,59 @@ describe("useBarcodeScan", () => {
     expect(detector.detect).toHaveBeenCalledTimes(2);
   });
 
-  it("rejects a barcode when the two reads disagree", async () => {
-    const detector: BarcodeDetectorLike = {
-      detect: vi.fn()
-        .mockResolvedValueOnce([{ rawValue: "051000012616" }])
-        .mockResolvedValueOnce([{ rawValue: "000000000000" }])
-    };
-    const { result } = renderHook(() =>
-      useBarcodeScan({ videoRef: fakeVideoRef(), enabled: true, detectorFactory: async () => detector })
-    );
-    await expect(result.current.scan()).resolves.toBeNull();
+  it("keeps sampling while the camera focuses, then accepts two agreeing reads", async () => {
+    vi.useFakeTimers();
+    try {
+      const detector: BarcodeDetectorLike = {
+        detect: vi.fn()
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([{ rawValue: "000000000000" }])
+          .mockResolvedValueOnce([{ rawValue: "051000012616" }])
+          .mockResolvedValueOnce([{ rawValue: "051000012616" }])
+      };
+      const { result } = renderHook(() =>
+        useBarcodeScan({ videoRef: fakeVideoRef(), enabled: true, detectorFactory: async () => detector })
+      );
+
+      let scan: Promise<string | null> | undefined;
+      act(() => {
+        scan = result.current.scan();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(400);
+      });
+
+      await expect(scan).resolves.toBe("051000012616");
+      expect(detector.detect).toHaveBeenCalledTimes(4);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rejects conflicting reads when none agrees before the deadline", async () => {
+    vi.useFakeTimers();
+    try {
+      let flip = false;
+      const detector: BarcodeDetectorLike = {
+        detect: vi.fn(async () => {
+          flip = !flip;
+          return [{ rawValue: flip ? "051000012616" : "000000000000" }];
+        })
+      };
+      const { result } = renderHook(() =>
+        useBarcodeScan({ videoRef: fakeVideoRef(), enabled: true, detectorFactory: async () => detector })
+      );
+      let scan: Promise<string | null> | undefined;
+      act(() => {
+        scan = result.current.scan();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(BARCODE_SCAN_TIMEOUT_MS);
+      });
+      await expect(scan).resolves.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("does no detection work when disabled", async () => {

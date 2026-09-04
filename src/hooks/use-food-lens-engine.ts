@@ -41,10 +41,10 @@ export function useFoodLensEngine(args: {
    */
   crisis: boolean;
   /**
-   * The barcode reader. Omitted where the mount has no packaged-food path, which keeps the
-   * scanner disabled and its detector ponyfill chunk unfetched.
+   * The barcode reader. `true` enables the engine-owned barcode state; a callback additionally
+   * lets a mount coordinate its own package workflow.
    */
-  barcode?: { onDetect: (barcode: string) => void };
+  barcode?: true | { onDetect: (barcode: string) => void };
 }): FoodLensEngine {
   const { crisis, barcode } = args;
   const camera = useFoodCamera();
@@ -120,7 +120,7 @@ export function useFoodLensEngine(args: {
       if (detectedBarcode) {
         liveSuspend();
         setActiveBarcode(detectedBarcode);
-        barcode?.onDetect(detectedBarcode);
+        if (barcode !== true) barcode?.onDetect(detectedBarcode);
         return;
       }
       await liveScan();
