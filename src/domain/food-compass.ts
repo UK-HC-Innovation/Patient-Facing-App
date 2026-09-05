@@ -10,6 +10,20 @@
 // the ~5 MB of lookup assets never reach a client bundle.
 
 import type { IdentifiedFood, NutritionFacts } from "./types";
+import {
+  calorieDensity,
+  densityFromKcalPer100g,
+  kcalPer100g,
+  type CalorieDensity
+} from "./food-calorie-density";
+
+export { calorieDensity, kcalPer100g } from "./food-calorie-density";
+export type {
+  CalorieDensity,
+  CalorieDensityBand,
+  CalorieDensityEstimate,
+  CalorieDensityEstimateMethod
+} from "./food-calorie-density";
 
 export type CompassBand = "encourage" | "moderate" | "minimize";
 export type CompassTier = "T1" | "T2";
@@ -194,24 +208,6 @@ const INFANT_PATTERN = /\b(infant formula|baby food|infant cereal|toddler formul
 const SPECIALIZED_PATTERN =
   /\b(medical food|enteral|tube feeding|meal replacement shake|nutritional supplement drink|oral rehydration|parenteral)\b/i;
 
-/**
- * kcal per 100 g. Basis-dependent by construction: OpenFoodFacts and the demo seed
- * report per declared serving, USDA FDC reports per 100 g. Returns null when the
- * serving mass is unknown — "unknown" is a real answer here, a guess is not.
- */
-export function kcalPer100g(nutrition: NutritionFacts | null): number | null {
-  if (!nutrition || nutrition.calories === null) {
-    return null;
-  }
-  if (nutrition.basis === "per_100g") {
-    return nutrition.calories;
-  }
-  if (nutrition.servingGrams !== null && nutrition.servingGrams > 0) {
-    return (nutrition.calories / nutrition.servingGrams) * 100;
-  }
-  return null;
-}
-
 // Plain water and its zero-calorie relatives are the carve-out people actually type, and
 // Table S5 has no row for them -- Food Compass excluded them by definition, so a fuzzy
 // search for "water" lands on flavoured bottled waters and would answer a question about
@@ -284,26 +280,135 @@ export function classifyScoreability(input: {
 // Food Compass ignores energy density by design, so it is reported alongside the score
 // rather than folded into it. Bands follow the standard energy-density classification
 // (kcal per gram): very low <0.6, low 0.6-1.5, medium 1.5-4.0, high >4.0.
-export type CalorieDensityBand = "very_low" | "low" | "medium" | "high" | "unknown";
+type DensityReference = readonly [
+  kcalPer100g: number,
+  lowKcalPer100g: number,
+  highKcalPer100g: number,
+  sampleCount: number
+];
 
-export type CalorieDensity = { kcalPer100g: number | null; band: CalorieDensityBand };
+// Medians and linearly interpolated interquartile ranges from the positive-kcal, unique-code
+// FNDDS joins shipped with this app, rounded to whole kcal/100 g. Keeping this small table
+// versioned makes every fallback deterministic and auditable while avoiding the 5 MB
+// server-only data assets in the browser bundle. A data-backed test guards every value.
+const FOOD_GROUP_DENSITY_REFERENCES: Readonly<Record<string, DensityReference>> = {
+  "1000_Grains": [274, 148, 366, 641],
+  "10000_Beverages": [43, 27, 58, 270],
+  "2000_Fruit": [63, 48, 144, 119],
+  "3000_Vegetables": [65, 42, 122, 634],
+  "4000_LegNut": [255, 173, 582, 173],
+  "5000_MPE": [203, 170, 251, 712],
+  "5800_Seafood": [173, 131, 212, 307],
+  "6000_Dairy": [80, 61, 164, 244],
+  "7000_Fats Oils": [355, 160, 690, 107],
+  "8000_Mixed": [152, 113, 233, 1971],
+  "8600_SauceCondiment": [145, 57, 211, 134],
+  "9000_SavorySweet": [394, 284, 464, 836]
+};
 
-export function calorieDensity(nutrition: NutritionFacts | null): CalorieDensity {
-  const density = kcalPer100g(nutrition);
-  if (density === null) {
-    return { kcalPer100g: null, band: "unknown" };
+const GLOBAL_DENSITY_REFERENCE: DensityReference = [178, 103, 284, 6148];
+
+// Reviewed, versioned equivalents only. Runtime fuzzy matching is deliberately not used:
+// similar wording is not enough evidence to merge two foods silently.
+const EQUIVALENT_DENSITY_REFERENCES: Readonly<
+  Record<string, { kcalPer100g: number; referenceCode: string; referenceDescription: string }>
+> = {
+  "91781010": {
+    kcalPer100g: 415,
+    referenceCode: "53720500",
+    referenceDescription: "Nutrition bar (Snickers Marathon Protein Bar)"
   }
-  const rounded = Math.round(density);
-  if (density < 60) {
-    return { kcalPer100g: rounded, band: "very_low" };
+};
+
+function cohortDensityEstimate(
+  [kcalPer100g, lowKcalPer100g, highKcalPer100g, sampleCount]: DensityReference,
+  method: "food_group_median" | "category_median" | "global_median"
+): CalorieDensity {
+  return densityFromKcalPer100g(kcalPer100g, {
+    method,
+    rangeKcalPer100g: [lowKcalPer100g, highKcalPer100g],
+    sampleCount,
+    referenceCode: null,
+    referenceDescription: null
+  });
+}
+
+/** Exact published nutrition first, then a reviewed equivalent, then the food-group median. */
+export function publishedCalorieDensity(food: FcsFood, nutrients: FnddsRecord | null): CalorieDensity {
+  if (
+    nutrients?.kcal !== null &&
+    nutrients?.kcal !== undefined &&
+    Number.isFinite(nutrients.kcal) &&
+    nutrients.kcal >= 0
+  ) {
+    return calorieDensity(nutrientsToFacts(nutrients));
   }
-  if (density < 150) {
-    return { kcalPer100g: rounded, band: "low" };
+
+  const equivalent = EQUIVALENT_DENSITY_REFERENCES[food.code];
+  if (equivalent) {
+    return densityFromKcalPer100g(equivalent.kcalPer100g, {
+      method: "equivalent_food",
+      rangeKcalPer100g: null,
+      sampleCount: null,
+      referenceCode: equivalent.referenceCode,
+      referenceDescription: equivalent.referenceDescription
+    });
   }
-  if (density <= 400) {
-    return { kcalPer100g: rounded, band: "medium" };
+
+  const groupReference = FOOD_GROUP_DENSITY_REFERENCES[food.group];
+  return groupReference
+    ? cohortDensityEstimate(groupReference, "food_group_median")
+    : cohortDensityEstimate(GLOBAL_DENSITY_REFERENCE, "global_median");
+}
+
+// Mirrors the audited cohort values above, but keeps the label path self-contained so the
+// server-only food-code lookup map can be removed from client bundles.
+const LABEL_DENSITY_RULES: ReadonlyArray<readonly [RegExp, number]> = [
+  [/\b(beverage|drink|juice|soda|water|coffee|tea)\b/i, 43],
+  [/\b(fish|seafood|salmon|tuna|shrimp)\b/i, 173],
+  [/\b(meat|beef|pork|chicken|turkey|egg|sausage)\b/i, 203],
+  [/\b(milk|cheese|yogurt|dairy)\b/i, 80],
+  [/\b(fruit|apple|banana|berry|orange|grape)\b/i, 63],
+  [/\b(vegetable|broccoli|carrot|spinach|greens)\b/i, 65],
+  [/\b(bean|lentil|pea|legume|nut|peanut|tofu)\b/i, 255],
+  [/\b(oil|butter|margarine|mayonnaise|fat)\b/i, 355],
+  [/\b(sauce|condiment|dressing|dip)\b/i, 145],
+  [/\b(snack|candy|chocolate|chips?|cookies?|cracker|dessert|cake|bar)\b/i, 394],
+  [/\b(grain|bread|cereal|rice|pasta|oat|tortilla)\b/i, 274],
+  [/\b(pizza|sandwich|burger|soup|meal|burrito|taco|salad)\b/i, 152]
+];
+
+/** Observed label density when possible; otherwise a disclosed category/global median. */
+export function labelCalorieDensity(
+  nutrition: NutritionFacts,
+  options: { name: string; category?: string | null; allowIdentityHeuristics?: boolean }
+): CalorieDensity {
+  const observed = calorieDensity(nutrition);
+  if (observed.kcalPer100g !== null) {
+    return observed;
   }
-  return { kcalPer100g: rounded, band: "high" };
+
+  if (options.allowIdentityHeuristics !== false) {
+    const haystack = `${options.name} ${options.category ?? ""}`;
+    const median = LABEL_DENSITY_RULES.find(([pattern]) => pattern.test(haystack))?.[1];
+    if (median !== undefined) {
+      return densityFromKcalPer100g(median, {
+        method: "category_median",
+        rangeKcalPer100g: null,
+        sampleCount: null,
+        referenceCode: null,
+        referenceDescription: null
+      });
+    }
+  }
+
+  return densityFromKcalPer100g(GLOBAL_DENSITY_REFERENCE[0], {
+    method: "global_median",
+    rangeKcalPer100g: null,
+    sampleCount: null,
+    referenceCode: null,
+    referenceDescription: null
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -339,7 +444,7 @@ export function lookupScore(food: FcsFood, siblings: FcsFood[], nutrients: Fndds
     tier: "T1",
     ambiguous: food.ambiguous,
     range,
-    calorieDensity: nutrients?.kcal ? calorieDensity(nutrientsToFacts(nutrients)) : { kcalPer100g: null, band: "unknown" },
+    calorieDensity: publishedCalorieDensity(food, nutrients),
     domains: null,
     coverage: null
   };
@@ -587,7 +692,7 @@ export function computeLabelScore(nutrition: NutritionFacts, options: LabelScore
     tier: "T2",
     ambiguous: false,
     range: null,
-    calorieDensity: calorieDensity(nutrition),
+    calorieDensity: labelCalorieDensity(nutrition, options),
     domains,
     coverage: { included, missing: FOOD_COMPASS_DOMAIN_KEYS.filter((d) => !included.includes(d)) },
     additives
@@ -718,10 +823,17 @@ export function findAlternatives(
     candidates.push({ food: candidate, overlap });
   }
 
-  const densityOf = (code: string): number => {
-    const value = nutrientsByCode[code]?.kcal;
-    // Foods with no joined nutrient panel sort last rather than pretending to be light.
-    return value === null || value === undefined ? Number.POSITIVE_INFINITY : value;
+  const densityOf = (candidate: FcsFood): CalorieDensity =>
+    publishedCalorieDensity(candidate, nutrientsByCode[candidate.code] ?? null);
+  const compareDensity = (left: FcsFood, right: FcsFood): number => {
+    const leftDensity = densityOf(left);
+    const rightDensity = densityOf(right);
+    // A cohort estimate is useful to the person viewing one food, but it must never outrank
+    // an observed value when they explicitly ask for the lowest-density alternative.
+    const provenanceDiff = Number(leftDensity.estimate !== undefined) - Number(rightDensity.estimate !== undefined);
+    if (provenanceDiff !== 0) return provenanceDiff;
+    return (leftDensity.kcalPer100g ?? Number.POSITIVE_INFINITY) -
+      (rightDensity.kcalPer100g ?? Number.POSITIVE_INFINITY);
   };
 
   // All four toggle combinations are distinct and observable. Default is the nearest
@@ -732,7 +844,7 @@ export function findAlternatives(
 
   const sorted = [...candidates].sort((a, b) => {
     if (densityFirst) {
-      const diff = densityOf(a.food.code) - densityOf(b.food.code);
+      const diff = compareDensity(a.food, b.food);
       if (diff !== 0) {
         return diff;
       }
@@ -743,7 +855,7 @@ export function findAlternatives(
       return b.food.fcs2 - a.food.fcs2;
     }
     if (preferences.preferLowerCalorieDensity) {
-      const diff = densityOf(a.food.code) - densityOf(b.food.code);
+      const diff = compareDensity(a.food, b.food);
       if (diff !== 0) {
         return diff;
       }
@@ -761,7 +873,7 @@ export function findAlternatives(
       description: candidate.description,
       fcs: candidate.fcs2,
       band: bandForScore(candidate.fcs2),
-      calorieDensity: record ? calorieDensity(nutrientsToFacts(record)) : { kcalPer100g: null, band: "unknown" },
+      calorieDensity: publishedCalorieDensity(candidate, record ?? null),
       recipeSearchUrl: recipeSearchUrl(candidate.description)
     };
   });

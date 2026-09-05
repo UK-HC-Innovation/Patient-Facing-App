@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { FoodBarcodeReviewBridge, type BarcodeReviewSnapshot } from "@/components/food-barcode-review-bridge";
 import { FoodIdentityReview } from "@/components/food-identity-review";
+import { calorieDensity, type CalorieDensity } from "@/domain/food-calorie-density";
 import type { FoodAuthority } from "@/domain/food-authority";
 import type { LiveIdentityCandidate, LiveMatch } from "@/hooks/use-live-food-score";
 import type { Language } from "@/i18n/strings";
@@ -32,10 +33,16 @@ export function PublicFoodBarcodeReview({
 }) {
   const reportedRef = useRef<string | null>(null);
   const requestRef = useRef<AbortController | null>(null);
+  const barcodeDensityRef = useRef<{ barcode: string; density: CalorieDensity | null } | null>(null);
   const [candidate, setCandidate] = useState<LiveIdentityCandidate | null>(null);
   const handleStateChange = useCallback((state: BarcodeReviewSnapshot) => {
     const food = state.resolvedFood;
     if (!food || !state.barcode) return;
+    const density = calorieDensity(food.nutrition);
+    barcodeDensityRef.current = {
+      barcode: state.barcode,
+      density: density.kcalPer100g === null ? null : density
+    };
     const key = `${state.barcode}:${food.id}`;
     if (reportedRef.current === key) return;
     reportedRef.current = key;
@@ -85,13 +92,24 @@ export function PublicFoodBarcodeReview({
       .then((json: { mode?: string; match?: Omit<LiveMatch, "candidates">; candidates?: LiveMatch["candidates"] }) => {
         if (controller.signal.aborted || !authority.isCurrent(epoch) || json.mode !== "match" || !json.match) return;
         setCandidate(null);
-        onMatch({ ...json.match, candidates: json.candidates ?? [] }, { pin: false });
+        const observedBarcodeDensity =
+          barcodeDensityRef.current?.barcode === barcode ? barcodeDensityRef.current.density : null;
+        onMatch(
+          {
+            ...json.match,
+            score: observedBarcodeDensity
+              ? { ...json.match.score, calorieDensity: observedBarcodeDensity }
+              : json.match.score,
+            candidates: json.candidates ?? []
+          },
+          { pin: false }
+        );
       })
       .catch(() => undefined)
       .finally(() => {
         if (requestRef.current === controller) requestRef.current = null;
       });
-  }, [authority, candidate, onMatch, passcode]);
+  }, [authority, barcode, candidate, onMatch, passcode]);
 
   const rejectCandidate = useCallback(() => {
     requestRef.current?.abort();

@@ -186,6 +186,10 @@ test("detects a packaged-food barcode on the public door and scores it only afte
 
   await expect(identityReview).toHaveCount(0);
   await expect(page.getByTestId("food-verdict")).toContainText("19");
+  const chart = page.getByRole("region", { name: "Score and calories" });
+  await expect(chart).toContainText("5.36 calories per gram (536 per 100 g)");
+  await expect(chart).not.toContainText("Calories per gram unknown");
+  await expect(chart).not.toContainText("Estimated calorie density");
   expect(scoreRequests).toEqual([doritosMatch.food.code]);
 });
 

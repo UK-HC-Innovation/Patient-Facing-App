@@ -108,6 +108,7 @@ export function NutritionCompass({
   markerRef
 }: NutritionCompassProps) {
   const densityPer100g = score?.calorieDensity.kcalPer100g ?? null;
+  const densityEstimate = score?.calorieDensity.estimate ?? null;
   const densityPerGram = densityPer100g === null ? null : calorieDensityKcalPerGram(densityPer100g);
   const quadrant = score && densityPer100g !== null ? nutritionQuadrant(score.fcs, densityPer100g) : null;
   const position = score && densityPer100g !== null
@@ -123,7 +124,7 @@ export function NutritionCompass({
           food: foodName ?? t(language, "unknownFood"),
           score: score.fcs
         })
-      : t(language, "nutritionCompassSummary", {
+      : t(language, densityEstimate ? "nutritionCompassSummaryEstimated" : "nutritionCompassSummary", {
           food: foodName ?? t(language, "unknownFood"),
           score: score.fcs,
           density: densityPerGram.toFixed(2),
@@ -144,6 +145,11 @@ export function NutritionCompass({
           <h2 className="text-sm font-semibold" id="nutrition-compass-title">
             {t(language, "nutritionCompassTitle")}
           </h2>
+          {densityEstimate ? (
+            <p className="mt-0.5 text-[11px] font-semibold text-amber-800" data-testid="nutrition-density-estimate-label">
+              {t(language, "nutritionCompassEstimateLabel")}
+            </p>
+          ) : null}
         </div>
         {score ? (
           <span className="shrink-0 rounded-control bg-calm px-2 py-1 text-xs font-semibold text-care">

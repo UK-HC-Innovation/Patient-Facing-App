@@ -8,6 +8,11 @@ function num(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+function positiveNum(value: unknown): number | null {
+  const valueNumber = num(value);
+  return valueNumber !== null && valueNumber > 0 ? valueNumber : null;
+}
+
 function str(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
@@ -41,6 +46,17 @@ function emptyNutrition(servingSize: string, basis: NutritionBasis, servingGrams
 }
 
 type OffNutriments = Record<string, unknown>;
+
+/** OpenFoodFacts often has "1 bar (53 g)" even when serving_quantity is absent. */
+export function parseServingGrams(servingSize: string | null): number | null {
+  if (!servingSize) return null;
+  const matches = [...servingSize.matchAll(/(\d+(?:[.,]\d+)?)\s*(?:g|gram|grams)\b/giu)];
+  for (let index = matches.length - 1; index >= 0; index -= 1) {
+    const grams = Number(matches[index][1].replace(",", "."));
+    if (Number.isFinite(grams) && grams > 0 && grams <= 10_000) return grams;
+  }
+  return null;
+}
 
 function offMassMg(nutriments: OffNutriments, base: string, servingQuantity: number | null): number | null {
   const perServing = num(nutriments[`${base}_serving`]);
@@ -82,6 +98,22 @@ function offSodiumMg(nutriments: OffNutriments, servingQuantity: number | null):
   return null;
 }
 
+function offPer100MassG(nutriments: OffNutriments, base: string): number | null {
+  return num(nutriments[`${base}_100g`]);
+}
+
+function offPer100MassMg(nutriments: OffNutriments, base: string): number | null {
+  const grams = offPer100MassG(nutriments, base);
+  return grams === null ? null : Math.round(grams * 1000);
+}
+
+function offPer100SodiumMg(nutriments: OffNutriments): number | null {
+  const sodium = offPer100MassMg(nutriments, "sodium");
+  if (sodium !== null) return sodium;
+  const salt = offPer100MassG(nutriments, "salt");
+  return salt === null ? null : saltGramsToSodiumMg(salt);
+}
+
 export function normalizeOffProduct(barcode: string, json: unknown): IdentifiedFood | null {
   if (!isRecord(json) || json.status !== 1 || !isRecord(json.product)) {
     return null;
@@ -94,30 +126,56 @@ export function normalizeOffProduct(barcode: string, json: unknown): IdentifiedF
   }
 
   const nutriments: OffNutriments = isRecord(product.nutriments) ? product.nutriments : {};
-  const servingQuantity = num(product.serving_quantity);
-  const servingSize = str(product.serving_size) ?? (servingQuantity !== null ? `${servingQuantity} g` : "per 100 g");
+  const declaredServingSize = str(product.serving_size);
+  const servingQuantity = positiveNum(product.serving_quantity) ?? parseServingGrams(declaredServingSize);
+  const usePer100g = servingQuantity === null && num(nutriments["energy-kcal_100g"]) !== null;
+  const servingSize = usePer100g
+    ? "per 100 g"
+    : declaredServingSize ?? (servingQuantity !== null ? `${servingQuantity} g` : "serving");
 
-  const nutrition: NutritionFacts = {
-    servingSize,
-    calories: offMassG(nutriments, "energy-kcal", servingQuantity),
-    sodiumMg: offSodiumMg(nutriments, servingQuantity),
-    potassiumMg: offMassMg(nutriments, "potassium", servingQuantity),
-    totalSugarsG: offMassG(nutriments, "sugars", servingQuantity),
-    addedSugarsG: offMassG(nutriments, "added-sugars", servingQuantity),
-    saturatedFatG: offMassG(nutriments, "saturated-fat", servingQuantity),
-    fiberG: offMassG(nutriments, "fiber", servingQuantity),
-    proteinG: offMassG(nutriments, "proteins", servingQuantity),
-    carbsG: offMassG(nutriments, "carbohydrates", servingQuantity),
-    totalFatG: offMassG(nutriments, "fat", servingQuantity),
-    monoFatG: offMassG(nutriments, "monounsaturated-fat", servingQuantity),
-    polyFatG: offMassG(nutriments, "polyunsaturated-fat", servingQuantity),
-    transFatG: offMassG(nutriments, "trans-fat", servingQuantity),
-    cholesterolMg: offMassMg(nutriments, "cholesterol", servingQuantity),
-    calciumMg: offMassMg(nutriments, "calcium", servingQuantity),
-    ironMg: offMassMg(nutriments, "iron", servingQuantity),
-    servingGrams: servingQuantity,
-    basis: "per_serving"
-  };
+  const nutrition: NutritionFacts = usePer100g
+    ? {
+        servingSize,
+        calories: offPer100MassG(nutriments, "energy-kcal"),
+        sodiumMg: offPer100SodiumMg(nutriments),
+        potassiumMg: offPer100MassMg(nutriments, "potassium"),
+        totalSugarsG: offPer100MassG(nutriments, "sugars"),
+        addedSugarsG: offPer100MassG(nutriments, "added-sugars"),
+        saturatedFatG: offPer100MassG(nutriments, "saturated-fat"),
+        fiberG: offPer100MassG(nutriments, "fiber"),
+        proteinG: offPer100MassG(nutriments, "proteins"),
+        carbsG: offPer100MassG(nutriments, "carbohydrates"),
+        totalFatG: offPer100MassG(nutriments, "fat"),
+        monoFatG: offPer100MassG(nutriments, "monounsaturated-fat"),
+        polyFatG: offPer100MassG(nutriments, "polyunsaturated-fat"),
+        transFatG: offPer100MassG(nutriments, "trans-fat"),
+        cholesterolMg: offPer100MassMg(nutriments, "cholesterol"),
+        calciumMg: offPer100MassMg(nutriments, "calcium"),
+        ironMg: offPer100MassMg(nutriments, "iron"),
+        servingGrams: 100,
+        basis: "per_100g"
+      }
+    : {
+        servingSize,
+        calories: offMassG(nutriments, "energy-kcal", servingQuantity),
+        sodiumMg: offSodiumMg(nutriments, servingQuantity),
+        potassiumMg: offMassMg(nutriments, "potassium", servingQuantity),
+        totalSugarsG: offMassG(nutriments, "sugars", servingQuantity),
+        addedSugarsG: offMassG(nutriments, "added-sugars", servingQuantity),
+        saturatedFatG: offMassG(nutriments, "saturated-fat", servingQuantity),
+        fiberG: offMassG(nutriments, "fiber", servingQuantity),
+        proteinG: offMassG(nutriments, "proteins", servingQuantity),
+        carbsG: offMassG(nutriments, "carbohydrates", servingQuantity),
+        totalFatG: offMassG(nutriments, "fat", servingQuantity),
+        monoFatG: offMassG(nutriments, "monounsaturated-fat", servingQuantity),
+        polyFatG: offMassG(nutriments, "polyunsaturated-fat", servingQuantity),
+        transFatG: offMassG(nutriments, "trans-fat", servingQuantity),
+        cholesterolMg: offMassMg(nutriments, "cholesterol", servingQuantity),
+        calciumMg: offMassMg(nutriments, "calcium", servingQuantity),
+        ironMg: offMassMg(nutriments, "iron", servingQuantity),
+        servingGrams: servingQuantity,
+        basis: "per_serving"
+      };
 
   return {
     id: barcode,

@@ -408,6 +408,50 @@ describe("lookupScore", () => {
     expect(score.ambiguous).toBe(true);
     expect(score.range).toEqual([26, 80]);
   });
+
+  it("uses the reviewed equivalent for the score-58 Snickers record", () => {
+    const snickers = food({
+      code: "91781010",
+      description: "Snickers Marathon Protein bar",
+      group: "1000_Grains",
+      fcs2: 58
+    });
+    const score = lookupScore(snickers, [snickers], null);
+
+    expect(score.calorieDensity).toMatchObject({
+      kcalPer100g: 415,
+      band: "high",
+      estimate: {
+        method: "equivalent_food",
+        referenceCode: "53720500"
+      }
+    });
+  });
+
+  it("falls back to a labelled group median for any other unjoined published row", () => {
+    const legacyGrain = food({ code: "legacy", description: "Legacy grain", group: "1000_Grains" });
+    const score = lookupScore(legacyGrain, [legacyGrain], null);
+
+    expect(score.calorieDensity).toMatchObject({
+      kcalPer100g: 274,
+      band: "medium",
+      estimate: {
+        method: "food_group_median",
+        rangeKcalPer100g: [148, 366],
+        sampleCount: 641
+      }
+    });
+  });
+
+  it("falls back instead of publishing unknown for an invalid negative calorie row", () => {
+    const legacyGrain = food({ code: "invalid-kcal", description: "Legacy grain", group: "1000_Grains" });
+    const score = lookupScore(legacyGrain, [legacyGrain], record({ kcal: -1 }));
+
+    expect(score.calorieDensity).toMatchObject({
+      kcalPer100g: 274,
+      estimate: { method: "food_group_median" }
+    });
+  });
 });
 
 describe("computeLabelScore", () => {
@@ -474,6 +518,25 @@ describe("computeLabelScore", () => {
     expect(misnamed.fcs).toBe(edamame.fcs);
     expect(misnamed.domains).toEqual(edamame.domains);
   });
+
+  it("always supplies a disclosed density estimate when serving mass is absent", () => {
+    const unknownMass = facts({ calories: 220, servingGrams: null });
+    const snack = computeLabelScore(unknownMass, { name: "Chocolate protein bar", category: "Snacks" });
+    const labelPhoto = computeLabelScore(unknownMass, {
+      name: "Chocolate protein bar",
+      category: "Snacks",
+      allowIdentityHeuristics: false
+    });
+
+    expect(snack.calorieDensity).toMatchObject({
+      kcalPer100g: 394,
+      estimate: { method: "category_median", rangeKcalPer100g: null }
+    });
+    expect(labelPhoto.calorieDensity).toMatchObject({
+      kcalPer100g: 178,
+      estimate: { method: "global_median", rangeKcalPer100g: null }
+    });
+  });
 });
 
 describe("findAlternatives", () => {
@@ -529,6 +592,25 @@ describe("findAlternatives", () => {
     expect(byScore[0].description).toBe("Bean chips");
     expect(byDensity[0].description).toBe("Bean chips"); // 470 kcal/100 g beats 520
     expect(byDensity.map((a) => a.calorieDensity.kcalPer100g)).toEqual([470, 520]);
+  });
+
+  it("keeps observed densities ahead of lower-looking cohort estimates", () => {
+    const legacyCatalogue = [
+      food({ code: "legacy", description: "Legacy corn chips", group: "9000_SavorySweet", fcs2: 10 }),
+      food({ code: "observed", description: "Observed corn chips", group: "9000_SavorySweet", fcs2: 70 }),
+      food({ code: "estimated", description: "Estimated corn chips", group: "9000_SavorySweet", fcs2: 80 })
+    ];
+    const legacyNutrients = { observed: record({ kcal: 500 }) };
+
+    const alternatives = findAlternatives(
+      legacyCatalogue[0],
+      legacyCatalogue,
+      legacyNutrients,
+      { preferLowerCalorieDensity: true }
+    );
+
+    expect(alternatives.map((alternative) => alternative.code)).toEqual(["observed", "estimated"]);
+    expect(alternatives[1].calorieDensity.estimate?.method).toBe("food_group_median");
   });
 
   it("falls back to shared words within the food group when a food predates FNDDS 2017-18", () => {

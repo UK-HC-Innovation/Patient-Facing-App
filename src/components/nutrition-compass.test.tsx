@@ -42,6 +42,34 @@ describe("NutritionCompass", () => {
     ).toBeInTheDocument();
   });
 
+  it("plots an inferred value while clearly labelling it as an estimate", () => {
+    render(
+      <NutritionCompass
+        foodName="Snickers Marathon Protein bar"
+        score={{
+          ...bananaScore,
+          fcs: 58,
+          band: "moderate",
+          calorieDensity: {
+            kcalPer100g: 415,
+            band: "high",
+            estimate: {
+              method: "equivalent_food",
+              rangeKcalPer100g: null,
+              sampleCount: null,
+              referenceCode: "53720500",
+              referenceDescription: "Nutrition bar (Snickers Marathon Protein Bar)"
+            }
+          }
+        }}
+      />
+    );
+
+    expect(screen.getByTestId("nutrition-density-estimate-label")).toHaveTextContent("Estimated calorie density");
+    expect(screen.getByTestId("nutrition-compass-marker")).toHaveAttribute("data-y-percent", "46.1");
+    expect(screen.getByText(/estimated 4.15 calories per gram \(415 per 100 g\)/i)).toBeInTheDocument();
+  });
+
   it("does not invent a Y position when calorie density is unavailable", () => {
     render(
       <NutritionCompass

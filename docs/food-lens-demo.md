@@ -297,7 +297,8 @@ load and the page is one scroll, so there is nothing to click through first.
   however the food was named.
 - **About a third of the published foods have no nutrient panel.** Table S5 spans FNDDS
   2001–2018 while the joined nutrient workbook covers 2017–18 only, so those foods show a
-  score with no panel underneath it. That is stated on screen, not hidden.
+  score with no panel underneath it. The chart uses a separately labelled equivalent-food
+  or food-group calorie-density estimate, with a typical range, rather than a silent fact.
 
 ### What the numbers are
 

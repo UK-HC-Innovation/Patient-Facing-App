@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { normalizeFdcFood, normalizeOffProduct, saltGramsToSodiumMg } from "./food-normalize";
+import { kcalPer100g } from "./food-compass";
+import { normalizeFdcFood, normalizeOffProduct, parseServingGrams, saltGramsToSodiumMg } from "./food-normalize";
 
 describe("normalizeOffProduct", () => {
   it("reads per-serving sodium in grams and converts to mg", () => {
@@ -53,10 +54,54 @@ describe("normalizeOffProduct", () => {
     expect(food?.nutrition?.sodiumMg).toBe(1000);
   });
 
+  it("recovers serving grams from the printed serving-size text", () => {
+    const food = normalizeOffProduct("333", {
+      status: 1,
+      product: {
+        product_name: "Protein Bar",
+        serving_size: "1 bar (53 g)",
+        nutriments: { "energy-kcal_serving": 220 }
+      }
+    });
+
+    expect(food?.nutrition?.servingGrams).toBe(53);
+    expect(kcalPer100g(food?.nutrition ?? null)).toBeCloseTo(415.1, 1);
+  });
+
+  it("uses a complete per-100g basis when no serving mass is available", () => {
+    const food = normalizeOffProduct("444", {
+      status: 1,
+      product: {
+        product_name: "Mystery Crackers",
+        nutriments: {
+          "energy-kcal_100g": 420,
+          "proteins_100g": 10,
+          "sodium_100g": 0.5
+        }
+      }
+    });
+
+    expect(food?.nutrition).toMatchObject({
+      basis: "per_100g",
+      servingGrams: 100,
+      calories: 420,
+      proteinG: 10,
+      sodiumMg: 500
+    });
+  });
+
   it("returns null when the product is missing or unnamed", () => {
     expect(normalizeOffProduct("333", { status: 0 })).toBeNull();
     expect(normalizeOffProduct("333", { status: 1, product: { nutriments: {} } })).toBeNull();
     expect(normalizeOffProduct("333", "garbage")).toBeNull();
+  });
+});
+
+describe("parseServingGrams", () => {
+  it("accepts decimal grams and rejects absent or implausible masses", () => {
+    expect(parseServingGrams("2 pieces (37.5 grams)")).toBe(37.5);
+    expect(parseServingGrams("12 fl oz")).toBeNull();
+    expect(parseServingGrams("1 piece (0 g)")).toBeNull();
   });
 });
 

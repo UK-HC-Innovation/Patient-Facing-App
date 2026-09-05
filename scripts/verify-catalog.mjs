@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Mechanical re-verification of the family catalogs.
  *

@@ -132,7 +132,9 @@ export function buildCompassContext(compass: CompassContext | null): string | nu
     `Food Compass score: ${compass.fcs} out of 100 (${compass.band}${compass.tier === "T2" ? ", estimated from the label" : ""}).`
   ];
   if (compass.calorieDensityKcalPer100g !== null) {
-    lines.push(`Calorie density: ${compass.calorieDensityKcalPer100g} kcal per 100 g.`);
+    lines.push(
+      `${compass.calorieDensityEstimated ? "Estimated calorie density" : "Calorie density"}: ${compass.calorieDensityKcalPer100g} kcal per 100 g.`
+    );
   }
   if (compass.alternatives.length > 0) {
     lines.push(

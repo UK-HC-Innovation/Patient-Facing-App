@@ -11,7 +11,16 @@ type IdentifyJson = {
   match?: {
     food: { code: string; description: string; group: string };
     tier: string;
-    score: { fcs: number; band: string; tier: string };
+    score: {
+      fcs: number;
+      band: string;
+      tier: string;
+      calorieDensity: {
+        kcalPer100g: number | null;
+        band: string;
+        estimate?: { method: string; referenceCode: string | null };
+      };
+    };
     alternatives: Array<{ fcs: number; recipeSearchUrl: string; description: string }>;
     estimatedDomains?: {
       domains: Array<{ key: string; value: number }>;
@@ -201,6 +210,18 @@ describe("POST /api/food/identify — deterministic paths", () => {
     const json = (await (await POST(request({ foodId: "63107010" }))).json()) as IdentifyJson;
     expect(json.mode).toBe("match");
     expect(json.match?.score.fcs).toBe(83);
+  });
+
+  it("always returns a disclosed density estimate for a published row with no nutrient join", async () => {
+    const json = (await (await POST(request({ foodId: "91781010" }))).json()) as IdentifyJson;
+
+    expect(json.mode).toBe("match");
+    expect(json.match?.score.fcs).toBe(58);
+    expect(json.match?.score.calorieDensity).toMatchObject({
+      kcalPer100g: 415,
+      band: "high",
+      estimate: { method: "equivalent_food", referenceCode: "53720500" }
+    });
   });
 
   it("preserves the order interpretation when a correction chip selects an exact row", async () => {
