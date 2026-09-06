@@ -88,7 +88,7 @@ describe("FoodLensShell", () => {
     renderShell();
 
     expect(strip()).toHaveAttribute("data-strip-mode", "loop");
-    expect(strip()).toHaveTextContent("Reading the camera");
+    expect(strip()).toHaveTextContent("Checking this photo…");
     expect(strip()).toHaveStyle({ height: `${STATUS_STRIP_HEIGHT_PX}px` });
 
     // Less than half the viewfinder left on screen.
@@ -148,9 +148,8 @@ describe("FoodLensShell", () => {
 
   it("shows no pill at all where the camera is unavailable", () => {
     renderShell({ loopState: "unavailable" });
-    expect(strip()).not.toHaveTextContent("Reading the camera");
-    expect(strip()).not.toHaveTextContent("Camera paused");
-    expect(strip()).not.toHaveTextContent("Looking for food");
+    expect(strip()).not.toHaveTextContent("Checking this photo");
+    expect(strip()).not.toHaveTextContent("Ready to scan");
   });
 
   it("stops being the shell during a crisis", () => {

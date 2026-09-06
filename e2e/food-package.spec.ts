@@ -86,6 +86,7 @@ test("front identity and Nutrition Facts stay unscored until both confirmations"
   });
 
   await page.goto("/food");
+  await page.getByRole("button", { name: "Tap to scan" }).click();
   await expect(page.getByText("This looks packaged")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("button", { name: "Scan the plate" })).toBeDisabled();
   await page.getByRole("button", { name: "Scan a package" }).click();
@@ -124,6 +125,7 @@ test("the public demo abstains on packages without exposing the detailed cloud f
   );
 
   await page.goto("/food/demo");
+  await page.getByRole("button", { name: "Tap to scan" }).click();
 
   await expect(page.getByRole("region", { name: "This looks packaged" })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: "Scan a package" })).toHaveCount(0);
@@ -160,6 +162,7 @@ test("a barcode candidate survives turning the package and remains unscored unti
   await page.route("**/api/food/identify", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ mode: "none", candidates: [] }) }));
 
   await page.goto("/food");
+  await page.getByRole("button", { name: "Tap to scan" }).click();
   const useProduct = page.getByRole("button", { name: "Use this product" });
   await expect(useProduct).toBeVisible({ timeout: 10_000 });
   await expect(page.getByTestId("food-verdict")).toHaveCount(0);
@@ -235,6 +238,7 @@ test("a package transition aborts a late plate result and cannot rearm hidden li
   });
 
   await page.goto("/food");
+  await page.getByRole("button", { name: "Tap to scan" }).click();
   await page.getByRole("button", { name: "Yes, use this food" }).click();
   await expect(page.getByTestId("food-verdict")).toContainText("Food Compass score", { timeout: 15_000 });
   await page.getByRole("button", { name: "Scan the plate" }).click();

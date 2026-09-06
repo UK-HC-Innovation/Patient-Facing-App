@@ -158,7 +158,9 @@ function FoodLensStatusStrip({
             ? "bg-emerald-200"
             : loopState === "unavailable"
               ? "bg-white/40"
-              : "animate-pulse bg-emerald-300 motion-reduce:animate-none"
+              : loopState === "sending"
+                ? "animate-pulse bg-emerald-300 motion-reduce:animate-none"
+                : "bg-emerald-300"
         }`}
       />
       {/* One live region for the whole strip: a mode switch and a loop flip each announce

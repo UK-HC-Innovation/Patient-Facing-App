@@ -34,7 +34,8 @@ describe("FoodAskBar", () => {
     const onSendText = vi.fn();
     render(<FoodAskBar mode="live" dataMode="live_voice" status="listening" onStart={() => {}} onStop={() => {}} onSendText={onSendText} language="en" />);
     expect(screen.getByRole("button", { name: "End" })).toBeInTheDocument();
-    expect(screen.getByText(/microphone audio, a current camera frame/i)).toBeInTheDocument();
+    expect(screen.getByText(/microphone audio and relevant food/i)).toBeInTheDocument();
+    expect(screen.queryByText(/camera frame/i)).not.toBeInTheDocument();
     expect(screen.getByText(/sent to OpenAI/i)).toBeInTheDocument();
     const input = screen.getByLabelText("Ask about this food…");
     await user.type(input, "What should I notice?");
