@@ -753,6 +753,7 @@ function isAiMessageAction(value: unknown): value is AiMessageAction {
     value === "crisis_call_988" ||
     value === "crisis_text_988" ||
     value === "call_emergency" ||
+    value === "call_poison_control" ||
     value === "safety_plan"
   );
 }

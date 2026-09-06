@@ -737,6 +737,24 @@ describe("createSafeAiResponse", () => {
     expect(provider.respond).not.toHaveBeenCalled();
   });
 
+  // Spec 29 P1, critique H4: this used to come back as a package-label problem.
+  it("answers a child ingestion with Poison Control and never calls the provider", async () => {
+    const provider: HealthAiProvider = {
+      respond: vi.fn().mockResolvedValue({ content: "unused", safety: "allowed" as const, sources: [] })
+    };
+
+    const response = await createSafeAiResponse(
+      { mode: "food", patientInput: "my kid ate a whole bag of these", state: demoState },
+      provider
+    );
+
+    expect(response.safety).toBe("escalate");
+    expect(response.content).toBe(safetyStrings.en.childIngestionResponse);
+    expect(response.content).toContain("1-800-222-1222");
+    expect(response.actions).toEqual(["call_emergency", "call_poison_control"]);
+    expect(provider.respond).not.toHaveBeenCalled();
+  });
+
   it("renders the harm-to-others copy in Spanish for a Spanish speaker", async () => {
     const state: AppState = {
       ...demoState,

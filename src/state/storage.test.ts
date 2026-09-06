@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { firstStepsClock, hasEnrolledFirstSteps } from "@/domain/family-clocks";
 import { createFamilyAppointmentOffer, createSoonerAppointmentOffer } from "@/domain/family-appointments";
-import { brentState, deletedDemoState, demoState } from "@/domain/fixtures";
+import { deletedDemoState, demoState, emptyPatientState } from "@/domain/fixtures";
 import { INSTRUMENTS } from "@/domain/instruments/registry";
 import { MEAL_DIGEST_SOURCE_ID } from "@/domain/food-week";
 import type { ScreeningInstrument } from "@/domain/instruments/types";
@@ -845,18 +845,24 @@ describe("storage", () => {
     ]);
   });
 
-  it("starts a fresh browser on the retinopathy-due demo state", () => {
+  // Every build used to open on Brent Wright, and the coach handed his plan to
+  // whoever was typing (critique H3).
+  it("starts a fresh browser on nobody", () => {
     const loaded = loadStoredState();
 
-    expect(loaded).toEqual(brentState);
-    expect(loaded.patient.preferredName).toBe("Brent");
-    expect(loaded.carePlan.conditions).toContain("diabetes");
-    expect(loaded.screeningGaps).toContainEqual(
-      expect.objectContaining({ condition: "diabetes", status: "overdue" })
-    );
+    expect(loaded).toEqual(emptyPatientState());
+    expect(loaded.patient.name).toBe("");
+    expect(loaded.patient.preferredName).toBe("");
+    expect(loaded.patient.primaryClinicPhone).toBe("");
+    expect(loaded.carePlan.conditions).toEqual([]);
+    expect(loaded.medications).toEqual([]);
+    expect(loaded.readings).toEqual([]);
+    expect(loaded.mealLog).toEqual([]);
+    expect(loaded.aiMessages).toEqual([]);
+    expect(loaded.screeningGaps).toEqual([]);
   });
 
-  it("removes structurally invalid but syntactically valid payloads and falls back to the retinopathy demo state", () => {
+  it("removes structurally invalid but syntactically valid payloads and falls back to an empty patient", () => {
     window.localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
@@ -873,7 +879,7 @@ describe("storage", () => {
     );
 
     expect(() => loadStoredState()).not.toThrow();
-    expect(loadStoredState()).toEqual(brentState);
+    expect(loadStoredState()).toEqual(emptyPatientState());
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
@@ -897,7 +903,7 @@ describe("storage", () => {
       });
       window.localStorage.setItem(STORAGE_KEY, doomed);
 
-      expect(loadStoredState()).toEqual(brentState);
+      expect(loadStoredState()).toEqual(emptyPatientState());
       expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
       expect(window.localStorage.getItem(RECOVERY_KEY)).toBe(doomed);
       expect(warn).toHaveBeenCalledWith(expect.stringContaining(RECOVERY_KEY));
@@ -908,7 +914,7 @@ describe("storage", () => {
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
       window.localStorage.setItem(STORAGE_KEY, "{not json");
 
-      expect(loadStoredState()).toEqual(brentState);
+      expect(loadStoredState()).toEqual(emptyPatientState());
       expect(window.localStorage.getItem(RECOVERY_KEY)).toBe("{not json");
       warn.mockRestore();
     });
@@ -987,7 +993,7 @@ describe("storage", () => {
     });
   });
 
-  it("falls back to the retinopathy demo state when localStorage.getItem throws", () => {
+  it("falls back to an empty patient when localStorage.getItem throws", () => {
     const getItemSpy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("Storage unavailable");
     });
@@ -997,7 +1003,7 @@ describe("storage", () => {
       loaded = loadStoredStateResult();
     }).not.toThrow();
     expect(loaded).toMatchObject({
-      state: brentState,
+      state: emptyPatientState(),
       status: "unavailable",
       writable: false
     });
@@ -1005,15 +1011,15 @@ describe("storage", () => {
     getItemSpy.mockRestore();
   });
 
-  it("falls back to the retinopathy demo state for malformed localStorage payloads and removes the entry", () => {
+  it("falls back to an empty patient for malformed localStorage payloads and removes the entry", () => {
     window.localStorage.setItem(STORAGE_KEY, "{malformed json");
 
     expect(() => loadStoredState()).not.toThrow();
-    expect(loadStoredState()).toEqual(brentState);
+    expect(loadStoredState()).toEqual(emptyPatientState());
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
-  it("falls back to the retinopathy demo state for malformed medication entries and clears storage", () => {
+  it("falls back to an empty patient for malformed medication entries and clears storage", () => {
     window.localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
@@ -1030,7 +1036,7 @@ describe("storage", () => {
 
     const loaded = loadStoredState();
 
-    expect(loaded).toEqual(brentState);
+    expect(loaded).toEqual(emptyPatientState());
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
@@ -1095,7 +1101,7 @@ describe("storage", () => {
     expect(persistedState.tasks.map((task: { id: string }) => task.id)).toEqual(["task-valid-1", "task-valid-2"]);
   });
 
-  it("falls back to the retinopathy demo state for carePlan patient mismatch and clears storage", () => {
+  it("falls back to an empty patient for carePlan patient mismatch and clears storage", () => {
     window.localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
@@ -1109,11 +1115,11 @@ describe("storage", () => {
 
     const loaded = loadStoredState();
 
-    expect(loaded).toEqual(brentState);
+    expect(loaded).toEqual(emptyPatientState());
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
-  it("falls back to the retinopathy demo state for medication/readings patient mismatch and clears storage", () => {
+  it("falls back to an empty patient for medication/readings patient mismatch and clears storage", () => {
     window.localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
@@ -1141,11 +1147,11 @@ describe("storage", () => {
 
     const loaded = loadStoredState();
 
-    expect(loaded).toEqual(brentState);
+    expect(loaded).toEqual(emptyPatientState());
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
-  it("falls back to the retinopathy demo state for malformed audit events and clears storage", () => {
+  it("falls back to an empty patient for malformed audit events and clears storage", () => {
     window.localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
@@ -1162,11 +1168,11 @@ describe("storage", () => {
 
     const loaded = loadStoredState();
 
-    expect(loaded).toEqual(brentState);
+    expect(loaded).toEqual(emptyPatientState());
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
-  it("falls back to the retinopathy demo state for non-finite care plan thresholds and clears storage", () => {
+  it("falls back to an empty patient for non-finite care plan thresholds and clears storage", () => {
     const rawPayload = JSON.stringify(demoState).replace(
       "\"callThresholdSystolic\":160",
       "\"callThresholdSystolic\":1e309"
@@ -1176,7 +1182,7 @@ describe("storage", () => {
 
     const loaded = loadStoredState();
 
-    expect(loaded).toEqual(brentState);
+    expect(loaded).toEqual(emptyPatientState());
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
@@ -1220,7 +1226,7 @@ describe("storage", () => {
     });
 
     expect(() => clearStoredState()).not.toThrow();
-    expect(loadStoredState()).toEqual(brentState);
+    expect(loadStoredState()).toEqual(emptyPatientState());
 
     removeItemSpy.mockRestore();
   });
@@ -1237,7 +1243,7 @@ describe("storage", () => {
     expect(loaded.aiMessages).toHaveLength(0);
   });
 
-  it("falls back to the retinopathy demo state for invalid reading pulse or contexts and clears storage", () => {
+  it("falls back to an empty patient for invalid reading pulse or contexts and clears storage", () => {
     window.localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
@@ -1259,11 +1265,11 @@ describe("storage", () => {
 
     const loaded = loadStoredState();
 
-    expect(loaded).toEqual(brentState);
+    expect(loaded).toEqual(emptyPatientState());
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
-  it("falls back to the retinopathy demo state for extracted facts with unknown contextItemId", () => {
+  it("falls back to an empty patient for extracted facts with unknown contextItemId", () => {
     window.localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
@@ -1294,7 +1300,7 @@ describe("storage", () => {
 
     const loaded = loadStoredState();
 
-    expect(loaded).toEqual(brentState);
+    expect(loaded).toEqual(emptyPatientState());
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 

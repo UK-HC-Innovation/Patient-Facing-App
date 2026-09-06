@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { brentState, demoState } from "@/domain/fixtures";
+import { brentState, demoState, emptyPatientState } from "@/domain/fixtures";
 import { hypertensionLens } from "@/domain/condition-lens";
 import type { FoodFlag } from "@/domain/food-flags";
 import {
@@ -164,5 +164,29 @@ describe("buildPerAskContext — Food Compass block", () => {
 
   it("says nothing about the compass when there is no score", () => {
     expect(buildPerAskContext(null, [])).not.toContain("Food Compass");
+  });
+});
+
+describe("buildFoodLensInstructions with an empty patient", () => {
+  // The critique's H3: a fresh phone loaded Brent Wright, so the coach told an insulin
+  // user to take metformin with food and told a daughter her blood pressure was
+  // trending up.
+  const instructions = buildFoodLensInstructions(emptyPatientState(), hypertensionLens);
+
+  it("mentions no medicine, no condition and no reading", () => {
+    expect(instructions).not.toMatch(/metformin/i);
+    expect(instructions).not.toMatch(/lisinopril/i);
+    expect(instructions).not.toMatch(/blood pressure/i);
+    expect(instructions).not.toMatch(/hypertension/i);
+    expect(instructions).not.toMatch(/A1C/i);
+    expect(instructions).not.toMatch(/\d{2,3}\/\d{2,3}/);
+  });
+
+  it("says plainly that nothing has been shared", () => {
+    expect(instructions).toContain("They have not shared any conditions, medicines, targets or readings");
+  });
+
+  it("still carries the patient card for someone who has shared something", () => {
+    expect(buildFoodLensInstructions(brentState, hypertensionLens)).toMatch(/Medications:/);
   });
 });

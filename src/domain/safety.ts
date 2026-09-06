@@ -98,6 +98,65 @@ function hasUrgentSymptom(input: string): boolean {
 const glucoseCuePattern = /blood sugar|glucose|mg\s*\/?\s*dl|finger\s*stick|sugar (?:is|was|reading|of|at|hit)|azucar\s+en\s+(?:la\s+)?sangre|glucosa|medicion\s+de\s+azucar/i;
 const dkaCuePattern = /nausea|vomit|throwing up|fruity breath|deep breathing|very thirsty|can'?t stop drinking|new confusion|confused|nauseas?|vomit(?:o|ando)|aliento afrutado|respiracion profunda|mucha sed|confusion/i;
 
+// Spec 29 P1 (critique H2/§3d). "my sugar is 480 and I feel sick" cleared the
+// gate: the DKA cue list has no plain word for feeling ill, so a reading that
+// far out came back as ordinary nutrition talk. At 300 or more, any of these
+// words in the same sentence is enough on its own.
+const symptomaticHyperglycemiaCuePattern =
+  /\bsick\b|vomit|throwing up|thirst|confus|breath|feel(?:ing)?\s+(?:bad|awful|terrible|really\s+bad)|\benferm|\bsed\b|mucha sed|respir|me siento mal|siento muy mal/i;
+
+// Spec 29 P1 (critique H4). "my kid ate a whole bag of these" was answered as a
+// label-reading problem. "swallowed" and "got into" carry the alarm on their
+// own; "ate" and "drank" need a whole-container cue, so logging that a child
+// ate lunch stays ordinary food talk.
+const CHILD_ACTOR_EN =
+  "(?:(?:my|our|the|a|his|her|their)\\s+)?(?:little\\s+)?(?:kid|child|son|daughter|toddler|baby|grandkid|grandchild|grandson|granddaughter|little\\s+one|\\d{1,2}[\\s-]year[\\s-]old)";
+const childAlarmVerbPattern = new RegExp(
+  `\\b${CHILD_ACTOR_EN}\\s+(?:just\\s+|accidentally\\s+|somehow\\s+)?(?:swallowed|got\\s+into|got\\s+ahold\\s+of|ate\\s+some\\s+of\\s+my)\\b`,
+  "i"
+);
+const childAtePattern = new RegExp(
+  `\\b${CHILD_ACTOR_EN}\\s+(?:just\\s+|accidentally\\s+|somehow\\s+)?(?:ate|drank|chewed(?:\\s+up)?|finished)\\b`,
+  "i"
+);
+const wholeContainerPattern =
+  /\b(?:a\s+|the\s+)?(?:whole|entire)\s+(?:bag|box|bottle|package|pack|packet|container|jar|sleeve|tube|carton|can|thing|batch)\b|\bthe\s+(?:whole|entire)\s+thing\b|\ball\s+of\s+(?:the|them|it|these|those)\b|\ba\s+bunch\s+of\s+(?:these|those|them)\b/i;
+const childActorEsPattern =
+  /\b(?:mi|nuestr[oa]|su|el|la)?\s*(?:hij[oa]|hijit[oa]|nin[oa]|nen[aeo]|bebe|nieto|nieta|pequen[oa])\s+(?:se\s+)?(?:comio|trago|tomo|bebio|mastico|acabo)\b/u;
+const childSwallowedEsPattern =
+  /\b(?:hij[oa]|hijit[oa]|nin[oa]|nen[aeo]|bebe|nieto|nieta|pequen[oa])\s+se\s+trago\b/u;
+const wholeContainerEsPattern =
+  /\btod[ao]\s+(?:la|el|un[ao])\s+(?:bolsa|caja|botella|paquete|frasco|lata|envase)\b|\btod[ao]s?\s+l[ao]s\b|\btod[ao]\s+el\s+(?:contenido|paquete)\b/u;
+
+// Escalates a child who ate or swallowed something they should not have. The
+// answer is Poison Control, not a nutrition score.
+export function screenChildIngestion(input: string): boolean {
+  const normalized = normalizeSafetyInput(input);
+  if (childAlarmVerbPattern.test(normalized) || childSwallowedEsPattern.test(normalized)) {
+    return true;
+  }
+  if (childAtePattern.test(normalized) && wholeContainerPattern.test(normalized)) {
+    return true;
+  }
+  return childActorEsPattern.test(normalized) && wholeContainerEsPattern.test(normalized);
+}
+
+// A glucose number of 300 or more in the same sentence as feeling sick.
+export function hasSymptomaticHyperglycemia(input: string): boolean {
+  return normalizeSafetyInput(input)
+    .split(/[.!?;]+/)
+    .some((sentence) => {
+      if (!glucoseCuePattern.test(sentence)) {
+        return false;
+      }
+      const value = extractGlucose(sentence);
+      if (value === null || value < 300 || value > 900) {
+        return false;
+      }
+      return symptomaticHyperglycemiaCuePattern.test(sentence);
+    });
+}
+
 function hasDangerousBloodPressure(systolic: number, diastolic: number): boolean {
   const plausibleReading = systolic >= 50 && systolic <= 260 && diastolic >= 20 && diastolic <= 160;
 
@@ -255,7 +314,8 @@ export function classifySafety(input: string): SafetyClassification {
   if (
     hasUrgentSymptom(normalized) ||
     hasDangerousReading(normalized) ||
-    hasDangerousGlucose(normalized)
+    hasDangerousGlucose(normalized) ||
+    hasSymptomaticHyperglycemia(normalized)
   ) {
     return {
       level: "escalate",

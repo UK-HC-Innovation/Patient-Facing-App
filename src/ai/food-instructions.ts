@@ -30,8 +30,32 @@ function nutrientLimitLines(lens: ConditionLens): string {
     .join("\n");
 }
 
+/**
+ * Has this person told the app anything about themselves?
+ *
+ * Until they have, the coach has no history to reason from and must not act as if it
+ * does. This is the line that stopped "if you take metformin, take it with food" from
+ * reaching a patient who takes insulin (critique H3).
+ */
+export function hasSharedHealthContext(state: AppState): boolean {
+  return (
+    state.medications.length > 0 ||
+    state.readings.length > 0 ||
+    state.glucoseReadings.length > 0 ||
+    activeConditions(state.carePlan).length > 0 ||
+    state.carePlan.goals.length > 0
+  );
+}
+
 function patientCard(state: AppState): string {
   const { patient, carePlan, medications, readings, glucoseReadings } = state;
+  if (!hasSharedHealthContext(state)) {
+    return [
+      `The person speaks ${patient.language === "es" ? "Spanish" : "English"}.`,
+      "They have not shared any conditions, medicines, targets or readings. Do not mention any, do not ask about medicines, and do not refer to a care team as if you know one.",
+      "Answer about the food in front of them, in general terms."
+    ].join("\n");
+  }
   const latest = [...readings].sort((a, b) => a.measuredAt.localeCompare(b.measuredAt)).at(-1);
   const latestGlucose = [...glucoseReadings].sort((a, b) => a.measuredAt.localeCompare(b.measuredAt)).at(-1);
   const latestGlucoseText = latestGlucose ? `${latestGlucose.valueMgDl} mg/dL` : "none recorded";
@@ -60,13 +84,16 @@ export function buildFoodLensInstructions(state: AppState, lens: ConditionLens):
     .map((rule) => `- ${rule.modelGuidance}`)
     .join("\n");
 
-  const digest = buildMealDigest(state);
+  const shared = hasSharedHealthContext(state);
+  const digest = shared ? buildMealDigest(state) : "";
   const sections = [
     "You are a warm, knowledgeable food coach speaking out loud with a patient who is holding food up to their phone camera.",
     "Keep each spoken answer to about three short sentences unless the patient asks for more. Use plain, sixth-grade language. Never diagnose or prescribe or tell the patient to change a medicine. Say numbers plainly.",
     `Speak ${language} by default. If the patient speaks another language, mirror it.`,
     "Some user messages are marked [camera context]. Those describe what the camera sees plus any label data — they are NOT the patient speaking. If there is no label data, estimate from the image and say clearly that it is an estimate.",
-    `Condition focus:\n${lens.personaFocus}\nNutrient targets:\n${nutrientLimitLines(lens)}`,
+    shared
+      ? `Condition focus:\n${lens.personaFocus}\nNutrient targets:\n${nutrientLimitLines(lens)}`
+      : "Give general nutrition guidance. There is no condition focus to apply.",
     medGuidance ? `Medication-diet rules to follow:\n${medGuidance}` : "",
     `Better options: ${lens.betterOptionGuidance}`,
     "Carb numbers read from a photo are rough estimates. Never help work out an insulin dose, a bolus, or a carb ratio, and never do that arithmetic out loud. Point to the plan the patient's care team gave them.",

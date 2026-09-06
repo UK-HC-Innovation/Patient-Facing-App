@@ -1013,11 +1013,11 @@ export type PrivacyStringKey =
 
 export const privacyStrings: Record<Language, Record<PrivacyStringKey, string>> = {
   en: {
-    recordStorage: "Your saved demo record stays in this browser's storage until you export or delete it.",
+    recordStorage: "What you save stays in this browser until you export or delete it.",
     checkingTitle: "AI data use: not active",
     checkingBody: "No AI content has been sent. Start a session to see which data path is active.",
     onDeviceTitle: "AI mode: on-device",
-    onDeviceBody: "Microphone audio is not sent to OpenAI. Questions are answered with the local demo coach.",
+    onDeviceBody: "Microphone audio is not sent to OpenAI. Questions are answered on this phone.",
     cloudTitle: "AI mode: cloud service may be used",
     cloudBody: "When you use an AI feature, your question, current image, and relevant care context may be sent to OpenAI to create an answer.",
     liveTitle: "AI mode: live voice",
@@ -1034,18 +1034,18 @@ export const privacyStrings: Record<Language, Record<PrivacyStringKey, string>> 
     coachLiveTitle: "Coach voice: live",
     coachLiveBody:
       "In the Coach, microphone audio and relevant care-plan context are sent to OpenAI while the session is active. This status does not describe Ladder text.",
-    transcriptStored: "The final transcript and answer are added to your browser-stored demo record.",
-    deleteTitle: "Delete demo data?",
-    deleteBody: "This removes the saved demo record from this browser. Export first if you want to keep a copy.",
-    deleteConfirm: "Yes, delete demo data",
+    transcriptStored: "The transcript is saved on this phone only.",
+    deleteTitle: "Delete everything?",
+    deleteBody: "This clears everything saved in this browser. Export first if you want to keep a copy.",
+    deleteConfirm: "Yes, delete it",
     deleteCancel: "Cancel"
   },
   es: {
-    recordStorage: "Tu registro de demostración guardado permanece en este navegador hasta que lo exportes o elimines.",
+    recordStorage: "Lo que guardes se queda en este navegador hasta que lo exportes o lo borres.",
     checkingTitle: "Uso de datos de IA: no activo",
     checkingBody: "No se ha enviado contenido a la IA. Inicia una sesión para ver qué ruta de datos está activa.",
     onDeviceTitle: "Modo de IA: en el dispositivo",
-    onDeviceBody: "El audio del micrófono no se envía a OpenAI. Las preguntas se responden con el asistente local de demostración.",
+    onDeviceBody: "El audio del micrófono no se envía a OpenAI. Las preguntas se responden en este teléfono.",
     cloudTitle: "Modo de IA: puede usar un servicio en la nube",
     cloudBody: "Cuando usas una función de IA, tu pregunta, la imagen actual y el contexto de salud relevante pueden enviarse a OpenAI para crear una respuesta.",
     liveTitle: "Modo de IA: voz en vivo",
@@ -1062,9 +1062,9 @@ export const privacyStrings: Record<Language, Record<PrivacyStringKey, string>> 
     coachLiveTitle: "Voz del asistente: en vivo",
     coachLiveBody:
       "En el asistente, el audio del micrófono y el contexto relevante del plan de salud se envían a OpenAI mientras la sesión está activa. Este estado no describe el texto de Ladder.",
-    transcriptStored: "La transcripción final y la respuesta se agregan a tu registro de demostración guardado en el navegador.",
-    deleteTitle: "¿Eliminar los datos de demostración?",
-    deleteBody: "Esto elimina de este navegador el registro de demostración guardado. Expórtalo primero si quieres conservar una copia.",
+    transcriptStored: "La transcripción se guarda solo en este teléfono.",
+    deleteTitle: "¿Borrar todo?",
+    deleteBody: "Esto borra todo lo guardado en este navegador. Expórtalo primero si quieres conservar una copia.",
     deleteConfirm: "Sí, eliminar los datos",
     deleteCancel: "Cancelar"
   }
@@ -1154,7 +1154,7 @@ export const safetyStrings: Record<Language, Record<SafetyStringKey, string>> = 
     urgentHelpSummary: "¿Te sientes inseguro ahora? Busca ayuda",
     poisonControlCall: "Llama a Control de Envenenamiento",
     childIngestionResponse:
-      "Si tu hijo está somnoliento, vomitando o cuesta despertarlo, llama al 911. Si no, llama a Control de Envenenamiento, 1-800-222-1222, y ten el paquete en la mano."
+      "Si a tu hijo o hija le da mucho sueño, vomita, o cuesta despertarlo, llama al 911. Si no, llama a Control de Envenenamiento, 1-800-222-1222, y ten el paquete en la mano."
   }
 };
 

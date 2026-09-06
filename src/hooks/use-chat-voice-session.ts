@@ -7,6 +7,7 @@ import type { LiveSessionEvent, LiveSessionHandle, LiveSessionStatus } from "@/a
 import { evaluateVoiceTranscript } from "@/ai/voice-gate";
 import type { AppState } from "@/domain/types";
 import { hasUnacknowledgedCrisis } from "@/state/selectors";
+import { readRealtimeNonce } from "@/hooks/realtime-nonce-client";
 import type { VoiceSafetyIntercept } from "./use-food-voice-session";
 
 export type ChatVoiceMode = "unknown" | "live" | "mock";
@@ -128,7 +129,7 @@ export function useChatVoiceSession(args: {
     try {
       const response = await fetch("/api/realtime/token", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-realtime-nonce": readRealtimeNonce() },
         body: JSON.stringify({ patientId: state.patient.id, crisisOpen: false, passcode })
       });
       token = (await response.json()) as TokenResponse;

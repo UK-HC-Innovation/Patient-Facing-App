@@ -208,7 +208,9 @@ export function selectLens(condition: Condition): ConditionLens {
 const CONDITION_ORDER: Condition[] = ["hypertension", "diabetes", "obesity"];
 
 export function activeConditions(plan: Pick<CarePlan, "condition" | "conditions">): Condition[] {
-  const raw = plan.conditions && plan.conditions.length > 0 ? plan.conditions : [plan.condition];
+  // An explicitly empty list means the person has shared no conditions. Only an absent
+  // list falls back to the single `condition` field.
+  const raw = plan.conditions ?? [plan.condition];
   return CONDITION_ORDER.filter((condition) => raw.includes(condition));
 }
 

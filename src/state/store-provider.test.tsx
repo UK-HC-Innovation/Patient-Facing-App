@@ -52,7 +52,7 @@ function immediateRepository(load: RepositoryLoad): AppStateRepository & {
 }
 
 describe("HealthStateProvider hydration", () => {
-  it("uses deterministic demo state for SSR without touching the repository", () => {
+  it("renders a deterministic empty patient for SSR without touching the repository", () => {
     const repository = immediateRepository({
       state: demoState,
       status: "loaded",
@@ -65,7 +65,7 @@ describe("HealthStateProvider hydration", () => {
       </HealthStateProvider>
     );
 
-    expect(html).toContain("Brent");
+    expect(html).not.toContain("Brent");
     expect(html).not.toContain("Jordan");
     expect(repository.load).not.toHaveBeenCalled();
   });

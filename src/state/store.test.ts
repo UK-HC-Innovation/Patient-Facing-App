@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { brentState, demoState } from "@/domain/fixtures";
+import { brentState, demoState, emptyPatientState } from "@/domain/fixtures";
 import { schoolAgeFamilyState } from "@/domain/family-fixtures";
 import {
   buildDemoSlotOffers,
@@ -1739,7 +1739,7 @@ describe("healthReducer", () => {
     expect(next).toBe(demoState);
   });
 
-  it("returns the retinopathy-due demo state for a plain resetDemo action", () => {
+  it("starts over on an empty patient for a plain resetDemo action", () => {
     const modifiedState: AppState = {
       ...demoState,
       readings: [
@@ -1764,7 +1764,7 @@ describe("healthReducer", () => {
 
     const next = healthReducer(modifiedState, { type: "resetDemo" });
 
-    expect(next).toEqual(brentState);
+    expect(next).toEqual(emptyPatientState());
   });
 
   it("deletes demo data without reseeding personal demo content", () => {

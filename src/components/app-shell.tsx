@@ -18,7 +18,7 @@ const fullNavItems = [
 
 const foodLensNavItems = [
   { href: "/food", label: "1 good choice", icon: Home },
-  { href: "/food/demo", label: "Public demo", icon: LayoutGrid }
+  { href: "/food/demo", label: "Share", icon: LayoutGrid }
 ];
 
 export function AppShell({

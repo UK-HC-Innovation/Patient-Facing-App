@@ -81,8 +81,14 @@ const compassBudgets = {
   // strip, pinned voice bar and the strings they speak: /compass 186.6 KiB, /food 297.3 KiB.
   // Headroom for normal growth, and still orders of magnitude below the ~1.6 MB a leaked
   // fcs2-foods.json would add -- which is the thing these numbers exist to catch.
-  "/food/demo/page": 192 * kib,
-  "/food/page": 303 * kib
+  //
+  // Re-measured 2026-09-06 after reconciling tap-to-scan (which added the manual-score
+  // hook) and the usage recorder, then spec 29's session watchdog and typed-first path:
+  // /food/demo 193.8 KiB. No single chunk moved -- the growth is spread across shared
+  // ones, and the >900 KiB per-chunk guard below is what actually catches a leaked
+  // fcs2-foods.json. Raised to 200 with room for spec 29 P3's ask box on the public door.
+  "/food/demo/page": 200 * kib,
+  "/food/page": 312 * kib
 };
 
 const compassReport = [];

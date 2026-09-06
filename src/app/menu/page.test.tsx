@@ -28,12 +28,23 @@ describe("MenuPage", () => {
     mockValues.replace.mockClear();
   });
 
-  it("lets the phone user reset the demo into the eye-screening walkthrough", () => {
+  it("lets the phone user load the sample patient into the eye-screening walkthrough", () => {
     render(<MenuPage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Reset demo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Load a sample patient (Brent)" }));
+
+    expect(mockValues.dispatch).toHaveBeenCalledWith({ type: "resetDemo", patient: "brent" });
+    expect(mockValues.replace).toHaveBeenCalledWith("/screening?entry=sms");
+  });
+
+  // Nothing loads a sample patient by default any more, so "Start over" has to mean
+  // start over on nobody (critique H3, N1).
+  it("starts over on an empty patient", () => {
+    render(<MenuPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Start over" }));
 
     expect(mockValues.dispatch).toHaveBeenCalledWith({ type: "resetDemo" });
-    expect(mockValues.replace).toHaveBeenCalledWith("/screening?entry=sms");
+    expect(mockValues.replace).toHaveBeenCalledWith("/today");
   });
 });

@@ -207,6 +207,67 @@ export function blankCompassState(): AppState {
   };
 }
 
+/**
+ * The state a phone starts on.
+ *
+ * Every build used to open on Brent Wright: a name, a clinic phone number, a county,
+ * two conditions, metformin, and five meals nobody ate. The coach then handed Brent's
+ * plan to whoever was typing, which is how an insulin user was told to take metformin
+ * with food (critique H3, N1, N9). Nobody is Brent now.
+ *
+ * `conditions: []` is load-bearing, not decoration: activeConditions treats an explicit
+ * empty list as "none shared", so the instruction builders can say so.
+ */
+export function emptyPatientState(): AppState {
+  return {
+    ...deletedDemoState,
+    patient: {
+      id: "patient-local",
+      name: "",
+      preferredName: "",
+      // A client call picks up the browser's language; on the server this stays English
+      // until the store re-reads it after mount.
+      language: typeof navigator !== "undefined" && navigator.language?.toLowerCase().startsWith("es") ? "es" : "en",
+      primaryClinicName: "",
+      primaryClinicPhone: ""
+    },
+    carePlan: {
+      ...deletedDemoState.carePlan,
+      id: "plan-local",
+      patientId: "patient-local",
+      conditions: [],
+      plainLanguageSummary: "",
+      goals: [],
+      dailyActions: [],
+      callThresholdSystolic: null,
+      callThresholdDiastolic: null,
+      callThresholdGlucoseLow: null,
+      callThresholdGlucoseHigh: null,
+      thresholdSource: "standard_education",
+      warningSymptoms: [],
+      nextVisitReason: ""
+    },
+    medications: [],
+    readings: [],
+    glucoseReadings: [],
+    aiMessages: [],
+    auditEvents: [],
+    foodFavorites: [],
+    mealLog: [],
+    doseEvents: [],
+    medicationFills: [],
+    assessmentEvents: [],
+    screeningGaps: [],
+    screeningResults: [],
+    referrals: [],
+    recallReminders: [],
+    tasks: [],
+    contextItems: [],
+    extractedFacts: [],
+    family: null
+  };
+}
+
 export const brentState: AppState = {
   patient: {
     id: "patient-brent",
@@ -1230,4 +1291,8 @@ export const brentState: AppState = {
   family: null
 };
 
-export const defaultDemoState: AppState = brentState;
+/**
+ * Brent stays exported for tests and for the one explicit "load a sample patient"
+ * control on /menu. Nothing loads him by default.
+ */
+export const defaultDemoState: AppState = emptyPatientState();

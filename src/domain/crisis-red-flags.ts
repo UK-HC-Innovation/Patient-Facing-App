@@ -742,6 +742,62 @@ function isSpanishHarmToOthers(input: string): boolean {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Spec 29 P1 — appetite hopelessness (critique H1, 2026-09-06). "I don't want
+// to eat anymore, what's the point" went to the food lookup and came back as
+// "We don't have a score for that one. Try a simpler name." These are passive
+// ideation phrasings that happen to name eating, so they route to the same
+// self_harm crisis tier as the rest of the family. Every signal is bounded so
+// an ordinary food preference stays quiet: nothing may sit between "eat" and
+// "anymore" ("I don't want to eat cereal again", "I don't want to eat pizza
+// anymore"), and "stopped eating" only fires when no food follows it
+// ("I stopped eating sugar" is a diet change).
+// ---------------------------------------------------------------------------
+const APPETITE_HOPELESSNESS_SIGNALS: readonly RegExp[] = [
+  /\b(?:don'?t|do\s+not|no\s+longer|never)\s+want\s+to\s+eat\s+(?:any\s?more|anymore)\b/i,
+  /\b(?:don'?t|do\s+not|no\s+longer)\s+(?:feel\s+like|see\s+the\s+point\s+(?:in|of))\s+eating\b/i,
+  /\bno\s+(?:point|reason)\s+(?:in\s+|to\s+)?(?:eat|eating|food)\b/i,
+  /\bwhy\s+(?:even\s+)?bother\s+(?:eating|to\s+eat|with\s+(?:food|eating|meals?))\b/i,
+  /\b(?:stopped|quit|gave\s+up)\s+eating\b(?=\s*(?:[.,;!?]|$)|\s+(?:altogether|at\s+all|completely|entirely|days?\s+ago|weeks?\s+ago|for\s+(?:a\s+)?(?:few\s+)?(?:days?|weeks?)|since\b))/i
+];
+
+// "what's the point" is broad on its own, so it only counts when it is the
+// whole clause. "what's the point of the carb count on this label" keeps
+// reading as a label question; "I don't want to eat anymore, what's the point"
+// and a bare "what's the point" both fire.
+const APPETITE_POINT_CLAUSE =
+  /^(?:so|and|then|well|um|uh)?\s*(?:i\s+mean\s+)?what'?s?\s+(?:is\s+)?the\s+point(?:\s+(?:any\s?more|anymore|really|at\s+all|of\s+(?:it\s+all|it|any\s+of\s+(?:it|this))))?\s*$/i;
+
+const APPETITE_HOPELESSNESS_PREFILTER = /\b(?:eat|eating|point|bother)\b/i;
+
+function isAppetiteHopelessness(input: string): boolean {
+  if (!APPETITE_HOPELESSNESS_PREFILTER.test(input)) return false;
+  if (matchesAny(input, APPETITE_HOPELESSNESS_SIGNALS)) return true;
+  return englishClauses(input).some((clause) => APPETITE_POINT_CLAUSE.test(clause));
+}
+
+const SPANISH_APPETITE_HOPELESSNESS_SIGNALS: readonly RegExp[] = [
+  /\bya\s+no\s+quiero\s+comer\b/u,
+  /\bno\s+quiero\s+comer\s+mas\b(?=\s*$|\s+(?:nunca|jamas)\b)/u,
+  /\b(?:no\s+tiene\s+caso|para\s+que)\s+comer\b/u,
+  /\bya\s+no\s+vale\s+la\s+pena\b(?=\s*$|\s+(?:comer|seguir|vivir|intentar|nada)\b)/u,
+  /\bdeje\s+de\s+comer\b(?=\s*$|\s+(?:por\s+completo|del\s+todo|hace\s+(?:unos\s+)?dias)\b)/u
+];
+
+// The Spanish twin of APPETITE_POINT_CLAUSE. "para qué" carries a whole
+// sentence of meaning on its own and almost none inside one, so it only counts
+// as the entire clause.
+const SPANISH_APPETITE_POINT_CLAUSE = /^(?:y|pues|entonces|este)?\s*(?:para|pa)\s+que\s*$/u;
+
+function isSpanishAppetiteHopelessness(input: string): boolean {
+  const clauses = spanishClauses(input);
+  return clauses.some(
+    (clause) =>
+      matchesAny(clause, SPANISH_APPETITE_HOPELESSNESS_SIGNALS) ||
+      SPANISH_APPETITE_POINT_CLAUSE.test(clause)
+  );
+}
+
 const CRISIS_RULES: CrisisRule[] = [
   {
     id: "vision_sudden_loss",
@@ -858,6 +914,16 @@ const CRISIS_RULES: CrisisRule[] = [
     id: "self_harm_third_person_end_life",
     domain: "self_harm",
     pattern: THIRD_PERSON_END_LIFE
+  },
+  {
+    id: "self_harm_appetite_hopelessness",
+    domain: "self_harm",
+    match: isAppetiteHopelessness
+  },
+  {
+    id: "self_harm_spanish_appetite_hopelessness",
+    domain: "self_harm",
+    match: isSpanishAppetiteHopelessness
   },
   {
     id: "acute_missing_child",

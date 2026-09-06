@@ -10,6 +10,7 @@ import { evaluateVoiceTranscript } from "@/ai/voice-gate";
 import { activeConditions, selectLenses } from "@/domain/condition-lens";
 import { hasUnacknowledgedCrisis } from "@/state/selectors";
 import { readPasscode } from "@/hooks/use-passcode";
+import { readRealtimeNonce } from "@/hooks/realtime-nonce-client";
 import { aiDataModeForVoiceTransport, type AiDataMode } from "@/domain/privacy-disclosure";
 import { t } from "@/i18n/strings";
 import type { AiMessageAction, AppState } from "@/domain/types";
@@ -264,7 +265,7 @@ export function useFoodVoiceSession(args: {
     try {
       const response = await fetch("/api/realtime/token", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-realtime-nonce": readRealtimeNonce() },
         body: JSON.stringify({ patientId: stateBeforeStart.patient.id, crisisOpen: false, passcode })
       });
       token = (await response.json()) as TokenResponse;

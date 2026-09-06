@@ -1,7 +1,7 @@
-import { classifyCrisis, classifySafety } from "@/domain/safety";
+import { classifyCrisis, classifySafety, screenChildIngestion } from "@/domain/safety";
 import { crisisTierForDomain } from "@/domain/crisis-red-flags";
 import { tSafety, type Language } from "@/i18n/strings";
-import { CARE_TEAM_ACTIONS, CRISIS_ACTIONS, EMERGENCY_ACTIONS } from "./safety-gate";
+import { CARE_TEAM_ACTIONS, CRISIS_ACTIONS, EMERGENCY_ACTIONS, POISON_CONTROL_ACTIONS } from "./safety-gate";
 import type { AiMessageAction, AppState } from "@/domain/types";
 
 export type VoiceGateDecision =
@@ -43,6 +43,19 @@ export function evaluateVoiceTranscript(
         actions: EMERGENCY_ACTIONS
       };
     }
+  }
+
+  // A child who ate or swallowed something outranks everything below. The
+  // answer is Poison Control and the package in hand, not a food score
+  // (critique H4).
+  if (screenChildIngestion(transcript)) {
+    return {
+      kind: "intercept",
+      safety: "escalate",
+      content: tSafety(language, "childIngestionResponse"),
+      banner: tSafety(language, "voiceInterceptNotice"),
+      actions: POISON_CONTROL_ACTIONS
+    };
   }
 
   const safety = classifySafety(transcript);

@@ -53,6 +53,15 @@ export function MessageActions({ actions, language, clinic, onDraft }: MessageAc
             {tSafety(language, "callEmergency")}
           </a>
         ) : null}
+        {actions.includes("call_poison_control") ? (
+          <a
+            className="inline-flex min-h-12 items-center gap-2 rounded-control border border-rose-500 px-4 py-2 text-sm font-semibold text-rose-700"
+            href="tel:18002221222"
+          >
+            <Phone aria-hidden="true" className="h-4 w-4" />
+            {tSafety(language, "poisonControlCall")}
+          </a>
+        ) : null}
         {actions.includes("safety_plan") ? (
           <button
             className="inline-flex min-h-12 items-center gap-2 rounded-control border border-rose-500 px-4 py-2 text-sm font-semibold text-rose-700"

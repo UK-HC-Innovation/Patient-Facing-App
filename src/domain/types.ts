@@ -128,6 +128,7 @@ export type AiMessageAction =
   | "crisis_call_988"
   | "crisis_text_988"
   | "call_emergency"
+  | "call_poison_control"
   | "safety_plan";
 
 export type SafetyLevel = "allowed" | "escalate" | "blocked" | "crisis";

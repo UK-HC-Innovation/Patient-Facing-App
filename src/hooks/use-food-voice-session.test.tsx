@@ -317,7 +317,7 @@ describe("useFoodVoiceSession thinking watchdog", () => {
     vi.unstubAllGlobals();
   });
 
-  const startSession = async (onFinalTranscript: ReturnType<typeof vi.fn>) => {
+  const startSession = async (onFinalTranscript: (role: "patient" | "assistant", text: string) => void) => {
     const { result } = renderHook(() => useFoodVoiceSession({
       language: "en",
       getState: () => demoState,

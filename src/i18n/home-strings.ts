@@ -81,6 +81,7 @@ export type HomeStringKey =
   | "menuDemoResetTitle"
   | "menuDemoResetBody"
   | "menuDemoResetButton"
+  | "menuSamplePatientButton"
   | "taskScreeningBookedTitle"
   | "taskScreeningBookedBody"
   | "taskRecallTitle"
@@ -162,9 +163,10 @@ export const homeStrings: Record<Language, Record<HomeStringKey, string>> = {
     menuPrivacyDesc: "Export or delete your data",
     menuScreeningLabel: "Eye Check",
     menuScreeningDesc: "Find and book your diabetes eye screening",
-    menuDemoResetTitle: "Demo reset",
-    menuDemoResetBody: "Start over as Brent, due for an eye screening.",
-    menuDemoResetButton: "Reset demo",
+    menuDemoResetTitle: "Start over",
+    menuDemoResetBody: "Clears everything saved on this phone.",
+    menuDemoResetButton: "Start over",
+    menuSamplePatientButton: "Load a sample patient (Brent)",
     taskScreeningBookedTitle: "Eye screening — {site}, {when}",
     taskScreeningBookedBody: "About 10 minutes. Usually no dilation. Bring the printed report back to the app afterward.",
     taskRecallTitle: "Eye check coming up",
@@ -246,9 +248,10 @@ export const homeStrings: Record<Language, Record<HomeStringKey, string>> = {
     menuPrivacyDesc: "Exporta o borra tus datos",
     menuScreeningLabel: "Chequeo de Ojos",
     menuScreeningDesc: "Encuentra y reserva tu examen de ojos por la diabetes",
-    menuDemoResetTitle: "Reiniciar demo",
-    menuDemoResetBody: "Vuelve a empezar como Brent, pendiente de un examen de ojos.",
-    menuDemoResetButton: "Reiniciar demo",
+    menuDemoResetTitle: "Empezar de nuevo",
+    menuDemoResetBody: "Borra todo lo guardado en este teléfono.",
+    menuDemoResetButton: "Empezar de nuevo",
+    menuSamplePatientButton: "Cargar un paciente de ejemplo (Brent)",
     taskScreeningBookedTitle: "Examen de ojos — {site}, {when}",
     taskScreeningBookedBody: "Unos 10 minutos. Normalmente sin dilatación. Después, trae el reporte impreso a la app.",
     taskRecallTitle: "Se acerca tu chequeo de ojos",

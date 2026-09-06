@@ -1360,6 +1360,82 @@ export const crisisGateCorpus: CrisisCorpusCase[] = [
     domain: "logistics"
   },
 
+  // Spec 29 P1 — appetite hopelessness (critique H1). Typed into the food lens,
+  // these came back as "try a simpler name". The traps underneath are ordinary
+  // food talk that must stay quiet.
+  {
+    id: "self_harm_appetite_dont_want_to_eat",
+    text: "I don't want to eat anymore, what's the point",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+  {
+    id: "self_harm_appetite_no_point_in_eating",
+    text: "There's no point in eating",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+  {
+    id: "self_harm_appetite_why_bother",
+    text: "Why bother eating",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+  {
+    id: "self_harm_appetite_stopped_eating",
+    text: "I stopped eating",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+  {
+    id: "self_harm_appetite_whats_the_point",
+    text: "What's the point",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+  {
+    id: "self_harm_es_appetite_no_quiero_comer",
+    text: "Ya no quiero comer más, para qué",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+  {
+    id: "self_harm_es_appetite_no_vale_la_pena",
+    text: "Ya no vale la pena",
+    expectedMatched: true,
+    domain: "self_harm"
+  },
+  {
+    id: "trap_dont_want_that_cereal_again",
+    text: "I don't want to eat cereal again",
+    expectedMatched: false,
+    domain: "self_harm"
+  },
+  {
+    id: "trap_stopped_eating_sugar",
+    text: "I stopped eating sugar last month",
+    expectedMatched: false,
+    domain: "self_harm"
+  },
+  {
+    id: "trap_point_of_the_carb_count",
+    text: "What's the point of the carb count on this label",
+    expectedMatched: false,
+    domain: "self_harm"
+  },
+  {
+    id: "trap_dont_want_pizza_anymore",
+    text: "I don't want to eat pizza anymore, it upsets my stomach",
+    expectedMatched: false,
+    domain: "self_harm"
+  },
+  {
+    id: "trap_es_no_quiero_comer_mas_pan",
+    text: "No quiero comer más pan, me llena mucho",
+    expectedMatched: false,
+    domain: "self_harm"
+  },
+
   // English self-harm phrasings the Spanish rules already caught.
   {
     id: "self_harm_no_point_living",

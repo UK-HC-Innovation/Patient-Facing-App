@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { classifySafety, normalizeSpokenReading } from "./safety";
+import {
+  classifySafety,
+  hasSymptomaticHyperglycemia,
+  normalizeSpokenReading,
+  screenChildIngestion
+} from "./safety";
 
 describe("classifySafety", () => {
   it("blocks medication change advice", () => {
@@ -117,5 +122,44 @@ describe("normalizeSpokenReading", () => {
 
   it("leaves ordinary 'over' prose untouched", () => {
     expect(normalizeSpokenReading("I climbed over the fence")).toBe("I climbed over the fence");
+  });
+});
+
+// Spec 29 P1, from the 2026-09-06 Food Lens critique.
+describe("hasSymptomaticHyperglycemia", () => {
+  it("fires at 300 or more next to feeling sick", () => {
+    expect(hasSymptomaticHyperglycemia("my sugar is 480 and I feel sick")).toBe(true);
+    expect(hasSymptomaticHyperglycemia("blood sugar 350, throwing up all morning")).toBe(true);
+    expect(hasSymptomaticHyperglycemia("glucose 320 and I am so thirsty")).toBe(true);
+    expect(hasSymptomaticHyperglycemia("blood sugar of 400 and I feel confused")).toBe(true);
+    expect(hasSymptomaticHyperglycemia("mi glucosa esta en 380 y tengo mucha sed")).toBe(true);
+  });
+
+  it("escalates the whole classification, with 911 and the clinic on the card", () => {
+    expect(classifySafety("my sugar is 480 and I feel sick").level).toBe("escalate");
+  });
+
+  it("stays quiet under 300 or with no symptom", () => {
+    expect(hasSymptomaticHyperglycemia("my blood sugar was 310 this morning")).toBe(false);
+    expect(hasSymptomaticHyperglycemia("blood sugar 280 and I feel sick")).toBe(false);
+    expect(hasSymptomaticHyperglycemia("I feel sick today")).toBe(false);
+  });
+});
+
+describe("screenChildIngestion", () => {
+  it("catches a child who ate a whole container or swallowed something", () => {
+    expect(screenChildIngestion("my kid ate a whole bag of these")).toBe(true);
+    expect(screenChildIngestion("my toddler swallowed one of these")).toBe(true);
+    expect(screenChildIngestion("my 3 year old got into the gummy vitamins")).toBe(true);
+    expect(screenChildIngestion("my daughter drank the whole bottle")).toBe(true);
+    expect(screenChildIngestion("mi hijo se comio toda la bolsa")).toBe(true);
+    expect(screenChildIngestion("mi hija se tragó una pila")).toBe(true);
+  });
+
+  it("leaves ordinary meal logging alone", () => {
+    expect(screenChildIngestion("my kid ate a peanut butter sandwich")).toBe(false);
+    expect(screenChildIngestion("the kids ate dinner at six")).toBe(false);
+    expect(screenChildIngestion("I ate a whole bag of chips")).toBe(false);
+    expect(screenChildIngestion("mi hijo comio arroz con pollo")).toBe(false);
   });
 });

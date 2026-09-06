@@ -27,25 +27,36 @@ describe("AppSurfaceBoundary", () => {
     pathname = "/food/demo";
   });
 
-  it("does not mount patient state on the FoodLens public door", () => {
-    render(<AppSurfaceBoundary surface="foodlens">Public</AppSurfaceBoundary>);
+  it("does not mount patient state on the public door", () => {
+    render(<AppSurfaceBoundary>Public</AppSurfaceBoundary>);
 
     expect(screen.getByText("Public")).toBeInTheDocument();
     expect(screen.queryByTestId("health-state-provider")).not.toBeInTheDocument();
     expect(screen.queryByTestId("accessibility-shell")).not.toBeInTheDocument();
   });
 
-  it("keeps patient state on the personal FoodLens door", () => {
+  it("keeps patient state on the personal door", () => {
     pathname = "/food";
-    render(<AppSurfaceBoundary surface="foodlens">Personal</AppSurfaceBoundary>);
+    render(<AppSurfaceBoundary>Personal</AppSurfaceBoundary>);
 
     expect(screen.getByTestId("health-state-provider")).toBeInTheDocument();
     expect(screen.getByTestId("accessibility-shell")).toBeInTheDocument();
   });
 
-  it("preserves the provider in the full application", () => {
-    render(<AppSurfaceBoundary surface="full">Public</AppSurfaceBoundary>);
+  // Local and production wrote a stranger's browser a full patient record on a page
+  // that never showed it. Only Azure got this right (critique N9).
+  it("keeps the public door store-free on every build", () => {
+    render(<AppSurfaceBoundary>Public</AppSurfaceBoundary>);
+
+    expect(screen.getByText("Public")).toBeInTheDocument();
+    expect(screen.queryByTestId("health-state-provider")).not.toBeInTheDocument();
+  });
+
+  it("preserves the provider on every other route", () => {
+    pathname = "/today";
+    render(<AppSurfaceBoundary>Home</AppSurfaceBoundary>);
 
     expect(screen.getByTestId("health-state-provider")).toBeInTheDocument();
+    expect(screen.getByTestId("accessibility-shell")).toBeInTheDocument();
   });
 });

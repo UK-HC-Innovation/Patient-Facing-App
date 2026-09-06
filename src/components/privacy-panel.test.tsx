@@ -24,7 +24,7 @@ describe("PrivacyPanel", () => {
 
     expect(screen.getByText("No ads. No data monetization.")).toBeInTheDocument();
     expect(screen.getByText(/You control what you share/i)).toBeInTheDocument();
-    expect(screen.getByText(/saved demo record stays in this browser/i)).toBeInTheDocument();
+    expect(screen.getByText(/stays in this browser until you export or delete it/i)).toBeInTheDocument();
     expect(screen.getByText(/microphone audio is not sent/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Export my data" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Delete demo data" })).toBeInTheDocument();
@@ -103,15 +103,15 @@ describe("PrivacyPanel", () => {
     anchorClick.mockRestore();
   });
 
-  it("asks for confirmation before deleting demo data", () => {
+  it("asks for confirmation before deleting everything", () => {
     const onReset = vi.fn();
 
     render(<PrivacyPanel state={demoState} onReset={onReset} onExport={() => undefined} />);
     fireEvent.click(screen.getByRole("button", { name: "Delete demo data" }));
 
     expect(onReset).not.toHaveBeenCalled();
-    expect(screen.getByRole("dialog", { name: "Delete demo data?" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Yes, delete demo data" }));
+    expect(screen.getByRole("dialog", { name: "Delete everything?" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Yes, delete it" }));
     expect(onReset).toHaveBeenCalledTimes(1);
   });
 

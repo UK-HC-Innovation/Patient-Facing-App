@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { diabetesLens } from "./condition-lens";
-import { defaultDemoState } from "./fixtures";
+import { brentState, defaultDemoState } from "./fixtures";
 import {
   foodHistoryVoiceLine,
   lastTimeYouAte,
@@ -279,11 +279,21 @@ describe("lastTimeYouAte", () => {
 });
 
 describe("default demo correlation", () => {
-  it("ships with enough paired scored meals for both flagship insights", () => {
+  it("gives the sample patient enough paired scored meals for both flagship insights", () => {
+    expect(
+      summarizeFoodGlucoseLink(brentState.mealLog, brentState.glucoseReadings, diabetesLens)
+    ).not.toBeNull();
+    expect(summarizeScoreGlucoseLink(brentState.mealLog, brentState.glucoseReadings)).not.toBeNull();
+  });
+
+  // A fresh phone has nobody's meals on it, so it has nothing to correlate (critique H3).
+  it("has nothing to correlate on a fresh phone", () => {
+    expect(defaultDemoState.mealLog).toEqual([]);
+    expect(defaultDemoState.glucoseReadings).toEqual([]);
     expect(
       summarizeFoodGlucoseLink(defaultDemoState.mealLog, defaultDemoState.glucoseReadings, diabetesLens)
-    ).not.toBeNull();
-    expect(summarizeScoreGlucoseLink(defaultDemoState.mealLog, defaultDemoState.glucoseReadings)).not.toBeNull();
+    ).toBeNull();
+    expect(summarizeScoreGlucoseLink(defaultDemoState.mealLog, defaultDemoState.glucoseReadings)).toBeNull();
   });
 });
 

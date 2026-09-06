@@ -1,4 +1,4 @@
-import { classifyCrisis, classifySafety } from "@/domain/safety";
+import { classifyCrisis, classifySafety, screenChildIngestion } from "@/domain/safety";
 import { crisisTierForDomain, type CrisisDomain } from "@/domain/crisis-red-flags";
 import { screenSocialEmergency } from "@/domain/social-screen";
 import { verifyGrounding } from "@/domain/grounding";
@@ -18,9 +18,12 @@ export const CRISIS_ACTIONS: AiMessageAction[] = [
   "safety_plan"
 ];
 export const EMERGENCY_ACTIONS: AiMessageAction[] = ["call_emergency", "call_clinic", "draft_message"];
+// Spec 29 P1: a child who ate or swallowed something needs 911 or Poison
+// Control, and nothing else on the card competes with those two numbers.
+export const POISON_CONTROL_ACTIONS: AiMessageAction[] = ["call_emergency", "call_poison_control"];
 const ABUSE_ACTIONS: AiMessageAction[] = [...CRISIS_ACTIONS, ...CARE_TEAM_ACTIONS];
 
-type EscalationTier = "emergency" | "care_team";
+type EscalationTier = "emergency" | "care_team" | "poison_control";
 
 type SafetyDecision =
   | { kind: "crisis_escalate"; domain: CrisisDomain }
@@ -74,6 +77,18 @@ function decideSafety(request: HealthAiRequest): SafetyDecision {
         sources: []
       };
     }
+  }
+
+  // A child who ate or swallowed something is answered with Poison Control, not
+  // with a nutrition score or a "check the package label" line (critique H4).
+  // It sits under crisis and above everything else.
+  if (screenChildIngestion(request.patientInput)) {
+    return {
+      kind: "hard_escalate",
+      tier: "poison_control",
+      message: tSafety(language, "childIngestionResponse"),
+      sources: []
+    };
   }
 
   // A material emergency (no food today, hungry children, out of insulin) escalates
@@ -222,7 +237,12 @@ export async function createSafeAiResponse(
       content: decision.message,
       safety: "escalate",
       sources: decision.sources,
-      actions: decision.tier === "emergency" ? EMERGENCY_ACTIONS : CARE_TEAM_ACTIONS
+      actions:
+        decision.tier === "emergency"
+          ? EMERGENCY_ACTIONS
+          : decision.tier === "poison_control"
+            ? POISON_CONTROL_ACTIONS
+            : CARE_TEAM_ACTIONS
     };
   }
 
