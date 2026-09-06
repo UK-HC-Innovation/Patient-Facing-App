@@ -19,8 +19,10 @@ The bar, from `CLAUDE.md`: as few words as possible; answers before questions; e
 ## Where to test
 
 1. The working tree, which has uncommitted work in it. Run `npm run dev` and use `http://127.0.0.1:3000/food/demo` and `/food`. Record `git rev-parse --short HEAD` and note that the tree is dirty.
-2. Production: `https://patient-centered.vercel.app/food/demo` and `/food`. Deployed sha is 6181f82 per `docs/ops/DEPLOYS.jsonl`.
+2. Production: `https://patient-centered.vercel.app/food/demo` and `/food`. Deployed sha is bd96282 (2026-09-03) per `docs/ops/DEPLOYS.jsonl` on `origin/master`; the copy of that file in this tree is older.
 3. The Azure build, public door only: `https://ca-foodlens.delightfulsmoke-a0e2eff4.centralus.azurecontainerapps.io/food/demo`. Its `/api/health` should answer 200.
+
+Production was deployed from a newer line than this tree. On production the product is called "1 good choice" on screen and the camera scans only when you tap. The local tree still says "Food Lens" and scans on its own. Record which build you saw. Don't file the difference between builds as a finding.
 
 Tag every finding with the build you saw it on. If the tree won't start, say so in the report and test production and Azure only.
 
