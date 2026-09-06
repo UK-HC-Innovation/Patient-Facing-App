@@ -1,5 +1,7 @@
 import { buildVoiceSafetyIdentifier } from "@/ai/voice-safety-identifier";
 import { parseRouteToolArgs } from "@/domain/route-classifier";
+import { usageOutcomeFromHref, usageSignature } from "@/domain/usage-event";
+import { recordServerUsage } from "@/server/usage-log";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +28,7 @@ export async function POST(request: Request): Promise<Response> {
   const allowedHrefs = Array.isArray(body.allowedHrefs) ? body.allowedHrefs.filter((href): href is string => typeof href === "string") : [];
 
   if (utterance.length === 0 || allowedHrefs.length === 0) {
+    recordServerUsage({ kind: "problem", problem: "empty_result", where: "api.route.classify", code: "no_input" });
     return Response.json({ kind: "coach", confidence: 0 });
   }
 
@@ -36,6 +39,10 @@ export async function POST(request: Request): Promise<Response> {
   // No live model configured — defer to the Coach. The deterministic + mock
   // stages already ran on the client, so this is a graceful no-op, never a block.
   if (provider !== "openai" || !apiKey) {
+    // Every deferral below answers the client identically, so without these four distinct
+    // lines an unset key and a timed-out model are the same event from the outside -- the
+    // route quietly degrades for days and nothing in the app looks broken.
+    recordServerUsage({ kind: "problem", problem: "not_configured", where: "api.route.classify", code: "no_provider" });
     return Response.json({ kind: "coach", confidence: 0 });
   }
 
@@ -47,6 +54,7 @@ export async function POST(request: Request): Promise<Response> {
   // Skipped when DEMO_PASSCODE is unset (local dev).
   const requiredPasscode = process.env.DEMO_PASSCODE;
   if (requiredPasscode && body.passcode !== requiredPasscode) {
+    recordServerUsage({ kind: "problem", problem: "guard_blocked", where: "api.route.classify", code: "passcode" });
     return Response.json({ kind: "coach", confidence: 0 });
   }
 
@@ -83,6 +91,7 @@ export async function POST(request: Request): Promise<Response> {
     { role: "user", content: `Utterance: "${utterance}"\nAllowed screens: ${allowedHrefs.join(", ")}` }
   ];
 
+  const askedAt = Date.now();
   try {
     const upstream = await fetch(OPENAI_CHAT_URL, {
       method: "POST",
@@ -102,6 +111,12 @@ export async function POST(request: Request): Promise<Response> {
     });
 
     if (!upstream.ok) {
+      recordServerUsage({
+        kind: "problem",
+        problem: "error",
+        where: "api.route.classify",
+        code: `http_${upstream.status}`
+      });
       return Response.json({ kind: "coach", confidence: 0 });
     }
 
@@ -110,8 +125,24 @@ export async function POST(request: Request): Promise<Response> {
     };
     const rawArgs = data.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
     const parsed = rawArgs ? (JSON.parse(rawArgs) as unknown) : {};
-    return Response.json(parseRouteToolArgs(parsed, allowedHrefs));
-  } catch {
+    const decided = parseRouteToolArgs(parsed, allowedHrefs);
+    recordServerUsage({
+      kind: "decision",
+      decision: "route_classify",
+      outcome: decided.kind === "navigate" ? usageOutcomeFromHref(decided.href ?? "") : `stage.${decided.kind}`,
+      source: "model",
+      inputSignature: usageSignature(utterance.toLowerCase()),
+      confidence: Math.min(1, Math.max(0, decided.confidence ?? 0)),
+      latencyMs: Math.round(Date.now() - askedAt)
+    });
+    return Response.json(decided);
+  } catch (error) {
+    recordServerUsage({
+      kind: "problem",
+      problem: error instanceof Error && error.name === "TimeoutError" ? "timeout" : "error",
+      where: "api.route.classify",
+      code: error instanceof Error ? error.name.toLowerCase().slice(0, 40) : "unknown"
+    });
     return Response.json({ kind: "coach", confidence: 0 });
   }
 }

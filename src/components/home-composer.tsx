@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { classifyRouteRemote } from "@/ai/route-classifier-client";
 import { decideFrontDoor } from "@/domain/front-door";
+import { classifyCrisis } from "@/domain/safety";
+import { usageOutcomeFromHref, usageSignature } from "@/domain/usage-event";
+import { recordUsage } from "@/telemetry/recorder";
 import { CLASSIFIER_HREFS } from "@/domain/route-classifier";
 import { tHome, type HomeStringKey } from "@/i18n/home-strings";
 import type { Language } from "@/i18n/strings";
@@ -210,7 +213,42 @@ export function HomeComposer() {
   async function route(utterance: string, voiceInitiated: boolean): Promise<void> {
     const trimmed = utterance.trim();
     if (!trimmed) return;
+
+    // One signature per submission, shared by every event this utterance produces, so the
+    // report can line up "the gate cleared it" with "and then it routed here".
+    const signature = usageSignature(trimmed.toLowerCase());
+    const startedAt = performance.now();
     const decision = decideFrontDoor(trimmed, state);
+    const decidedIn = Math.round(performance.now() - startedAt);
+
+    // Re-run the crisis screen purely to report WHICH rule fired. `decideFrontDoor`
+    // collapses crisis, urgent-symptom and social-emergency into one `safety` reason, and
+    // "something escalated" is not auditable -- "self_harm_wake_up escalated" is. The screen
+    // is pure and already ran once this submission, so this costs a second regex pass.
+    // Recorded on a clear utterance too: a gate that failed to fire is the failure that
+    // matters, and it is invisible if only the fires are logged.
+    const crisis = classifyCrisis(trimmed);
+    recordUsage({
+      kind: "decision",
+      decision: "crisis_gate",
+      outcome: crisis.matched ? "matched" : "clear",
+      source: crisis.source === "model_backstop" ? "model" : "deterministic",
+      tags: crisis.ruleIds.slice(0, 8),
+      inputSignature: signature
+    });
+
+    recordUsage({
+      kind: "decision",
+      decision: "route_classify",
+      outcome:
+        decision.kind === "navigate"
+          ? usageOutcomeFromHref(decision.href)
+          : `coach.${decision.reason}`,
+      source: "deterministic",
+      inputSignature: signature,
+      latencyMs: decidedIn
+    });
+
     if (decision.kind === "navigate") {
       if (voiceInitiated) {
         await confirmNavigation({ href: decision.href, label: decision.label, utterance: trimmed });
@@ -226,7 +264,17 @@ export function HomeComposer() {
       return;
     }
 
+    const askedAt = performance.now();
     const llm = await classifyRouteRemote(trimmed, CLASSIFIER_HREFS);
+    recordUsage({
+      kind: "decision",
+      decision: "route_classify",
+      outcome: llm.kind === "navigate" ? usageOutcomeFromHref(llm.href ?? "") : `stage.${llm.kind}`,
+      source: "model",
+      inputSignature: signature,
+      confidence: typeof llm.confidence === "number" ? Math.min(1, Math.max(0, llm.confidence)) : undefined,
+      latencyMs: Math.round(performance.now() - askedAt)
+    });
     if (
       llm.kind === "navigate" &&
       typeof llm.href === "string" &&
