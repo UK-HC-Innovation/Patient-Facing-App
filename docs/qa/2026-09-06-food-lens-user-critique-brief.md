@@ -1,6 +1,6 @@
 # Food Lens user critique brief
 
-Paste everything below the line into a fresh Claude Code session opened at `C:\Patient centered`. Before you paste, drop 4 to 6 real phone photos into `C:\tmp\foodlens-photos\` (a dinner plate, a cereal box front, a Nutrition Facts panel, a barcode, a single loose food). Without them the photo flows get skipped and reported as a coverage gap.
+Paste everything below the line into a fresh Claude Code session opened at `C:\Patient centered`. `C:\tmp\foodlens-photos\` already holds 10 openly licensed photos (2 dinner plates, a banana, an apple, 2 Nutrition Facts panels, 2 barcodes, 2 Honey Nut Cheerios box fronts) with a `.y4m` copy of each for Chromium's fake camera; its `README.md` lists sources and the ffmpeg command for adding your own phone photos.
 
 ---
 
@@ -33,7 +33,7 @@ Do the whole walkthrough at a phone viewport, 375 wide: the `resize_window` mobi
 No browser available to you has a real camera or microphone. Work around it like this:
 
 - Typed food names and the "say one of these" chips are the main path. Type the way people do: misspellings, brand names, regional food ("soup beans and cornbread", "chicken and dumplins", "Ale-8"), a whole dish, a restaurant item.
-- Photos go in through Chromium's fake camera. Launch Playwright chromium with `--use-fake-device-for-media-stream` and `--use-file-for-fake-video-capture=C:\tmp\foodlens-photos\<file>.mjpeg`, and grant the camera permission. That feeds the real viewfinder loop, the plate scan button, and the barcode scanner (the `barcode-detector` polyfill decodes a real barcode from the frame). A single JPEG renamed to `.mjpeg` should play as a one-frame loop; if it doesn't, convert with ffmpeg to `.y4m`. Real phone photos are in `C:\tmp\foodlens-photos\` if the owner put them there. If that folder is empty, skip the photo flows and say so in the coverage section. Don't generate images and call them photos.
+- Photos go in through Chromium's fake camera. `C:\tmp\foodlens-photos\` holds 10 real photos and a `.y4m` copy of each; read its `README.md` first for what each one shows and what the two barcodes decode to (one resolves in Open Food Facts, one doesn't). Launch Playwright chromium with `--use-fake-ui-for-media-stream`, `--use-fake-device-for-media-stream`, and `--use-file-for-fake-video-capture=C:\tmp\foodlens-photos\<name>.y4m`, grant the camera permission, and open the app on `http://127.0.0.1:3000`. That feeds the real viewfinder loop, the plate scan button, and the barcode scanner. Verified 2026-09-06: the `.y4m` files play at 1280 wide; a JPEG renamed to `.mjpeg` gives a black frame, so don't try that. One file per browser launch, so relaunch between photos. Don't generate images and call them photos.
 - If there's no barcode photo, inject a `FakeBarcodeDetector` the way `e2e/food-lens.spec.ts:91-106` does, with a real UPC: Cheerios 016000275287, Coca-Cola 049000006346, Doritos Cool Ranch 028400064002.
 - Live vision needs `HEALTH_AI_PROVIDER=openai` and a key. `.env.local` has both. Cap yourself at about 15 live calls. Never print the key.
 - Voice can only be judged for its copy and its failure states. Note that as a coverage gap; don't pretend you spoke to it.
