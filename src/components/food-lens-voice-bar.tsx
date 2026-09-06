@@ -79,11 +79,11 @@ export function FoodLensVoiceBar({
   const listening = status === "listening" || status === "speaking";
   const statusLabel =
     idleLabel && (status === "idle" || status === "closed") ? idleLabel : t(language, STATUS_KEY[status]);
-  // Typed input is a capability, and where voice cannot run it is the primary one. While a
-  // live session is up the mic leads and the text box lives in the expanded transcript.
-  const showTypedRow = typedInput && (keyboardPrimary || !live);
-  const showTypedInPanel = typedInput && !showTypedRow;
-  const expandable = transcript !== undefined || showTypedInPanel;
+  // Typed input is a capability, and where it exists it is always reachable. It used to
+  // live inside the collapsed transcript panel while a live session was up, which is how
+  // a hung session took the keyboard away with it (critique F5, G2, H2).
+  const showTypedRow = typedInput;
+  const expandable = transcript !== undefined;
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -122,20 +122,16 @@ export function FoodLensVoiceBar({
       {open ? (
         <div className="grid max-h-[180px] gap-2 overflow-y-auto border-b border-white/15 pb-3">
           {transcript ?? <p className="text-sm text-white/70">{t(language, "compassConversationWaiting")}</p>}
-          {showTypedInPanel ? (
-            <>
-              <p className="text-xs text-white/70">{t(language, "liveTypedHint")}</p>
-              {typedForm}
-            </>
-          ) : null}
         </div>
       ) : null}
 
       {showTypedRow ? (
         <>
-          <p className="text-xs text-white/70">
-            {keyboardPrimary ? t(language, "micReadyOrType") : t(language, "fallbackNotice")}
-          </p>
+          {live && !keyboardPrimary ? null : (
+            <p className="text-xs text-white/70">
+              {keyboardPrimary ? t(language, "micReadyOrType") : t(language, "fallbackNotice")}
+            </p>
+          )}
           {typedForm}
         </>
       ) : null}

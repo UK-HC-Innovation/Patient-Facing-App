@@ -37,7 +37,12 @@ export type LiveSessionStatus =
 export type LiveSessionEvent =
   | { type: "status"; status: LiveSessionStatus }
   | { type: "userTranscript"; text: string; final: boolean }
-  | { type: "assistantTranscript"; text: string; final: boolean }
+  /**
+   * `truncated` marks a turn the server cut off mid-answer (a barge-in, a cancelled
+   * response). The consumer labels it rather than leaving half a sentence as the last
+   * thing on screen.
+   */
+  | { type: "assistantTranscript"; text: string; final: boolean; truncated?: boolean }
   | {
       type: "safetyIntercept";
       safety: "crisis" | "escalate" | "blocked";

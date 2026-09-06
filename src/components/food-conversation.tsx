@@ -34,7 +34,11 @@ export function FoodConversation({
         return (
           <article
             key={message.id}
-            className={`rounded-control p-3 text-sm leading-6 ${message.role === "assistant" ? "bg-white" : "bg-calm"}`}
+            // Explicit ink on both bubbles. The transcript renders inside the dark voice
+            // bar, so an inherited color made every answer white on white (critique F4).
+            className={`rounded-control p-3 text-sm leading-6 whitespace-pre-line ${
+              message.role === "assistant" ? "bg-white text-ink" : "bg-calm text-ink"
+            }`}
           >
             {isIntercept && message.banner ? (
               <p className={`mb-2 rounded-control border p-2 text-sm font-medium ${bannerClass[message.safety]}`} role="alert">

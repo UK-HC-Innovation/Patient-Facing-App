@@ -11,6 +11,7 @@ import { activeConditions, selectLenses } from "@/domain/condition-lens";
 import { hasUnacknowledgedCrisis } from "@/state/selectors";
 import { readPasscode } from "@/hooks/use-passcode";
 import { aiDataModeForVoiceTransport, type AiDataMode } from "@/domain/privacy-disclosure";
+import { t } from "@/i18n/strings";
 import type { AiMessageAction, AppState } from "@/domain/types";
 import type { LiveSessionContext, LiveSessionEvent, LiveSessionHandle, LiveSessionStatus } from "@/ai/types";
 
@@ -24,6 +25,17 @@ export type VoiceSafetyIntercept = {
 export type VoiceMode = "unknown" | "live" | "mock";
 
 const IDLE_TIMEOUT_MS = 180000;
+/**
+ * A turn that has been "thinking" this long is not thinking. Belt and braces over the
+ * root-cause fix in realtime-session.ts: whatever else goes wrong upstream, the person
+ * gets a finished sentence and a working ask box back (critique H2, G10).
+ *
+ * The cost is a slow but healthy answer that lands after the bound is dropped. That
+ * trade is deliberate. A patient holding an insulin pen is better served by "ask again"
+ * at 8 seconds than by 37 seconds of silence, and after spec 29 P3 a typed food scores
+ * deterministically without a session at all.
+ */
+const THINKING_WATCHDOG_MS = 8000;
 
 /**
  * Package ingredient text is raw OCR evidence. It may inform the confirmed in-memory
@@ -110,6 +122,9 @@ export function useFoodVoiceSession(args: {
   const startGenerationRef = useRef(0);
   const safetyLatchedRef = useRef(false);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const thinkingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const languageRef = useRef(language);
+  languageRef.current = language;
   const onFinalRef = useRef(onFinalTranscript);
   onFinalRef.current = onFinalTranscript;
   const partialRef = useRef("");
@@ -121,7 +136,15 @@ export function useFoodVoiceSession(args: {
     }
   }, []);
 
+  const clearThinkingTimer = useCallback(() => {
+    if (thinkingTimerRef.current) {
+      clearTimeout(thinkingTimerRef.current);
+      thinkingTimerRef.current = null;
+    }
+  }, []);
+
   const stop = useCallback(() => {
+    clearThinkingTimer();
     startGenerationRef.current += 1;
     sessionStartRef.current = null;
     clearIdleTimer();
@@ -130,7 +153,7 @@ export function useFoodVoiceSession(args: {
     partialRef.current = "";
     setPartialAssistantText("");
     setStatus("closed");
-  }, [clearIdleTimer]);
+  }, [clearIdleTimer, clearThinkingTimer]);
 
   const armIdleTimer = useCallback(() => {
     clearIdleTimer();
@@ -140,6 +163,22 @@ export function useFoodVoiceSession(args: {
     }, IDLE_TIMEOUT_MS);
   }, [clearIdleTimer, stop]);
 
+  const armThinkingTimer = useCallback(() => {
+    clearThinkingTimer();
+    thinkingTimerRef.current = setTimeout(() => {
+      thinkingTimerRef.current = null;
+      const partial = partialRef.current;
+      const lost = t(languageRef.current, "voiceLost");
+      stop();
+      // idle, not closed: the typed form and the mic both have to come back.
+      setStatus("idle");
+      onFinalRef.current(
+        "assistant",
+        partial.trim().length > 0 ? `${partial.trimEnd()} …\n${lost}` : lost
+      );
+    }, THINKING_WATCHDOG_MS);
+  }, [clearThinkingTimer, stop]);
+
   const handleEvent = useCallback(
     (event: LiveSessionEvent) => {
       if (safetyLatchedRef.current) return;
@@ -147,6 +186,11 @@ export function useFoodVoiceSession(args: {
       switch (event.type) {
         case "status":
           setStatus(event.status);
+          if (event.status === "thinking") {
+            armThinkingTimer();
+          } else {
+            clearThinkingTimer();
+          }
           break;
         case "userTranscript":
           if (event.final && event.text.trim().length > 0) {
@@ -154,10 +198,15 @@ export function useFoodVoiceSession(args: {
           }
           break;
         case "assistantTranscript":
+          clearThinkingTimer();
           if (event.final) {
-            const text = event.text.trim().length > 0 ? event.text : partialRef.current;
-            if (text.trim().length > 0) {
-              onFinalRef.current("assistant", text);
+            const base = event.text.trim().length > 0 ? event.text : partialRef.current;
+            if (base.trim().length > 0) {
+              // Never leave half a sentence as the last thing on screen.
+              onFinalRef.current(
+                "assistant",
+                event.truncated ? `${base.trimEnd()} …\n${t(languageRef.current, "voiceLost")}` : base
+              );
             }
             partialRef.current = "";
             setPartialAssistantText("");
@@ -167,6 +216,7 @@ export function useFoodVoiceSession(args: {
           }
           break;
         case "safetyIntercept":
+          clearThinkingTimer();
           safetyLatchedRef.current = true;
           partialRef.current = "";
           setPartialAssistantText("");
@@ -181,12 +231,13 @@ export function useFoodVoiceSession(args: {
         case "error":
           setError(event.message);
           if (event.fatal) {
+            clearThinkingTimer();
             setStatus("error");
           }
           break;
       }
     },
-    [armIdleTimer, stop]
+    [armIdleTimer, armThinkingTimer, clearThinkingTimer, stop]
   );
 
   const gateTranscript = useCallback(
@@ -409,10 +460,11 @@ export function useFoodVoiceSession(args: {
       startGenerationRef.current += 1;
       sessionStartRef.current = null;
       clearIdleTimer();
+      clearThinkingTimer();
       handleRef.current?.close();
       handleRef.current = null;
     };
-  }, [clearIdleTimer]);
+  }, [clearIdleTimer, clearThinkingTimer]);
 
   return {
     mode,

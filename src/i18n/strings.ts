@@ -38,6 +38,7 @@ export type FoodLensStringKey =
   | "askPlaceholder"
   | "askButton"
   | "liveTypedHint"
+  | "voiceLost"
   | "visionEstimateBadge"
   | "labelPhotoRegion"
   | "labelScoreFromPhoto"
@@ -360,6 +361,7 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     askPlaceholder: "Ask about this food…",
     askButton: "Ask",
     liveTypedHint: "You can type instead of talking.",
+    voiceLost: "I lost the connection. Ask again.",
     visionEstimateBadge: "Estimate from photo",
     labelPhotoRegion: "Nutrition label photo",
     labelScoreFromPhoto: "Read the Nutrition Facts label",
@@ -684,6 +686,7 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     askPlaceholder: "Pregunta sobre esta comida…",
     askButton: "Preguntar",
     liveTypedHint: "También puedes escribir en vez de hablar.",
+    voiceLost: "Perdí la conexión. Pregunta otra vez.",
     visionEstimateBadge: "Estimado por la foto",
     labelPhotoRegion: "Foto de la etiqueta nutricional",
     labelScoreFromPhoto: "Leer la tabla nutricional",
@@ -1088,7 +1091,9 @@ export type SafetyStringKey =
   | "socialEmergencyResponse"
   | "voicePausedForSafety"
   | "crisisLockNote"
-  | "urgentHelpSummary";
+  | "urgentHelpSummary"
+  | "poisonControlCall"
+  | "childIngestionResponse";
 
 export const safetyStrings: Record<Language, Record<SafetyStringKey, string>> = {
   en: {
@@ -1116,7 +1121,10 @@ export const safetyStrings: Record<Language, Record<SafetyStringKey, string>> = 
     voicePausedForSafety: "Voice paused for your safety",
     crisisLockNote:
       "The mic and the keyboard stay locked until you tap continue. These numbers work without a connection.",
-    urgentHelpSummary: "Feeling unsafe right now? Get help"
+    urgentHelpSummary: "Feeling unsafe right now? Get help",
+    poisonControlCall: "Call Poison Control",
+    childIngestionResponse:
+      "If your child is sleepy, vomiting, or hard to wake, call 911. Otherwise call Poison Control, 1-800-222-1222, and have the package in your hand."
   },
   es: {
     crisisResponse:
@@ -1143,7 +1151,10 @@ export const safetyStrings: Record<Language, Record<SafetyStringKey, string>> = 
     voicePausedForSafety: "Voz pausada por tu seguridad",
     crisisLockNote:
       "El micrófono y el teclado quedan bloqueados hasta que toques continuar. Estos números funcionan sin conexión.",
-    urgentHelpSummary: "¿Te sientes inseguro ahora? Busca ayuda"
+    urgentHelpSummary: "¿Te sientes inseguro ahora? Busca ayuda",
+    poisonControlCall: "Llama a Control de Envenenamiento",
+    childIngestionResponse:
+      "Si tu hijo está somnoliento, vomitando o cuesta despertarlo, llama al 911. Si no, llama a Control de Envenenamiento, 1-800-222-1222, y ten el paquete en la mano."
   }
 };
 

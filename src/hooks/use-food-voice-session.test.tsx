@@ -291,3 +291,109 @@ describe("useFoodVoiceSession context injection", () => {
     expect(result.current.status).toBe("closed");
   });
 });
+
+describe("useFoodVoiceSession thinking watchdog", () => {
+  beforeEach(() => {
+    mocks.close.mockClear();
+    mocks.connect.mockReset();
+    mocks.openLocal.mockReset();
+    const session = {
+      sendUserText: mocks.sendUserText,
+      requestContextResponse: mocks.requestContextResponse,
+      updateInstructions: vi.fn(),
+      close: mocks.close,
+      getStatus: () => "listening"
+    };
+    mocks.connect.mockResolvedValue(session);
+    mocks.openLocal.mockResolvedValue(session);
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(() => Promise.resolve(
+      new Response(JSON.stringify({ mode: "live", clientSecret: "secret", model: "gpt-realtime-2", expiresAt: null }))
+    )));
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  const startSession = async (onFinalTranscript: ReturnType<typeof vi.fn>) => {
+    const { result } = renderHook(() => useFoodVoiceSession({
+      language: "en",
+      getState: () => demoState,
+      getContext: () => ({ frameDataUrl: null, identifiedFood: null, flagTexts: [] }),
+      onFinalTranscript,
+      onSafetyIntercept: vi.fn()
+    }));
+    await act(async () => result.current.start());
+    return { result, args: mocks.connect.mock.calls[0][0] as ConnectArgs };
+  };
+
+  it("ends a turn that has been thinking for eight seconds", async () => {
+    const onFinalTranscript = vi.fn();
+    const { result, args } = await startSession(onFinalTranscript);
+
+    act(() => args.onEvent({ type: "status", status: "thinking" }));
+    expect(result.current.status).toBe("thinking");
+
+    await act(async () => {
+      vi.advanceTimersByTime(8000);
+    });
+
+    expect(result.current.status).toBe("idle");
+    expect(mocks.close).toHaveBeenCalled();
+    expect(onFinalTranscript).toHaveBeenCalledWith("assistant", "I lost the connection. Ask again.");
+  });
+
+  it("keeps the half sentence and labels it", async () => {
+    const onFinalTranscript = vi.fn();
+    const { args } = await startSession(onFinalTranscript);
+
+    act(() => args.onEvent({ type: "status", status: "thinking" }));
+    act(() => args.onEvent({
+      type: "assistantTranscript",
+      text: "I can't confirm 45 grams of carbs for",
+      final: false
+    }));
+    act(() => args.onEvent({ type: "status", status: "thinking" }));
+
+    await act(async () => {
+      vi.advanceTimersByTime(8000);
+    });
+
+    expect(onFinalTranscript).toHaveBeenCalledWith(
+      "assistant",
+      "I can't confirm 45 grams of carbs for …\nI lost the connection. Ask again."
+    );
+  });
+
+  it("does not fire while the answer is still arriving", async () => {
+    const onFinalTranscript = vi.fn();
+    const { result, args } = await startSession(onFinalTranscript);
+
+    act(() => args.onEvent({ type: "status", status: "thinking" }));
+    await act(async () => {
+      vi.advanceTimersByTime(7000);
+    });
+    act(() => args.onEvent({ type: "assistantTranscript", text: "Cheerios ", final: false }));
+    await act(async () => {
+      vi.advanceTimersByTime(7000);
+    });
+
+    expect(result.current.status).toBe("thinking");
+    expect(mocks.close).not.toHaveBeenCalled();
+  });
+
+  it("labels a turn the server cut short, without waiting for the watchdog", async () => {
+    const onFinalTranscript = vi.fn();
+    const { args } = await startSession(onFinalTranscript);
+
+    act(() => args.onEvent({ type: "assistantTranscript", text: "chest pain, or you", final: false }));
+    act(() => args.onEvent({ type: "assistantTranscript", text: "", final: true, truncated: true }));
+
+    expect(onFinalTranscript).toHaveBeenCalledWith(
+      "assistant",
+      "chest pain, or you …\nI lost the connection. Ask again."
+    );
+  });
+});

@@ -165,6 +165,74 @@ export function reduceRealtimeEvent(status: LiveSessionStatus, event: RealtimeSe
 }
 
 /**
+ * What a turn owes the person when the server cuts it short.
+ *
+ * The third-turn hang in the 2026-09-06 critique (H2, G10) has one cause: server VAD runs
+ * with interrupt_response on, so any sound the mic picks up cancels the answer in flight.
+ * The transcription that follows that noise is empty, the guarded "only respond to a
+ * non-empty transcript" branch never fires, and the last status anyone saw was the
+ * speech_stopped that means "thinking". Nothing moved it off again, and the ask button is
+ * disabled while thinking.
+ *
+ * This reducer closes the turn out honestly: it finalizes the half sentence with a
+ * truncated flag, and it puts status back somewhere the person can act from.
+ */
+export type TurnState = { streaming: boolean; sawDelta: boolean };
+
+export const IDLE_TURN_STATE: TurnState = { streaming: false, sawDelta: false };
+
+const CUT_SHORT_RESPONSE_STATUSES = new Set(["cancelled", "incomplete", "failed"]);
+
+function endTurn(state: TurnState): { state: TurnState; emits: LiveSessionEvent[] } {
+  if (!state.streaming || !state.sawDelta) {
+    return { state: IDLE_TURN_STATE, emits: [] };
+  }
+  // Empty text: the consumer already holds the deltas and stitches them together.
+  return {
+    state: IDLE_TURN_STATE,
+    emits: [{ type: "assistantTranscript", text: "", final: true, truncated: true }]
+  };
+}
+
+export function reduceTurnRecovery(
+  state: TurnState,
+  event: RealtimeServerEvent
+): { state: TurnState; emits: LiveSessionEvent[] } {
+  switch (event.type) {
+    case "response.created":
+      return { state: { streaming: true, sawDelta: false }, emits: [] };
+    case "response.output_audio_transcript.delta":
+      return { state: { streaming: true, sawDelta: true }, emits: [] };
+    case "response.output_audio_transcript.done":
+      return { state: IDLE_TURN_STATE, emits: [] };
+    case "input_audio_buffer.speech_started":
+      // A barge-in. Whatever was being said is now all the person will ever get of it.
+      return endTurn(state);
+    case "response.done": {
+      const response = event.response;
+      const responseStatus =
+        response && typeof response === "object" && "status" in response
+          ? str((response as { status: unknown }).status)
+          : "";
+      return CUT_SHORT_RESPONSE_STATUSES.has(responseStatus)
+        ? endTurn(state)
+        : { state: IDLE_TURN_STATE, emits: [] };
+    }
+    case "conversation.item.input_audio_transcription.completed": {
+      if (str(event.transcript).trim().length > 0) {
+        return { state, emits: [] };
+      }
+      // Silence, a beep, or room noise. There is nothing to answer, so hand the turn
+      // back instead of holding "thinking" open forever.
+      const ended = endTurn(state);
+      return { state: ended.state, emits: [...ended.emits, { type: "status", status: "listening" }] };
+    }
+    default:
+      return { state, emits: [] };
+  }
+}
+
+/**
  * A function the model may call mid-turn. The handler runs locally and returns
  * deterministic data; the model is never asked to compute anything, only to ask for a
  * number it does not have. Whatever it then says still passes the output guard.
@@ -262,6 +330,27 @@ export async function connectRealtimeSession(args: ConnectArgs): Promise<LiveSes
   const metrics = createRealtimeVoiceMetricsRecorder();
   let failClosedTimer: ReturnType<typeof setTimeout> | null = null;
   let outputIntercepted = false;
+  // See reduceTurnRecovery: an interrupted or unanswerable turn has to end honestly
+  // rather than pin the UI at "thinking" (critique H2, G10).
+  let turn: TurnState = IDLE_TURN_STATE;
+
+  const recoverTurn = (event: RealtimeServerEvent) => {
+    const recovery = reduceTurnRecovery(turn, event);
+    turn = recovery.state;
+    recovery.emits.forEach((emitted) => {
+      if (closed) return;
+      if (emitted.type === "status") status = emitted.status;
+      args.onEvent(emitted);
+    });
+  };
+
+  // Return the UI to a state it can act from, for the paths no server event covers.
+  const releaseTurn = () => {
+    if (closed) return;
+    turn = IDLE_TURN_STATE;
+    status = "listening";
+    args.onEvent({ type: "status", status: "listening" });
+  };
 
   const clearFailClosedTimer = () => {
     if (failClosedTimer) {
@@ -370,6 +459,8 @@ export async function connectRealtimeSession(args: ConnectArgs): Promise<LiveSes
       outputGuard.observeDelta(str(event.delta));
       if (transcriptGate.isLatched()) return;
     }
+    // Runs before the status reduction below so a truncated turn is finalized in order.
+    recoverTurn(event);
     const reduction = reduceRealtimeEvent(status, event);
     status = reduction.status;
     reduction.emits.forEach((emitted) => {
@@ -391,7 +482,8 @@ export async function connectRealtimeSession(args: ConnectArgs): Promise<LiveSes
       failClosedTimer = setTimeout(() => {
         failClosedTimer = null;
         if (!closed) {
-          args.onEvent({ type: "error", message: "I didn't catch that — please try again.", fatal: false });
+          args.onEvent({ type: "error", message: "I didn't catch that. Please try again.", fatal: false });
+          releaseTurn();
         }
       }, TRANSCRIPT_FAIL_CLOSED_MS);
     }
