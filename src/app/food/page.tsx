@@ -7,6 +7,7 @@ import { FoodViewfinder } from "@/components/food-viewfinder";
 import { FOOD_LENS_CAPABILITIES } from "@/components/food-lens-shell";
 import {
   FoodLensExperience,
+  scrollToViewfinder,
   sharedViewfinderProps,
   type FoodLensView
 } from "@/components/food-lens-experience";
@@ -146,10 +147,13 @@ export default function FoodPage() {
     EMPTY_FOOD_RESOLUTION_SNAPSHOT
   );
   const foodResolutionCancelRef = useRef<(() => void) | null>(null);
-  const { camera, live, passcode, activeBarcode, cameraBlocked, authority } = useFoodLensEngine({
+  const { camera, live, passcode, activeBarcode, dismissBarcode, cameraBlocked, authority } = useFoodLensEngine({
     crisis: crisisOpen,
     barcode: {
       onDetect: (barcode) => {
+        // Re-detecting a held product must not erase the bridge's confirmed snapshot.
+        // Its controller deliberately deduplicates this code and will not republish it.
+        if (!PACKAGE_SCAN_CLOUD_ENABLED && barcodeReviewCode === barcode) return;
         setLogged(false);
         if (!PACKAGE_SCAN_CLOUD_ENABLED) {
           setBarcodeReviewCode(barcode);
@@ -161,6 +165,11 @@ export default function FoodPage() {
   const adoptLiveMatch = live.adoptMatch;
   const rearmLiveScore = live.rearm;
   const suspendLiveScore = live.suspend;
+  const resumeScanner = useCallback(() => {
+    dismissBarcode();
+    rearmLiveScore({ waitForSceneChange: true });
+    scrollToViewfinder();
+  }, [dismissBarcode, rearmLiveScore]);
   const updateFoodResolutionState = useCallback((next: FoodResolutionSnapshot) => {
     setFoodResolutionState(next);
   }, []);
@@ -186,7 +195,8 @@ export default function FoodPage() {
   const foodResolutionActiveRef = useRef(foodResolutionActive);
   foodResolutionActiveRef.current = foodResolutionActive;
   const packageDraftOpen = foodResolutionActive && scannedFood === null;
-  const liveSceneUnconfirmed = live.candidate !== null || live.packageDetected || live.noMatch;
+  const liveSceneUnconfirmed = !foodResolutionActive &&
+    (live.candidate !== null || live.packageDetected || live.noMatch);
   const plateScanBlocked = foodResolutionActive || live.packageDetected || live.candidate !== null;
 
   // A barcode or its one-shot label transcription is authoritative while it is
@@ -227,7 +237,7 @@ export default function FoodPage() {
   const labelCompass = useCompassScore(scannedFood, { passcode });
   const compass = useMemo(
     () =>
-      live.match && !scannedFood
+      live.match && !foodResolutionActive
         ? {
             score: live.match.score,
             carveOut: null,
@@ -235,8 +245,8 @@ export default function FoodPage() {
             estimatedDomains: live.match.estimatedDomains ?? null,
             alternativesLoading: false
           }
-        : { ...labelCompass, carveOut: labelCompass.carveOut ?? live.carveOut, estimatedDomains: null },
-    [labelCompass, live.carveOut, live.match, scannedFood]
+        : { ...labelCompass, carveOut: labelCompass.carveOut ?? (foodResolutionActive ? null : live.carveOut), estimatedDomains: null },
+    [labelCompass, live.carveOut, live.match, foodResolutionActive]
   );
   const compassRef = useRef(compass);
   compassRef.current = compass;
@@ -519,8 +529,9 @@ export default function FoodPage() {
   const rejectCameraCandidate = useCallback(() => {
     exactFoodAbortRef.current?.controller.abort();
     exactFoodAbortRef.current = null;
-    rearmLiveScore();
-  }, [rearmLiveScore]);
+    if (foodResolutionActive) cancelFoodResolution();
+    else resumeScanner();
+  }, [cancelFoodResolution, foodResolutionActive, resumeScanner]);
 
   useEffect(() => {
     const pending = exactFoodAbortRef.current;
@@ -927,7 +938,7 @@ export default function FoodPage() {
     : pinnedBarcode ?? activeBarcode;
 
   const domainBreakdown = resolveDomainBreakdown(compass.score, compass.estimatedDomains);
-  const correctionCandidates = !scannedFood ? live.match?.candidates ?? [] : [];
+  const correctionCandidates = !foodResolutionActive ? live.match?.candidates ?? [] : [];
   const packageProvenance = scannedFood
     ? t(language, "packageConfirmed", {
         food: [scannedFood.brand, scannedFood.name].filter(Boolean).join(" ")
@@ -961,10 +972,10 @@ export default function FoodPage() {
     score: compass.score,
     carveOut: compass.carveOut,
     badge: badgeState,
-    noMatchCandidates: live.noMatchCandidates,
-    noMatch: live.noMatch,
-    candidate: identifiedFood ? null : live.candidate,
-    packageDetected: identifiedFood === null && live.packageDetected
+    noMatchCandidates: foodResolutionActive ? [] : live.noMatchCandidates,
+    noMatch: !foodResolutionActive && live.noMatch,
+    candidate: identifiedFood || foodResolutionActive ? null : live.candidate,
+    packageDetected: !foodResolutionActive && identifiedFood === null && live.packageDetected
   };
 
   const conversation = (
@@ -1037,7 +1048,11 @@ export default function FoodPage() {
         breakdown: domainBreakdown,
         tier: compass.score?.tier ?? "T1"
       }}
-      wrapper={(children) => <AppShell title={t(language, "pageTitle")}>{children}</AppShell>}
+      wrapper={(children) => (
+        <AppShell brand="one-good-choice" title={t(language, "pageTitle")}>
+          {children}
+        </AppShell>
+      )}
       slots={{
         plate: (
           <PlateCard
@@ -1095,7 +1110,7 @@ export default function FoodPage() {
         // Held back until the published list has actually arrived: an empty
         // CompassAlternatives says "already one of the best", which is not true yet.
         alternatives:
-          compass.score && !compass.alternativesLoading ? (
+          compass.score && !compass.alternativesLoading && (!scannedFood || compass.alternatives.length > 0) ? (
             <section data-testid="food-alternatives">
               <h3 className="text-sm font-semibold text-ink/75">{t(language, "compassBetterOptions")}</h3>
               <div className="mt-2">
@@ -1127,7 +1142,7 @@ export default function FoodPage() {
                 passcode={passcode}
                 patientId={state.patient.id}
                 promoted={live.packageDetected}
-                resumeLive={live.rearm}
+                resumeLive={resumeScanner}
                 suspendLive={live.suspend}
               />
             ) : barcodeReviewCode ? (
@@ -1138,7 +1153,7 @@ export default function FoodPage() {
                 onCancelChange={updateFoodResolutionCancel}
                 onDismiss={dismissBarcodeReview}
                 onStateChange={updateFoodResolutionState}
-                resumeLive={live.rearm}
+                resumeLive={resumeScanner}
                 suspendLive={live.suspend}
               />
             ) : null}

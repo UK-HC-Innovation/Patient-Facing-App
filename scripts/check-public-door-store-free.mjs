@@ -11,9 +11,10 @@
  *
  * Why a source-graph walk rather than the two obvious alternatives:
  *
- *  - A bundle-string scan for the storage key false-positives on day one. The root layout
- *    (src/app/layout.tsx) wraps everything in HealthStateProvider, so the storage-key
- *    literal is already -- correctly -- in the shared layout chunks the public door loads.
+ *  - A bundle-string scan for the storage key false-positives on day one. The root client
+ *    boundary contains both the stateful personal branch and the provider-free public
+ *    branch, so its shared chunk may contain the storage implementation even when the
+ *    public branch never mounts it.
  *  - A per-chunk scan is blind to webpack dedup: a module can be referenced across chunk
  *    boundaries without its bytes landing in the route's own files.
  *
@@ -51,9 +52,9 @@ const FORBIDDEN = [
  *
  * Since spec 26 P6 the public door sits at /food/demo, so it also inherits any layout on
  * the segments above it -- src/app/food/layout.tsx would apply to it without appearing
- * anywhere in its own directory. Those are walked too. The one deliberate exception is the
- * app root layout, which mounts HealthStateProvider around every route by design; that is
- * the accepted, documented reality this whole file is written around.
+ * anywhere in its own directory. Those are walked too. The app root layout is deliberately
+ * checked separately: its AppSurfaceBoundary has a legitimate stateful branch, while unit
+ * and browser tests prove that /food/demo selects the provider-free branch.
  */
 const PUBLIC_ROUTE_DIR = "src/app/food/demo";
 
@@ -224,9 +225,8 @@ if (process.argv.includes("--self-test")) {
     console.error(`\nWalker self-test FAILED:\n  ${problems.join("\n  ")}\n`);
     process.exit(1);
   }
-  // The wrapper walk contributes zero entries today, because no src/app/food wrapper exists.
-  // That makes it the easiest thing in this file to delete or mis-seed without any check going
-  // red, so drive it off a stub tree that does have them.
+  // Drive the wrapper walk off a stub tree so every supported wrapper kind stays covered
+  // even when the current on-disk route happens not to use one of them.
   const stub = new Set([
     "src/app/layout.tsx",
     "src/app/food/layout.tsx",
@@ -241,8 +241,8 @@ if (process.argv.includes("--self-test")) {
       wrapperProblems.push(`inherited wrapper walk misses ${required}`);
     }
   }
-  // The root layout is the one documented exception: it mounts the store around every route
-  // by design, so counting it would make this check permanently red.
+  // Root behavior is tested through AppSurfaceBoundary rather than this static graph because
+  // the boundary intentionally owns both the stateful and provider-free branches.
   if (walked.includes("src/app/layout.tsx")) {
     wrapperProblems.push("inherited wrapper walk counts the app root layout, which is exempt");
   }
@@ -278,6 +278,16 @@ if (leak) {
     `The public Food Lens door reaches the patient store:\n    ${leak.map(toPosix).join("\n      -> ")}\n` +
       `  Personalization may only enter the shared layer as props the /food door supplies.`
   );
+}
+
+// The root layout must delegate the decision instead of directly mounting patient state.
+const rootLayoutSource = readFileSync(resolve(projectRoot, "src/app/layout.tsx"), "utf8");
+const rootLayoutImports = valueImports(rootLayoutSource);
+if (rootLayoutImports.includes("@/state/store")) {
+  failures.push("src/app/layout.tsx directly imports the patient store; use AppSurfaceBoundary instead.");
+}
+if (!rootLayoutImports.includes("@/components/app-surface-boundary")) {
+  failures.push("src/app/layout.tsx no longer delegates provider selection to AppSurfaceBoundary.");
 }
 
 // 2. The negative fixture: if the walker cannot find the store from the page that genuinely

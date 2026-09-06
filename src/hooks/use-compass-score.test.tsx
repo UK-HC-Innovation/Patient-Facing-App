@@ -25,6 +25,22 @@ afterEach(() => {
 });
 
 describe("useCompassScore", () => {
+  it.each(["barcode_off", "barcode_fdc", "barcode_seed"] as const)(
+    "does not fuzzy-match confirmed Isopure from %s to lemonade",
+    (source) => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+      const scannedFood = {
+        ...food, id: "barcode:089094026219", barcode: "089094026219",
+        brand: "Isopure", name: "Protein Powder Drink Mix", source
+      };
+      const { result } = renderHook(() => useCompassScore(scannedFood));
+      expect(result.current.score?.tier).toBe("T2");
+      expect(result.current.alternatives).toEqual([]);
+      expect(fetchMock).not.toHaveBeenCalled();
+    }
+  );
+
   it("scores confirmed label nutrition locally without fuzzy-matching the package-front name", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);

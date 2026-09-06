@@ -79,7 +79,10 @@ export function useBarcodeReview(args: {
     setState({ active: true, status: "looking_up", code, food: null, resolvedFood: null });
 
     try {
-      const response = await fetch(`/api/food/lookup?barcode=${encodeURIComponent(code)}`, {
+      const response = await fetch("/api/food/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ barcode: code }),
         signal: controller.signal
       });
       const json = (await response.json()) as unknown;

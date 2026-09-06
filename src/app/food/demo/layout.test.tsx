@@ -14,7 +14,7 @@ describe("the public door's installed identity", () => {
   it("ships a manifest that opens the food demo, not the blood-pressure app", () => {
     const manifest = JSON.parse(readFileSync("public/food-lens.webmanifest", "utf8"));
     expect(manifest.start_url).toBe("/food/demo");
-    expect(manifest.name).toBe("Food Lens");
+    expect(manifest.name).toBe("1 good choice");
     expect(manifest.icons.map((icon: { src: string }) => icon.src)).toEqual(["/food-lens-icon.svg"]);
     // Narrower scope would push the /compass redirect out of the installed window.
     expect(manifest.scope).toBe("/");

@@ -145,7 +145,7 @@ test("a barcode candidate survives turning the package and remains unscored unti
     }
     (window as unknown as { BarcodeDetector: unknown }).BarcodeDetector = FakeBarcodeDetector;
   });
-  await page.route("**/api/food/lookup?*", (route) => route.fulfill({
+  await page.route("**/api/food/lookup", (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
     body: JSON.stringify({

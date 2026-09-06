@@ -98,6 +98,35 @@ describe("meanAbsoluteDifference", () => {
 });
 
 describe("useLiveFoodScore", () => {
+  it.each([false, true])("waits for a new camera scene after rescan (suspended: %s)", async (suspended) => {
+    const pixels = new Uint8ClampedArray(32 * 32 * 4).fill(120);
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      drawImage: () => {},
+      getImageData: () => ({ data: pixels })
+    } as unknown as CanvasRenderingContext2D);
+    const video = document.createElement("video");
+    Object.defineProperty(video, "videoWidth", { value: 640 });
+    const videoRef = { current: video };
+    fetchMock.mockResolvedValue(jsonResponse({ mode: "candidate", candidate: { food: MATCH.food }, candidates: [] }));
+    const { result } = renderHook(() => useLiveFoodScore({
+      videoRef, grabFrame: () => "data:image/jpeg;base64,AAAA",
+      cameraActive: true, barcodeActive: false
+    }));
+    await flush();
+    expect(result.current.candidate).not.toBeNull();
+    if (suspended) act(() => result.current.suspend());
+    act(() => result.current.rearm({ waitForSceneChange: true }));
+    expect(result.current.candidate).toBeNull();
+    await act(async () => { await vi.advanceTimersByTimeAsync(LIVE_INTERVAL_MS * 3); });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.current.candidate).toBeNull();
+
+    pixels.fill(220);
+    await act(async () => { await vi.advanceTimersByTimeAsync(LIVE_INTERVAL_MS); });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.current.candidate).not.toBeNull();
+  });
+
   it("fires once immediately on arm so the first score does not wait an interval", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({ mode: "candidate", candidate: { food: MATCH.food }, candidates: [] })

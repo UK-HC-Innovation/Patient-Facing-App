@@ -22,3 +22,6 @@ certificates
 docs/qa/package-label-eval/manifest.local.json
 docs/qa/package-label-eval/private-images/
 artifacts/package-label-eval/
+
+# Local deployment scratch space and credential caches.
+/tmp/

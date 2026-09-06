@@ -57,4 +57,45 @@ describe("useBarcodeScan", () => {
     await advance(2000);
     expect(onBarcode).not.toHaveBeenCalled();
   });
+
+  it("dismisses immediately and waits for the dismissed code to leave before accepting it again", async () => {
+    const onBarcode = vi.fn();
+    let codes = [{ rawValue: "089094026219" }];
+    const videoRef = fakeVideoRef();
+    const detectorFactory = async () => ({ detect: async () => codes });
+    const { result } = renderHook(() => useBarcodeScan({ videoRef, enabled: true, onBarcode, detectorFactory }));
+    await advance(1000);
+    act(() => result.current.dismissBarcode());
+    expect(result.current.activeBarcode).toBeNull();
+    await advance(2000);
+    expect(onBarcode).toHaveBeenCalledTimes(1);
+
+    codes = [];
+    await advance(1000);
+    codes = [{ rawValue: "089094026219" }];
+    await advance(1000);
+    expect(onBarcode).toHaveBeenCalledTimes(2);
+    expect(result.current.activeBarcode).toBe("089094026219");
+
+    act(() => result.current.dismissBarcode());
+    codes = [{ rawValue: "030000010204" }];
+    await advance(1000);
+    expect(result.current.activeBarcode).toBe("030000010204");
+  });
+
+  it("does not reopen a dismissed barcode from an in-flight detection", async () => {
+    const onBarcode = vi.fn();
+    let finishDetection: ((codes: Array<{ rawValue: string }>) => void) | undefined;
+    const detect = vi.fn().mockResolvedValue([{ rawValue: "089094026219" }]);
+    const videoRef = fakeVideoRef();
+    const detectorFactory = async () => ({ detect });
+    const { result } = renderHook(() => useBarcodeScan({ videoRef, enabled: true, onBarcode, detectorFactory }));
+    await advance(1000);
+    detect.mockImplementationOnce(() => new Promise((resolve) => { finishDetection = resolve; }));
+    await advance(500);
+    act(() => result.current.dismissBarcode());
+    await act(async () => finishDetection?.([{ rawValue: "089094026219" }]));
+    expect(result.current.activeBarcode).toBeNull();
+    expect(onBarcode).toHaveBeenCalledTimes(1);
+  });
 });

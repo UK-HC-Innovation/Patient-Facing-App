@@ -2,10 +2,15 @@
   "name": "home-health-ai-ownership-app",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "next dev",
     "dev:https": "next dev --experimental-https",
     "build": "next build",
+    "assemble:azure": "node scripts/assemble-azure-standalone.mjs",
+    "test:azure-artifact": "node scripts/test-azure-standalone.mjs",
     "bundle:ladder": "node scripts/check-ladder-bundle.mjs",
     "start": "next start",
     "lint": "next lint",
@@ -15,6 +20,7 @@
     "test:e2e:package": "playwright test --config=playwright.package.config.ts",
     "test:e2e:offline": "npm run build && playwright test --config=playwright.offline.config.ts",
     "crisis:gate": "node scripts/crisis-gate.mjs",
+    "usage:report": "node scripts/usage-report.mjs",
     "storefree": "node scripts/check-public-door-store-free.mjs --self-test && node scripts/check-public-door-store-free.mjs",
     "navigator:gate": "node scripts/navigator-gate.mjs",
     "eval:package-label": "node scripts/package-label-eval.mjs",

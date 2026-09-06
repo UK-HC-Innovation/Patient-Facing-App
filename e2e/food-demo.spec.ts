@@ -58,7 +58,7 @@ test("keeps the camera in place and starts the food conversation automatically",
   // The verdict says band, sentence and number; the food name rides its subline.
   await expect(page.getByTestId("food-verdict")).toContainText("Banana, raw", { timeout: 10_000 });
   await expect(page.getByRole("region", { name: "Food camera" })).toBeVisible();
-  await expect(page.getByRole("log")).toContainText("Food Lens: I see Banana, raw");
+  await expect(page.getByRole("log")).toContainText("1 good choice: I see Banana, raw");
 
   await expect(page.getByText("Camera collapsed")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Expand camera|Back to result|Tap start|Ask about/i })).toHaveCount(0);
@@ -228,7 +228,7 @@ test("keeps general guidance explicit through the camera-first flow", async ({ p
   await stubCameraMatch(page);
   await page.goto("/food/demo");
 
-  await expect(page.getByRole("heading", { name: "Food Lens" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "1 good choice" })).toBeVisible();
   await expect(page.locator('[data-guidance-scope="general"]').first()).toContainText(
     "General nutrition advice — not based on your readings or health history."
   );
@@ -242,7 +242,7 @@ test("localizes the stateless camera-first flow in Spanish", async ({ page }) =>
   await page.goto("/food/demo?lang=es");
   await confirmCameraCandidate(page, "es");
 
-  await expect(page.getByRole("heading", { name: "Lente de Comida" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "1 good choice" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Cámara de alimentos" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Puntaje y calorías" })).toContainText("83");
   await expect(page.getByRole("textbox")).toHaveCount(0);

@@ -2,11 +2,13 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FoodViewfinder } from "@/components/food-viewfinder";
+import { OneGoodChoiceBrand } from "@/components/one-good-choice-brand";
 import { FoodGuidanceSource } from "@/components/food-guidance-source";
 import { CompassAlternatives, resolveDomainBreakdown } from "@/components/compass-score";
 import { COMPASS_CAPABILITIES } from "@/components/food-lens-shell";
 import {
   FoodLensExperience,
+  scrollToViewfinder,
   sharedViewfinderProps,
   type FoodLensView
 } from "@/components/food-lens-experience";
@@ -238,7 +240,8 @@ export default function CompassPage() {
   const rejectLiveCandidate = useCallback(() => {
     exactFoodAbortRef.current?.controller.abort();
     exactFoodAbortRef.current = null;
-    rearmLive();
+    rearmLive({ waitForSceneChange: true });
+    scrollToViewfinder();
   }, [rearmLive]);
 
   const stopPendingFoodRequests = useCallback(() => {
@@ -591,9 +594,11 @@ export default function CompassPage() {
       }}
       wrapper={(children) => (
         <main className="min-h-screen bg-paper">
-          <div className="mx-auto w-full max-w-[480px] px-4 py-2">
-            <h1 className="text-base font-semibold">{t(language, "compassPageTitle")}</h1>
-          </div>
+          <header className="border-b-4 border-care bg-white">
+            <div className="mx-auto w-full max-w-[480px] px-4 py-4">
+              <OneGoodChoiceBrand title={t(language, "compassPageTitle")} />
+            </div>
+          </header>
           {children}
         </main>
       )}

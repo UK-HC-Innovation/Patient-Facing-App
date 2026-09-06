@@ -1,15 +1,19 @@
 import "@/styles/globals.css";
-import { AccessibilityShell } from "@/components/accessibility-shell";
+import { AppSurfaceBoundary } from "@/components/app-surface-boundary";
 import { SwRegister } from "@/components/sw-register";
-import { HealthStateProvider } from "@/state/store";
+import { UsageBoundary } from "@/telemetry/usage-boundary";
+import { APP_SURFACE } from "@/config/app-surface";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "Home Health Ownership",
-  description: "Patient-owned home care support for blood pressure, medicines, and visits.",
-  manifest: "/manifest.webmanifest",
-  icons: { icon: "/app-icon.svg" }
+  title: APP_SURFACE === "foodlens" ? "1 good choice" : "Home Health Ownership",
+  description:
+    APP_SURFACE === "foodlens"
+      ? "See a food's Food Compass score and explore better alternatives."
+      : "Patient-owned home care support for blood pressure, medicines, and visits.",
+  manifest: APP_SURFACE === "foodlens" ? "/food-lens.webmanifest" : "/manifest.webmanifest",
+  icons: { icon: APP_SURFACE === "foodlens" ? "/food-lens-icon.svg" : "/app-icon.svg" }
 };
 
 export const viewport: Viewport = {
@@ -20,10 +24,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <SwRegister />
-        <HealthStateProvider>
-          <AccessibilityShell>{children}</AccessibilityShell>
-        </HealthStateProvider>
+        {APP_SURFACE === "foodlens" ? null : <SwRegister />}
+        <UsageBoundary />
+        <AppSurfaceBoundary>{children}</AppSurfaceBoundary>
       </body>
     </html>
   );

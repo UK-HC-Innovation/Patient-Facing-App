@@ -1645,7 +1645,7 @@ describe("healthReducer", () => {
 
     expect(next.mealLog).toHaveLength(1);
     expect(next.mealLog[0].id).toBe("meal-1");
-    expect(next.auditEvents.at(-1)?.label).toBe("Meal logged from Food Lens");
+    expect(next.auditEvents.at(-1)?.label).toBe("Meal logged from 1 good choice");
   });
 
   it("amends a meal time and records when it was edited", () => {

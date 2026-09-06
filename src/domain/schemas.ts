@@ -44,6 +44,7 @@ export const careContextInputSchema = z.object({
 });
 
 export const barcodeSchema = z.string().regex(/^\d{8,14}$/);
+export const barcodeLookupRequestSchema = z.object({ barcode: barcodeSchema }).strict();
 
 const nullableNumber = z.number().finite().nullable();
 

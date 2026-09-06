@@ -661,7 +661,10 @@ export function healthReducer(state: AppState, action: HealthAction): AppState {
       return {
         ...state,
         mealLog: [...state.mealLog, action.entry],
-        auditEvents: [...state.auditEvents, recordAuditEvent(state.patient.id, "created", "Meal logged from Food Lens")]
+        auditEvents: [
+          ...state.auditEvents,
+          recordAuditEvent(state.patient.id, "created", "Meal logged from 1 good choice")
+        ]
       };
     }
     case "amendMealLogTime": {

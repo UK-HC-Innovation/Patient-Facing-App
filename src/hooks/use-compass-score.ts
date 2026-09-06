@@ -67,10 +67,11 @@ export function useCompassScore(
   const [alternativesLoading, setAlternativesLoading] = useState(false);
   const requestId = useRef(0);
 
-  // A package-front identity is display evidence, not a catalogue key. Label-photo
-  // foods therefore never feed their name back into fuzzy FNDDS matching, even for
-  // alternatives; barcode and explicit catalogue foods retain the existing path.
-  const foodName = food?.source === "label_vision" ? null : food?.name ?? null;
+  // Package names are not catalogue keys. Fuzzy words such as "powder drink mix"
+  // can retrieve lemonade for a protein powder, including unrelated alternatives.
+  // Keep confirmed package nutrition local until an exact catalogue mapping exists.
+  const foodName = food?.source === "label_vision" || food?.source.startsWith("barcode_")
+    ? null : food?.name ?? null;
   useEffect(() => {
     const id = (requestId.current += 1);
     if (!foodName || !local.score) {

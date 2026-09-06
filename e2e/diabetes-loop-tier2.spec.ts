@@ -37,7 +37,7 @@ test("tier-2 diabetes loop: dose-log tags and editable portion scaling", async (
   await expect(page.getByText("Metformin missed").first()).toBeVisible();
 
   const foodLookupResponse = page.waitForResponse(
-    (response) => response.url().includes(`/api/food/lookup?barcode=${SOUP_BARCODE}`) && response.ok()
+    (response) => response.url().endsWith("/api/food/lookup") && response.request().method() === "POST" && response.ok()
   );
   await page.goto("/food");
   await foodLookupResponse;

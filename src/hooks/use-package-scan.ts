@@ -503,7 +503,12 @@ export function usePackageScan(args: {
       sessionInterrupted: interruptedRequest?.kind === "session"
     });
     try {
-      const response = await fetch(`/api/food/lookup?barcode=${encodeURIComponent(code)}`, { signal: controller.signal });
+      const response = await fetch("/api/food/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ barcode: code }),
+        signal: controller.signal
+      });
       const json = await response.json() as unknown;
       if (!mountedRef.current || controller.signal.aborted || !authority.isCurrent(requestEpoch)) return;
       const parsed = foodLookupResponseSchema.safeParse(json);

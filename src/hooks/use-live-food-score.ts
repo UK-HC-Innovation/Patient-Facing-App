@@ -74,7 +74,7 @@ export type LiveScoreState = {
   adoptMatch: (match: LiveMatch, options?: { pin?: boolean }) => void;
   /** Clear all current authority and stop paid identification until rearm(). */
   suspend: () => void;
-  rearm: () => void;
+  rearm: (options?: { waitForSceneChange?: boolean }) => void;
   /**
    * How much of the viewfinder is on screen, 0-1. Imperative on purpose: the caller measures
    * into a ref and calls this once per animation frame, so a continuous scroll value never
@@ -164,6 +164,7 @@ export function useLiveFoodScore(args: {
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const signatureRef = useRef<number[] | null>(null);
+  const awaitingNewSceneRef = useRef(false);
   const lastChangeRef = useRef<number>(0);
   const inFlightRef = useRef(false);
   const identifyAbortRef = useRef<AbortController | null>(null);
@@ -409,7 +410,7 @@ export function useLiveFoodScore(args: {
     }
   }, [candidateList, commitCandidate, commitMatch, commitPackageDetected, invalidateAuthority, isAuthorityCurrent, snapshotAuthority]);
 
-  const rearm = useCallback(() => {
+  const rearm = useCallback((options: { waitForSceneChange?: boolean } = {}) => {
     if (disarmReasonRef.current === "provider") {
       return;
     }
@@ -432,16 +433,21 @@ export function useLiveFoodScore(args: {
     commitPackageDetected(false);
     setNoMatchCandidates([]);
     setNoMatch(false);
+    awaitingNewSceneRef.current = options.waitForSceneChange === true;
+    signatureRef.current = awaitingNewSceneRef.current
+      ? frameSignature(videoRef.current, canvasRef.current)
+      : null;
+    resumeHoldUntilRef.current = awaitingNewSceneRef.current ? nowRef.current() + LIVE_INTERVAL_MS : 0;
     if (gated) {
       return;
     }
     disarmedRef.current = false;
     disarmReasonRef.current = null;
-    signatureRef.current = null;
     lastChangeRef.current = nowRef.current();
     setDisarmReason(null);
     if (
       !wasDisarmed &&
+      !awaitingNewSceneRef.current &&
       enabledRef.current &&
       cameraActiveRef.current &&
       !barcodeActiveRef.current &&
@@ -449,7 +455,7 @@ export function useLiveFoodScore(args: {
     ) {
       void identify();
     }
-  }, [commitCandidate, commitMatch, commitPackageDetected, identify, invalidateAuthority]);
+  }, [commitCandidate, commitMatch, commitPackageDetected, identify, invalidateAuthority, videoRef]);
 
   const suspend = useCallback(() => {
     invalidateAuthority();
@@ -571,7 +577,7 @@ export function useLiveFoodScore(args: {
     // what keeps the gate from resetting AUTO_DISARM_MS bookkeeping.
     if (offscreenResumeRef.current) {
       offscreenResumeRef.current = false;
-    } else {
+    } else if (!awaitingNewSceneRef.current) {
       lastChangeRef.current = nowRef.current();
       signatureRef.current = null;
       // Fire immediately on arm so the first score does not wait a full interval.
@@ -586,6 +592,15 @@ export function useLiveFoodScore(args: {
         return;
       }
       const signature = frameSignature(videoRef.current, canvasRef.current);
+      if (awaitingNewSceneRef.current) {
+        const previous = signatureRef.current;
+        if (signature && previous && meanAbsoluteDifference(previous, signature) < SCENE_CHANGE_THRESHOLD) {
+          return;
+        }
+        // If a frame signature is unavailable, still give the person time to move.
+        if (nowRef.current() < resumeHoldUntilRef.current) return;
+        awaitingNewSceneRef.current = false;
+      }
       if (signature) {
         const previous = signatureRef.current;
         signatureRef.current = signature;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 
 export type BarcodeDetectorLike = {
   detect(source: CanvasImageSource): Promise<Array<{ rawValue: string }>>;
@@ -32,12 +32,19 @@ export function useBarcodeScan(args: {
   enabled: boolean;
   onBarcode: (barcode: string) => void;
   detectorFactory?: BarcodeDetectorFactory;
-}): { activeBarcode: string | null } {
+}): { activeBarcode: string | null; dismissBarcode: () => void } {
   const { videoRef, enabled, onBarcode, detectorFactory } = args;
   const [activeBarcode, setActiveBarcode] = useState<string | null>(null);
   const onBarcodeRef = useRef(onBarcode);
   onBarcodeRef.current = onBarcode;
   const activeRef = useRef<string | null>(null);
+  const dismissedRef = useRef<string | null>(null);
+  const dismissBarcode = useCallback(() => {
+    // Release camera preemption immediately, without reopening the product still in view.
+    dismissedRef.current = activeRef.current;
+    activeRef.current = null;
+    setActiveBarcode(null);
+  }, []);
 
   useEffect(() => {
     if (!enabled) {
@@ -77,6 +84,11 @@ export function useBarcodeScan(args: {
         if (results.length > 0) {
           missTicks = 0;
           const value = results[0].rawValue;
+          if (value === dismissedRef.current) {
+            pendingValue = null;
+            pendingCount = 0;
+            return;
+          }
           if (value === pendingValue) {
             pendingCount += 1;
           } else {
@@ -91,6 +103,8 @@ export function useBarcodeScan(args: {
           pendingValue = null;
           pendingCount = 0;
           missTicks += 1;
+          // A deliberate move away permits scanning that product again.
+          if (missTicks >= 2) dismissedRef.current = null;
           if (missTicks >= CLEAR_AFTER_TICKS && activeRef.current !== null) {
             setActive(null);
           }
@@ -109,5 +123,5 @@ export function useBarcodeScan(args: {
     };
   }, [enabled, detectorFactory, videoRef]);
 
-  return { activeBarcode };
+  return { activeBarcode, dismissBarcode };
 }

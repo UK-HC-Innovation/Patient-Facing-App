@@ -40,8 +40,24 @@ jobs:
       - name: Run crisis safety gate
         run: npm run crisis:gate
 
+      - name: Verify FoodLens Azure artifact
+        env:
+          APP_SURFACE: foodlens
+          HEALTH_AI_PROVIDER: mock
+          FOOD_PACKAGE_SCAN_ENABLED: "0"
+          NEXT_PUBLIC_FOOD_PACKAGE_SCAN: "0"
+        run: |
+          npm run build
+          npm run assemble:azure
+          npm run test:azure-artifact
+
       - name: Install browsers
         run: npx playwright install --with-deps chromium firefox webkit
+
+      - name: Run FoodLens Azure browser contract
+        env:
+          PLAYWRIGHT_AZURE_PORT: "3220"
+        run: npx playwright test --config=playwright.azure.config.ts
 
       - name: Run Ladder acceptance cohort
         env:

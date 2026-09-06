@@ -50,12 +50,16 @@ async function confirmCameraCandidate(page: Page) {
 }
 
 function strip(page: Page) {
-  return page.getByRole("region", { name: "Food Lens status" });
+  return page.getByRole("region", { name: "1 good choice status" });
 }
 
 async function scrollViewfinderAway(page: Page) {
-  // Past half of the 336px viewfinder, so the gate crosses its pause threshold.
-  await page.evaluate(() => window.scrollTo({ top: 400, behavior: "instant" as ScrollBehavior }));
+  // Scroll by the viewfinder's actual position so this stays correct when the
+  // branded page header changes height.
+  await page.getByRole("region", { name: "Food camera" }).evaluate((viewfinder) => {
+    const box = viewfinder.getBoundingClientRect();
+    window.scrollTo({ top: Math.ceil(window.scrollY + box.bottom), behavior: "instant" });
+  });
   await expect(strip(page)).toHaveAttribute("data-strip-mode", "food");
 }
 

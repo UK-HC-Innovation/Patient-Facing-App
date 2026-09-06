@@ -3,28 +3,58 @@
 import { Home, LayoutGrid } from "lucide-react";
 import Link from "next/link";
 import React, { type ReactNode } from "react";
+import { APP_SURFACE } from "@/config/app-surface";
 import { tHome } from "@/i18n/home-strings";
 import { useHealthState } from "@/state/store";
+import { OneGoodChoiceBrand } from "@/components/one-good-choice-brand";
 
 // The tab bar collapsed from 11 flat peers to a chat-first Home plus a single
 // "All my health" browse menu. Every former destination stays reachable through
 // /menu (see menu-grid.tsx).
-const navItems = [
+const fullNavItems = [
   { href: "/today", labelKey: "navHome" as const, icon: Home },
   { href: "/menu", labelKey: "navMenu" as const, icon: LayoutGrid }
 ];
 
-export function AppShell({ title, children }: { title: string; children: ReactNode }) {
+const foodLensNavItems = [
+  { href: "/food", label: "1 good choice", icon: Home },
+  { href: "/food/demo", label: "Public demo", icon: LayoutGrid }
+];
+
+export function AppShell({
+  title,
+  children,
+  navigationMode = APP_SURFACE,
+  brand
+}: {
+  title: string;
+  children: ReactNode;
+  navigationMode?: "full" | "foodlens";
+  brand?: "one-good-choice";
+}) {
   const { state } = useHealthState();
+  const navItems = navigationMode === "foodlens" ? foodLensNavItems : fullNavItems;
 
   return (
     <div className="min-h-screen bg-paper text-ink">
-      <header className="border-b border-ink/10 bg-white">
+      <header
+        className={
+          brand === "one-good-choice"
+            ? "border-b-4 border-care bg-white"
+            : "border-b border-ink/10 bg-white"
+        }
+      >
         <div className="mx-auto flex max-w-5xl items-start justify-between gap-3 px-4 py-4">
-          <div>
-            <p className="text-sm font-medium text-care">Home Health Ownership</p>
-            <h1 className="text-2xl font-semibold">{title}</h1>
-          </div>
+          {brand === "one-good-choice" ? (
+            <OneGoodChoiceBrand title={title} />
+          ) : (
+            <div>
+              <p className="text-sm font-medium text-care">
+                {navigationMode === "foodlens" ? "1 good choice" : "Home Health Ownership"}
+              </p>
+              <h1 className="text-2xl font-semibold">{title}</h1>
+            </div>
+          )}
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-5 pb-28 sm:pb-24">{children}</main>
@@ -39,7 +69,7 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
                 href={item.href}
               >
                 <Icon aria-hidden="true" className="mb-1 h-5 w-5" />
-                {tHome(state.patient.language, item.labelKey)}
+                {"label" in item ? item.label : tHome(state.patient.language, item.labelKey)}
               </Link>
             );
           })}

@@ -13,6 +13,7 @@ export type FoodLensEngine = {
   passcode: string | undefined;
   /** The packaged food currently in frame, or null where the mount has no barcode reader. */
   activeBarcode: string | null;
+  dismissBarcode: () => void;
   cameraStatus: CameraStatus;
   /** Camera denied or absent: the viewfinder gives up its height and the voice bar inverts. */
   cameraBlocked: boolean;
@@ -68,7 +69,7 @@ export function useFoodLensEngine(args: {
     void start();
   }, [start]);
 
-  const { activeBarcode } = useBarcodeScan({
+  const { activeBarcode, dismissBarcode } = useBarcodeScan({
     videoRef: camera.videoRef,
     enabled: barcode !== undefined && cameraActive,
     onBarcode: (code) => barcode?.onDetect(code)
@@ -100,6 +101,7 @@ export function useFoodLensEngine(args: {
     live,
     passcode,
     activeBarcode,
+    dismissBarcode,
     cameraStatus: camera.status,
     cameraBlocked: camera.status === "denied" || camera.status === "unavailable",
     authority

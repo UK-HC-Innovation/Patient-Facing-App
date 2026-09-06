@@ -173,9 +173,10 @@ describe("usePackageScan", () => {
 
   it("pins the same barcode for the package session but lets a different code take over", async () => {
     const secondFood = { ...barcodeFood, id: "barcode:456", barcode: "456", name: "Different product" };
-    fetchMock.mockImplementation((input: RequestInfo | URL) =>
-      Promise.resolve(response({ found: true, food: String(input).endsWith("456") ? secondFood : barcodeFood }))
-    );
+    fetchMock.mockImplementation((_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? "{}")) as { barcode?: string };
+      return Promise.resolve(response({ found: true, food: body.barcode === "456" ? secondFood : barcodeFood }));
+    });
     const { result } = harness();
 
     await act(async () => result.current.onBarcodeDetected("123"));
@@ -213,7 +214,7 @@ describe("usePackageScan", () => {
       if (url.endsWith("/session")) {
         return Promise.resolve(response({ authorized: true, expiresAt: Date.now() + 60_000 }));
       }
-      if (url.includes("/lookup?")) {
+      if (url.endsWith("/lookup")) {
         barcodeSignal = init?.signal as AbortSignal | undefined;
         return new Promise<Response>((_resolve, reject) => {
           barcodeSignal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), { once: true });
@@ -367,7 +368,7 @@ describe("usePackageScan", () => {
     fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith("/session")) return Promise.resolve(response({ authorized: true, expiresAt: Date.now() + 60_000 }));
-      if (url.includes("/lookup?")) return Promise.resolve(response({ found: true, food: barcodeFood }));
+      if (url.endsWith("/lookup")) return Promise.resolve(response({ found: true, food: barcodeFood }));
       packageSignal = init?.signal as AbortSignal | undefined;
       return new Promise<Response>((_resolve, reject) => {
         packageSignal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), { once: true });

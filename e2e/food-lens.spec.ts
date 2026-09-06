@@ -4,6 +4,89 @@ const SOUP_BARCODE = "051000012616";
 const OATS_BARCODE = "030000010204";
 const UNKNOWN_BARCODE = "000000000099";
 
+test("Isopure stays confirmed after its barcode leaves and re-enters the camera", async ({ page }) => {
+  await stubFoodLens(page);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.addInitScript(() => {
+    (window as unknown as { __e2eBarcode: string }).__e2eBarcode = "089094026219";
+  });
+  let lookupCalls = 0;
+  await page.route("**/api/food/lookup", (route) => {
+    if (route.request().postDataJSON().barcode !== "089094026219") return route.fallback();
+    lookupCalls += 1;
+    return route.fulfill({ json: {
+      found: true,
+      food: {
+        id: "barcode:089094026219", barcode: "089094026219",
+        name: "Protein Powder Drink Mix", brand: "Isopure", category: null,
+        source: "barcode_off", ingredientText: null,
+        nutrition: {
+          servingSize: "1 scoop (31 g)", servingGrams: 31, basis: "per_serving",
+          calories: 100, proteinG: 25, carbsG: 0, totalSugarsG: 0, addedSugarsG: 0,
+          fiberG: 0, totalFatG: 0, saturatedFatG: 0, sodiumMg: 160, potassiumMg: null,
+          monoFatG: null, polyFatG: null, transFatG: null, cholesterolMg: null,
+          calciumMg: null, ironMg: null
+        }
+      }
+    } });
+  });
+  await page.route("**/api/food/identify", (route) => route.fulfill({ json: {
+    mode: "candidate",
+    candidate: { food: { code: "92510610", description: "Lemonade-flavored drink, made from powdered mix, with sugar", group: "Beverages" } },
+    candidates: []
+  } }));
+  await page.goto("/food");
+  await confirmBarcode(page);
+  const review = page.getByTestId("food-barcode-review");
+  await expect(review).toContainText("Confirmed package: Isopure Protein Powder Drink Mix");
+  await expect(page.getByTestId("food-verdict")).toContainText("Isopure");
+
+  await page.evaluate(() => {
+    (window as unknown as { __e2eBarcode: string }).__e2eBarcode = "";
+  });
+  // The reader drops a barcode after ten 500 ms frames without it.
+  await page.waitForTimeout(5_500);
+  await page.evaluate(() => {
+    (window as unknown as { __e2eBarcode: string }).__e2eBarcode = "089094026219";
+  });
+  await page.waitForTimeout(1_500);
+  await expect(review).toContainText("Confirmed package: Isopure Protein Powder Drink Mix");
+  await expect(page.getByTestId("food-verdict")).toContainText("Isopure");
+  await expect(page.getByTestId("food-identity-review")).toHaveCount(0);
+  expect(lookupCalls).toBe(1);
+
+  await page.getByRole("button", { name: "Scan another food" }).click();
+  await expect(review).toHaveCount(0);
+  await expect(page.getByLabel("Food camera")).toBeInViewport();
+  await page.waitForTimeout(1_500);
+  await expect(review).toHaveCount(0);
+  await page.evaluate((barcode) => {
+    (window as unknown as { __e2eBarcode: string }).__e2eBarcode = barcode;
+  }, SOUP_BARCODE);
+  await confirmBarcode(page);
+  await expect(page.getByTestId("food-verdict")).toContainText("Chicken Noodle Soup");
+});
+
+test("rejecting a camera guess returns to the camera without immediately reopening it", async ({ page }) => {
+  await stubFoodLens(page);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.addInitScript(() => {
+    (window as unknown as { __e2eBarcode: string }).__e2eBarcode = "";
+  });
+  await page.route("**/api/food/identify", (route) => route.fulfill({ json: {
+    mode: "candidate",
+    candidate: { food: { code: "92510610", description: "Lemonade-flavored drink", group: "Beverages" } },
+    candidates: []
+  } }));
+  await page.goto("/food");
+  await expect(page.getByTestId("food-identity-review")).toContainText("Lemonade");
+  await page.getByRole("button", { name: "No, scan again" }).click();
+  await expect(page.getByTestId("food-identity-review")).toHaveCount(0);
+  await expect(page.getByLabel("Food camera")).toBeInViewport();
+  await page.waitForTimeout(1000);
+  await expect(page.getByTestId("food-identity-review")).toHaveCount(0);
+});
+
 async function stubFoodLens(page: import("@playwright/test").Page) {
   await page.addInitScript((barcode) => {
     if (!window.sessionStorage.getItem("__e2e_cleared")) {
@@ -119,7 +202,7 @@ async function stubUnknownBarcode(page: import("@playwright/test").Page) {
       body: JSON.stringify({ mode: "mock", reason: "provider_mock" })
     })
   );
-  await page.route("**/api/food/lookup?*", (route) =>
+  await page.route("**/api/food/lookup", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ found: false }) })
   );
 }
@@ -151,7 +234,7 @@ test("labels the personalized route without inventing a current-food recommendat
   await stubEmptyFoodLens(page);
   await page.goto("/food");
 
-  await expect(page.getByRole("heading", { name: "Food Lens" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "1 good choice" })).toBeVisible();
   await expect(page.locator('[data-guidance-scope="personalized"]').first()).toContainText(
     "Based on your recent readings and health history."
   );
@@ -167,7 +250,7 @@ test("scans a food, asks a typed question, logs the meal, and persists it", asyn
 
   await page.goto("/today");
   await page.goto("/food");
-  await expect(page.getByRole("heading", { name: "Food Lens" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "1 good choice" })).toBeVisible();
   await confirmBarcode(page);
 
   await expect(page.getByTestId("food-verdict")).toContainText("Chicken Noodle Soup");
@@ -190,7 +273,8 @@ test("scans a food, asks a typed question, logs the meal, and persists it", asyn
   );
   // Shown twice on purpose: the viewfinder badge and the score row on the card.
   await expect(page.getByText("Estimate from label")).toHaveCount(2);
-  await expect(page.getByText("Better options")).toBeVisible();
+  // Package names alone cannot establish comparable catalogue foods.
+  await expect(page.getByText("Better options")).toHaveCount(0);
 
   await page.getByRole("button", { name: "Log this" }).click();
   await expect(page.getByText("Added to your meals")).toBeVisible();
@@ -269,9 +353,7 @@ test("keeps existing state when migrating a pre-mealLog save", async ({ page }) 
   await confirmBarcode(page);
   await page.getByLabel("Ask about this food…").fill("Is this okay?");
   await page.getByRole("button", { name: "Ask" }).click();
-  // The published alternatives arrive last and move everything below them, so wait for the
-  // slot to land before reaching for an action underneath it.
-  await expect(page.getByTestId("food-alternatives")).toBeVisible();
+  await expect(page.getByTestId("food-alternatives")).toHaveCount(0);
   await page.getByRole("button", { name: "Log this" }).click();
   await expect(page.getByText("Added to your meals")).toBeVisible();
 });

@@ -175,14 +175,14 @@ describe("CompassPage camera-first conversation", () => {
 
     render(<CompassPage />);
 
-    expect(screen.getByRole("heading", { name: "Lente de Comida" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "1 good choice" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Cámara de alimentos" })).toBeInTheDocument();
     expect(screen.getAllByText("22").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Consejo general de nutrición/)[0]).toHaveAttribute(
       "data-guidance-scope",
       "general"
     );
-    expect(screen.getByText("Lente de Comida:")).toBeInTheDocument();
+    expect(screen.getByText("1 good choice:")).toBeInTheDocument();
     expect(screen.getByText(/Veo Pizza, not further specified/)).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });

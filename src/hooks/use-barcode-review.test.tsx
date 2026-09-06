@@ -121,9 +121,10 @@ describe("useBarcodeReview", () => {
 
   it("lets a different barcode preempt the prior review", async () => {
     const secondFood = { ...barcodeFood, id: "barcode:456", barcode: "456", name: "Roasted Chickpeas" };
-    fetchMock.mockImplementation((input: RequestInfo | URL) =>
-      Promise.resolve(response({ found: true, food: String(input).endsWith("456") ? secondFood : barcodeFood }))
-    );
+    fetchMock.mockImplementation((_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? "{}")) as { barcode?: string };
+      return Promise.resolve(response({ found: true, food: body.barcode === "456" ? secondFood : barcodeFood }));
+    });
     const { result, setBarcode } = harness("123");
     await waitFor(() => expect(result.current.state.status).toBe("review"));
 
@@ -168,5 +169,19 @@ describe("useBarcodeReview", () => {
     await act(async () => Promise.resolve());
     expect(fetchMock).not.toHaveBeenCalled();
     expect(result.current.state.status).toBe("idle");
+  });
+
+  it("keeps the barcode out of the request URL", async () => {
+    fetchMock.mockResolvedValue(response({ found: false }));
+    harness("12345678");
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/food/lookup",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ barcode: "12345678" })
+      })
+    );
   });
 });
