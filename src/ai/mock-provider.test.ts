@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { demoState } from "@/domain/fixtures";
+import { blankCompassState, demoState } from "@/domain/fixtures";
 import type { AppState } from "@/domain/types";
 import { MockHealthAiProvider } from "./mock-provider";
 import type { LiveSessionEvent } from "./types";
@@ -204,11 +204,13 @@ describe("MockHealthAiProvider", () => {
     handle.sendUserText("Is this healthy?");
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(events[0]).toBe("status:listening");
+    // Spec 30 R8, finding E11: this session has no microphone and the doors that use it
+    // render no mic button, so "Listening. Just talk." was an instruction nobody could take.
+    expect(events[0]).toBe("status:idle");
     expect(events).toContain("userTranscript");
     expect(events).toContain("assistantTranscript");
     expect(events.indexOf("status:thinking")).toBeLessThan(events.indexOf("assistantTranscript"));
-    expect(events.at(-1)).toBe("status:listening");
+    expect(events.at(-1)).toBe("status:idle");
     handle.close();
   });
 
@@ -275,5 +277,42 @@ describe("MockHealthAiProvider", () => {
 
     expect(response.content).toContain("don't have a confirmed eye screening report");
     expect(response.sources).toEqual([]);
+  });
+});
+
+// Spec 30 R8, A22, finding E11. The public door runs this same mock coach with an empty
+// record, and it was answering about a plan, readings and a care team that do not exist.
+describe("MockHealthAiProvider on a door with no patient record", () => {
+  const provider = new MockHealthAiProvider();
+
+  it("never mentions a plan, readings, medicines or a care team", async () => {
+    const response = await provider.respond({
+      mode: "food",
+      patientInput: "what about this",
+      state: blankCompassState()
+    });
+
+    expect(response.content).not.toMatch(/your plan|care team|readings|medicine|medication|dose/i);
+    expect(response.content.length).toBeGreaterThan(0);
+  });
+
+  it("still says what it can do", async () => {
+    const response = await provider.respond({
+      mode: "food",
+      patientInput: "hello",
+      state: blankCompassState()
+    });
+
+    expect(response.content).toMatch(/score/i);
+  });
+
+  it("keeps the personal door's plan-aware answer", async () => {
+    const response = await provider.respond({
+      mode: "food",
+      patientInput: "what about this",
+      state: demoState
+    });
+
+    expect(response.content).toMatch(/your plan/i);
   });
 });

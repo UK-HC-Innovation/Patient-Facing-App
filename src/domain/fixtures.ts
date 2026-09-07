@@ -194,6 +194,12 @@ export function blankCompassState(): AppState {
       ...deletedDemoState.carePlan,
       id: "plan-compass",
       patientId: "compass-anonymous",
+      // Load-bearing, the same way it is in emptyPatientState: the spread carries
+      // `condition: "hypertension"` from the deleted-demo plan, and with no explicit list
+      // activeConditions falls back to it. The public door was reporting a shared condition
+      // for a person who has shared nothing, which is what let the mock coach answer about
+      // a plan (spec 30 A22, finding E11).
+      conditions: [],
       plainLanguageSummary:
         "This preview scores foods with the published Food Compass 2.0 system. It holds no personal health information.",
       nextVisitReason: "Talk with your own care team about what these scores mean for you."

@@ -75,6 +75,8 @@ export function FoodLensVoiceBar({
   lastTurn,
   micAvailable = true,
   openSignal = 0,
+  pending = false,
+  pendingLabel,
   transcript
 }: {
   language: Language;
@@ -98,6 +100,13 @@ export function FoodLensVoiceBar({
    * their reply into a panel that was closed, behind a tap they had no reason to make.
    */
   openSignal?: number;
+  /**
+   * A deterministic lookup is in flight. Feedback has to be on screen within 150 ms of a
+   * submit, and the typed hook's `pending` was exposed and read by neither door (spec 30
+   * R2/A10, finding E12).
+   */
+  pending?: boolean;
+  pendingLabel?: string;
   transcript?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -108,8 +117,11 @@ export function FoodLensVoiceBar({
   useEffect(() => {
     if (openSignal > 0) setOpen(true);
   }, [openSignal]);
-  const statusLabel =
-    idleLabel && (status === "idle" || status === "closed") ? idleLabel : t(language, STATUS_KEY[status]);
+  const statusLabel = pending
+    ? pendingLabel ?? t(language, STATUS_KEY.thinking)
+    : idleLabel && (status === "idle" || status === "closed")
+      ? idleLabel
+      : t(language, STATUS_KEY[status]);
   // Typed input is a capability, and where it exists it is always reachable. It used to
   // live inside the collapsed transcript panel while a live session was up, which is how
   // a hung session took the keyboard away with it (critique F5, G2, H2).
@@ -135,6 +147,10 @@ export function FoodLensVoiceBar({
         placeholder={t(language, "askPlaceholder")}
         value={text}
       />
+      {/* Deliberately not disabled while `pending`. A lookup in flight is exactly when
+          someone needs to replace what they typed or ask about it, and a submit button that
+          goes dead until an answer arrives is the "Thinking…" trap spec 29 closed (critique
+          H2, G10). The status line carries the pending state instead (spec 30 A10, A15). */}
       <button
         className="min-h-11 shrink-0 rounded-md bg-care px-4 text-sm font-semibold text-white disabled:opacity-40"
         disabled={status === "thinking"}
@@ -146,8 +162,11 @@ export function FoodLensVoiceBar({
   );
 
   const statusLine = (
-    <span className="block min-w-0 truncate text-[13px] font-semibold text-white/85">
-      {open ? statusLabel : lastTurn ?? statusLabel}
+    <span
+      className="block min-w-0 truncate text-[13px] font-semibold text-white/85"
+      data-testid={pending ? "voice-bar-pending" : undefined}
+    >
+      {pending || open ? statusLabel : lastTurn ?? statusLabel}
     </span>
   );
 
@@ -176,8 +195,12 @@ export function FoodLensVoiceBar({
           {statusLine}
         </button>
       ) : (
-        <p className="min-w-0 truncate text-[13px] font-semibold text-white/85" role="status">
-          {lastTurn ?? statusLabel}
+        <p
+          className="min-w-0 truncate text-[13px] font-semibold text-white/85"
+          data-testid={pending ? "voice-bar-pending" : undefined}
+          role="status"
+        >
+          {pending ? statusLabel : lastTurn ?? statusLabel}
         </p>
       )}
 

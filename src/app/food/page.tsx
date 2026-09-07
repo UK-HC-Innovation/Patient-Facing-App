@@ -161,6 +161,8 @@ export default function FoodPage() {
   const plateChoiceAbortsRef = useRef(new Map<string, { controller: AbortController; epoch: number }>());
   const exactFoodRequestRef = useRef(0);
   const exactFoodAbortRef = useRef<{ controller: AbortController; epoch: number } | null>(null);
+  /** Assigned below. The engine's barcode callback is built before the typed hook exists. */
+  const typedClearRef = useRef<(() => void) | null>(null);
   const [barcodeReviewCode, setBarcodeReviewCode] = useState<string | null>(null);
   const [foodResolutionState, setFoodResolutionState] = useState<FoodResolutionSnapshot>(
     EMPTY_FOOD_RESOLUTION_SNAPSHOT
@@ -184,6 +186,7 @@ export default function FoodPage() {
         // Its controller deliberately deduplicates this code and will not republish it.
         if (!PACKAGE_SCAN_CLOUD_ENABLED && barcodeReviewCode === barcode) return;
         setLogged(false);
+        typedClearRef.current?.();
         if (!PACKAGE_SCAN_CLOUD_ENABLED) {
           setBarcodeReviewCode(barcode);
           setFoodResolutionState({ active: true, resolvedFood: null, barcode, published: null, prefill: null });
@@ -194,6 +197,61 @@ export default function FoodPage() {
   const adoptLiveMatch = live.adoptMatch;
   const rearmLiveScore = live.rearm;
   const suspendLiveScore = live.suspend;
+
+  const typed = useTypedFoodScore({ passcode, authority });
+  const typedSubmit = typed.submit;
+  const typedClear = typed.clear;
+  typedClearRef.current = typedClear;
+  const typedRetryItem = typed.retryItem;
+
+  /**
+   * The one current interpretation on this door (spec 30 R1).
+   *
+   * The public door has run this shape since spec 29: one slot that outranks the camera.
+   * Here `handleTypedLine` acted on `question` and `match` and dropped `carve_out` and
+   * `none` on the floor, nothing cleared `live.match`, and the typed hook held no authority,
+   * so `pizza` then `water` left pizza's score, its alternatives and Log this on screen with
+   * no answer to the word that was actually typed (finding E01).
+   *
+   * A typed match is still adopted into the live slot, so portions, flags, favourites, the
+   * meal log and Add to plate keep working off one food. Everything else lands here and
+   * outranks the camera, the barcode and the label until the next replacement.
+   */
+  const typedCurrent = useMemo(() => {
+    const result = typed.result;
+    if (!result) return null;
+    if (result.kind === "plate") {
+      return { kind: "plate" as const, items: result.items, dropped: result.dropped };
+    }
+    if (result.kind === "none") {
+      return { kind: "none" as const, candidates: result.candidates };
+    }
+    if (result.kind === "carve_out") {
+      return { kind: "carve_out" as const, reason: result.reason };
+    }
+    return null;
+  }, [typed.result]);
+
+  /**
+   * The epoch the choice on screen was published under (spec 30 R2).
+   *
+   * A click handler reads the current refs, so it cannot log a food that has already been
+   * replaced -- but between the synchronous `invalidate()` that starts a replacement and the
+   * render that lands it, those refs still hold the old food. Every action checks this stamp
+   * so nothing commits during that window. The effect deliberately does not depend on
+   * `authority`, whose identity changes on every invalidate: it would re-stamp the very
+   * moment the check is supposed to start failing.
+   */
+  const snapshotAuthority = authority.snapshot;
+  const isAuthorityCurrent = authority.isCurrent;
+  const publishedEpochRef = useRef<number | null>(null);
+  useEffect(() => {
+    publishedEpochRef.current = snapshotAuthority();
+  }, [snapshotAuthority, live.match, typed.result, foodResolutionState.resolvedFood]);
+  const choiceIsCurrent = useCallback(
+    () => publishedEpochRef.current !== null && isAuthorityCurrent(publishedEpochRef.current),
+    [isAuthorityCurrent]
+  );
   const resumeScanner = useCallback(() => {
     clearBarcode();
     rearmLiveScore({ waitForSceneChange: true });
@@ -232,6 +290,10 @@ export default function FoodPage() {
   // A barcode or its one-shot label transcription is authoritative while it is
   // on screen; otherwise the live vision match is.
   const identifiedFood = useMemo<IdentifiedFood | null>(() => {
+    // A typed exclusion, miss or plate is the current choice, and none of them is one food.
+    if (typedCurrent) {
+      return null;
+    }
     if (scannedFood) {
       return scannedFood;
     }
@@ -239,10 +301,17 @@ export default function FoodPage() {
       return null;
     }
     return live.match ? toIdentifiedFood({ ...live.match.food, fcs2: live.match.score.fcs, fcs1: 0, nova: 1, hsr: 0, nutriScore: "C", ambiguous: live.match.score.ambiguous }, live.match.nutrients) : null;
-  }, [live.match, liveSceneUnconfirmed, packageDraftOpen, scannedFood]);
+  }, [live.match, liveSceneUnconfirmed, packageDraftOpen, scannedFood, typedCurrent]);
 
   const identifiedFoodId = identifiedFood?.id ?? null;
-  const { whyOpen, open: openWhyScore, close: closeWhyScore, markerRef } = useWhyScore(identifiedFoodId);
+  const {
+    whyOpen,
+    open: openWhyScore,
+    openFromButton: openWhyScoreFromButton,
+    close: closeWhyScore,
+    markerRef,
+    buttonRef: whyScoreButtonRef
+  } = useWhyScore(identifiedFoodId);
   const scaledFood = useMemo<IdentifiedFood | null>(() => {
     if (!identifiedFood?.nutrition) {
       return identifiedFood;
@@ -264,11 +333,19 @@ export default function FoodPage() {
   // Scored from identifiedFood, not scaledFood: scaleNutrition rounds to integers, and a
   // per-100-kcal score recomputed off rounded values would wobble as portions change.
   // The score is a property of the food; the flags are a property of the portion.
-  const labelCompass = useCompassScore(scannedFood, { passcode });
+  const labelCompass = useCompassScore(scannedFood, { passcode, authority });
   const publishedMatch = foodResolutionState.published ?? null;
   const compass = useMemo(
     () =>
-      live.match && !foodResolutionActive
+      typedCurrent
+        ? {
+            score: null,
+            carveOut: typedCurrent.kind === "carve_out" ? typedCurrent.reason : null,
+            alternatives: [],
+            estimatedDomains: null,
+            alternativesLoading: false
+          }
+        : live.match && !foodResolutionActive
         ? {
             score: live.match.score,
             carveOut: null,
@@ -288,7 +365,7 @@ export default function FoodPage() {
               alternativesLoading: labelCompass.alternativesLoading
             }
           : { ...labelCompass, carveOut: labelCompass.carveOut ?? (foodResolutionActive ? null : live.carveOut), estimatedDomains: null },
-    [labelCompass, live.carveOut, live.match, foodResolutionActive, publishedMatch]
+    [labelCompass, live.carveOut, live.match, foodResolutionActive, publishedMatch, typedCurrent]
   );
   const compassRef = useRef(compass);
   compassRef.current = compass;
@@ -443,10 +520,6 @@ export default function FoodPage() {
     probeOnMount: true
   });
 
-  const typed = useTypedFoodScore({ passcode });
-  const typedSubmit = typed.submit;
-  const typedPlate = typed.result?.kind === "plate" ? typed.result.items : null;
-  const typedMiss = typed.result?.kind === "none" ? typed.result : null;
   const sendUserText = voice.sendUserText;
 
   /**
@@ -476,18 +549,39 @@ export default function FoodPage() {
       }
 
       void typedSubmit(trimmed).then((result) => {
+        // A newer line replaced this one before it finished. Acting on it would adopt a food
+        // the person has already moved on from (spec 30 R2).
+        if (result.kind === "superseded") {
+          return;
+        }
         if (result.kind === "question") {
           sendUserText(trimmed);
           return;
         }
-        if (result.kind === "match") {
-          adoptLiveMatch(result.match, { pin: true });
-          setLogged(false);
+        // Every other kind is a replacement, so whatever the camera, a barcode or a label
+        // was holding goes with it. `carve_out` and `none` used to fall through here with
+        // nothing cleared, which is finding E01.
+        if (foodResolutionActiveRef.current) {
+          dismissBarcodeReview();
         }
-        // A plate, a carve-out and a miss all render from the typed hook's own state.
+        setLogged(false);
+        if (result.kind === "match") {
+          adoptLiveMatch(result.match);
+          return;
+        }
+        rearmLiveScore();
       });
     },
-    [adoptLiveMatch, appendIntercept, appendMessage, language, sendUserText, typedSubmit]
+    [
+      adoptLiveMatch,
+      appendIntercept,
+      appendMessage,
+      dismissBarcodeReview,
+      language,
+      rearmLiveScore,
+      sendUserText,
+      typedSubmit
+    ]
   );
 
   const [pantryResult, setPantryResult] = useState<PantryResult | null>(null);
@@ -500,6 +594,9 @@ export default function FoodPage() {
     setPantryLoading(true);
     setPantryResult(null);
     const image = camera.grabFrame() ?? undefined;
+    // Spec 30 R2, finding E12. Three writes below run after an await with no authority
+    // check, so a recipe list for a frame the person has since replaced could still land.
+    const requestEpoch = authority.snapshot();
     try {
       const [{ createSafeAiResponse }, { PantryProvider, PANTRY_REQUEST_TEXT }] = await Promise.all([
         import("@/ai/safety-gate"),
@@ -511,6 +608,9 @@ export default function FoodPage() {
         { mode: "food", patientInput: PANTRY_REQUEST_TEXT, state: stateRef.current, image },
         new PantryProvider({ passcode })
       );
+      if (!authority.isCurrent(requestEpoch)) {
+        return;
+      }
       if (response.recipes && response.recipes.length > 0) {
         setPantryResult({ detectedItems: response.detectedItems ?? [], recipes: response.recipes });
       } else if (response.safety !== "allowed") {
@@ -526,7 +626,7 @@ export default function FoodPage() {
     } finally {
       setPantryLoading(false);
     }
-  }, [appendIntercept, appendMessage, camera, passcode, pantryLoading]);
+  }, [appendIntercept, appendMessage, authority, camera, passcode, pantryLoading]);
 
   usePageHideTeardown([
     camera.stop,
@@ -562,6 +662,12 @@ export default function FoodPage() {
     }
   }, [identifiedFoodId, language, latestPatientUtterance]);
 
+  /** A camera tap is a replacement, so whatever was typed stops being the current choice. */
+  const scanFrame = useCallback(() => {
+    typedClear();
+    return scan();
+  }, [scan, typedClear]);
+
   const handlePortionChange = useCallback((servings: number) => {
     setPortionServings(servings);
     setSpokenSize(null);
@@ -569,10 +675,13 @@ export default function FoodPage() {
   }, []);
 
   const resolveCameraMatch = useCallback(
-    async (foodId: string, pin: boolean) => {
+    async (foodId: string) => {
       if (foodResolutionActive) {
         cancelFoodResolution();
       }
+      // A confirmed row replaces whatever a typed line was showing, and vice versa: one
+      // current choice, whichever source last named it (spec 30 R1).
+      typedClear();
       exactFoodAbortRef.current?.controller.abort();
       const requestId = ++exactFoodRequestRef.current;
       const requestEpoch = authority.invalidate();
@@ -597,7 +706,7 @@ export default function FoodPage() {
           json.mode === "match" &&
           json.match
         ) {
-          adoptLiveMatch({ ...json.match, candidates: json.candidates ?? [] }, { pin });
+          adoptLiveMatch({ ...json.match, candidates: json.candidates ?? [] });
           setLogged(false);
         }
       } catch {
@@ -608,18 +717,15 @@ export default function FoodPage() {
         }
       }
     },
-    [adoptLiveMatch, authority, cancelFoodResolution, foodResolutionActive, passcode]
+    [adoptLiveMatch, authority, cancelFoodResolution, foodResolutionActive, passcode, typedClear]
   );
 
-  const correctCameraMatch = useCallback(
-    (foodId: string) => resolveCameraMatch(foodId, true),
-    [resolveCameraMatch]
-  );
+  const correctCameraMatch = resolveCameraMatch;
 
   const confirmCameraCandidate = useCallback(
     (foodId: string) => {
       if (live.candidate?.food.code !== foodId) return Promise.resolve();
-      return resolveCameraMatch(foodId, false);
+      return resolveCameraMatch(foodId);
     },
     [live.candidate?.food.code, resolveCameraMatch]
   );
@@ -675,12 +781,18 @@ export default function FoodPage() {
     };
   }, []);
 
+  // A typed miss, exclusion or plate is the current choice, and none of them is a food the
+  // last answer described. Logging one used to commit the food it replaced (A02).
   const canLog =
+    typedCurrent === null &&
     !packageDraftOpen &&
     !liveSceneUnconfirmed &&
     (scaledFood !== null || lastAssistantRef.current !== null);
 
   const onLog = useCallback(() => {
+    if (!choiceIsCurrent()) {
+      return;
+    }
     const scored = compassRef.current.score;
     const entry = buildMealLogEntry({
       patientId: stateRef.current.patient.id,
@@ -698,12 +810,13 @@ export default function FoodPage() {
     dispatch({ type: "addMealLogEntry", entry });
     loggedEntryIdRef.current = entry.id;
     setLogged(true);
-  }, [dispatch, language, portionServings]);
+  }, [choiceIsCurrent, dispatch, language, portionServings]);
 
   const onAddToPlate = useCallback(() => {
-    if (!identifiedFood) {
+    if (!identifiedFood || !choiceIsCurrent()) {
       return;
     }
+    typedClear();
     const score = compassRef.current.score;
     setPlateItems((items) => [
       ...items,
@@ -723,7 +836,15 @@ export default function FoodPage() {
     setSpokenSize(null);
     setLogged(false);
     lastPortionFoodIdRef.current = null;
-  }, [cancelFoodResolution, foodResolutionActive, identifiedFood, portionServings, rearmLiveScore]);
+  }, [
+    cancelFoodResolution,
+    choiceIsCurrent,
+    foodResolutionActive,
+    identifiedFood,
+    portionServings,
+    rearmLiveScore,
+    typedClear
+  ]);
 
   const changePlateServings = useCallback((index: number, servings: number) => {
     setPlateItems((items) =>
@@ -759,6 +880,8 @@ export default function FoodPage() {
       setPlateScanOutcome({ ...EMPTY_PLATE_SCAN_OUTCOME, notice: "plateScanFailed" });
       return;
     }
+    // Scanning a plate replaces the current choice, typed or otherwise.
+    typedClear();
     const requestId = ++plateScanRequestRef.current;
     suspendLiveScore();
     const requestEpoch = authority.snapshot();
@@ -840,7 +963,16 @@ export default function FoodPage() {
         if (!foodResolutionActiveRef.current) rearmLiveScore();
       }
     }
-  }, [authority, camera, passcode, plateScanBlocked, plateScanBusy, rearmLiveScore, suspendLiveScore]);
+  }, [
+    authority,
+    camera,
+    passcode,
+    plateScanBlocked,
+    plateScanBusy,
+    rearmLiveScore,
+    suspendLiveScore,
+    typedClear
+  ]);
 
   const fetchExactMatch = useCallback(
     async (foodId: string, signal?: AbortSignal): Promise<Omit<LiveMatch, "candidates"> | null> => {
@@ -998,7 +1130,8 @@ export default function FoodPage() {
     setPlateCandidates({});
     setPlateScanOutcome(null);
     setLogged(false);
-  }, [dayTotals, dispatch, language, lens, plateItems]);
+    typedClear();
+  }, [dayTotals, dispatch, language, lens, plateItems, typedClear]);
 
   // Barcode and label-photo scores are computed locally, so the badge reflects
   // them directly while the vision loop stands down for the active barcode.
@@ -1022,7 +1155,7 @@ export default function FoodPage() {
   const toggleFavorite = useCallback(() => {
     const score = compassRef.current.score;
     const food = foodRef.current;
-    if (!favoriteFoodId || !food || score?.tier !== "T1") {
+    if (!favoriteFoodId || !food || score?.tier !== "T1" || !choiceIsCurrent()) {
       return;
     }
     dispatch({
@@ -1035,7 +1168,7 @@ export default function FoodPage() {
         starredAt: new Date().toISOString()
       }
     });
-  }, [dispatch, favoriteFoodId]);
+  }, [choiceIsCurrent, dispatch, favoriteFoodId]);
   const pinnedBarcode = foodResolutionState.barcode;
   const scanChip = identifiedFood
     ? identifiedFood.brand
@@ -1077,18 +1210,61 @@ export default function FoodPage() {
   // Everything the shared layer is allowed to know: what the food is, never which of the
   // barcode, the label photo, a correction chip or the vision loop won the right to say so.
   // That precedence, and the 60-second pin it runs on, stay inside this door.
+  /**
+   * The plate slot holds both plates, and null when there is neither.
+   *
+   * A plate someone typed on one line and a plate they assembled item by item are different
+   * state, and on this door the typed one used to render nowhere at all once the assembled
+   * one had anything in it (spec 30 R5, finding E04). Null rather than an element that
+   * renders nothing, because the shared layer reads this slot to decide whether a screen is
+   * blank enough for the empty state.
+   */
+  const assembledPlateBlock =
+    plateItems.length > 0 ? (
+      <PlateCard
+        candidates={plateCandidates}
+        flags={plateFlags}
+        items={plateItems}
+        language={language}
+        onLog={logPlate}
+        onRemove={removePlateItem}
+        onSelectCandidate={(itemId, foodId) => void correctPlateItem(itemId, foodId)}
+        onServingsChange={changePlateServings}
+        refine={plateRefine}
+        summary={plateSummary}
+      />
+    ) : null;
+  const typedPlateBlock =
+    typedCurrent?.kind === "plate" ? (
+      <FoodTypedPlate
+        dropped={typedCurrent.dropped}
+        items={typedCurrent.items}
+        language={language}
+        onRetry={(query) => void typedRetryItem(query)}
+      />
+    ) : null;
+  const plateSlot =
+    assembledPlateBlock || typedPlateBlock ? (
+      <div className="grid min-w-0 gap-3">
+        {assembledPlateBlock}
+        {typedPlateBlock}
+      </div>
+    ) : null;
+
+  const typedMiss = typedCurrent?.kind === "none" ? typedCurrent : null;
   const view: FoodLensView = {
-    name: scanChip ?? live.candidate?.food.description ?? null,
+    name: typedCurrent ? null : scanChip ?? live.candidate?.food.description ?? null,
     identified: identifiedFood !== null,
     score: compass.score,
     carveOut: compass.carveOut,
-    badge: badgeState,
+    badge: typedCurrent ? (compass.carveOut ? "carve_out" : "idle") : badgeState,
     noMatchCandidates: typedMiss ? typedMiss.candidates : foodResolutionActive ? [] : live.noMatchCandidates,
-    noMatch: typedMiss !== null || (!foodResolutionActive && live.noMatch),
+    noMatch: typedMiss !== null || (!typedCurrent && !foodResolutionActive && live.noMatch),
     // A miss the person named reads differently from a camera that saw nothing.
     noMatchNamed: typedMiss !== null,
-    candidate: identifiedFood || foodResolutionActive ? null : live.candidate,
-    packageDetected: !foodResolutionActive && identifiedFood === null && live.packageDetected
+    candidate: typedCurrent || identifiedFood || foodResolutionActive ? null : live.candidate,
+    packageDetected:
+      !typedCurrent && !foodResolutionActive && identifiedFood === null && live.packageDetected
   };
 
   const assistantTurnCount = useMemo(
@@ -1110,7 +1286,8 @@ export default function FoodPage() {
       capabilities={FOOD_LENS_CAPABILITIES}
       chart={{
         markerRef,
-        onMarkerTap: domainBreakdown ? openWhyScore : undefined
+        onMarkerTap: domainBreakdown ? openWhyScore : undefined,
+        pending: typed.pending
       }}
       collapsedViewfinder={cameraBlocked}
       crisis={
@@ -1139,7 +1316,7 @@ export default function FoodPage() {
           idleLabel={identifiedFood ? undefined : t(language, "statusIdleNoFood")}
           onCameraRetry={() => void camera.start()}
           hasScanResult={Boolean(identifiedFood || live.candidate || live.noMatch || live.packageDetected)}
-          onScan={() => void scan()}
+          onScan={() => void scanFrame()}
           scanDisabled={foodResolutionActive || live.candidate !== null || live.packageDetected}
           scanError={live.scanError}
           scanPending={scanPending}
@@ -1165,6 +1342,8 @@ export default function FoodPage() {
           onSendText={handleTypedLine}
           onStart={() => void voice.start()}
           onStop={voice.stop}
+          pending={typed.pending}
+          pendingLabel={t(language, "nutritionCompassStatePending")}
           status={voice.status}
           openSignal={assistantTurnCount}
           transcript={conversation}
@@ -1175,6 +1354,8 @@ export default function FoodPage() {
       whyScore={{
         open: whyOpen,
         onClose: closeWhyScore,
+        onOpen: openWhyScoreFromButton,
+        triggerRef: whyScoreButtonRef,
         breakdown: domainBreakdown,
         tier: compass.score?.tier ?? "T1"
       }}
@@ -1194,24 +1375,7 @@ export default function FoodPage() {
         </AppShell>
       )}
       slots={{
-        plate: typedPlate && plateItems.length === 0 ? (
-          // A plate someone typed on one line. The camera's plate review (spec 27) still
-          // owns the slot whenever there is a scanned plate to review.
-          <FoodTypedPlate items={typedPlate} language={language} />
-        ) : (
-          <PlateCard
-            candidates={plateCandidates}
-            flags={plateFlags}
-            items={plateItems}
-            language={language}
-            onLog={logPlate}
-            onRemove={removePlateItem}
-            onSelectCandidate={(itemId, foodId) => void correctPlateItem(itemId, foodId)}
-            onServingsChange={changePlateServings}
-            refine={plateRefine}
-            summary={plateSummary}
-          />
-        ),
+        plate: plateSlot,
         weHeard:
           packageProvenance || (identifiedFood?.source === "fndds_lookup" && correctionCandidates.length > 0) ? (
             <div className="grid gap-2">

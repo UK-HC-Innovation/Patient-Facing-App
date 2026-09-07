@@ -50,7 +50,7 @@ type SortMode = "score" | "density";
 
 type ConversationResult =
   | { kind: "match"; match: LiveMatch; candidates: FoodCandidate[]; input: string; cameraFoodCode: string | null }
-  | { kind: "plate"; items: TypedPlateItem[]; input: string }
+  | { kind: "plate"; items: TypedPlateItem[]; dropped: string[]; input: string }
   | { kind: "carve_out"; reason: NotScoreableReason }
   | { kind: "none" };
 
@@ -89,6 +89,7 @@ export default function CompassPage() {
     scan,
     scanPending,
     activeBarcode,
+    cameraBlocked,
     clearBarcode
   } = useFoodLensEngine({
     crisis: crisisLocked,
@@ -111,6 +112,8 @@ export default function CompassPage() {
   const voiceResultRef = useRef<ConversationResult | null>(null);
   const pizzaIntentRef = useRef<FoodOrderIntent | null>(null);
   const exactFoodAbortRef = useRef<{ controller: AbortController; epoch: number } | null>(null);
+  /** Assigned once the typed hook exists below; the camera callbacks are built before it. */
+  const typedClearRef = useRef<(() => void) | null>(null);
   const refinementAbortRef = useRef<{ controller: AbortController; epoch: number } | null>(null);
   const adoptLiveMatch = live.adoptMatch;
   const liveCandidate = live.candidate;
@@ -232,6 +235,8 @@ export default function CompassPage() {
     async (foodId: string) => {
       const candidate = liveCandidate;
       if (!candidate || candidate.food.code !== foodId) return;
+      // A confirmed camera row replaces whatever was typed (spec 30 R1).
+      typedClearRef.current?.();
       exactFoodAbortRef.current?.controller.abort();
       const requestEpoch = authority.invalidate();
       const controller = new AbortController();
@@ -254,7 +259,7 @@ export default function CompassPage() {
           json.mode === "match" &&
           json.match
         ) {
-          adoptLiveMatch({ ...json.match, candidates: json.candidates ?? [] }, { pin: false });
+          adoptLiveMatch({ ...json.match, candidates: json.candidates ?? [] });
         }
       } catch {
         // Keep the candidate review visible; confirmation can be tried again.
@@ -387,6 +392,7 @@ export default function CompassPage() {
     setRefinement(null);
     voiceResultRef.current = null;
     pizzaIntentRef.current = null;
+    typedClearRef.current?.();
     void scan();
   }, [scan]);
 
@@ -432,7 +438,13 @@ export default function CompassPage() {
       {
         ...LOOKUP_FOOD_SCORE_TOOL,
         parameters: LOOKUP_FOOD_SCORE_TOOL.parameters as unknown as Record<string, unknown>,
-        handler: async (args) => lookupFoodScore(String(args.query ?? ""), passcode)
+        handler: async (args) => {
+          // Spec 30 R2, finding E12. The tool ran with no authority check at all, so a
+          // score for a food the person had already replaced could still be spoken.
+          const requestEpoch = authority.snapshot();
+          const answer = await lookupFoodScore(String(args.query ?? ""), passcode);
+          return authority.isCurrent(requestEpoch) ? answer : "";
+        }
       }
     ]
   });
@@ -444,8 +456,11 @@ export default function CompassPage() {
     stop: stopVoice
   } = voice;
 
-  const typed = useTypedFoodScore({ passcode });
+  const typed = useTypedFoodScore({ passcode, authority });
   const typedSubmit = typed.submit;
+  const typedClear = typed.clear;
+  typedClearRef.current = typedClear;
+  const typedRetryItem = typed.retryItem;
   const sendUserText = voice.sendUserText;
 
   /**
@@ -481,6 +496,10 @@ export default function CompassPage() {
       }
 
       void typedSubmit(trimmed).then((result) => {
+        // A newer line replaced this one before it finished (spec 30 R2).
+        if (result.kind === "superseded") {
+          return;
+        }
         if (result.kind === "question") {
           sendUserText(trimmed);
           return;
@@ -499,7 +518,12 @@ export default function CompassPage() {
           return;
         }
         if (result.kind === "plate") {
-          const next: ConversationResult = { kind: "plate", items: result.items, input: trimmed };
+          const next: ConversationResult = {
+            kind: "plate",
+            items: result.items,
+            dropped: result.dropped,
+            input: trimmed
+          };
           voiceResultRef.current = null;
           shownRef.current = next;
           setRefinement(next);
@@ -515,8 +539,10 @@ export default function CompassPage() {
     [handleVoiceTranscript, language, sendUserText, typedSubmit]
   );
 
-  // In mock or locked mode the patient-oriented local coach is not used on this public surface.
-  // A deterministic spoken opening still demonstrates the intended automatic handoff.
+  // In mock or locked mode the shared local coach IS what answers here, through
+  // useFoodVoiceSession. It runs the same crisis and grounding chain as the live path, and
+  // since spec 30 A1 it answers from an empty record rather than a care plan this door does
+  // not have. A deterministic spoken opening still demonstrates the automatic handoff.
   const voiceAvailable = voiceMode === "live";
   const voiceCanStart = voiceStatus === "idle" || voiceStatus === "closed" || voiceStatus === "error";
   const correctionCandidates =
@@ -596,7 +622,14 @@ export default function CompassPage() {
   );
 
   const shownFoodCode = matchShown?.food.code ?? null;
-  const { whyOpen, open: openWhyScore, close: closeWhyScore, markerRef } = useWhyScore(shownFoodCode);
+  const {
+    whyOpen,
+    open: openWhyScore,
+    openFromButton: openWhyScoreFromButton,
+    close: closeWhyScore,
+    markerRef,
+    buttonRef: whyScoreButtonRef
+  } = useWhyScore(shownFoodCode);
 
   const conversationBlock = (
     <section
@@ -716,19 +749,22 @@ export default function CompassPage() {
       chart={{
         markerRef,
         onMarkerTap: domainBreakdown ? openWhyScore : undefined,
-        pending: refinementLoading || (!shown && live.badge === "pending")
+        pending: typed.pending || refinementLoading || (!shown && live.badge === "pending")
       }}
       crisis={crisisLocked ? <FoodCrisisLock language={language}>{conversationBlock}</FoodCrisisLock> : null}
       language={language}
       loopState={live.loopState}
       onConfirmIdentity={(foodId) => void confirmLiveCandidate(foodId)}
       onRejectIdentity={rejectLiveCandidate}
+      collapsedViewfinder={cameraBlocked}
       onVisibleRatio={live.setVisibleRatio}
       verdictRegionLabel={t(language, "compassResultRegion")}
       view={view}
       whyScore={{
         open: whyOpen,
         onClose: closeWhyScore,
+        onOpen: openWhyScoreFromButton,
+        triggerRef: whyScoreButtonRef,
         breakdown: domainBreakdown,
         tier: matchShown?.score.tier ?? "T1"
       }}
@@ -765,6 +801,7 @@ export default function CompassPage() {
                 ? t(language, "compassIdleStarting")
                 : t(language, "compassIdleAwaiting")
           }
+          onCameraRetry={() => void camera.start()}
           onScan={scanCurrentFrame}
           scanDisabled={live.candidate !== null || live.packageDetected || activeBarcode !== null}
           scanError={live.scanError}
@@ -787,6 +824,8 @@ export default function CompassPage() {
             onSendText={handleTypedLine}
             onStart={() => void voice.startWithContextResponse()}
             onStop={voice.stop}
+            pending={typed.pending}
+            pendingLabel={t(language, "nutritionCompassStatePending")}
             status={voice.status}
             typedInput={COMPASS_CAPABILITIES.typedInput}
           />
@@ -801,13 +840,21 @@ export default function CompassPage() {
               barcode={activeBarcode}
               language={language}
               onDismiss={clearBarcode}
-              onMatch={adoptLiveMatch}
+              onMatch={(match) => {
+                typedClearRef.current?.();
+                adoptLiveMatch(match);
+              }}
               passcode={passcode}
               resumeLive={rearmLive}
               suspendLive={suspendLive}
             />
           ) : shown?.kind === "plate" ? (
-            <FoodTypedPlate items={shown.items} language={language} />
+            <FoodTypedPlate
+              dropped={shown.dropped}
+              items={shown.items}
+              language={language}
+              onRetry={(query) => void typedRetryItem(query)}
+            />
           ) : null,
           weHeard:
             matchShown && matchShown.interpretation && matchShown.provenance && shown?.kind === "match" ? (

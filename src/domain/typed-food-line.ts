@@ -73,6 +73,18 @@ const SPLIT_PATTERN = /\s*(?:,|\+|\band\b|\by\b|\bwith a\b|\bcon un\b|\bcon una\
 
 const LEADING_NOISE = /^(?:a|an|the|some|my|una?|el|la|los|las|unos|unas)\s+/i;
 
+export type PlateLineSplit = {
+  /** Up to MAX_PLATE_ITEMS foods, in the order they were typed. */
+  items: string[];
+  /**
+   * Everything past the cap, kept rather than discarded.
+   *
+   * The splitter used to `slice(0, 5)` and return, so items six and seven left no trace and
+   * a seven-item plate was presented as a complete answer to five of them (spec 30 R5).
+   */
+  dropped: string[];
+};
+
 /**
  * Splits one typed line into the foods on the plate.
  *
@@ -83,7 +95,7 @@ const LEADING_NOISE = /^(?:a|an|the|some|my|una?|el|la|los|las|unos|unas)\s+/i;
  * "with a" splits, plain "with" does not: "green beans cooked with bacon" is one food and
  * "side salad with a roll" is two.
  */
-export function splitPlateLine(text: string): string[] {
+export function splitPlateLine(text: string): PlateLineSplit {
   const parts = text
     .split(SPLIT_PATTERN)
     .map((part) => part.trim().replace(LEADING_NOISE, "").trim())
@@ -91,7 +103,7 @@ export function splitPlateLine(text: string): string[] {
 
   if (parts.length <= 1) {
     const single = text.trim();
-    return single.length > 0 ? [single] : [];
+    return { items: single.length > 0 ? [single] : [], dropped: [] };
   }
-  return parts.slice(0, MAX_PLATE_ITEMS);
+  return { items: parts.slice(0, MAX_PLATE_ITEMS), dropped: parts.slice(MAX_PLATE_ITEMS) };
 }

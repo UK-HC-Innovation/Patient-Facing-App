@@ -37,49 +37,59 @@ describe("isQuestionLine", () => {
 
 describe("splitPlateLine", () => {
   it("splits Darnell's plate into three foods", () => {
-    expect(splitPlateLine("2 slices of pepperoni pizza, side salad with ranch, and a Mountain Dew")).toEqual([
-      "2 slices of pepperoni pizza",
-      "side salad with ranch",
-      "Mountain Dew"
-    ]);
+    expect(splitPlateLine("2 slices of pepperoni pizza, side salad with ranch, and a Mountain Dew")).toEqual({
+      items: ["2 slices of pepperoni pizza", "side salad with ranch", "Mountain Dew"],
+      dropped: []
+    });
   });
 
   it("splits Brenda's Sunday dinner into five foods", () => {
     expect(
       splitPlateLine("fried chicken, mashed potatoes with gravy, green beans cooked with bacon, cornbread, sweet tea")
-    ).toEqual([
-      "fried chicken",
-      "mashed potatoes with gravy",
-      "green beans cooked with bacon",
-      "cornbread",
-      "sweet tea"
-    ]);
+    ).toEqual({
+      items: [
+        "fried chicken",
+        "mashed potatoes with gravy",
+        "green beans cooked with bacon",
+        "cornbread",
+        "sweet tea"
+      ],
+      dropped: []
+    });
   });
 
   // "with a" splits, plain "with" does not: one is a second food, the other is how the
   // first one was cooked.
   it("keeps a cooking method attached to its food", () => {
-    expect(splitPlateLine("green beans cooked with bacon")).toEqual(["green beans cooked with bacon"]);
+    expect(splitPlateLine("green beans cooked with bacon")).toEqual({
+      items: ["green beans cooked with bacon"],
+      dropped: []
+    });
   });
 
   it("splits an added side introduced with a", () => {
-    expect(splitPlateLine("side salad with a roll")).toEqual(["side salad", "roll"]);
+    expect(splitPlateLine("side salad with a roll")).toEqual({ items: ["side salad", "roll"], dropped: [] });
   });
 
   it("leaves a single food alone", () => {
-    expect(splitPlateLine("honey nut cheerios")).toEqual(["honey nut cheerios"]);
+    expect(splitPlateLine("honey nut cheerios")).toEqual({ items: ["honey nut cheerios"], dropped: [] });
   });
 
-  it("stops at five", () => {
+  // Spec 30 R5, A05: items six and seven used to be sliced off with no trace, so a plate of
+  // seven was presented as a complete answer to five of them.
+  it("names what it dropped past five instead of clipping it silently", () => {
     const line = "rice, beans, chicken, salad, bread, cake, soda";
-    expect(splitPlateLine(line)).toHaveLength(MAX_PLATE_ITEMS);
+    expect(splitPlateLine(line)).toEqual({
+      items: ["rice", "beans", "chicken", "salad", "bread"],
+      dropped: ["cake", "soda"]
+    });
+    expect(splitPlateLine(line).items).toHaveLength(MAX_PLATE_ITEMS);
   });
 
   it("splits a Spanish plate", () => {
-    expect(splitPlateLine("arroz con pollo, frijoles y pan dulce")).toEqual([
-      "arroz con pollo",
-      "frijoles",
-      "pan dulce"
-    ]);
+    expect(splitPlateLine("arroz con pollo, frijoles y pan dulce")).toEqual({
+      items: ["arroz con pollo", "frijoles", "pan dulce"],
+      dropped: []
+    });
   });
 });

@@ -69,6 +69,9 @@ export type FoodLensWhyScore = {
   onClose: () => void;
   breakdown: CompassBreakdown | null;
   tier: CompassScore["tier"];
+  /** Opens the panel from the visible control beside the score (spec 30 R11, E09). */
+  onOpen?: () => void;
+  triggerRef?: RefObject<HTMLButtonElement | null>;
 };
 
 /** Scroll the viewfinder back into view, honouring a reduced-motion preference. */
@@ -188,7 +191,14 @@ export function FoodLensExperience({
   ) : view.carveOut ? (
     <FoodVerdict carveOutReason={view.carveOut} foodName={view.name} language={language} score={null} />
   ) : view.score ? (
-    <FoodVerdict carveOutReason={null} foodName={view.name} language={language} score={view.score} />
+    <FoodVerdict
+      carveOutReason={null}
+      foodName={view.name}
+      language={language}
+      onWhyScore={whyScore.breakdown && whyScore.onOpen ? whyScore.onOpen : undefined}
+      score={view.score}
+      whyScoreRef={whyScore.triggerRef}
+    />
   ) : view.noMatch || view.noMatchCandidates.length > 0 ? (
     <FoodNoMatch
       candidates={view.noMatchCandidates}
@@ -248,8 +258,9 @@ export function FoodLensExperience({
           ) : (
             verdict
           ),
-        // A closed panel renders null, but the element itself is truthy, which is enough to
-        // open the "More about this food" fold on a screen with nothing in it.
+        // The panel sits under the chart now rather than inside the fold (spec 30 R11), but
+        // it is still gated on `open` rather than allowed to render null: an element that
+        // renders nothing is still an element, and a truthy slot is a gap in the layout.
         whyScore: whyScore.open ? (
           <FoodWhyScore
             breakdown={whyScore.breakdown}

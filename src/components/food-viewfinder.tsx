@@ -83,7 +83,11 @@ export function FoodViewfinder({
   showVoiceStatus?: boolean;
   /** Replaces food-specific idle copy before a food has been identified. */
   idleLabel?: string;
-  /** Shows a deterministic sample scan instead of an empty panel when camera access is unavailable. */
+  /**
+   * Shows a deterministic sample scan while a stream is still attaching, never for a denied
+   * or unavailable camera: a food picture over a camera that said no reads as recognition
+   * that did not happen (spec 30 R11, finding E08).
+   */
   demoPreview?: boolean;
   /** The shell fixes this at 336px, the largest that still puts the verdict on screen one. */
   height?: string | number;
@@ -124,10 +128,12 @@ export function FoodViewfinder({
   // that would draw over it stays off. The wordmark, the guidance pill and the "Point at
   // any food" caption all landed on top of the notice and the retry button (critique G6).
   const cameraOff = cameraStatus === "denied" || cameraStatus === "unavailable";
-  // The sample-preview surface keeps its own panel and its own status readout. Only the
-  // bare camera-off notice takes the whole box, and only then do the overlays that used to
-  // land on top of it stay off (critique G6).
-  const noticeOnly = cameraOff && !demoPreview;
+  // Spec 30 R11, finding E08. The sample preview is for the moment before a stream attaches,
+  // never for a phone that said no: a 336px pizza over a denied camera reads as a photo the
+  // app recognised, and it kept the notice and Retry camera off the screen entirely. Denied
+  // and unavailable now take the same compact notice the personal door has always had.
+  const showSamplePreview = demoPreview && !cameraOff;
+  const noticeOnly = cameraOff;
 
   const [retried, setRetried] = useState(false);
   useEffect(() => {
@@ -139,7 +145,7 @@ export function FoodViewfinder({
     <div className="relative overflow-clip bg-ink" style={{ height }}>
       <video ref={videoRef} className="h-full w-full object-cover" muted playsInline aria-label={t(language, "viewfinderHint")} />
 
-      {demoPreview && cameraStatus !== "active" ? (
+      {showSamplePreview && cameraStatus !== "active" ? (
         <div
           aria-label={t(language, "demoPizzaPreview")}
           className="absolute inset-0 flex items-center justify-center overflow-hidden bg-gradient-to-br from-slate-800 via-slate-900 to-black"

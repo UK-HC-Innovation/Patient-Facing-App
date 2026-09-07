@@ -53,12 +53,20 @@ export function FoodVerdict({
   language,
   score,
   foodName,
-  carveOutReason
+  carveOutReason,
+  onWhyScore,
+  whyScoreRef
 }: {
   language: Language;
   score: CompassScore | null;
   foodName: string | null;
   carveOutReason: NotScoreableReason | null;
+  /**
+   * Opens the domain breakdown. A chart marker was the only way in, and a marker is not a
+   * control anyone reads as one (spec 30 R11, finding E09).
+   */
+  onWhyScore?: () => void;
+  whyScoreRef?: React.RefObject<HTMLButtonElement | null>;
 }) {
   // The sticky strip prints the food's name once the viewfinder is gone, so the verdict
   // stops printing it: the name appears exactly once on any screenful.
@@ -99,17 +107,30 @@ export function FoodVerdict({
         </p>
         {subline ? <p className="mt-1.5 text-[15px] leading-normal text-ink/70">{subline}</p> : null}
         {score.ambiguous && score.range ? (
-          <p className="mt-1 text-xs text-ink/65">
+          <p className="mt-1 text-xs text-ink/70">
             {t(language, "compassAmbiguous", { low: score.range[0], high: score.range[1] })}
           </p>
+        ) : null}
+        {onWhyScore ? (
+          <button
+            className="mt-2 min-h-11 rounded-md text-left text-[13px] font-semibold text-care underline"
+            data-testid="why-score-trigger"
+            onClick={onWhyScore}
+            ref={whyScoreRef}
+            type="button"
+          >
+            {t(language, "compassWhyScore")}
+          </button>
         ) : null}
       </div>
       <div className="shrink-0 text-right">
         <p className={`text-[50px] font-semibold leading-none tracking-tighter ${VERDICT_FIGURE[score.band]}`}>
           {score.fcs}
         </p>
-        <p className="mt-0.5 text-[13px] font-semibold text-ink/55">{t(language, "verdictOutOf100")}</p>
-        <p className="mt-0.5 text-[11px] font-medium text-ink/60">{t(language, "compassScoreLabel")}</p>
+        {/* text-ink/55 and /60 measured 3.76:1 and 4.39:1 on white at 13 and 11px, both under
+            WCAG AA. text-ink/70 is 6.11:1 (spec 30 R12, finding E10). */}
+        <p className="mt-0.5 text-[13px] font-semibold text-ink/70">{t(language, "verdictOutOf100")}</p>
+        <p className="mt-0.5 text-[11px] font-medium text-ink/70">{t(language, "compassScoreLabel")}</p>
         {score.tier === "T2" ? (
           <span className="mt-1 inline-block rounded-control bg-calm px-2 py-1 text-[11px] font-semibold text-care">
             {t(language, "compassEstimateBadge")}
@@ -268,7 +289,8 @@ export function FoodAttribution({ language, children }: { language: Language; ch
         <p className="mt-1.5 text-[15px] leading-normal text-ink/80">{t(language, "gatePrivacyClaim")}</p>
       </div>
       {children}
-      <p className="text-[13px] leading-normal text-ink/55">{t(language, "attributionLine")}</p>
+      {/* 3.77:1 at 13px before spec 30 R12; text-ink/70 is 6.11:1. */}
+      <p className="text-[13px] leading-normal text-ink/70">{t(language, "attributionLine")}</p>
     </section>
   );
 }

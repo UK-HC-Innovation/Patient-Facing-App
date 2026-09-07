@@ -7,10 +7,37 @@ import { FoodViewfinder } from "./food-viewfinder";
 const videoRef = createRef<HTMLVideoElement>();
 
 describe("FoodViewfinder demo states", () => {
-  it("shows a deterministic sample scan and neutral fallback copy when the camera is unavailable", () => {
+  // Spec 30 R11, finding E08. These three used to assert a 336px pizza over a camera that
+  // said no, on the door with no other way in. A food picture where no food was seen reads
+  // as recognition that did not happen, and it covered the notice and the retry entirely.
+  it("shows the notice and a retry, not a sample scan, when the camera is denied", () => {
+    const onCameraRetry = vi.fn();
     render(
       <FoodViewfinder
         cameraStatus="denied"
+        demoPreview
+        idleLabel="Tap start and describe your order."
+        language="en"
+        onCameraRetry={onCameraRetry}
+        scanChip={null}
+        sessionStatus="idle"
+        videoRef={videoRef}
+      />
+    );
+
+    expect(screen.queryByRole("img", { name: "Pizza in the camera view" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Camera is off. Turn on camera access to talk about your food.")
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Camera access is off. You can still type your question below.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry camera" })).toBeInTheDocument();
+    expect(screen.queryByText(/Chrome site settings/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the sample scan only while a stream is still attaching", () => {
+    render(
+      <FoodViewfinder
+        cameraStatus="starting"
         demoPreview
         idleLabel="Tap start and describe your order."
         language="en"
@@ -23,15 +50,15 @@ describe("FoodViewfinder demo states", () => {
     expect(screen.getByRole("img", { name: "Pizza in the camera view" })).toBeInTheDocument();
     expect(screen.getByText("Camera is off. Turn on camera access to talk about your food.")).toBeInTheDocument();
     expect(screen.getByText("Tap start and describe your order.")).toBeInTheDocument();
-    expect(screen.queryByText(/Chrome site settings/i)).not.toBeInTheDocument();
   });
 
-  it("localizes the deterministic sample preview in Spanish", () => {
+  it("localizes the denied notice in Spanish", () => {
     render(
       <FoodViewfinder
         cameraStatus="denied"
         demoPreview
         language="es"
+        onCameraRetry={vi.fn()}
         scanChip={null}
         sessionStatus="idle"
         videoRef={videoRef}
@@ -39,18 +66,16 @@ describe("FoodViewfinder demo states", () => {
     );
 
     expect(
-      screen.getByRole("img", { name: "Una pizza en la vista de la cámara" })
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("La cámara está apagada. Permite el acceso a la cámara para hablar sobre tu comida.")
-    ).toBeInTheDocument();
+      screen.queryByRole("img", { name: "Una pizza en la vista de la cámara" })
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reintentar cámara" })).toBeInTheDocument();
   });
 
   it("makes tap-start voice copy a real control when a voice action is available", async () => {
     const onVoiceStatusTap = vi.fn();
     render(
       <FoodViewfinder
-        cameraStatus="denied"
+        cameraStatus="starting"
         demoPreview
         idleLabel="Tap start and describe your order."
         language="en"

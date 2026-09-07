@@ -75,12 +75,15 @@ export const FOOD_LENS_ANSWER_SLOTS: readonly FoodLensSlot[] = [
   // which is what critique N3 was actually about: chartPlaceholder is still false, so
   // there are no axes and no quadrant labels until there is a food to plot.
   "chart",
+  // Spec 30 R11, finding E09. The domain breakdown lived inside the closed fold, so the
+  // chart marker mounted a panel nobody could see and its focus effect no-opped on both
+  // doors. The chart is above it; the explanation of the number belongs with the number.
+  "whyScore",
   "alternatives",
   "actions"
 ];
 
 const FOOD_LENS_FOLDED_SLOTS: readonly FoodLensSlot[] = [
-  "whyScore",
   "weHeard",
   "flags",
   "totals",

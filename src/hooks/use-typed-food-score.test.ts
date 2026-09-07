@@ -147,4 +147,128 @@ describe("useTypedFoodScore", () => {
     expect(first).toEqual({ kind: "superseded" });
     expect(second).toMatchObject({ kind: "match" });
   });
+
+  // Spec 30 R5, A05. Items six and seven used to be sliced off inside the splitter, so no
+  // caller could count them and a plate of seven was answered as if it were a plate of five.
+  it("names what it could not score past the five-item cap", async () => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify(matchResponse("Rice, white", 40))))
+    );
+    const { result } = renderHook(() => useTypedFoodScore());
+
+    let outcome: TypedFoodResult | undefined;
+    await act(async () => {
+      outcome = await result.current.submit("rice, beans, chicken, salad, bread, cake, soda");
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(outcome).toMatchObject({ kind: "plate", dropped: ["cake", "soda"] });
+    expect(outcome?.kind === "plate" ? outcome.items : []).toHaveLength(5);
+  });
+
+  // Spec 30 R5, A14. Promise.all rejected the whole line into the catch below, which turned
+  // a plate into a question and opened a paid voice session over one unreachable lookup.
+  it("keeps a plate a plate when one item's lookup cannot run", async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify(matchResponse("Apple, raw", 95))))
+      .mockRejectedValueOnce(new Error("offline"));
+    const { result } = renderHook(() => useTypedFoodScore());
+
+    let outcome: TypedFoodResult | undefined;
+    await act(async () => {
+      outcome = await result.current.submit("apple, banana");
+    });
+
+    expect(outcome?.kind).toBe("plate");
+    const items = outcome?.kind === "plate" ? outcome.items : [];
+    expect(items[0]).toMatchObject({ query: "apple" });
+    expect(items[1]).toMatchObject({ query: "banana", match: null, failed: true });
+  });
+
+  it("re-runs one failed item without touching the rest of the plate", async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify(matchResponse("Apple, raw", 95))))
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce(new Response(JSON.stringify(matchResponse("Banana, raw", 83))));
+    const { result } = renderHook(() => useTypedFoodScore());
+
+    await act(async () => {
+      await result.current.submit("apple, banana");
+    });
+    await act(async () => {
+      await result.current.retryItem("banana");
+    });
+
+    const items = result.current.result?.kind === "plate" ? result.current.result.items : [];
+    expect(items[0].match?.food.description).toBe("Apple, raw");
+    expect(items[1].match?.food.description).toBe("Banana, raw");
+    expect(items[1].failed).toBe(false);
+  });
+
+  // Spec 30 R2, finding E12. The question branch returned before the abort, so an in-flight
+  // lookup finished and replaced the very food the question was about.
+  it("aborts an in-flight lookup when the next line is a question", async () => {
+    let aborted = false;
+    fetchMock.mockImplementationOnce(
+      (_url: string, init: { signal: AbortSignal }) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal.addEventListener("abort", () => {
+            aborted = true;
+            reject(new DOMException("aborted", "AbortError"));
+          });
+        })
+    );
+    const { result } = renderHook(() => useTypedFoodScore());
+
+    let first: TypedFoodResult | undefined;
+    let question: TypedFoodResult | undefined;
+    await act(async () => {
+      const pending = result.current.submit("pizza").then((value) => {
+        first = value;
+      });
+      question = await result.current.submit("how many calories?");
+      await pending;
+    });
+
+    expect(aborted).toBe(true);
+    expect(question).toEqual({ kind: "question", text: "how many calories?" });
+    expect(first).toEqual({ kind: "superseded" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  // Spec 30 R1. A camera or barcode replacement advances the door's epoch, and a lookup that
+  // captured the old one may not publish over it.
+  it("supersedes its own result when the door's authority has moved on", async () => {
+    let release: ((value: Response) => void) | undefined;
+    fetchMock.mockImplementationOnce(
+      () => new Promise<Response>((resolve) => {
+        release = resolve;
+      })
+    );
+    let epoch = 0;
+    const authority = {
+      epoch,
+      snapshot: () => epoch,
+      isCurrent: (value: number) => value === epoch,
+      invalidate: () => {
+        epoch += 1;
+        return epoch;
+      }
+    };
+    const { result } = renderHook(() => useTypedFoodScore({ authority }));
+
+    let outcome: TypedFoodResult | undefined;
+    await act(async () => {
+      const pending = result.current.submit("cheerios").then((value) => {
+        outcome = value;
+      });
+      // The camera confirms a different food while the typed lookup is still out.
+      authority.invalidate();
+      release?.(new Response(JSON.stringify(matchResponse("Cereal, Cheerios", 77))));
+      await pending;
+    });
+
+    expect(outcome).toEqual({ kind: "superseded" });
+    expect(result.current.result).toBeNull();
+  });
 });

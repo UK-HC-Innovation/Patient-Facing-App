@@ -8,6 +8,7 @@ import {
   type CompassScore,
   type NotScoreableReason
 } from "@/domain/food-compass";
+import type { FoodAuthority } from "@/domain/food-authority";
 import type { IdentifiedFood } from "@/domain/types";
 
 export type CompassScoreState = {
@@ -30,9 +31,10 @@ export type CompassScoreState = {
  */
 export function useCompassScore(
   food: IdentifiedFood | null,
-  options: { passcode?: string; enabled?: boolean } = {}
+  options: { passcode?: string; enabled?: boolean; authority?: FoodAuthority } = {}
 ): CompassScoreState {
   const enabled = options.enabled !== false;
+  const authority = options.authority;
 
   const local = useMemo<{ score: CompassScore | null; carveOut: NotScoreableReason | null }>(() => {
     if (!food || !enabled) {
@@ -79,6 +81,11 @@ export function useCompassScore(
       setAlternativesLoading(false);
       return;
     }
+    // Spec 30 R2, finding E12. The request id alone cannot tell that the food this list is
+    // about has been replaced by a camera, a barcode or a typed line while it was in flight.
+    const requestEpoch = authority?.snapshot() ?? null;
+    const stillCurrent = () =>
+      id === requestId.current && (requestEpoch === null || authority?.isCurrent(requestEpoch) !== false);
     setAlternativesLoading(true);
     void fetch("/api/food/identify", {
       method: "POST",
@@ -87,14 +94,14 @@ export function useCompassScore(
     })
       .then((response) => response.json())
       .then((json: unknown) => {
-        if (id !== requestId.current) {
+        if (!stillCurrent()) {
           return;
         }
         const match = (json as { match?: { alternatives?: CompassAlternative[] } }).match;
         setAlternatives(match?.alternatives ?? []);
       })
       .catch(() => {
-        if (id === requestId.current) {
+        if (stillCurrent()) {
           setAlternatives([]);
         }
       })
@@ -103,7 +110,7 @@ export function useCompassScore(
           setAlternativesLoading(false);
         }
       });
-  }, [foodName, local.score, options.passcode]);
+  }, [authority, foodName, local.score, options.passcode]);
 
   return { ...local, alternatives, alternativesLoading };
 }

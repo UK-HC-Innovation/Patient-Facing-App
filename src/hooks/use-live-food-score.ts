@@ -83,7 +83,7 @@ export type LiveScoreState = {
   scanError: LiveScanError | null;
   /** Capture and identify one frame after an explicit user action. */
   scan: () => Promise<void>;
-  adoptMatch: (match: LiveMatch, options?: { pin?: boolean }) => void;
+  adoptMatch: (match: LiveMatch) => void;
   /** Clear all current authority and stop paid identification until rearm(). */
   suspend: () => void;
   rearm: (options?: { waitForSceneChange?: boolean }) => void;
@@ -93,6 +93,17 @@ export type LiveScoreState = {
    * reaches component state.
    */
   setVisibleRatio: (ratio: number) => void;
+};
+
+/**
+ * The continuous loop's state. Only it carries the correction pin.
+ *
+ * `pin` holds a user-chosen row against the next 60 seconds of vision results. The manual
+ * engine both doors run has no loop to hold anything against, so it was a parameter that
+ * typechecked and did nothing on every call site the app actually reaches (spec 30 A1).
+ */
+export type LoopScoreState = Omit<LiveScoreState, "adoptMatch"> & {
+  adoptMatch: (match: LiveMatch, options?: { pin?: boolean }) => void;
 };
 
 /** Mean absolute difference between two equal-length grayscale signatures. */
@@ -162,7 +173,7 @@ export function useLiveFoodScore(args: {
   manual?: boolean;
   authority?: FoodAuthority;
   now?: () => number;
-}): LiveScoreState {
+}): LoopScoreState {
   const {
     videoRef,
     grabFrame,

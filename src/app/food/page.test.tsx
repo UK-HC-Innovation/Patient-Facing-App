@@ -6,8 +6,8 @@
  * `handleTypedLine` acted on `question` and `match` and ignored `carve_out` and `none`,
  * nothing cleared `live.match`, and the typed hook held no authority.
  *
- * P0 marks all five as `it.fails`: they are the reproduction, and they run green only while
- * the defect is still there. P2 flips them to `it` once the reducer lands.
+ * P0 marked all five `it.fails` as the reproduction. A1's reducer landed, so they are
+ * ordinary tests now: each one fails on 5ea7f1c and passes here.
  */
 import React from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
@@ -148,7 +148,7 @@ describe("FoodPage: one current choice", () => {
   });
 
   // A02. This is E01: on 5ea7f1c the pizza verdict was still on screen after `water`.
-  it.fails("replaces a scored food with the exclusion state when the next line is not scoreable", async () => {
+  it("replaces a scored food with the exclusion state when the next line is not scoreable", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(identifyResponse({ mode: "match", match: pizzaMatch, candidates: [] }))
@@ -169,7 +169,7 @@ describe("FoodPage: one current choice", () => {
   });
 
   // A02, the second half: an unknown food replaces the score with a usable correction.
-  it.fails("replaces a scored food with the no-match state when the next line misses", async () => {
+  it("replaces a scored food with the no-match state when the next line misses", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(identifyResponse({ mode: "match", match: pizzaMatch, candidates: [] }))
@@ -193,7 +193,7 @@ describe("FoodPage: one current choice", () => {
   });
 
   // A03. Two fruit rows replace pizza, and nothing tells anyone to cut back on a banana.
-  it.fails("replaces a scored food with a typed plate, with no cut-back directive on two high scores", async () => {
+  it("replaces a scored food with a typed plate, with no cut-back directive on two high scores", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(identifyResponse({ mode: "match", match: pizzaMatch, candidates: [] }))
@@ -227,7 +227,7 @@ describe("FoodPage: one current choice", () => {
   });
 
   // A15. A question must cancel the lookup it interrupted, never let it swap the card.
-  it.fails("cancels an in-flight lookup when the next line is a question", async () => {
+  it("cancels an in-flight lookup when the next line is a question", async () => {
     let released: ((value: unknown) => void) | undefined;
     const fetchMock = vi.fn().mockImplementationOnce(
       (_url: string, init: { signal: AbortSignal }) =>
@@ -251,7 +251,7 @@ describe("FoodPage: one current choice", () => {
   });
 
   // A14. One failed item is unchecked with a retry. It never becomes a question.
-  it.fails("keeps a plate a plate when one item fails to resolve", async () => {
+  it("keeps a plate a plate when one item fails to resolve", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(

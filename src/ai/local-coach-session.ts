@@ -10,11 +10,14 @@ export async function openLocalCoachSession(
   init: LiveSessionInit,
   provider: HealthAiProvider
 ): Promise<LiveSessionHandle> {
-  let status: LiveSessionStatus = "listening";
+  // Spec 30 R8, finding E11. This session has no microphone and the doors that use it
+  // render no mic button, so "Listening. Just talk." was an instruction to do something the
+  // screen could not accept. `idle` lets each door show its own idle line instead.
+  let status: LiveSessionStatus = "idle";
   let closed = false;
 
   const emit = init.onEvent;
-  emit({ type: "status", status: "listening" });
+  emit({ type: "status", status: "idle" });
 
   const speak = (text: string) => {
     if (typeof window === "undefined" || typeof window.speechSynthesis === "undefined") {
@@ -61,16 +64,16 @@ export async function openLocalCoachSession(
             banner: response.banner,
             actions: response.actions ?? []
           });
-          status = "listening";
-          emit({ type: "status", status: "listening" });
+          status = "idle";
+          emit({ type: "status", status: "idle" });
           return;
         }
         status = "speaking";
         emit({ type: "assistantTranscript", text: response.content, final: true });
         emit({ type: "status", status: "speaking" });
         speak(response.content);
-        status = "listening";
-        emit({ type: "status", status: "listening" });
+        status = "idle";
+        emit({ type: "status", status: "idle" });
       });
     },
     updateInstructions: () => {

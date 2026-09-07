@@ -48,16 +48,6 @@ async function confirmCameraCandidate(page: Page) {
   await page.getByRole("button", { name: "Yes, use this food" }).click();
 }
 
-/**
- * Spec 29 P8 (critique N5): a barcode score was ten and a half phone screens. The score,
- * the verdict, one alternative and one button stayed; the chart, the score drivers, the
- * "we heard" block, the flags, the day totals, the nutrient tiles and the meal log went
- * under one disclosure. Anything below that line has to be opened before it can be read.
- */
-async function openMoreAboutThisFood(page: Page) {
-  await page.getByText("More about this food").click();
-}
-
 function strip(page: Page) {
   return page.getByRole("region", { name: "1 good choice status" });
 }
@@ -224,9 +214,11 @@ test("opens the domain breakdown from the chart marker and hands focus back on c
   await page.goto("/food/demo");
   await confirmCameraCandidate(page);
 
-  // Spec 29 P8: the chart is under the fold now, so the marker is reached through it.
+  // Spec 30 R11, finding E09. This case used to open "More about this food" first, so it
+  // passed while the feature was dead: the panel mounted inside a closed fold and its
+  // focus effect no-opped. No fold is opened here. If the breakdown is unreachable the
+  // test fails, which is the whole point of it.
   await expect(page.getByTestId("food-verdict")).toContainText("Banana, raw", { timeout: 10_000 });
-  await openMoreAboutThisFood(page);
 
   const marker = page.getByTestId("nutrition-compass-marker");
   await expect(marker).toBeVisible({ timeout: 10_000 });
@@ -242,13 +234,49 @@ test("opens the domain breakdown from the chart marker and hands focus back on c
   await expect(marker).toBeFocused();
 });
 
+// A16: the visible control beside the number, on both doors, with its own focus round trip.
+for (const door of ["/food", "/food/demo"]) {
+  test(`opens the domain breakdown from the Why this score control on ${door}`, async ({ page }) => {
+    await stubIdentify(page, {
+      mode: "match",
+      match: {
+        ...bananaMatch,
+        estimatedDomains: {
+          domains: [
+            { key: "D1", value: 4.2 },
+            { key: "D2", value: -1.5 }
+          ],
+          coverage: { included: ["D1", "D2"], missing: ["D8"], partial: [] }
+        }
+      }
+    });
+    await page.goto(door);
+    await confirmCameraCandidate(page);
+    // The score, not the name: the verdict prints the food's name only once the sticky strip
+    // is not already printing it, which depends on where the viewfinder is on screen.
+    await expect(page.getByTestId("food-verdict")).toContainText("83", { timeout: 10_000 });
+
+    const trigger = page.getByTestId("why-score-trigger");
+    await expect(trigger).toBeVisible();
+    await expect(page.getByTestId("why-score")).toHaveCount(0);
+
+    await trigger.click();
+    const panel = page.getByTestId("why-score");
+    await expect(panel).toBeVisible();
+    await expect(panel.getByRole("heading", { name: /Why this score/ })).toBeFocused();
+
+    await panel.getByRole("button", { name: "Close" }).click();
+    await expect(page.getByTestId("why-score")).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+  });
+}
+
 test("names the quadrants in a legend beneath the plot, never in its corners", async ({ page }) => {
   await stubIdentify(page);
   await page.goto("/food/demo");
   await confirmCameraCandidate(page);
 
   await expect(page.getByTestId("food-verdict")).toContainText("Banana, raw", { timeout: 10_000 });
-  await openMoreAboutThisFood(page);
 
   const chart = page.getByRole("region", { name: "Score and calories" });
   await expect(chart).toBeVisible({ timeout: 10_000 });

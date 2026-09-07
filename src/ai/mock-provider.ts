@@ -1,4 +1,5 @@
 import { openLocalCoachSession } from "./local-coach-session";
+import { hasSharedHealthContext } from "./food-instructions";
 import { gradeStringKey } from "@/domain/dr-triage";
 import { tScreening } from "@/i18n/strings";
 import type { HomeReading, IdentifiedFood, Medication } from "@/domain/types";
@@ -70,9 +71,21 @@ function buildTroubleAnswer(patientInput: string): string {
   return "Tell me what got in the way — for example cost, a refill problem, forgetting, confusion, or a concern about how you felt — and I can help turn it into a question for your care team.";
 }
 
-function buildFoodAnswer(food: IdentifiedFood | undefined, aceMedication: Medication | null): string {
+/**
+ * Spec 30 R8, finding E11. The public door runs this same mock coach and has no plan, no
+ * readings, no medicines and no care team, so every sentence below that names one was about
+ * a record the person on the other end does not have. `shared` is false there on every
+ * build, not only where a flag says so.
+ */
+function buildFoodAnswer(
+  food: IdentifiedFood | undefined,
+  aceMedication: Medication | null,
+  shared: boolean
+): string {
   if (!food) {
-    return "Point your camera at any food and ask me about it — for example how many carbs or how much sodium it has — and I'll tell you how it fits your plan.";
+    return shared
+      ? "Point your camera at any food and ask me about it — for example how many carbs or how much sodium it has — and I'll tell you how it fits your plan."
+      : "Point your camera at a food, or type its name, and I'll give you its score and what it means.";
   }
 
   const label = food.brand ? `${food.brand} ${food.name}` : food.name;
@@ -81,9 +94,17 @@ function buildFoodAnswer(food: IdentifiedFood | undefined, aceMedication: Medica
 
   if (sodium !== null) {
     const percent = Math.round((sodium / 1500) * 100);
-    parts.push(`${label} has ${sodium} mg of sodium — about ${percent}% of your daily target.`);
+    parts.push(
+      shared
+        ? `${label} has ${sodium} mg of sodium — about ${percent}% of your daily target.`
+        : `${label} has ${sodium} mg of sodium per serving.`
+    );
     if (percent >= 30) {
-      parts.push("That is a lot in one serving, and your recent readings are trending up, so a lower-sodium option would be a better pick.");
+      parts.push(
+        shared
+          ? "That is a lot in one serving, and your recent readings are trending up, so a lower-sodium option would be a better pick."
+          : "That is a lot for one serving. A lower-sodium version of the same food scores higher."
+      );
     }
   } else {
     parts.push(`I could not read the sodium for ${label}, so treat this as an estimate.`);
@@ -108,7 +129,11 @@ export class MockHealthAiProvider implements HealthAiProvider {
     const medication = requestedMedication ?? (hasSingleMedication ? request.state.medications[0] : null);
 
     if (request.mode === "food") {
-      const content = buildFoodAnswer(request.identifiedFood, findAceInhibitor(request.state.medications));
+      const content = buildFoodAnswer(
+        request.identifiedFood,
+        findAceInhibitor(request.state.medications),
+        hasSharedHealthContext(request.state)
+      );
       const sources = [request.state.carePlan.id];
       // The trend sentence cites the readings it summarizes, so grounding sees the
       // reading behind "your recent readings are trending up".

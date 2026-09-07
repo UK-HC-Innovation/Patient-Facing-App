@@ -41,6 +41,7 @@ export type FoodLensStringKey =
   | "voiceLost"
   | "typedPlateCutBack"
   | "typedPlateNoScore"
+  | "typedPlateNotScored"
   | "typedOnlyBuild"
   | "voiceOffTypedWorks"
   | "cameraRetryBlocked"
@@ -375,6 +376,7 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     voiceLost: "I lost the connection. Ask again.",
     typedPlateCutBack: "Cut back on {food} first.",
     typedPlateNoScore: "No score",
+    typedPlateNotScored: "Not scored: {names}",
     typedOnlyBuild: "Typed questions only on this build.",
     voiceOffTypedWorks: "Voice is off. Typed questions still work.",
     cameraRetryBlocked: "Your browser has blocked the camera. Allow it in site settings, then tap again.",
@@ -711,6 +713,7 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     voiceLost: "Perdí la conexión. Pregunta otra vez.",
     typedPlateCutBack: "Reduce primero {food}.",
     typedPlateNoScore: "Sin puntaje",
+    typedPlateNotScored: "Sin puntaje: {names}",
     typedOnlyBuild: "En esta versión solo funcionan las preguntas escritas.",
     voiceOffTypedWorks: "La voz está apagada. Las preguntas escritas sí funcionan.",
     cameraRetryBlocked: "Tu navegador bloqueó la cámara. Permítela en la configuración del sitio y toca otra vez.",

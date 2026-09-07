@@ -101,8 +101,15 @@ const compassBudgets = {
   // deployed from a parallel line: /food/demo 201.2 KiB. The public barcode review is still
   // dynamically split, so this is initial wiring, not the review itself; again no single
   // chunk moved, and the >900 KiB per-chunk guard below is untouched. Raised to 204.
+  //
+  // Re-measured 2026-09-07 after spec 30 A1: /food 312.3 KiB, /food/demo 202.8 KiB. The
+  // personal door gained the one-current-choice reducer, the typed plate's accounting and
+  // retry, the visible "Why this score?" control and the pending status; the public door
+  // gained the last three. /food's ceiling goes 312 -> 313 from that measurement and
+  // /food/demo keeps its 204. The largest chunk either route pulls is 174 KiB raw, so the
+  // >900 KiB per-chunk guard below still has the whole job it was written for.
   "/food/demo/page": 204 * kib,
-  "/food/page": 312 * kib
+  "/food/page": 313 * kib
 };
 
 const compassReport = [];
