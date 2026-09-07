@@ -16,6 +16,20 @@ const bananaMatch = {
   nutrients: null
 };
 
+const doritosMatch = {
+  ...bananaMatch,
+  food: {
+    code: "54401110",
+    description: "Tortilla chips, nacho cheese flavor (Doritos)",
+    group: "9000_SavorySweet"
+  },
+  score: {
+    ...bananaMatch.score,
+    fcs: 19,
+    band: "minimize"
+  }
+};
+
 async function stubRealtime(page: Page) {
   await page.route("**/api/realtime/token", (route) =>
     route.fulfill({
@@ -91,6 +105,117 @@ test("keeps the camera in place and starts the food conversation automatically",
   await expect(page.getByRole("region", { name: "Voice" }).getByRole("textbox")).toHaveCount(1);
 
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+});
+
+test("detects a packaged-food barcode on the public door and scores it only after confirmation", async ({ page }) => {
+  const barcode = "028400090896";
+  const imageRequests: string[] = [];
+  const packageRequests: string[] = [];
+  const scoreRequests: string[] = [];
+  await stubRealtime(page);
+  await page.addInitScript((detectedBarcode) => {
+    class TestBarcodeDetector {
+      async detect() {
+        return [{ rawValue: detectedBarcode }];
+      }
+    }
+    Object.defineProperty(window, "BarcodeDetector", {
+      configurable: true,
+      value: TestBarcodeDetector
+    });
+  }, barcode);
+  await page.route("**/api/food/lookup", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        found: true,
+        food: {
+          id: barcode,
+          barcode,
+          name: "Nacho Cheese Flavored Tortilla Chips",
+          brand: "Doritos",
+          category: "Snacks",
+          nutrition: {
+            servingSize: "1 oz (28 g)",
+            calories: 150,
+            sodiumMg: 210,
+            potassiumMg: 50,
+            totalSugarsG: 1,
+            addedSugarsG: 0,
+            saturatedFatG: 1,
+            fiberG: 1,
+            proteinG: 2,
+            carbsG: 18,
+            totalFatG: 8,
+            monoFatG: null,
+            polyFatG: null,
+            transFatG: 0,
+            cholesterolMg: 0,
+            calciumMg: null,
+            ironMg: null,
+            servingGrams: 28,
+            basis: "per_serving"
+          },
+          source: "barcode_off",
+          ingredientText: null
+        }
+      })
+    });
+  });
+  await page.route("**/api/food/identify", async (route) => {
+    const body = route.request().postDataJSON() as {
+      image?: string;
+      text?: string;
+      foodId?: string;
+      requireConfirmation?: boolean;
+    };
+    if (body.image) imageRequests.push(body.image);
+    if (body.requireConfirmation === true) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ mode: "candidate", candidate: { food: doritosMatch.food } })
+      });
+      return;
+    }
+    if (body.foodId) scoreRequests.push(body.foodId);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ mode: "match", match: doritosMatch, candidates: [] })
+    });
+  });
+  page.on("request", (request) => {
+    if (/\/api\/food\/package(?:\/|\?|$)/u.test(new URL(request.url()).pathname)) {
+      packageRequests.push(request.url());
+    }
+  });
+
+  await page.goto("/food/demo");
+  await page.getByRole("button", { name: "Tap to scan" }).click();
+
+  const review = page.getByRole("region", { name: "Package scan" });
+  await expect(review).toContainText("Barcode found: Doritos Nacho Cheese");
+  await expect(page.getByTestId("food-verdict")).toHaveCount(0);
+  expect(imageRequests).toEqual([]);
+  expect(packageRequests).toEqual([]);
+
+  await review.getByRole("button", { name: "Use this product" }).click();
+
+  const identityReview = page.getByTestId("food-identity-review");
+  await expect(identityReview).toContainText("Tortilla chips, nacho cheese flavor (Doritos)");
+  await expect(page.getByTestId("food-verdict")).toHaveCount(0);
+
+  await identityReview.getByRole("button", { name: "Yes, use this food" }).click();
+
+  await expect(identityReview).toHaveCount(0);
+  await expect(page.getByTestId("food-verdict")).toContainText("19");
+  const chart = page.getByRole("region", { name: "Score and calories" });
+  await expect(chart).toContainText("5.36 calories per gram (536 per 100 g)");
+  await expect(chart).not.toContainText("Calories per gram unknown");
+  await expect(chart).not.toContainText("Estimated calorie density");
+  expect(scoreRequests).toEqual([doritosMatch.food.code]);
 });
 
 test("plots Food Compass on X and calorie density on Y in one of four quadrants", async ({ page }) => {

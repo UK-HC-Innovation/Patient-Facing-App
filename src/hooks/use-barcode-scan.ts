@@ -10,6 +10,8 @@ type BarcodeDetectorFactory = () => Promise<BarcodeDetectorLike>;
 
 const FORMATS = ["ean_13", "ean_8", "upc_a", "upc_e"];
 export const BARCODE_SCAN_TIMEOUT_MS = 1_500;
+const BARCODE_SCAN_POLL_MS = 100;
+const REQUIRED_AGREEING_READS = 2;
 const BARCODE_TIMEOUT = Symbol("barcode_timeout");
 
 async function withinScanTimeout<T>(work: Promise<T>): Promise<T | typeof BARCODE_TIMEOUT> {
@@ -68,12 +70,26 @@ export function useBarcodeScan(args: {
       const result = await withinScanTimeout((async () => {
         detectorRef.current ??= await factory();
         if (generationRef.current !== generation) return null;
-        const first = await detectorRef.current.detect(video);
-        if (generationRef.current !== generation || first.length === 0) return null;
-        const second = await detectorRef.current.detect(video);
-        if (generationRef.current !== generation || second.length === 0) return null;
-        const value = first[0].rawValue.trim();
-        return value.length > 0 && second[0].rawValue.trim() === value ? value : null;
+        let candidate: string | null = null;
+        let agreeingReads = 0;
+        while (generationRef.current === generation) {
+          const detections = await detectorRef.current.detect(video);
+          if (generationRef.current !== generation) return null;
+          const value = Array.isArray(detections) ? detections[0]?.rawValue.trim() ?? "" : "";
+          if (/^\d{8,14}$/u.test(value)) {
+            if (value === candidate) {
+              agreeingReads += 1;
+            } else {
+              candidate = value;
+              agreeingReads = 1;
+            }
+            if (agreeingReads >= REQUIRED_AGREEING_READS) {
+              return value;
+            }
+          }
+          await new Promise<void>((resolve) => window.setTimeout(resolve, BARCODE_SCAN_POLL_MS));
+        }
+        return null;
       })());
       if (result === BARCODE_TIMEOUT) {
         if (generationRef.current === generation) generationRef.current += 1;

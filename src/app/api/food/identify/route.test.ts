@@ -11,7 +11,16 @@ type IdentifyJson = {
   match?: {
     food: { code: string; description: string; group: string };
     tier: string;
-    score: { fcs: number; band: string; tier: string };
+    score: {
+      fcs: number;
+      band: string;
+      tier: string;
+      calorieDensity: {
+        kcalPer100g: number | null;
+        band: string;
+        estimate?: { method: string; referenceCode: string | null };
+      };
+    };
     alternatives: Array<{ fcs: number; recipeSearchUrl: string; description: string }>;
     estimatedDomains?: {
       domains: Array<{ key: string; value: number }>;
@@ -71,12 +80,16 @@ function visionFood(food: string, confidence = 0.94): string {
   });
 }
 
-function visionPackage(): string {
+function visionPackage(
+  food: string | null = null,
+  confidence = 0.97,
+  visualForm: "sealed_package" | "open_package" | "mixed_package_scene" = "sealed_package"
+): string {
   return JSON.stringify({
     kind: "package",
-    food: null,
-    confidence: 0.97,
-    visualForm: "sealed_package",
+    food,
+    confidence,
+    visualForm,
     packageCues: ["printed_product_text", "wrapper_or_seam"]
   });
 }
@@ -98,6 +111,20 @@ describe("POST /api/food/identify — deterministic paths", () => {
     expect(json.match?.estimatedDomains?.coverage.missing).toContain("D4");
     expect(json.match?.estimatedDomains?.coverage.partial).toContain("D5");
     expect(json.match?.score.fcs).toBe(83);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("holds a barcode-derived text match as an unscored candidate until exact-row confirmation", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const response = await POST(request({
+      text: "Doritos Nacho Cheese Flavored Tortilla Chips",
+      requireConfirmation: true
+    }));
+    const json = (await response.json()) as IdentifyJson;
+
+    expect(json.mode).toBe("candidate");
+    expect(json.candidate?.food.description).toMatch(/tortilla chips.*Doritos/i);
+    expect(JSON.stringify(json)).not.toMatch(/"(?:fcs|score|alternatives|nutrients)"/);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -183,6 +210,18 @@ describe("POST /api/food/identify — deterministic paths", () => {
     const json = (await (await POST(request({ foodId: "63107010" }))).json()) as IdentifyJson;
     expect(json.mode).toBe("match");
     expect(json.match?.score.fcs).toBe(83);
+  });
+
+  it("always returns a disclosed density estimate for a published row with no nutrient join", async () => {
+    const json = (await (await POST(request({ foodId: "91781010" }))).json()) as IdentifyJson;
+
+    expect(json.mode).toBe("match");
+    expect(json.match?.score.fcs).toBe(58);
+    expect(json.match?.score.calorieDensity).toMatchObject({
+      kcalPer100g: 415,
+      band: "high",
+      estimate: { method: "equivalent_food", referenceCode: "53720500" }
+    });
   });
 
   it("preserves the order interpretation when a correction chip selects an exact row", async () => {
@@ -350,6 +389,77 @@ describe("POST /api/food/identify — image gating", () => {
     expect(imageResponse.headers.get("x-ladder-upstream-calls")).toBe("1");
     expect(imageResponse.headers.get("x-ladder-live-model")).toBeTruthy();
     expect(dataSpy).not.toHaveBeenCalled();
+  });
+
+  it("turns a clearly named single package into an unscored candidate", async () => {
+    process.env.HEALTH_AI_PROVIDER = "openai";
+    process.env.HEALTH_AI_API_KEY = "key";
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({
+          choices: [{ message: { content: visionPackage("tortilla chips, nacho cheese flavor (Doritos)") } }]
+        }), { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ choices: [{ message: { content: '{"index":0}' } }] }), { status: 200 })
+      );
+
+    const imageResponse = await POST(request({ image: TINY_IMAGE }));
+    const json = (await imageResponse.json()) as IdentifyJson;
+
+    expect(json.mode).toBe("candidate");
+    expect(json.candidate?.food.description).toMatch(/tortilla chips.*Doritos/i);
+    expect(JSON.stringify(json)).not.toMatch(/"(?:fcs|score|alternatives|nutrients)"/);
+    expect(fetchSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
+    expect(fetchSpy.mock.calls.length).toBeLessThanOrEqual(2);
+  });
+
+  it("recognizes a clearly named generic potato-chip package without publishing a score", async () => {
+    process.env.HEALTH_AI_PROVIDER = "openai";
+    process.env.HEALTH_AI_API_KEY = "key";
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({
+          choices: [{ message: { content: visionPackage("potato chips, plain") } }]
+        }), { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ choices: [{ message: { content: '{"index":0}' } }] }), { status: 200 })
+      );
+
+    const imageResponse = await POST(request({ image: TINY_IMAGE }));
+    const json = (await imageResponse.json()) as IdentifyJson;
+
+    expect(json.mode).toBe("candidate");
+    expect(json.candidate?.food.description).toMatch(/potato chips/i);
+    expect(JSON.stringify(json)).not.toMatch(/"(?:fcs|score|alternatives|nutrients)"/);
+    expect(fetchSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
+    expect(fetchSpy.mock.calls.length).toBeLessThanOrEqual(2);
+  });
+
+  it("keeps low-confidence and multiple-package scenes in package abstention", async () => {
+    process.env.HEALTH_AI_PROVIDER = "openai";
+    process.env.HEALTH_AI_API_KEY = "key";
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({
+          choices: [{ message: { content: visionPackage("Cool Ranch Doritos", 0.79) } }]
+        }), { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({
+          choices: [{ message: { content: visionPackage("potato chips", 0.99, "mixed_package_scene") } }]
+        }), { status: 200 })
+      );
+
+    const lowConfidence = await POST(request({ image: TINY_IMAGE }));
+    const multiplePackages = await POST(request({ image: TINY_IMAGE }));
+
+    expect(await lowConfidence.json()).toMatchObject({ mode: "package" });
+    expect(await multiplePackages.json()).toMatchObject({ mode: "package" });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
   it("abstains when food confidence is below the reviewed threshold", async () => {

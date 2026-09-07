@@ -144,6 +144,20 @@ describe("buildPerAskContext — Food Compass block", () => {
     expect(context).toContain("Use the numbers above exactly; do not recompute them.");
   });
 
+  it("tells the model when calorie density is an estimate", () => {
+    const context = buildPerAskContext(null, [], {
+      kind: "score",
+      fcs: 58,
+      band: "moderate",
+      tier: "T1",
+      calorieDensityKcalPer100g: 415,
+      calorieDensityEstimated: true,
+      alternatives: []
+    });
+
+    expect(context).toContain("Estimated calorie density: 415 kcal per 100 g.");
+  });
+
   it("marks a label-derived score as estimated so the model does not present it as published", () => {
     const context = buildPerAskContext(null, [], {
       kind: "score",

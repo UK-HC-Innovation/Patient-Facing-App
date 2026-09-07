@@ -171,10 +171,22 @@ HEALTH_AI_PACKAGE_MODEL=gpt-5.6-luna
 ```
 
 The flow is confirmation-first: the low-detail camera proposes a food without showing a
-score; a barcode proposes a database product without showing a score; and a package-front
+score; a barcode proposes a database product without showing a score; and the optional detailed package-front
 photo proposes only brand/product/flavor. Nutrition Facts is captured separately, every
 score-changing row is read back, and a label-derived score appears only after identity and
-nutrition are both confirmed. A package-front name is never sent into fuzzy FNDDS matching.
+nutrition are both confirmed. A detailed package-front OCR name is never sent into fuzzy
+FNDDS matching.
+
+The ordinary public and personal camera paths do not require those prototype flags. On an
+explicit tap, either path can propose a high-confidence, clearly named single package as an
+unscored published-food candidate; a person must confirm that candidate before its score is
+shown. The public door also performs a local multi-frame UPC/EAN read first and, when found,
+holds the barcode product for confirmation, then holds its published FNDDS row for a separate
+exact-code confirmation before showing a score. Unreadable, low-confidence, or multiple-package
+scenes still abstain. Neither path claims to have read exact label nutrition from a front photo.
+The public route's first-load gzip ceiling moves from 192 to 194 KiB for this wiring; the detector
+and review implementation remain in a deferred chunk. Multi-frame sampling moves the personal
+route ceiling from 303 to 304 KiB.
 
 Run `npm run eval:package-label -- --self-test` for the harness check. A release evaluation
 requires a private, adjudicated image manifest copied from
@@ -285,7 +297,8 @@ load and the page is one scroll, so there is nothing to click through first.
   however the food was named.
 - **About a third of the published foods have no nutrient panel.** Table S5 spans FNDDS
   2001–2018 while the joined nutrient workbook covers 2017–18 only, so those foods show a
-  score with no panel underneath it. That is stated on screen, not hidden.
+  score with no panel underneath it. The chart uses a separately labelled equivalent-food
+  or food-group calorie-density estimate, with a typical range, rather than a silent fact.
 
 ### What the numbers are
 

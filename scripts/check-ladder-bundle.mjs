@@ -79,6 +79,9 @@ const compassBudgets = {
   // Measured after spec 23: /compass 162.6 KiB, /food 273.9 KiB gzip. Re-measured after the
   // Food Lens shell rebuild, which cost both routes about 6 KiB of scroll shell, status
   // strip, pinned voice bar and the strings they speak: /compass 186.6 KiB, /food 297.3 KiB.
+  // The confirmed public barcode path added 1.3 KiB of initial wiring after its detector and
+  // review stayed dynamically split: /food/demo 192.7 KiB. Multi-frame barcode sampling also
+  // moved /food from 302.9 to just over 303 KiB. Their explicit ceilings are now 194/304 KiB.
   // Headroom for normal growth, and still orders of magnitude below the ~1.6 MB a leaked
   // fcs2-foods.json would add -- which is the thing these numbers exist to catch.
   //
@@ -87,7 +90,13 @@ const compassBudgets = {
   // /food/demo 193.8 KiB. No single chunk moved -- the growth is spread across shared
   // ones, and the >900 KiB per-chunk guard below is what actually catches a leaked
   // fcs2-foods.json. Raised to 200 with room for spec 29 P3's ask box on the public door.
-  "/food/demo/page": 200 * kib,
+  //
+  // Re-measured 2026-09-07 after merging codex/fix-packaged-scanning, whose restored
+  // packaged-food scanning and calorie-density estimate had been rolled back when spec 29
+  // deployed from a parallel line: /food/demo 201.2 KiB. The public barcode review is still
+  // dynamically split, so this is initial wiring, not the review itself; again no single
+  // chunk moved, and the >900 KiB per-chunk guard below is untouched. Raised to 204.
+  "/food/demo/page": 204 * kib,
   "/food/page": 312 * kib
 };
 

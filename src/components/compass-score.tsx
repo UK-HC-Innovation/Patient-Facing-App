@@ -211,6 +211,7 @@ export function CompassScoreRow({
 
       <p className="text-xs text-ink/65">
         {t(language, "compassCalorieDensity")}:{" "}
+        {density.estimate ? `${t(language, "compassDensityEstimated")} ` : ""}
         <span className="font-semibold">{t(language, DENSITY_LABEL[density.band])}</span>
         {density.kcalPer100g !== null
           ? ` · ${t(language, "compassKcalPer100g", { calories: density.kcalPer100g })}`
@@ -267,6 +268,7 @@ export function CompassAlternatives({
               <p className="text-sm font-semibold">{alternative.description}</p>
               {alternative.calorieDensity.kcalPer100g !== null ? (
                 <p className="text-xs text-ink/70">
+                  {alternative.calorieDensity.estimate ? `${t(language, "compassDensityEstimated")} · ` : ""}
                   {t(language, "compassKcalPer100g", { calories: alternative.calorieDensity.kcalPer100g })}
                 </p>
               ) : null}

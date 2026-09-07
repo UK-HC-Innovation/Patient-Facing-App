@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FoodViewfinder } from "@/components/food-viewfinder";
 import { OneGoodChoiceBrand } from "@/components/one-good-choice-brand";
@@ -62,6 +63,11 @@ type ConversationTurn = {
   actions?: AiMessageAction[];
 };
 
+const PublicFoodBarcodeReview = dynamic(
+  () => import("@/components/public-food-barcode-review").then((module) => module.PublicFoodBarcodeReview),
+  { ssr: false }
+);
+
 function sentenceCase(value: string): string {
   return value.length > 0 ? `${value[0].toUpperCase()}${value.slice(1)}` : value;
 }
@@ -75,9 +81,19 @@ function scriptedOpening(match: LiveMatch, language: Language): string {
 
 export default function CompassPage() {
   const [crisisLocked, setCrisisLocked] = useState(false);
-  // No barcode reader on the public door: there is no packaged-food path to feed, and the
-  // scanner's detector chunk is never fetched.
-  const { camera, live, passcode, authority, scan, scanPending } = useFoodLensEngine({ crisis: crisisLocked });
+  const {
+    camera,
+    live,
+    passcode,
+    authority,
+    scan,
+    scanPending,
+    activeBarcode,
+    clearBarcode
+  } = useFoodLensEngine({
+    crisis: crisisLocked,
+    barcode: true
+  });
   const { stop: stopCamera } = camera;
 
   // This door never calls useHealthState. The root layout would hand it a full demo patient
@@ -677,7 +693,11 @@ export default function CompassPage() {
   // -- the lens, or a spoken refinement holding until a different food is stable -- stays
   // inside this door.
   const view: FoodLensView = {
-    name: matchShown?.food.description ?? live.candidate?.food.description ?? null,
+    name:
+      matchShown?.food.description ??
+      activeBarcode ??
+      live.candidate?.food.description ??
+      null,
     identified: matchShown !== null,
     score: matchShown?.score ?? null,
     carveOut: shown?.kind === "carve_out" ? shown.reason : null,
@@ -687,7 +707,7 @@ export default function CompassPage() {
     // A miss the person named reads differently from a camera that saw nothing.
     noMatchNamed: refinement?.kind === "none",
     candidate: live.candidate,
-    packageDetected: live.packageDetected
+    packageDetected: activeBarcode === null && live.packageDetected
   };
 
   return (
@@ -731,7 +751,13 @@ export default function CompassPage() {
         <FoodViewfinder
           {...sharedViewfinderProps({ camera, view, language, sessionStatus: voice.status })}
           demoPreview
-          hasScanResult={shown !== null || live.candidate !== null || live.noMatch || live.packageDetected}
+          hasScanResult={
+            shown !== null ||
+            live.candidate !== null ||
+            live.noMatch ||
+            live.packageDetected ||
+            activeBarcode !== null
+          }
           idleLabel={
             voice.status === "closed"
               ? t(language, "compassIdleEnded")
@@ -740,7 +766,7 @@ export default function CompassPage() {
                 : t(language, "compassIdleAwaiting")
           }
           onScan={scanCurrentFrame}
-          scanDisabled={live.candidate !== null || live.packageDetected}
+          scanDisabled={live.candidate !== null || live.packageDetected || activeBarcode !== null}
           scanError={live.scanError}
           scanPending={scanPending}
           scoreName={matchShown?.food.description}
@@ -766,7 +792,23 @@ export default function CompassPage() {
           />
         }
         slots={{
-          plate: shown?.kind === "plate" ? <FoodTypedPlate items={shown.items} language={language} /> : null,
+          // A scanned package is confirmation-first (spec 27/28): while a barcode is
+          // awaiting review it owns this slot. A typed plate can only be showing when
+          // no barcode is pending, so the two never compete for the same screen.
+          plate: activeBarcode ? (
+            <PublicFoodBarcodeReview
+              authority={authority}
+              barcode={activeBarcode}
+              language={language}
+              onDismiss={clearBarcode}
+              onMatch={adoptLiveMatch}
+              passcode={passcode}
+              resumeLive={rearmLive}
+              suspendLive={suspendLive}
+            />
+          ) : shown?.kind === "plate" ? (
+            <FoodTypedPlate items={shown.items} language={language} />
+          ) : null,
           weHeard:
             matchShown && matchShown.interpretation && matchShown.provenance && shown?.kind === "match" ? (
               <div

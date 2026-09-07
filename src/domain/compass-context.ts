@@ -20,6 +20,7 @@ export type CompassContext =
       band: CompassBand;
       tier: CompassTier;
       calorieDensityKcalPer100g: number | null;
+      calorieDensityEstimated?: boolean;
       alternatives: { description: string; fcs: number }[];
       domainBreakdown?: ScoreDomainBreakdown | null;
     };
@@ -38,6 +39,7 @@ export function toCompassContext(
     band: score.band,
     tier: score.tier,
     calorieDensityKcalPer100g: score.calorieDensity.kcalPer100g,
+    calorieDensityEstimated: score.calorieDensity.estimate !== undefined,
     domainBreakdown:
       estimatedDomains ??
       (score.domains && score.coverage

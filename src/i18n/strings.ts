@@ -178,6 +178,7 @@ export type FoodLensStringKey =
   | "compassDensityMedium"
   | "compassDensityHigh"
   | "compassDensityUnknown"
+  | "compassDensityEstimated"
   | "compassBetterOptions"
   | "compassAlreadyBest"
   | "compassNoCloseMatch"
@@ -270,6 +271,8 @@ export type FoodLensStringKey =
   | "nutritionCompassDensityUnavailable"
   | "nutritionCompassSummaryNoDensity"
   | "nutritionCompassSummary"
+  | "nutritionCompassSummaryEstimated"
+  | "nutritionCompassEstimateLabel"
   | "nutritionCompassQuadrantLimit"
   | "nutritionCompassQuadrantModerate"
   | "nutritionCompassQuadrantMindful"
@@ -510,6 +513,7 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     compassDensityMedium: "Medium",
     compassDensityHigh: "High",
     compassDensityUnknown: "Serving weight unknown",
+    compassDensityEstimated: "Estimated",
     compassBetterOptions: "Better options",
     compassAlreadyBest: "Already one of the best choices in its group.",
     compassNoCloseMatch: "Nothing similar scores higher.",
@@ -603,6 +607,9 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     nutritionCompassSummaryNoDensity: "{food}: scores {score} out of 100 · calories per gram unknown.",
     nutritionCompassSummary:
       "{food}: scores {score} out of 100 · {density} calories per gram ({per100g} per 100 g) · {quadrant}.",
+    nutritionCompassSummaryEstimated:
+      "{food}: scores {score} out of 100 · estimated {density} calories per gram ({per100g} per 100 g) · {quadrant}.",
+    nutritionCompassEstimateLabel: "Estimated calorie density",
     nutritionCompassQuadrantLimit: "Limit",
     nutritionCompassQuadrantModerate: "Good, but rich",
     nutritionCompassQuadrantMindful: "Light, but not great",
@@ -644,7 +651,7 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     identityReviewConfirm: "Yes, use this food",
     identityReviewReject: "No, scan again",
     packageDetectedTitle: "This looks packaged",
-    packageDetectedBody: "I need the package front, barcode, or Nutrition Facts label before I can score it.",
+    packageDetectedBody: "Show one package front clearly, or center its barcode, then scan again.",
     packageScanRegion: "Package scan",
     packageDisclosureNotNow: "Not now",
     packageBarcodeLooking: "Looking up barcode {barcode}…",
@@ -843,6 +850,7 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     compassDensityMedium: "Media",
     compassDensityHigh: "Alta",
     compassDensityUnknown: "Peso de la porción desconocido",
+    compassDensityEstimated: "Estimada",
     compassBetterOptions: "Mejores opciones",
     compassAlreadyBest: "Ya es una de las mejores opciones de su grupo.",
     compassNoCloseMatch: "Nada parecido tiene mejor puntaje.",
@@ -936,6 +944,9 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     nutritionCompassSummaryNoDensity: "{food}: obtiene {score} de 100 · calorías por gramo desconocidas.",
     nutritionCompassSummary:
       "{food}: obtiene {score} de 100 · {density} calorías por gramo ({per100g} por 100 g) · {quadrant}.",
+    nutritionCompassSummaryEstimated:
+      "{food}: obtiene {score} de 100 · aproximadamente {density} calorías por gramo ({per100g} por 100 g) · {quadrant}.",
+    nutritionCompassEstimateLabel: "Densidad calórica estimada",
     nutritionCompassQuadrantLimit: "Limitar",
     nutritionCompassQuadrantModerate: "Bueno, pero calórico",
     nutritionCompassQuadrantMindful: "Ligero, pero no muy bueno",
@@ -977,7 +988,7 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     identityReviewConfirm: "Sí, usar esta comida",
     identityReviewReject: "No, escanear de nuevo",
     packageDetectedTitle: "Parece un producto empacado",
-    packageDetectedBody: "Necesito el frente del paquete, el código de barras o la etiqueta de información nutricional antes de darle un puntaje.",
+    packageDetectedBody: "Muestra claramente el frente de un paquete o centra su código de barras y vuelve a escanear.",
     packageScanRegion: "Escaneo del paquete",
     packageDisclosureNotNow: "Ahora no",
     packageBarcodeLooking: "Buscando el código {barcode}…",
