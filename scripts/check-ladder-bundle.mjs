@@ -13,7 +13,12 @@ const dynamicManifest = JSON.parse(
 
 const kib = 1024;
 const budgets = {
-  firstLoadGzip: 315 * kib,
+  // Re-measured 2026-09-07 at 315.3 KiB after spec 30 B0 added the dosing-request family to
+  // src/domain/safety.ts and the stated-dose and therapeutic-diet shapes to grounding.ts.
+  // Ladder reaches both through its front-door router, which runs the same input gate, so
+  // the growth is the guard itself rather than page code. Raised 315 -> 316 from that
+  // measurement. No single chunk moved; the >900 KiB per-chunk guard below is untouched.
+  firstLoadGzip: 316 * kib,
   routeOnlyGzip: 100 * kib,
   pageEntryRaw: 240 * kib
 };

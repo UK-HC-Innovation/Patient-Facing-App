@@ -94,6 +94,58 @@ describe("createOutputTranscriptGuard", () => {
   });
 });
 
+// Spec 30 B0 (R7, finding E05). Every answer below was injected word by word and passed
+// the realtime guard. `grounding.ts` has had "take N units" since the plate scan landed;
+// the guard never imported it.
+describe("createOutputTranscriptGuard — stated doses and diet clearance", () => {
+  function stream(text: string, language: "en" | "es" = "en") {
+    const { guard, send, onEvent } = harness(language);
+    for (const word of text.split(" ")) {
+      guard.observeDelta(`${word} `);
+    }
+    return { send, onEvent };
+  }
+
+  it.each([
+    "Take 8 units of insulin.",
+    "Take 8 units of insulin for this pizza.",
+    "You should take 8 units.",
+    "8 units should do it.",
+    "Your usual dose for that would be 4 units.",
+    "This is safe with your kidney diet.",
+    "That is fine for your renal diet."
+  ])("intercepts, streamed word by word: %s", (text) => {
+    const { send, onEvent } = stream(text);
+    expect(send).toHaveBeenCalledWith({ type: "response.cancel" });
+    expect(send).toHaveBeenCalledWith({ type: "output_audio_buffer.clear" });
+    expect(onEvent).toHaveBeenCalledWith({
+      type: "safetyIntercept",
+      safety: "blocked",
+      content: tVoice("en", "outputBlockedCopy"),
+      actions: CARE_TEAM_ACTIONS
+    });
+  });
+
+  it.each(["Eso son 8 unidades.", "Póngase 8 unidades de insulina.", "Es seguro para su dieta renal."])(
+    "intercepts the Spanish form: %s",
+    (text) => {
+      const { send } = stream(text, "es");
+      expect(send).toHaveBeenCalledWith({ type: "response.cancel" });
+    }
+  );
+
+  it.each([
+    "Never use this for insulin math; follow your care team's plan.",
+    "Do not stop or change the dose without your care team.",
+    "This has 12 grams of sugar per serving.",
+    "Honey Nut Cheerios scores 58 out of 100. Fine now and then."
+  ])("leaves the honest answer alone, streamed word by word: %s", (text) => {
+    const { send, onEvent } = stream(text);
+    expect(send).not.toHaveBeenCalled();
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+});
+
 describe("createOutputTranscriptGuard leaves honest food answers alone", () => {
   it.each([
     "Carb numbers from a photo are rough. Never use them for insulin math; follow your care team's plan.",

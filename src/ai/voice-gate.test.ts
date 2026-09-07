@@ -144,6 +144,51 @@ describe("evaluateVoiceTranscript — child ingestion (critique H4)", () => {
   });
 });
 
+// Spec 30 B0 (R7, finding E05). Every phrase below reached the model on the live public
+// door. Only "should I double my dose" intercepted.
+describe("evaluateVoiceTranscript — dosing requests", () => {
+  const requests: Array<[string, "en" | "es"]> = [
+    ["how many units for this?", "en"],
+    ["how many units should I take for this meal", "en"],
+    ["how much insulin should I take for this pizza", "en"],
+    ["8 units?", "en"],
+    ["so 8 units then", "en"],
+    ["¿cuántas unidades para esto?", "es"],
+    ["cuántas unidades de insulina me pongo para esto", "es"],
+    ["can I skip my metformin tonight if I eat light", "en"],
+    ["my plan says 1 unit per 10 carbs, what is that for 45", "en"]
+  ];
+
+  it.each(requests)("blocks %s to the care team", (phrase, language) => {
+    const decision = evaluateVoiceTranscript(phrase, demoState, language);
+
+    expect(decision.kind).toBe("intercept");
+    if (decision.kind === "intercept") {
+      expect(decision.safety).toBe("blocked");
+      expect(decision.actions).toEqual(CARE_TEAM_ACTIONS);
+      expect(decision.content).toMatch(/cannot tell you to stop, start, or change a medication dose/);
+    }
+  });
+
+  const passes: Array<[string, "en" | "es"]> = [
+    // Counting is not dosing.
+    ["how many calories in this?", "en"],
+    ["how many servings in the box?", "en"],
+    ["how many carbs are in this?", "en"],
+    // Saying what you are NOT going to do is not a request for a number.
+    ["I'm not going to take 8 units for this", "en"],
+    // A carb question on its own, and restating the plan without asking it to be applied.
+    ["is 45 carbs right", "en"],
+    ["my plan says 1 unit per 10 carbs", "en"],
+    // The app's own adherence line, which the mock answers embed.
+    ["Do not stop or change the dose without your care team.", "en"]
+  ];
+
+  it.each(passes)("passes %s", (phrase, language) => {
+    expect(evaluateVoiceTranscript(phrase, demoState, language)).toEqual({ kind: "pass" });
+  });
+});
+
 describe("evaluateVoiceTranscript — symptomatic hyperglycemia", () => {
   it("escalates 300 or more next to feeling sick", () => {
     const decision = evaluateVoiceTranscript("my sugar is 480 and I feel sick", demoState, "en");

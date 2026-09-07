@@ -33,6 +33,80 @@ const medicationChangePatterns = [
   /\b(?:puedo|debo|deberia)\s+tomar\s+(?:dos|otra|una\s+dosis\s+extra)\b/i,
   /\b(?:saltar|omitir)\b[^.?!]{0,20}\b(?:mi|la|una)?\s*(?:medicina|medicamento|pastilla|dosis)\b/i
 ];
+// Spec 30 B0 (R7, finding E05). Every one of these reached the model on the live
+// public door: "how many units for this?", "8 units?", "so 8 units then",
+// "cuantas unidades de insulina me pongo para esto". Only "should I double my dose"
+// intercepted. A dosing request is the same soft block as a medication change, and it
+// gets the same care-team redirect -- no new clinical copy.
+//
+// The line these patterns hold: a REQUEST for a number is blocked, a statement about a
+// number is not. "I'm not going to take 8 units for this" is a person telling the coach
+// what they are doing, and "my plan says 1 unit per 10 carbs" is restating the plan.
+const DOSE_NOUN = "units?|unidades?|unidad|insulin|insulina|bolus|bolo|dosis|dose";
+
+/** "how many units", "cuantas unidades de insulina". Calories and servings are not doses. */
+const doseInterrogativePattern = new RegExp(
+  `\\b(?:how many|how much|cuant[oa]s?|que tanta|what)\\b(?:\\W+\\w+){0,3}?\\W+(?:${DOSE_NOUN})\\b`,
+  "i"
+);
+
+/** A dose noun aimed at the food in front of the person. */
+const doseForThisPattern = new RegExp(
+  `\\b(?:${DOSE_NOUN})\\b[^.?!]{0,40}\\b(?:for (?:this|that|it)\\b|para (?:esto|esta|este|eso)\\b|para (?:la |mi )?comida\\b|para este plato\\b)`,
+  "i"
+);
+
+/** The short follow-up: "8 units?", "so 8 units then". */
+const doseConfirmationPattern =
+  /(?:^|[.?!;]\s*)(?:so|then|ok|okay|entonces|asi que)?\s*\d{1,3}\s*(?:units?|unidades?)\b\s*(?:\?|,?\s*(?:then|right|correct|verdad|no)\b|$)/i;
+
+/** The insulin-to-carb ratio, and only when the sentence asks it to be applied. */
+const doseArithmeticPattern =
+  /\b(?:1|one|una?)\s*(?:unit|unidad)\s*(?:per|for|por|cada)\s*\d+\s*(?:carbs?|carbohydrates?|carbohidratos?|g|grams?|gramos?)\b/i;
+const arithmeticRequestPattern = /\?|\bwhat (?:is|would|about|do)\b|\bhow (?:many|much)\b|\bfor \d+/i;
+
+/** Skipping a named medicine, in either language. */
+const medicationSkipPattern =
+  /\b(?:skip|skipping|miss|missing|saltar|saltarme|salto|omitir|brincar)\b[^.?!]{0,30}\b(?:metformin|metformina|lisinopril|amlodipine|amlodipino|losartan|hydrochlorothiazide|hctz|insulin|insulina|pill|pills|medicine|medication|medicina|medicamento|pastilla|pastillas|dose|dosis)\b/i;
+
+/**
+ * Telling someone NOT to change a medicine is the opposite of a change request.
+ *
+ * `/\bstop\b[^.?!]{0,30}\bdose\b/` below matches the app's own adherence line, "Do not stop
+ * or change the dose without your care team," which the mock answers embed and the live
+ * voice guard reads through `classifySafety`. Blocking the safety note as unsafe output is
+ * how a coach ends up refusing to say the safe thing.
+ *
+ * The negated verb alone is the rule, with no "without your care team" tail: the guard runs
+ * on every streamed prefix, and a tail that has not arrived yet would trip the sentence
+ * halfway through. A number of units hiding behind one of these is caught by the stated-dose
+ * shapes in grounding.ts instead.
+ */
+const adherenceInstructionPattern =
+  /\b(?:do not|do n'?t|don'?t|never|nunca|no dejes)\s+(?:stop|start|change|skip|adjust|dejes?\s+de|cambies?|suspendas?|omitas?)\b/i;
+
+/** A person saying what they will NOT do is not asking for a dose. */
+const declinedIntentPattern =
+  /\b(?:not going to|won'?t|will not|do ?n'?t|does ?n'?t|did ?n'?t|never|no voy a|no pienso|no quiero|ya no)\b/i;
+
+function requestsADose(normalized: string): boolean {
+  return normalized.split(/[.!?;]+/).some((sentence) => {
+    if (medicationSkipPattern.test(sentence)) {
+      return true;
+    }
+    if (doseArithmeticPattern.test(sentence) && arithmeticRequestPattern.test(normalized)) {
+      return true;
+    }
+    if (doseInterrogativePattern.test(sentence)) {
+      return true;
+    }
+    if (declinedIntentPattern.test(sentence)) {
+      return false;
+    }
+    return doseForThisPattern.test(sentence) || doseConfirmationPattern.test(sentence);
+  });
+}
+
 const dangerousReadingWithSlashPattern = /(\d{2,3})\s*[\/\-]\s*(\d{2,3})/i;
 const dangerousSystolicDiastolicPattern = /systolic\s*(?:is\s*)?(\d{2,3})\D{1,20}?diastolic\s*(?:is\s*)?(\d{2,3})/i;
 type UrgentSymptomRule = {
@@ -324,7 +398,15 @@ export function classifySafety(input: string): SafetyClassification {
     };
   }
 
-  if (medicationChangePatterns.some((pattern) => pattern.test(normalized))) {
+  const requestsChange = normalized
+    .split(/[.!?;]+/)
+    .some(
+      (sentence) =>
+        !adherenceInstructionPattern.test(sentence) &&
+        medicationChangePatterns.some((pattern) => pattern.test(sentence))
+    );
+
+  if (requestsChange || requestsADose(normalized)) {
     return {
       level: "blocked",
       response:

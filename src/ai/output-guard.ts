@@ -1,5 +1,10 @@
 import { containsFamilyDiagnosisClaim } from "@/domain/family-diagnosis-lint";
-import { containsClearanceClaim, containsDoseCalculationHelp } from "@/domain/grounding";
+import {
+  MEDICATION_CHANGE_PATTERNS,
+  containsClearanceClaim,
+  containsDoseCalculationHelp,
+  containsStatedDose
+} from "@/domain/grounding";
 import { classifyCrisis, classifySafety } from "@/domain/safety";
 import { tSafety, type Language } from "@/i18n/strings";
 import { tVoice } from "@/i18n/voice-strings";
@@ -22,10 +27,15 @@ function hasBlockedClaim(text: string): boolean {
     classifySafety(text).level === "blocked" ||
     directConditionClaim.test(text) ||
     containsFamilyDiagnosisClaim(text) ||
-    // The live voice session never runs verifyGrounding, so the two plate-scan guards are
+    // The live voice session never runs verifyGrounding, so the plate-scan guards are
     // repeated here or spoken insulin arithmetic would reach the patient unchallenged.
     containsDoseCalculationHelp(text) ||
     containsClearanceClaim(text) ||
+    // Spec 30 B0. `grounding.ts` has had the "take N units" shape since the plate scan
+    // landed; the realtime guard never imported it, so a stated dose was only caught when
+    // the model happened to phrase it as arithmetic (finding E05).
+    MEDICATION_CHANGE_PATTERNS.some((pattern) => pattern.test(text)) ||
+    containsStatedDose(text) ||
     specificNumberAssertions.some((pattern) => pattern.test(text))
   );
 }

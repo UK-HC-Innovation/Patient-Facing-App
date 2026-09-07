@@ -99,11 +99,29 @@ const DIAGNOSIS_CLAIM_PATTERNS = [
 // Conservative medication-change shapes with local drug names. There is
 // deliberately NO "change the dose" variant: the mock why-mode answer embeds the
 // safety note "Do not stop or change the dose…", which must keep passing.
-const MEDICATION_CHANGE_PATTERNS = [
+export const MEDICATION_CHANGE_PATTERNS = [
   /\b(?:stop|start|change|lower|raise|increase|decrease)\s+(?:your\s+)?(?:lisinopril|amlodipine|metformin|insulin|medicine|medication|dose)\b/i,
   /\byou\s+should\s+(?:stop|start|change|lower|raise|increase|decrease)\b/i,
   /\btake\s+\d+(?:\.\d+)?\s*(?:mg|units?)\b/i
 ];
+
+/**
+ * A number of units, said out loud, in either language (spec 30 B0, finding E05).
+ *
+ * "8 units should do it.", "Your usual dose for that would be 4 units.", "Eso son 8
+ * unidades." and "Póngase 8 unidades de insulina." all cleared the realtime guard, because
+ * the only stated-dose shape it knew was the verb form "take N units". A number next to
+ * "units" has no honest place in a nutrition answer, so the shape is the whole rule.
+ */
+export const STATED_DOSE_PATTERNS = [
+  /\b\d{1,3}(?:\.\d+)?\s*(?:units?|unidades?|unidad)\b/i,
+  /\b(?:dosis|dose)\s+(?:de\s+|of\s+)?\d{1,3}(?:\.\d+)?\b/i,
+  /\b(?:p[oó]ngase|pongase|inyect\w+|apl[ií]quese|apliquese|t[oó]mese|tomese)\s+\d{1,3}(?:\.\d+)?\b/i
+];
+
+export function containsStatedDose(answer: string): boolean {
+  return STATED_DOSE_PATTERNS.some((pattern) => pattern.test(answer));
+}
 
 // Photo-derived carb numbers must never become insulin arithmetic. The anchor is dose math
 // inside ONE sentence -- an insulin term, a computation verb, and a digit -- never proximity
@@ -141,7 +159,11 @@ const CLEARANCE_CLAIM_PATTERNS = [
   /\b(?:your|his|her|their)\s+(?:child|kid|son|daughter|baby|toddler|\d+[-\s]?year[-\s]?old)\s+(?:can|may|could)\s+(?:safely\s+)?(?:eat|have|drink|try)\b/i,
   /\b(?:does\s+not|does\s?n['’]?t|will\s+not|wo\s?n['’]?t)\s+contain\s+(?:any\s+)?(?:peanut|tree\s*nut|nut|gluten|dairy|milk|egg|soy|shellfish|wheat|sesame)\w*\b/i,
   /\b(?:seguro|segura|est[aá]\s+bien|no\s+hay\s+problema)\s+para\s+(?:su|tu)\s+[\w\s-]{0,30}\b(?:alergia|celiaqu[ií]a|intolerancia)\b/i,
-  /\b(?:su|tu)\s+(?:hij[oa]|ni[ñn][oa]|beb[eé])\s+(?:puede|podr[ií]a)\s+(?:comer|tomar|probar)\b/i
+  /\b(?:su|tu)\s+(?:hij[oa]|ni[ñn][oa]|beb[eé])\s+(?:puede|podr[ií]a)\s+(?:comer|tomar|probar)\b/i,
+  // Spec 30 B0. A therapeutic diet is prescribed, and a photo cannot clear a food for one.
+  // "This is safe with your kidney diet." passed every guard.
+  /\b(?:safe|fine|okay|ok|good)\s+(?:for|with|on)\s+(?:your|his|her|their|the)\s+[\w\s-]{0,30}\b(?:kidney|renal|dialysis|cardiac|heart|liver|hepatic|diabetic|low[-\s]sodium|low[-\s]potassium|low[-\s]protein|therapeutic)\b/i,
+  /\b(?:seguro|segura|est[aá]\s+bien|apropiad[oa]|apto)\s+para\s+(?:su|tu)\s+[\w\s-]{0,30}\b(?:dieta|ri[nñ][oó]n|ri[nñ]ones|di[aá]lisis|coraz[oó]n)\b/i
 ];
 
 export function containsClearanceClaim(answer: string): boolean {

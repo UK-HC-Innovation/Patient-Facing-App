@@ -322,6 +322,49 @@ export async function runRealtimeToolCall(
 const CONNECT_TIMEOUT_MS = 10000;
 const REALTIME_CALLS_URL = "https://api.openai.com/v1/realtime/calls";
 
+/**
+ * Every generated-text event, fed to the output guard exactly once.
+ *
+ * Before spec 30 B0 the guard was wired to `response.output_audio_transcript.delta` alone
+ * (finding E05). A turn that streamed no deltas, or whose final transcript differed from the
+ * deltas stitched together, reached the patient unread; so did the whole `output_text`
+ * stream. A `.done` event carries the entire turn, so only the part the deltas have not
+ * already delivered is observed.
+ */
+export function createOutputGuardFeed(observe: (text: string) => void): {
+  observe: (event: RealtimeServerEvent) => boolean;
+  reset: () => void;
+} {
+  let seen = "";
+  return {
+    observe(event: RealtimeServerEvent): boolean {
+      if (
+        event.type === "response.output_audio_transcript.delta" ||
+        event.type === "response.output_text.delta"
+      ) {
+        const delta = str(event.delta);
+        seen += delta;
+        observe(delta);
+        return true;
+      }
+      if (
+        event.type === "response.output_audio_transcript.done" ||
+        event.type === "response.output_text.done"
+      ) {
+        const full = str(event.transcript ?? event.text);
+        const unseen = full.startsWith(seen) ? full.slice(seen.length) : full;
+        seen = full;
+        observe(unseen);
+        return true;
+      }
+      return false;
+    },
+    reset(): void {
+      seen = "";
+    }
+  };
+}
+
 export async function connectRealtimeSession(args: ConnectArgs): Promise<LiveSessionHandle> {
   let status: LiveSessionStatus = "connecting";
   let closed = false;
@@ -417,6 +460,7 @@ export async function connectRealtimeSession(args: ConnectArgs): Promise<LiveSes
       args.onEvent(event);
     }
   });
+  const guardFeed = createOutputGuardFeed((text) => outputGuard.observeDelta(text));
 
   const injectContext = () => {
     const [contextItem] = contextResponsePayloads(args.buildContextMessage());
@@ -451,13 +495,13 @@ export async function connectRealtimeSession(args: ConnectArgs): Promise<LiveSes
     }
     if (event.type === "response.created") {
       outputGuard.reset();
+      guardFeed.reset();
       outputIntercepted = false;
     }
-    // Observe generated text before publishing the same delta. If this delta
-    // trips the output guard, none of it reaches the consuming hook.
-    if (event.type === "response.output_audio_transcript.delta") {
-      outputGuard.observeDelta(str(event.delta));
-      if (transcriptGate.isLatched()) return;
+    // Observe generated text before publishing it. If this event trips the output guard,
+    // none of it reaches the consuming hook -- including a `.done` carrying the whole turn.
+    if (guardFeed.observe(event) && transcriptGate.isLatched()) {
+      return;
     }
     // Runs before the status reduction below so a truncated turn is finalized in order.
     recoverTurn(event);
@@ -535,6 +579,7 @@ export async function connectRealtimeSession(args: ConnectArgs): Promise<LiveSes
 
     if (event.type === "response.done") {
       outputGuard.reset();
+      guardFeed.reset();
       outputIntercepted = false;
     }
   };

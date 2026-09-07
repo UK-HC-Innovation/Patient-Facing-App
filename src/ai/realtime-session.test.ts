@@ -5,10 +5,12 @@ import {
   reduceTurnRecovery,
   applyTranscriptGate,
   contextResponsePayloads,
+  createOutputGuardFeed,
   createTranscriptGateLatch,
   reduceRealtimeEvent,
   waitForTranscriptPreparation
 } from "./realtime-session";
+import { createOutputTranscriptGuard } from "./output-guard";
 import type { LiveSessionEvent } from "./types";
 import type { VoiceGateDecision } from "./voice-gate";
 
@@ -70,6 +72,82 @@ describe("reduceRealtimeEvent", () => {
   it("ignores unknown events", () => {
     const result = reduceRealtimeEvent("listening", { type: "something.else" });
     expect(result).toEqual({ status: "listening", emits: [], actions: [] });
+  });
+});
+
+// Spec 30 B0 (R7, finding E05): the guard saw `response.output_audio_transcript.delta` and
+// nothing else, so a turn that streamed no deltas and a whole `output_text` stream reached
+// the patient unread.
+describe("createOutputGuardFeed", () => {
+  function feedInto(events: Array<Record<string, unknown>>) {
+    const seen: string[] = [];
+    const feed = createOutputGuardFeed((text) => seen.push(text));
+    const observed = events.map((event) => feed.observe(event as { type: string }));
+    return { seen, observed, feed };
+  }
+
+  it("guards a final transcript that arrived with no deltas at all", () => {
+    const { seen, observed } = feedInto([
+      { type: "response.output_audio_transcript.done", transcript: "Take 8 units of insulin." }
+    ]);
+    expect(observed).toEqual([true]);
+    expect(seen.join("")).toBe("Take 8 units of insulin.");
+  });
+
+  it("feeds only the part the deltas did not already deliver", () => {
+    const { seen } = feedInto([
+      { type: "response.output_audio_transcript.delta", delta: "Take 8 " },
+      { type: "response.output_audio_transcript.done", transcript: "Take 8 units of insulin." }
+    ]);
+    expect(seen).toEqual(["Take 8 ", "units of insulin."]);
+  });
+
+  it("feeds the whole final transcript when it is not the deltas stitched together", () => {
+    const { seen } = feedInto([
+      { type: "response.output_audio_transcript.delta", delta: "That soup " },
+      { type: "response.output_audio_transcript.done", transcript: "Actually, take 8 units." }
+    ]);
+    expect(seen).toEqual(["That soup ", "Actually, take 8 units."]);
+  });
+
+  it("guards the text stream as well as the audio transcript", () => {
+    const { seen, observed } = feedInto([
+      { type: "response.output_text.delta", delta: "8 units " },
+      { type: "response.output_text.done", text: "8 units should do it." },
+      { type: "response.done" }
+    ]);
+    expect(observed).toEqual([true, true, false]);
+    expect(seen.join("")).toBe("8 units should do it.");
+  });
+
+  it("starts a new turn clean after reset", () => {
+    const { seen, feed } = feedInto([
+      { type: "response.output_audio_transcript.delta", delta: "Half a sentence" }
+    ]);
+    feed.reset();
+    feed.observe({ type: "response.output_audio_transcript.done", transcript: "A whole new answer." });
+    expect(seen).toEqual(["Half a sentence", "A whole new answer."]);
+  });
+
+  it("trips the real guard on a dose that only the final transcript carried", () => {
+    const events: LiveSessionEvent[] = [];
+    const guard = createOutputTranscriptGuard({
+      language: "en",
+      send: () => {},
+      onEvent: (event) => events.push(event)
+    });
+    const feed = createOutputGuardFeed((text) => guard.observeDelta(text));
+
+    feed.observe({ type: "response.output_audio_transcript.done", transcript: "Take 8 units of insulin." });
+
+    expect(events).toEqual([
+      {
+        type: "safetyIntercept",
+        safety: "blocked",
+        content: expect.any(String),
+        actions: expect.any(Array)
+      }
+    ]);
   });
 });
 
