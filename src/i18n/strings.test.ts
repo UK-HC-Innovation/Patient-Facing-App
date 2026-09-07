@@ -13,7 +13,7 @@ import {
 describe("t", () => {
   it("interpolates variables", () => {
     expect(t("en", "flagSodium", { amount: 890, percent: 59, limit: 1500 })).toBe(
-      "890 mg sodium — 59% of your 1500 mg daily limit"
+      "890 mg sodium, 59% of your 1500 mg daily limit"
     );
   });
 

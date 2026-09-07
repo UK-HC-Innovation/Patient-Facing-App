@@ -11,7 +11,7 @@ describe("FoodGuidanceSource", () => {
 
     const source = screen.getByText(/General nutrition advice/);
     expect(source).toHaveAttribute("data-guidance-scope", "general");
-    expect(source).toHaveTextContent("not based on your readings or health history");
+    expect(source).toHaveTextContent("Not based on your readings or health history");
   });
 
   it("marks personalized guidance in Spanish", () => {

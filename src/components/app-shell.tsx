@@ -25,12 +25,15 @@ export function AppShell({
   title,
   children,
   navigationMode = APP_SURFACE,
-  brand
+  brand,
+  headerAction
 }: {
   title: string;
   children: ReactNode;
   navigationMode?: "full" | "foodlens";
   brand?: "one-good-choice";
+  /** Rendered at the end of the branded header row. The food doors put EN | ES here. */
+  headerAction?: ReactNode;
 }) {
   const { state } = useHealthState();
   const navItems = navigationMode === "foodlens" ? foodLensNavItems : fullNavItems;
@@ -46,7 +49,7 @@ export function AppShell({
       >
         <div className="mx-auto flex max-w-5xl items-start justify-between gap-3 px-4 py-4">
           {brand === "one-good-choice" ? (
-            <OneGoodChoiceBrand title={title} />
+            <OneGoodChoiceBrand action={headerAction} title={title} />
           ) : (
             <div>
               <p className="text-sm font-medium text-care">

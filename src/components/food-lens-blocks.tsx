@@ -14,6 +14,23 @@ const VERDICT_SENTENCE: Record<CompassBand, FoodLensStringKey> = {
   minimize: "verdictMinimize"
 };
 
+/**
+ * "A lot of calories for the nutrition you get" is only true when there are a lot of
+ * calories. The critique caught it printed over a soda at 39 kcal per 100 g, which is
+ * almost none (N6).
+ */
+const CALORIE_DENSE_KCAL_PER_GRAM = 2.5;
+
+function verdictSentenceKey(score: CompassScore): FoodLensStringKey {
+  if (score.band !== "minimize") {
+    return VERDICT_SENTENCE[score.band];
+  }
+  const kcalPerGram = score.calorieDensity.kcalPer100g === null ? null : score.calorieDensity.kcalPer100g / 100;
+  return kcalPerGram !== null && kcalPerGram <= CALORIE_DENSE_KCAL_PER_GRAM
+    ? "verdictMinimizeLight"
+    : "verdictMinimize";
+}
+
 const VERDICT_CHIP: Record<CompassBand, string> = {
   encourage: "bg-emerald-100 text-emerald-900",
   moderate: "bg-amber-100 text-amber-900",
@@ -78,7 +95,7 @@ export function FoodVerdict({
           {t(language, compassBandStringKey(score.band))}
         </span>
         <p className="mt-2 text-[21px] font-semibold leading-tight tracking-tight">
-          {t(language, VERDICT_SENTENCE[score.band])}
+          {t(language, verdictSentenceKey(score))}
         </p>
         {subline ? <p className="mt-1.5 text-[15px] leading-normal text-ink/70">{subline}</p> : null}
         {score.ambiguous && score.range ? (
@@ -174,16 +191,21 @@ export function FoodWhyScore({
 export function FoodNoMatch({
   candidates,
   language,
+  named = true,
   onSelect
 }: {
   candidates: LiveCandidate[];
   language: Language;
+  /** False when the camera came back empty and nobody has named anything yet. */
+  named?: boolean;
   onSelect?: (foodId: string) => void;
 }) {
   const shown = candidates.slice(0, 3);
   return (
     <section aria-label={t(language, "noMatchLabel")} className="grid gap-2" data-testid="food-no-match">
-      <p className="text-[15px] leading-normal text-ink/75">{t(language, "compassNoPublishedScore")}</p>
+      <p className="text-[15px] leading-normal text-ink/75">
+        {t(language, named ? "compassNoPublishedScore" : "nothingScoredYet")}
+      </p>
       {shown.length > 0 && onSelect ? (
         <>
           <p className="text-[13px] font-semibold text-ink/70">{t(language, "sayOneOfThese")}</p>

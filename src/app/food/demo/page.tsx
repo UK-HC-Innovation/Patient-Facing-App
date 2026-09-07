@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FoodViewfinder } from "@/components/food-viewfinder";
 import { OneGoodChoiceBrand } from "@/components/one-good-choice-brand";
+import { LanguageToggle } from "@/components/language-toggle";
 import { FoodGuidanceSource } from "@/components/food-guidance-source";
 import { CompassAlternatives, resolveDomainBreakdown } from "@/components/compass-score";
 import { COMPASS_CAPABILITIES } from "@/components/food-lens-shell";
@@ -306,8 +307,20 @@ export default function CompassPage() {
   const [language, setLanguage] = useState<Language>("en");
   const [languageReady, setLanguageReady] = useState(false);
   useEffect(() => {
-    setLanguage(new URLSearchParams(window.location.search).get("lang") === "es" ? "es" : "en");
+    // Read after mount, never during render. Reading the URL while rendering produced a
+    // hydration error on local and a minified React #418 on Azure (critique G7).
+    const requested = new URLSearchParams(window.location.search).get("lang");
+    const fallback = navigator.language?.toLowerCase().startsWith("es") ? "es" : "en";
+    setLanguage(requested === "es" ? "es" : requested === "en" ? "en" : fallback);
     setLanguageReady(true);
+  }, []);
+
+  // Client-only, and the URL follows without a navigation: this door stores nothing.
+  const changeLanguage = useCallback((next: Language) => {
+    setLanguage(next);
+    const url = new URL(window.location.href);
+    url.searchParams.set("lang", next);
+    window.history.replaceState({}, "", url);
   }, []);
 
   const prepareVoiceResponse = useCallback(
@@ -649,6 +662,8 @@ export default function CompassPage() {
     badge: matchShown ? "score" : shown?.kind === "carve_out" ? "carve_out" : live.badge,
     noMatchCandidates: [],
     noMatch: shown?.kind === "none",
+    // A miss the person named reads differently from a camera that saw nothing.
+    noMatchNamed: refinement?.kind === "none",
     candidate: live.candidate,
     packageDetected: live.packageDetected
   };
@@ -679,7 +694,12 @@ export default function CompassPage() {
         <main className="min-h-screen bg-paper">
           <header className="border-b-4 border-care bg-white">
             <div className="mx-auto w-full max-w-[480px] px-4 py-4">
-              <OneGoodChoiceBrand title={t(language, "compassPageTitle")} />
+              <OneGoodChoiceBrand
+                action={
+                  <LanguageToggle language={language} onChange={changeLanguage} variant="segmented" />
+                }
+                title={t(language, "compassPageTitle")}
+              />
             </div>
           </header>
           {children}

@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useTypedFoodScore } from "./use-typed-food-score";
+import { useTypedFoodScore, type TypedFoodResult } from "./use-typed-food-score";
 
 function matchResponse(description: string, fcs: number) {
   return {
@@ -33,7 +33,7 @@ describe("useTypedFoodScore", () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify(matchResponse("Cereal, Cheerios Honey Nut", 58))));
     const { result } = renderHook(() => useTypedFoodScore());
 
-    let outcome;
+    let outcome: TypedFoodResult | undefined;
     await act(async () => {
       outcome = await result.current.submit("honey nut cheerios");
     });
@@ -49,7 +49,7 @@ describe("useTypedFoodScore", () => {
   it("classifies a question without calling the lookup at all", async () => {
     const { result } = renderHook(() => useTypedFoodScore());
 
-    let outcome;
+    let outcome: TypedFoodResult | undefined;
     await act(async () => {
       outcome = await result.current.submit("how many units for this?");
     });
@@ -65,7 +65,7 @@ describe("useTypedFoodScore", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify(matchResponse("Soft drink", 1))));
     const { result } = renderHook(() => useTypedFoodScore());
 
-    let outcome;
+    let outcome: TypedFoodResult | undefined;
     await act(async () => {
       outcome = await result.current.submit(
         "2 slices of pepperoni pizza, side salad with ranch, and a Mountain Dew"
@@ -74,7 +74,7 @@ describe("useTypedFoodScore", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(outcome).toMatchObject({ kind: "plate" });
-    expect((outcome as { items: unknown[] }).items).toHaveLength(3);
+    expect(outcome?.kind === "plate" ? outcome.items : []).toHaveLength(3);
   });
 
   it("reports a plate nobody could match as a miss, not a plate of blanks", async () => {
@@ -84,7 +84,7 @@ describe("useTypedFoodScore", () => {
     );
     const { result } = renderHook(() => useTypedFoodScore());
 
-    let outcome;
+    let outcome: TypedFoodResult | undefined;
     await act(async () => {
       outcome = await result.current.submit("bojangles combo, some other thing");
     });
@@ -96,7 +96,7 @@ describe("useTypedFoodScore", () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ mode: "carve_out", reason: "alcohol" })));
     const { result } = renderHook(() => useTypedFoodScore());
 
-    let outcome;
+    let outcome: TypedFoodResult | undefined;
     await act(async () => {
       outcome = await result.current.submit("bourbon");
     });
@@ -109,7 +109,7 @@ describe("useTypedFoodScore", () => {
     fetchMock.mockRejectedValue(new Error("offline"));
     const { result } = renderHook(() => useTypedFoodScore());
 
-    let outcome;
+    let outcome: TypedFoodResult | undefined;
     await act(async () => {
       outcome = await result.current.submit("cheerios");
     });

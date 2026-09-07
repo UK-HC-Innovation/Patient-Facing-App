@@ -1,6 +1,6 @@
-import React from "react";
+import React, { type ReactNode } from "react";
 
-export function OneGoodChoiceBrand({ title }: { title: string }) {
+export function OneGoodChoiceBrand({ title, action }: { title: string; action?: ReactNode }) {
   return (
     <div className="flex items-center gap-3" data-testid="one-good-choice-brand">
       <span
@@ -18,6 +18,9 @@ export function OneGoodChoiceBrand({ title }: { title: string }) {
         </p>
         <h1 className="text-2xl font-black lowercase tracking-[-0.035em] text-ink">{title}</h1>
       </div>
+      {/* The language control lives in the header row on both doors, so there is exactly
+          one of it and it is on screen before anything else (critique G7). */}
+      {action ? <div className="ml-auto">{action}</div> : null}
     </div>
   );
 }

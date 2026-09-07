@@ -1762,6 +1762,15 @@ export function HealthStateProvider({
       // barrier and scrubbed-state checkpoint can run in order.
       if (generation === hydrationGenerationRef.current) {
         rawDispatch({ type: "hydrateStoredState", state: stored.state });
+        // A phone that has saved nothing takes its language from the browser, after mount
+        // rather than during render. Reading navigator while rendering is a hydration
+        // mismatch, which is what ?lang=es produced on the public door (critique G7).
+        if (stored.status === "empty" && typeof navigator !== "undefined") {
+          const browserLanguage = navigator.language?.toLowerCase().startsWith("es") ? "es" : "en";
+          if (browserLanguage !== stored.state.patient.language) {
+            rawDispatch({ type: "setLanguage", language: browserLanguage });
+          }
+        }
         rawDispatch({ type: "checkReferralFollowup" });
       }
       setHydrated(true);

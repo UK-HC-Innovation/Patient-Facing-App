@@ -79,9 +79,27 @@ describe("FoodLensShell", () => {
     });
 
     const content = screen.getByRole("region", { name: "About this food" });
-    expect(content.textContent).toBe("verdict blocknutrients blockattribution block");
+    expect(content.textContent).toBe("verdict blockMore about this foodnutrients blockattribution block");
     expect(screen.queryByText("chart block")).not.toBeInTheDocument();
     expect(FOOD_LENS_SLOT_ORDER.indexOf("verdict")).toBeLessThan(FOOD_LENS_SLOT_ORDER.indexOf("attribution"));
+  });
+
+  // A barcode score was ten and a half phone screens (critique N5). The answer is the
+  // score, one sentence, one alternative and one button; everything else is behind one
+  // control, and the fold does not appear when there is nothing to fold.
+  it("folds the detail slots behind one disclosure, and none when there is no detail", () => {
+    const { unmount } = renderShell({
+      slots: { verdict: <p>verdict block</p>, nutrients: <p>nutrients block</p> }
+    });
+
+    const disclosure = screen.getByText("More about this food").closest("details");
+    expect(disclosure).toBeInTheDocument();
+    expect(disclosure).not.toHaveAttribute("open");
+    expect(disclosure?.textContent).toContain("nutrients block");
+    unmount();
+
+    renderShell({ slots: { verdict: <p>verdict block</p>, actions: <p>actions block</p> } });
+    expect(screen.queryByText("More about this food")).not.toBeInTheDocument();
   });
 
   it("switches the strip from loop status to name and score at the same height", () => {

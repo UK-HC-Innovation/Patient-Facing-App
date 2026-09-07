@@ -92,7 +92,7 @@ describe("FoodFactsCard", () => {
     );
 
     expect(screen.getByText("Estimate from label photo")).toBeInTheDocument();
-    expect(screen.getByText("Read from the label photo — check the numbers below.")).toBeInTheDocument();
+    expect(screen.getByText("Read from the label photo. Check the numbers below.")).toBeInTheDocument();
     expect(screen.getByText("Calories").nextElementSibling).toHaveTextContent("60");
     expect(screen.getByText("Sodium").nextElementSibling).toHaveTextContent("890 mg");
   });
@@ -128,12 +128,12 @@ describe("FoodFactsCard", () => {
 
     render(<PortionHarness />);
 
-    expect(screen.getByText("Set to 1 servings — tap to change.")).toBeInTheDocument();
+    expect(screen.getByText("Set to 1 servings. Tap to change.")).toBeInTheDocument();
     expect(screen.getByText("60")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Increase servings" }));
 
-    expect(screen.getByText("Set to 2 servings — tap to change.")).toBeInTheDocument();
+    expect(screen.getByText("Set to 2 servings. Tap to change.")).toBeInTheDocument();
     expect(screen.getByText("120")).toBeInTheDocument();
   });
 
@@ -251,7 +251,7 @@ describe("FoodFactsCard", () => {
       />
     );
 
-    expect(screen.getByText("A large is about 1.5 servings — change it?")).toBeInTheDocument();
+    expect(screen.getByText("A large is about 1.5 servings. Change it?")).toBeInTheDocument();
   });
 
   it("offers deterministic correction chips for camera matches only", async () => {
@@ -322,7 +322,7 @@ describe("FoodFactsCard — Food Compass row", () => {
 
     expect(screen.getByText("19")).toBeInTheDocument();
     expect(screen.getByText("Minimize")).toBeInTheDocument();
-    expect(screen.getByText(/General nutrition advice — not based on your readings or health history/)).toBeInTheDocument();
+    expect(screen.getByText(/General nutrition advice. Not based on your readings or health history/)).toBeInTheDocument();
     expect(screen.getByText("Estimate from label")).toBeInTheDocument();
     expect(screen.getByText("Why this score?")).toBeInTheDocument();
     expect(screen.getByText("Minerals")).toBeInTheDocument();

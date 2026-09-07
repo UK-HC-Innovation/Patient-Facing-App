@@ -205,13 +205,14 @@ describe("FoodLensExperience — the shared quadrant chart", () => {
     expect(plot()).not.toHaveAttribute("aria-busy", "true");
   });
 
-  it("leaves the personal empty screen to the recents row, and holds the public one open", () => {
+  // Both doors now wait. Axes, four quadrant labels and a "down and to the right is
+  // better" line before anything has been scored is a chart about no food (critique N3).
+  it("shows no chart on either door before there is a food", () => {
     const { unmount } = renderExperience();
     expect(plot()).not.toBeInTheDocument();
     unmount();
 
-    // The public door's chart is the centrepiece of the page, so it waits visibly.
     renderExperience({ capabilities: COMPASS_CAPABILITIES });
-    expect(plot()).toBeInTheDocument();
+    expect(plot()).not.toBeInTheDocument();
   });
 });

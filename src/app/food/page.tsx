@@ -45,7 +45,9 @@ import { useFoodVoiceSession, type VoiceSafetyIntercept } from "@/hooks/use-food
 import { useCompassScore } from "@/hooks/use-compass-score";
 import { useTypedFoodScore } from "@/hooks/use-typed-food-score";
 import { FoodTypedPlate } from "@/components/food-typed-plate";
+import { LanguageToggle } from "@/components/language-toggle";
 import { evaluateVoiceTranscript } from "@/ai/voice-gate";
+import { hasSharedHealthContext } from "@/ai/food-instructions";
 import type { PublishedFoodMatch } from "@/hooks/use-barcode-review";
 import type { LiveCandidate, LiveMatch } from "@/hooks/use-live-food-score";
 import { toIdentifiedFood } from "@/domain/food-compass";
@@ -427,6 +429,7 @@ export default function FoodPage() {
   const typed = useTypedFoodScore({ passcode });
   const typedSubmit = typed.submit;
   const typedPlate = typed.result?.kind === "plate" ? typed.result.items : null;
+  const typedMiss = typed.result?.kind === "none" ? typed.result : null;
   const sendUserText = voice.sendUserText;
 
   /**
@@ -1021,7 +1024,12 @@ export default function FoodPage() {
         food: [scannedFood.brand, scannedFood.name].filter(Boolean).join(" ")
       })
     : null;
-  const showGeneralGuidance = compass.score !== null || compass.carveOut !== null;
+  // One banner per page. A barcode score used to show "Based on your recent readings" at
+  // the top and "General nutrition advice, not based on your readings" at the bottom of
+  // the same screen (critique N2). The pill over the viewfinder claims personalisation, so
+  // it only appears when there is something personal to base it on.
+  const guidanceIsPersonalized = hasSharedHealthContext(state);
+  const showGeneralGuidance = !guidanceIsPersonalized && (compass.score !== null || compass.carveOut !== null);
   const savedPicks = (
     <FoodSavedPicks
       favorites={state.foodFavorites}
@@ -1049,8 +1057,10 @@ export default function FoodPage() {
     score: compass.score,
     carveOut: compass.carveOut,
     badge: badgeState,
-    noMatchCandidates: foodResolutionActive ? [] : live.noMatchCandidates,
-    noMatch: !foodResolutionActive && live.noMatch,
+    noMatchCandidates: typedMiss ? typedMiss.candidates : foodResolutionActive ? [] : live.noMatchCandidates,
+    noMatch: typedMiss !== null || (!foodResolutionActive && live.noMatch),
+    // A miss the person named reads differently from a camera that saw nothing.
+    noMatchNamed: typedMiss !== null,
     candidate: identifiedFood || foodResolutionActive ? null : live.candidate,
     packageDetected: !foodResolutionActive && identifiedFood === null && live.packageDetected
   };
@@ -1104,7 +1114,9 @@ export default function FoodPage() {
           scanPending={scanPending}
           // The chip beside it already carries the brand, so the badge names the food alone.
           scoreName={identifiedFood?.name}
-          trustPill={<FoodGuidanceSource kind="personalized" language={language} />}
+          trustPill={
+            guidanceIsPersonalized ? <FoodGuidanceSource kind="personalized" language={language} /> : null
+          }
         />
       }
       voiceBar={
@@ -1135,7 +1147,17 @@ export default function FoodPage() {
         tier: compass.score?.tier ?? "T1"
       }}
       wrapper={(children) => (
-        <AppShell brand="one-good-choice" title={t(language, "pageTitle")}>
+        <AppShell
+          brand="one-good-choice"
+          headerAction={
+            <LanguageToggle
+              language={language}
+              onChange={(next) => dispatch({ type: "setLanguage", language: next })}
+              variant="segmented"
+            />
+          }
+          title={t(language, "pageTitle")}
+        >
           {children}
         </AppShell>
       )}
@@ -1306,14 +1328,17 @@ export default function FoodPage() {
               />
             ) : null}
 
+          </FoodActionsBlock>
+        ),
+        history:
+          recentMeals.length > 0 ? (
             <MealLogList
               entries={recentMeals}
               language={language}
               onAmendTime={(entryId, loggedAt) => dispatch({ type: "amendMealLogTime", entryId, loggedAt })}
               onDelete={(entryId) => dispatch({ type: "deleteMealLogEntry", entryId })}
             />
-          </FoodActionsBlock>
-        ),
+          ) : null,
         attribution: (
           <FoodAttribution language={language}>
             {showGeneralGuidance ? <FoodGuidanceSource kind="general" language={language} /> : null}

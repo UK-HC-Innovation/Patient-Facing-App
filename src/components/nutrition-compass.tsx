@@ -260,11 +260,13 @@ export function NutritionCompass({
                 key === quadrant ? "ring-2 ring-ink/40" : ""
               }`}
               data-quadrant={key}
+              // The ring and the marker on the plot already say which one this food is in.
+              // The label used to say it a third time, in words, with an em dash (N6).
+              aria-current={key === quadrant ? "true" : undefined}
               data-current={key === quadrant ? "true" : undefined}
               key={key}
             >
               {t(language, QUADRANT_LABEL[key])}
-              {key === quadrant ? ` — ${t(language, "chartYourQuadrant")}` : ""}
             </span>
           ))}
         </div>

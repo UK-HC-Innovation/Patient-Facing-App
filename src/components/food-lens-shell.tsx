@@ -38,6 +38,8 @@ export type FoodLensSlot =
   | "nutrients"
   | "alternatives"
   | "actions"
+  /** Meals already logged. Not the answer to the food in front of you. */
+  | "history"
   | "attribution";
 
 export const FOOD_LENS_SLOT_ORDER: readonly FoodLensSlot[] = [
@@ -51,7 +53,34 @@ export const FOOD_LENS_SLOT_ORDER: readonly FoodLensSlot[] = [
   "nutrients",
   "alternatives",
   "actions",
+  "history",
   "attribution"
+];
+
+/**
+ * The answer, and then everything else.
+ *
+ * A barcode score used to be ten and a half phone screens: the score, a chart, three red
+ * warning cards, a serving stepper, four nutrient tiles, two buttons, a package card, two
+ * more buttons, five old meals and the privacy panel (critique N5). The score, one
+ * sentence, one alternative and one button are the answer. The rest is available, once,
+ * behind one control.
+ */
+export const FOOD_LENS_ANSWER_SLOTS: readonly FoodLensSlot[] = [
+  "verdict",
+  "plate",
+  "alternatives",
+  "actions"
+];
+
+const FOOD_LENS_FOLDED_SLOTS: readonly FoodLensSlot[] = [
+  "chart",
+  "whyScore",
+  "weHeard",
+  "flags",
+  "totals",
+  "nutrients",
+  "history"
 ];
 
 /**
@@ -95,7 +124,9 @@ export const COMPASS_CAPABILITIES: FoodLensCapabilities = {
   typedInput: true,
   stripCameraButton: false,
   gate: true,
-  chartPlaceholder: true
+  // Was true. Axes, four quadrant labels and a "down and to the right is better" line
+  // before there is anything to plot is 64 words of chart about no food (critique N3).
+  chartPlaceholder: false
 };
 
 /**
@@ -329,9 +360,22 @@ export function FoodLensShell({
           className="flex flex-col gap-[18px] bg-white px-[18px] pb-6 pt-[18px] [&>*]:min-w-0"
           role="region"
         >
-          {FOOD_LENS_SLOT_ORDER.map((slot) =>
+          {FOOD_LENS_ANSWER_SLOTS.map((slot) =>
             slots[slot] ? <React.Fragment key={slot}>{slots[slot]}</React.Fragment> : null
           )}
+          {FOOD_LENS_FOLDED_SLOTS.some((slot) => slots[slot]) ? (
+            <details className="rounded-control border border-ink/10 bg-white">
+              <summary className="min-h-12 cursor-pointer list-none px-3 py-3 text-sm font-semibold text-care">
+                {t(language, "moreAboutThisFood")}
+              </summary>
+              <div className="flex flex-col gap-[18px] border-t border-ink/10 px-3 pb-3 pt-[18px] [&>*]:min-w-0">
+                {FOOD_LENS_FOLDED_SLOTS.map((slot) =>
+                  slots[slot] ? <React.Fragment key={slot}>{slots[slot]}</React.Fragment> : null
+                )}
+              </div>
+            </details>
+          ) : null}
+          {slots.attribution}
         </div>
       </ViewfinderVisibleContext.Provider>
 

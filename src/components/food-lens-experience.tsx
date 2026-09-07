@@ -44,6 +44,12 @@ export type FoodLensView = {
   noMatchCandidates: LiveCandidate[];
   /** True when the route answered "none" -- distinct from having seen nothing yet. */
   noMatch: boolean;
+  /**
+   * Whether the person named the food that missed. A camera that saw nothing has not been
+   * told a name, so "Try a simpler name" is advice about a thing that never happened
+   * (critique, spec 29 P7 item 3).
+   */
+  noMatchNamed?: boolean;
   /** Image-only identity proposal. It is deliberately unscored until confirmation. */
   candidate: LiveIdentityCandidate | null;
   /** Semantic package abstention; the shared layer never learns whether scanning exists. */
@@ -170,7 +176,12 @@ export function FoodLensExperience({
   ) : view.score ? (
     <FoodVerdict carveOutReason={null} foodName={view.name} language={language} score={view.score} />
   ) : view.noMatch || view.noMatchCandidates.length > 0 ? (
-    <FoodNoMatch candidates={view.noMatchCandidates} language={language} onSelect={onSelectCandidate} />
+    <FoodNoMatch
+      candidates={view.noMatchCandidates}
+      language={language}
+      named={view.noMatchNamed === true}
+      onSelect={onSelectCandidate}
+    />
   ) : view.identified ? null : (
     <FoodEmptyState language={language} offersSavedPicks={emptyStateChildren !== undefined}>
       {emptyStateChildren}
