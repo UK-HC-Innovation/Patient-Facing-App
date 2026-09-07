@@ -211,10 +211,14 @@ test("detects a packaged-food barcode on the public door and scores it only afte
 
   await expect(identityReview).toHaveCount(0);
   await expect(page.getByTestId("food-verdict")).toContainText("19");
-  const chart = page.getByRole("region", { name: "Score and calories" });
-  await expect(chart).toContainText("5.36 calories per gram (536 per 100 g)");
-  await expect(chart).not.toContainText("Calories per gram unknown");
-  await expect(chart).not.toContainText("Estimated calorie density");
+  // Spec 29 dropped the quadrant chart from the public door, so the density that a label
+  // gives exactly is read off the compact result region instead. What this still pins is
+  // the point of the packaged-scan fix: a scanned label yields a real number, never the
+  // unknown or estimated fallbacks that stand in when no label was read.
+  const result = page.getByRole("region", { name: "Score for this food" });
+  await expect(result).toContainText("5.4 kcal/g");
+  await expect(result).not.toContainText("Calories per gram unknown");
+  await expect(result).not.toContainText("Estimated calorie density");
   expect(scoreRequests).toEqual([doritosMatch.food.code]);
 });
 
