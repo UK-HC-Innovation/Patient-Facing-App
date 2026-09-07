@@ -103,9 +103,13 @@ export function TodayGreeting({ patientName, tasks, language = "en", now }: { pa
       setResolvedNow(new Date());
     }
   }, [now]);
-  const greeting = resolvedNow
-    ? `${greetingForHour(resolvedNow.getHours(), language)}, ${patientName}`
-    : `${tHome(language, "greetingHello")}, ${patientName}`;
+  // A fresh phone has no name on it, and "Good afternoon, ." is worse than
+  // "Good afternoon." (critique N1; nobody is Brent any more).
+  const name = patientName.trim();
+  const opener = resolvedNow
+    ? greetingForHour(resolvedNow.getHours(), language)
+    : tHome(language, "greetingHello");
+  const greeting = name.length > 0 ? `${opener}, ${name}` : opener;
 
   return (
     <section className="space-y-4">

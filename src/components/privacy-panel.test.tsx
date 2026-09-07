@@ -27,7 +27,7 @@ describe("PrivacyPanel", () => {
     expect(screen.getByText(/stays in this browser until you export or delete it/i)).toBeInTheDocument();
     expect(screen.getByText(/microphone audio is not sent/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Export my data" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Delete demo data" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete everything" })).toBeInTheDocument();
   });
 
   it("calls the export handler when export is clicked", () => {
@@ -107,7 +107,7 @@ describe("PrivacyPanel", () => {
     const onReset = vi.fn();
 
     render(<PrivacyPanel state={demoState} onReset={onReset} onExport={() => undefined} />);
-    fireEvent.click(screen.getByRole("button", { name: "Delete demo data" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete everything" }));
 
     expect(onReset).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog", { name: "Delete everything?" })).toBeInTheDocument();
@@ -234,7 +234,7 @@ describe("PrivacyPanel", () => {
         onRestoreDefaultDemo={onRestoreDefaultDemo}
       />
     );
-    fireEvent.click(screen.getByRole("button", { name: "Restore retinopathy walkthrough" }));
+    fireEvent.click(screen.getByRole("button", { name: "Load a sample patient (Brent)" }));
 
     expect(onRestoreDefaultDemo).toHaveBeenCalledTimes(1);
   });

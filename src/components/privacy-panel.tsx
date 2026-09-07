@@ -157,7 +157,7 @@ export function PrivacyPanel({
             onClick={() => setConfirmingDelete(true)}
             type="button"
           >
-            Delete demo data
+            Delete everything
           </button>
           {onRestoreDefaultDemo ? (
             <button
@@ -165,7 +165,7 @@ export function PrivacyPanel({
               onClick={onRestoreDefaultDemo}
               type="button"
             >
-              Restore retinopathy walkthrough
+              Load a sample patient (Brent)
             </button>
           ) : null}
         </div>

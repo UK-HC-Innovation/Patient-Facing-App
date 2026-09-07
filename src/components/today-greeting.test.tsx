@@ -88,4 +88,12 @@ describe("TodayGreeting", () => {
     expect(screen.getByText("Comunícate con tu equipo de salud hoy")).toBeInTheDocument();
     expect(screen.getAllByText("urgente")).toHaveLength(1);
   });
+
+  // A fresh phone has no name on it (critique N1, spec 29 P2).
+  it("drops the comma when there is no name yet", () => {
+    render(<TodayGreeting patientName="" tasks={[checkin]} now={morning} />);
+
+    expect(screen.getByText("Good morning")).toBeInTheDocument();
+    expect(screen.queryByText(/good morning,/i)).not.toBeInTheDocument();
+  });
 });

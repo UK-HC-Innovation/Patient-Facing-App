@@ -73,7 +73,9 @@ export default function PrivacyPage() {
         aiDataMode={aiDataMode}
         onExport={handleExport}
         onReset={() => void handleDelete()}
-        onRestoreDefaultDemo={() => dispatch({ type: "resetDemo" })}
+        // Spec 29 made the plain reset land on an empty patient, so this button has to
+        // name the patient it loads or it delivers nobody under a walkthrough's label.
+        onRestoreDefaultDemo={() => dispatch({ type: "resetDemo", patient: "brent" })}
         onUpdateAccessibility={(preferences) => dispatch({ type: "updateAccessibilityPreferences", preferences })}
         onUpdateLanguage={(language) => dispatch({ type: "setLanguage", language })}
       />
