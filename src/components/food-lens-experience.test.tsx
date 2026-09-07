@@ -104,14 +104,18 @@ describe("FoodLensExperience", () => {
   });
 
   it("offers a food you have had before only where there is somewhere to have had one", () => {
-    const { unmount } = renderExperience({ emptyStateChildren: <p>saved picks</p> });
+    renderExperience({ emptyStateChildren: <p>saved picks</p> });
     expect(screen.getByText("saved picks")).toBeInTheDocument();
     expect(screen.getByTestId("food-empty")).toHaveTextContent("pick one you've had before");
-    unmount();
+  });
 
+  // The public door's blank screen was 64 words of chart, empty state and disclosure about
+  // no food at all (critique N3). It is now the camera, one line, the ask box and the mic.
+  it("gives the public door's blank screen back to the camera", () => {
     renderExperience({ capabilities: COMPASS_CAPABILITIES });
-    // A store-free door has no recents, so it does not promise any.
-    expect(screen.getByTestId("food-empty")).not.toHaveTextContent("pick one you've had before");
+
+    expect(screen.queryByTestId("food-empty")).not.toBeInTheDocument();
+    expect(screen.queryByText("More about this food")).not.toBeInTheDocument();
   });
 
   it("names the result region only for the door that asks for it", () => {

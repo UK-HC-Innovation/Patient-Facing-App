@@ -162,6 +162,17 @@ export function FoodLensExperience({
 }) {
   const backToCamera = useCallback(() => scrollToViewfinder(), []);
 
+  // Nothing scored, nothing proposed, nothing refused: there is no answer to lay out.
+  const blank =
+    view.score === null &&
+    view.carveOut === null &&
+    !view.noMatch &&
+    view.noMatchCandidates.length === 0 &&
+    view.candidate === null &&
+    !view.packageDetected &&
+    !view.identified;
+  const cameraOnly = blank && capabilities.blankIsCameraOnly;
+
   const verdict = view.candidate && onConfirmIdentity && onRejectIdentity ? (
     <FoodIdentityReview
       candidate={view.candidate}
@@ -182,7 +193,7 @@ export function FoodLensExperience({
       named={view.noMatchNamed === true}
       onSelect={onSelectCandidate}
     />
-  ) : view.identified ? null : (
+  ) : view.identified || cameraOnly ? null : (
     <FoodEmptyState language={language} offersSavedPicks={emptyStateChildren !== undefined}>
       {emptyStateChildren}
     </FoodEmptyState>
@@ -221,16 +232,22 @@ export function FoodLensExperience({
       onBackToCamera={backToCamera}
       onVisibleRatio={onVisibleRatio}
       slots={{
-        ...slots,
+        // A camera-only blank screen carries no content slots at all: the door's own
+        // conversation, alternatives and attribution are all about a food there is not one
+        // of yet.
+        ...(cameraOnly ? {} : slots),
         chart: chartSlot,
-        verdict: verdictRegionLabel ? (
-          <div aria-label={verdictRegionLabel} className="min-w-0" role="region">
-            {verdict}
-          </div>
-        ) : (
-          verdict
-        ),
-        whyScore: (
+        verdict:
+          verdict === null ? null : verdictRegionLabel ? (
+            <div aria-label={verdictRegionLabel} className="min-w-0" role="region">
+              {verdict}
+            </div>
+          ) : (
+            verdict
+          ),
+        // A closed panel renders null, but the element itself is truthy, which is enough to
+        // open the "More about this food" fold on a screen with nothing in it.
+        whyScore: whyScore.open ? (
           <FoodWhyScore
             breakdown={whyScore.breakdown}
             language={language}
@@ -238,7 +255,7 @@ export function FoodLensExperience({
             open={whyScore.open}
             tier={whyScore.tier}
           />
-        )
+        ) : null
       }}
       viewfinder={viewfinder}
       voiceBar={voiceBar}

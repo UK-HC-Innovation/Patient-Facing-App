@@ -109,13 +109,21 @@ export type FoodLensCapabilities = {
    * empty screen belongs to the recents row instead.
    */
   chartPlaceholder: boolean;
+  /**
+   * Whether a screen with nothing scored is just the camera, one line, the ask box and the
+   * mic. The public door's blank first screen was 64 words of chart, empty state and
+   * disclosure about no food at all (critique N3, spec 29 P8 item 3).
+   */
+  blankIsCameraOnly: boolean;
 };
 
 export const FOOD_LENS_CAPABILITIES: FoodLensCapabilities = {
   typedInput: true,
   stripCameraButton: true,
   gate: true,
-  chartPlaceholder: false
+  chartPlaceholder: false,
+  // The personal door's blank screen belongs to the foods you have had before.
+  blankIsCameraOnly: false
 };
 
 export const COMPASS_CAPABILITIES: FoodLensCapabilities = {
@@ -126,7 +134,8 @@ export const COMPASS_CAPABILITIES: FoodLensCapabilities = {
   gate: true,
   // Was true. Axes, four quadrant labels and a "down and to the right is better" line
   // before there is anything to plot is 64 words of chart about no food (critique N3).
-  chartPlaceholder: false
+  chartPlaceholder: false,
+  blankIsCameraOnly: true
 };
 
 /**

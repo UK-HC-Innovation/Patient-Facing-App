@@ -123,13 +123,17 @@ export function FoodViewfinder({
   // Camera denied and no sample preview: the panel is the whole screen. Everything else
   // that would draw over it stays off. The wordmark, the guidance pill and the "Point at
   // any food" caption all landed on top of the notice and the retry button (critique G6).
-  const cameraOff = !demoPreview && (cameraStatus === "denied" || cameraStatus === "unavailable");
+  const cameraOff = cameraStatus === "denied" || cameraStatus === "unavailable";
+  // The sample-preview surface keeps its own panel and its own status readout. Only the
+  // bare camera-off notice takes the whole box, and only then do the overlays that used to
+  // land on top of it stay off (critique G6).
+  const noticeOnly = cameraOff && !demoPreview;
 
   const [retried, setRetried] = useState(false);
   useEffect(() => {
     if (cameraStatus === "active") setRetried(false);
   }, [cameraStatus]);
-  const retryBlocked = retried && cameraOff;
+  const retryBlocked = retried && noticeOnly;
 
   return (
     <div className="relative overflow-clip bg-ink" style={{ height }}>
@@ -152,7 +156,7 @@ export function FoodViewfinder({
         </div>
       ) : null}
 
-      {cameraOff ? (
+      {noticeOnly ? (
         <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-ink p-6 text-center text-sm text-white">
           <p>{t(language, cameraStatus === "denied" ? "cameraDenied" : "cameraUnavailable")}</p>
           {onCameraRetry ? (
@@ -173,7 +177,7 @@ export function FoodViewfinder({
         </div>
       ) : null}
 
-      {trustPill && !cameraOff ? (
+      {trustPill && !noticeOnly ? (
         <div className="absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 bg-gradient-to-b from-slate-900/75 to-transparent p-3">
           <span className="pt-1 font-mono text-xs font-bold tracking-[.16em] text-white/90">
             {t(language, "shellWordmark")}
@@ -205,7 +209,7 @@ export function FoodViewfinder({
         </p>
       ) : null}
 
-      {cameraOff ? null : scanChip ? (
+      {noticeOnly ? null : scanChip ? (
         <div
           className={`absolute left-3 z-20 rounded-full bg-white/95 px-3 py-2 text-xs font-semibold text-ink ${
             trustPill ? "bottom-3 max-w-[70%] truncate" : "top-3"
@@ -220,7 +224,7 @@ export function FoodViewfinder({
       )}
 
       <CompassViewfinderBadge
-        badge={cameraOff ? "hidden" : scoreBadge}
+        badge={noticeOnly ? "hidden" : scoreBadge}
         band={scoreBand}
         fcs={scoreFcs}
         language={language}
@@ -230,7 +234,7 @@ export function FoodViewfinder({
         tier={scoreTier}
       />
 
-      {showVoiceStatus && !cameraOff ? (
+      {showVoiceStatus && !noticeOnly ? (
         <div aria-live="polite" className="absolute inset-x-0 bottom-3 z-20 flex justify-center">
           {onVoiceStatusTap ? (
             <button

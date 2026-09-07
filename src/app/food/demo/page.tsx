@@ -744,7 +744,6 @@ export default function CompassPage() {
           scanError={live.scanError}
           scanPending={scanPending}
           scoreName={matchShown?.food.description}
-          trustPill={<FoodGuidanceSource kind="general" language={language} />}
         />
       }
         voiceBar={
