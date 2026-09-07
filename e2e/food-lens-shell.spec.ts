@@ -48,6 +48,16 @@ async function confirmCameraCandidate(page: Page) {
   await page.getByRole("button", { name: "Yes, use this food" }).click();
 }
 
+/**
+ * Spec 29 P8 (critique N5): a barcode score was ten and a half phone screens. The score,
+ * the verdict, one alternative and one button stayed; the chart, the score drivers, the
+ * "we heard" block, the flags, the day totals, the nutrient tiles and the meal log went
+ * under one disclosure. Anything below that line has to be opened before it can be read.
+ */
+async function openMoreAboutThisFood(page: Page) {
+  await page.getByText("More about this food").click();
+}
+
 function strip(page: Page) {
   return page.getByRole("region", { name: "1 good choice status" });
 }
@@ -128,12 +138,21 @@ test("switches the strip between its two modes at one fixed height", async ({ pa
   expect(foodBox?.height).toBe(44);
   await expect(strip(page)).toContainText("Banana, raw · 83");
 
-  // The food name appears exactly once on the screenful: in the strip, not also in the
+  // The food is labeled exactly once on the screenful: in the strip, not also in the
   // verdict beneath it.
+  //
+  // The conversation is excluded, and that exclusion is new. It is not a label, it is a
+  // sentence someone said, and it only shares this screenful because spec 29 P8 folded the
+  // chart, the tiles and the drivers away (critique N5) -- a barcode result went from ten
+  // and a half phone screens to under four. Counting an assistant turn as a duplicate
+  // label would make the page shrinking look like a regression.
   const onScreen = await page.evaluate(() => {
     const nodes = Array.from(document.querySelectorAll("p, span, div, h1, h2, h3"));
     return nodes.filter((node) => {
       if (!node.textContent?.includes("Banana, raw")) {
+        return false;
+      }
+      if (node.closest('[role="log"]')) {
         return false;
       }
       if (Array.from(node.children).some((child) => child.textContent?.includes("Banana, raw"))) {
@@ -146,7 +165,7 @@ test("switches the strip between its two modes at one fixed height", async ({ pa
   expect(onScreen).toBe(1);
 });
 
-test("keeps the public mount store-free and gives it no camera button", async ({ page }) => {
+test("keeps the public mount store-free and gives it an ask box", async ({ page }) => {
   await stubIdentify(page);
   await page.goto("/food/demo");
   await confirmCameraCandidate(page);
@@ -154,10 +173,26 @@ test("keeps the public mount store-free and gives it no camera button", async ({
   await expect(strip(page)).toContainText("Ready to scan", { timeout: 10_000 });
   await scrollViewfinderAway(page);
 
-  // Decision 5: the text box is never rendered, not hidden, and the strip has nowhere
-  // else to send you, so it carries no camera button.
-  await expect(page.getByRole("textbox")).toHaveCount(0);
+  // Store-free is the load-bearing half of decision 5 and it does not move: this door
+  // wrote a stranger's browser a whole patient record it never showed them (critique N9).
+  // Nothing here, not the scan, not the mic, may leave a key behind.
+  expect(await page.evaluate(() => window.localStorage.length)).toBe(0);
+
+  // The other half inverted in spec 29 P3. The text box used to be the thing that was
+  // never rendered; with the camera off that left the door with one control, a mic that
+  // failed, and no way in (critique F5, G1). The strip still has nowhere else to send you,
+  // so it still carries no camera button.
+  await expect(page.getByLabel("Ask about this food…")).toBeVisible();
   await expect(strip(page).getByRole("button")).toHaveCount(0);
+
+  // Spec 29 P3 item 6: the token route answers mode "mock" in this suite, so there is no
+  // mic at all. A button that says "Listening. Just talk." to nobody is worse than no
+  // button (critique H8, H9), and the project rule is that a key-dependent feature fails
+  // visibly. The typed row is what is left, and it says so.
+  await expect(page.getByRole("button", { name: "Start" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Voice" })).toContainText(
+    "Typed questions only on this build."
+  );
 });
 
 test("turns an image-only carve-out into a safe no-match with no score or log action", async ({ page }) => {
@@ -189,6 +224,10 @@ test("opens the domain breakdown from the chart marker and hands focus back on c
   await page.goto("/food/demo");
   await confirmCameraCandidate(page);
 
+  // Spec 29 P8: the chart is under the fold now, so the marker is reached through it.
+  await expect(page.getByTestId("food-verdict")).toContainText("Banana, raw", { timeout: 10_000 });
+  await openMoreAboutThisFood(page);
+
   const marker = page.getByTestId("nutrition-compass-marker");
   await expect(marker).toBeVisible({ timeout: 10_000 });
   await expect(page.getByTestId("why-score")).toHaveCount(0);
@@ -208,11 +247,21 @@ test("names the quadrants in a legend beneath the plot, never in its corners", a
   await page.goto("/food/demo");
   await confirmCameraCandidate(page);
 
+  await expect(page.getByTestId("food-verdict")).toContainText("Banana, raw", { timeout: 10_000 });
+  await openMoreAboutThisFood(page);
+
   const chart = page.getByRole("region", { name: "Score and calories" });
   await expect(chart).toBeVisible({ timeout: 10_000 });
 
   const legend = page.getByRole("group", { name: "What the colors mean" });
-  await expect(legend).toContainText("Choose often — Your food is here");
+  await expect(legend).toContainText("Choose often");
+  // Spec 29 P8 item 2: the legend used to append "Your food is here" to the quadrant this
+  // food is in, in words, with an em dash, after the ring and the marker had already said
+  // it twice (critique N6). The swatch carries the state now, and nothing says it in prose.
+  await expect(legend.locator('[data-quadrant="choose_often"]')).toHaveAttribute("aria-current", "true");
+  await expect(legend.locator('[data-quadrant="choose_often"]')).toHaveAttribute("data-current", "true");
+  await expect(legend.locator("[data-current]")).toHaveCount(1);
+  await expect(legend).not.toContainText("Your food is here");
   await expect(chart).toContainText("Down and to the right is better");
 
   const plot = page.getByTestId("nutrition-compass-plot");

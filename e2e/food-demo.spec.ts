@@ -50,6 +50,24 @@ async function confirmCameraCandidate(page: Page, language: "en" | "es" = "en") 
   await page.getByRole("button", { name: language === "es" ? "Sí, usar esta comida" : "Yes, use this food" }).click();
 }
 
+/**
+ * Spec 29 P8 (critique N5): the answer is the score, the verdict, one alternative and one
+ * button. The chart, the score drivers, the "we heard" block, the flags, the day totals,
+ * the nutrient tiles and the meal log all moved under one disclosure, so a test that reads
+ * any of them has to open it first.
+ */
+async function openMoreAboutThisFood(page: Page, language: "en" | "es" = "en") {
+  await page.getByText(language === "es" ? "Más sobre esta comida" : "More about this food").click();
+}
+
+/**
+ * Spec 29 P3 (critique F5, G1): the public door's ask box. `?lang=es` is read after mount,
+ * so the label arrives a tick after the page does.
+ */
+function askBox(page: Page, language: "en" | "es" = "en") {
+  return page.getByLabel(language === "es" ? "Pregunta sobre esta comida…" : "Ask about this food…");
+}
+
 test("keeps the camera in place and starts the food conversation automatically", async ({ page }) => {
   await stubRealtime(page);
   await stubCameraMatch(page);
@@ -62,9 +80,16 @@ test("keeps the camera in place and starts the food conversation automatically",
   await expect(page.getByRole("log")).toContainText("1 good choice: I see Banana, raw");
 
   await expect(page.getByText("Camera collapsed")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /Expand camera|Back to result|Tap start|Ask about/i })).toHaveCount(0);
-  await expect(page.getByLabel("Describe a food or order")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Expand camera|Back to result|Tap start/i })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Find score|Plot this order|Play voice example/i })).toHaveCount(0);
+
+  // Spec 29 P3, inverted from spec 26: the public door now carries the same ask box the
+  // personal door has. Without it a phone that said no to the camera had no way in at all
+  // (critique F5, G1), which is the single thing that stopped Brenda opening the link her
+  // nurse sent. One box, not two, and not a hidden one.
+  await expect(askBox(page)).toBeVisible();
+  await expect(page.getByRole("region", { name: "Voice" }).getByRole("textbox")).toHaveCount(1);
+
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 });
 
@@ -72,9 +97,20 @@ test("plots Food Compass on X and calorie density on Y in one of four quadrants"
   await stubRealtime(page);
   await stubCameraMatch(page);
   await page.goto("/food/demo");
-  await confirmCameraCandidate(page);
 
   const chart = page.getByRole("region", { name: "Score and calories" });
+  // Spec 29 P8 item 3 (critique N3): axes, four quadrant labels and "down and to the right
+  // is better" before there is anything to plot was most of the 64 words on the public
+  // door's blank first screen. There is no chart until there is a food.
+  await expect(chart).toHaveCount(0);
+
+  await confirmCameraCandidate(page);
+  await expect(page.getByTestId("food-verdict")).toContainText("Banana, raw", { timeout: 10_000 });
+
+  // And once there is one, the chart is under the fold rather than between the score and
+  // the alternatives (spec 29 P8 item 5, critique N5).
+  await expect(chart).toBeHidden();
+  await openMoreAboutThisFood(page);
   await expect(chart).toBeVisible({ timeout: 10_000 });
 
   const marker = page.getByTestId("nutrition-compass-marker");
@@ -232,8 +268,14 @@ test("keeps general guidance explicit through the camera-first flow", async ({ p
   await page.goto("/food/demo");
 
   await expect(page.getByRole("heading", { name: "1 good choice" })).toBeVisible();
+  await confirmCameraCandidate(page);
+  await expect(page.getByTestId("food-verdict")).toContainText("Banana, raw", { timeout: 10_000 });
+
+  // Spec 29 P8 item 4: one banner per page. The public door has no readings to be based
+  // on, so the general line is the only one, and spec 29 P8 item 1 took the em dash out of
+  // it (critique N2, N6).
   await expect(page.locator('[data-guidance-scope="general"]').first()).toContainText(
-    "General nutrition advice — not based on your readings or health history."
+    "General nutrition advice. Not based on your readings or health history."
   );
   await expect(page.locator('[data-guidance-scope="personalized"]')).toHaveCount(0);
   await expect(page.getByText(/Maria|Brent|blood pressure|lisinopril/i)).toHaveCount(0);
@@ -243,12 +285,26 @@ test("localizes the stateless camera-first flow in Spanish", async ({ page }) =>
   await stubRealtime(page);
   await stubCameraMatch(page);
   await page.goto("/food/demo?lang=es");
+  // Spec 29 P6: ?lang=es is read after mount, so the Spanish scan control is what says the
+  // language arrived. Reading it during render was the hydration error on local and the
+  // minified React #418 on Azure (critique G7).
+  await expect(page.getByRole("region", { name: "Cámara de alimentos" })).toBeVisible();
   await confirmCameraCandidate(page, "es");
 
   await expect(page.getByRole("heading", { name: "1 good choice" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Cámara de alimentos" })).toBeVisible();
+  await expect(page.getByTestId("food-verdict")).toBeVisible({ timeout: 10_000 });
+  await openMoreAboutThisFood(page, "es");
   await expect(page.getByRole("region", { name: "Puntaje y calorías" })).toContainText("83");
-  await expect(page.getByRole("textbox")).toHaveCount(0);
+
+  // Spec 29 P3: the ask box is on this door now, in Spanish, and it is the only one.
+  await expect(askBox(page, "es")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Voz" }).getByRole("textbox")).toHaveCount(1);
+
+  // Spec 29 P6: one EN | Español control, in the header, and it switches without a reload.
+  // Scoped to the brand block on purpose -- Next's dev-tools button also answers to "EN".
+  await page.getByTestId("one-good-choice-brand").getByRole("button", { name: "EN", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Food camera" })).toBeVisible();
+  await expect(askBox(page)).toBeVisible();
 });
 
 test("turns an image-only carve-out into a safe no-match without collapsing the camera", async ({ page }) => {
