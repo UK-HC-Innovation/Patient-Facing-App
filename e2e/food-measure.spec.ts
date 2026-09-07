@@ -108,4 +108,22 @@ test.describe("spec 29 P8 targets", () => {
     console.log(`voice bar: ${Math.round(height)} px of ${viewport} px (critique measured about 45% with the panel open)`);
     expect(height).toBeLessThan(viewport * 0.3);
   });
+
+  // Spec 29 P3 item 1: a card on screen within a second of Enter, with no microphone and
+  // no camera. The critique measured the API itself at 4 to 13 ms; what was missing was a
+  // door that called it.
+  test("a typed food is on screen in about a second", async ({ page }) => {
+    await page.goto("/food/demo");
+    const box = page.getByRole("textbox").first();
+    await expect(box).toBeVisible();
+    await box.fill("honey nut cheerios");
+
+    const started = Date.now();
+    await page.getByRole("button", { name: "Ask" }).click();
+    await expect(page.getByTestId("food-verdict")).toBeVisible({ timeout: 5_000 });
+    const elapsed = Date.now() - started;
+
+    console.log(`typed food to score card: ${elapsed} ms`);
+    expect(elapsed).toBeLessThan(2_000);
+  });
 });

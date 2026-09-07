@@ -79,6 +79,9 @@ test("rejecting a camera guess returns to the camera without immediately reopeni
     candidates: []
   } }));
   await page.goto("/food");
+  // Nothing is sent until the person taps: no guess appears on its own.
+  await expect(page.getByTestId("food-identity-review")).toHaveCount(0);
+  await page.getByRole("button", { name: "Tap to scan" }).click();
   await expect(page.getByTestId("food-identity-review")).toContainText("Lemonade");
   await page.getByRole("button", { name: "No, scan again" }).click();
   await expect(page.getByTestId("food-identity-review")).toHaveCount(0);
@@ -86,6 +89,21 @@ test("rejecting a camera guess returns to the camera without immediately reopeni
   await page.waitForTimeout(1000);
   await expect(page.getByTestId("food-identity-review")).toHaveCount(0);
 });
+
+/**
+ * Spec 29 P8: the answer is the score, the verdict, one alternative and one button. The
+ * chart, the drivers, what we heard, the flags, the day totals, the nutrient tiles and the
+ * meal log all moved behind one disclosure, so a barcode result is three screens instead of
+ * ten and a half (critique N5). Anything under the fold has to be opened before it is read.
+ */
+async function openMoreAboutThisFood(page: import("@playwright/test").Page) {
+  const details = page.locator("details").filter({ hasText: "More about this food" }).first();
+  await expect(details).toBeVisible();
+  if (await details.evaluate((element) => !(element as HTMLDetailsElement).open)) {
+    await details.getByText("More about this food", { exact: true }).click();
+  }
+  await expect(details).toHaveJSProperty("open", true);
+}
 
 async function stubFoodLens(page: import("@playwright/test").Page) {
   await page.addInitScript((barcode) => {
@@ -111,7 +129,23 @@ async function stubFoodLens(page: import("@playwright/test").Page) {
   );
 }
 
+/**
+ * A tap before the video has frames reads no barcode at all (`readyState < 2` is an early
+ * null in `useBarcodeScan`), and the scan falls through to the image path. Nothing about
+ * that is worth testing, so wait for the camera rather than race it.
+ */
+async function waitForCameraFrames(page: import("@playwright/test").Page) {
+  await expect
+    .poll(
+      async () =>
+        page.locator("video").first().evaluate((video) => (video as HTMLVideoElement).readyState),
+      { timeout: 15_000 }
+    )
+    .toBeGreaterThanOrEqual(2);
+}
+
 async function confirmBarcode(page: import("@playwright/test").Page) {
+  await waitForCameraFrames(page);
   await page.getByRole("button", { name: /Tap to scan(?: again)?/ }).click();
   const useProduct = page.getByRole("button", { name: "Use this product" });
   await expect(useProduct).toBeVisible();
@@ -156,6 +190,8 @@ test("builds and logs a two-item plate with one shared meal id", async ({ page }
   await expect(plate.getByText("2 serving(s)")).toBeVisible();
   await page.getByRole("button", { name: "Log plate" }).click();
 
+  // The meal log is under the fold now, so a logged plate is confirmed, then read.
+  await openMoreAboutThisFood(page);
   await expect(page.getByRole("listitem").filter({ hasText: "Campbell's Condensed Chicken Noodle Soup" })).toBeVisible();
   await expect(page.getByRole("listitem").filter({ hasText: "Quaker Old Fashioned Oats" })).toBeVisible();
   const entries = await page.evaluate(() => {
@@ -172,8 +208,13 @@ test("builds and logs a two-item plate with one shared meal id", async ({ page }
 });
 
 async function stubEmptyFoodLens(page: import("@playwright/test").Page) {
+  // Cleared once per context, not once per navigation: a sample patient loaded from /menu
+  // has to survive the walk to /food.
   await page.addInitScript(() => {
-    window.localStorage.clear();
+    if (!window.sessionStorage.getItem("__e2e_cleared")) {
+      window.localStorage.clear();
+      window.sessionStorage.setItem("__e2e_cleared", "1");
+    }
   });
   await page.route("**/api/realtime/token", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ mode: "mock", reason: "provider_mock" }) })
@@ -236,15 +277,28 @@ test("labels the personalized route without inventing a current-food recommendat
   await stubEmptyFoodLens(page);
   await page.goto("/food");
 
+  // Spec 29 P2: a fresh phone is nobody. Nothing claims to know this person's readings, and
+  // there are no meals they never logged.
   await expect(page.getByRole("heading", { name: "1 good choice" })).toBeVisible();
+  await expect(page.locator('[data-guidance-scope="personalized"]')).toHaveCount(0);
+  await expect(page.getByRole("listitem").filter({ hasText: "Chicken Noodle Soup" })).toHaveCount(0);
+  // No live provider on this build, so the bar says so instead of offering a mic that fails.
+  await expect(page.getByText("Voice is off. Typed questions still work.")).toBeVisible();
+
+  // The personalized label is earned, and only the one explicit control earns it.
+  await page.goto("/menu");
+  await page.getByRole("button", { name: "Load a sample patient (Brent)" }).click();
+  await page.waitForURL("**/screening**");
+  await page.goto("/food");
+
   await expect(page.locator('[data-guidance-scope="personalized"]').first()).toContainText(
     "Based on your recent readings and health history."
   );
-  await expect(page.getByText("Tap start and describe your food.", { exact: true })).toBeVisible();
+  // One banner per page: the general line never doubles up with the personalized one.
+  await expect(page.locator('[data-guidance-scope="general"]')).toHaveCount(0);
   await expect(page.getByText("Tap start to talk about this food.", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "This food" })).toHaveCount(0);
   await expect(page.getByText(/Your recent readings are trending up/i)).toHaveCount(0);
-  await expect(page.locator('[data-guidance-scope="general"]')).toHaveCount(0);
 });
 
 test("scans a food, asks a typed question, logs the meal, and persists it", async ({ page }) => {
@@ -256,22 +310,33 @@ test("scans a food, asks a typed question, logs the meal, and persists it", asyn
   await confirmBarcode(page);
 
   await expect(page.getByTestId("food-verdict")).toContainText("Chicken Noodle Soup");
-  await expect(page.getByText(/mg sodium/)).toBeVisible();
-  await expect(page.locator('[data-guidance-scope="personalized"]').first()).toBeVisible();
+  // spec 29 P8: the answer first. The sodium flag is real, and it is one tap down.
+  await expect(page.getByText(/mg sodium/)).toBeHidden();
+  await openMoreAboutThisFood(page);
+  await expect(page.getByText("890 mg sodium, 59% of your 1500 mg daily limit")).toBeVisible();
 
   await page.getByLabel("Ask about this food…").fill("Can I have this for lunch?");
   await page.getByRole("button", { name: "Ask" }).click();
 
-  // The transcript now lives in the pinned voice bar and grows upward from it.
-  await page.getByRole("button", { name: /Show the conversation/ }).click();
-  await expect(page.getByText("Can I have this for lunch?", { exact: true })).toBeVisible();
-  await expect(page.getByText(/has 890 mg of sodium/)).toBeVisible();
-  await page.getByRole("button", { name: /Hide the conversation/ }).click();
+  // The transcript lives in the pinned voice bar and opens itself when the answer lands;
+  // every persona in the critique typed into a panel that stayed shut.
+  const voiceBar = page.getByRole("region", { name: "Voice" });
+  // .first() because the question is currently echoed twice: the typed path appends the
+  // patient line and the session it forwards to emits its own userTranscript for the same
+  // text. Cosmetic, and reported rather than asserted as intended.
+  await expect(voiceBar.getByText("Can I have this for lunch?", { exact: true }).first()).toBeVisible();
+  await expect(voiceBar.getByText(/has 890 mg of sodium/)).toBeVisible();
+  await voiceBar.getByRole("button", { name: /Hide the conversation/ }).click();
 
   // spec 23: the Food Compass score sits above the flag chips, badged as a label estimate.
   await expect(page.getByTestId("food-verdict")).toContainText("Food Compass score");
-  await expect(page.locator('[data-guidance-scope="general"]')).toContainText(
-    "General nutrition advice — not based on your readings or health history."
+  // Nobody is Brent, so nothing over the camera claims to know this person's readings and
+  // the banner at the bottom is the general one, in the em-dash-free copy.
+  await expect(
+    page.getByRole("region", { name: "Food camera" }).locator('[data-guidance-scope="personalized"]')
+  ).toHaveCount(0);
+  await expect(page.locator('[data-guidance-scope="general"]').first()).toContainText(
+    "General nutrition advice. Not based on your readings or health history."
   );
   // Shown twice on purpose: the viewfinder badge and the score row on the card.
   await expect(page.getByText("Estimate from label")).toHaveCount(2);
@@ -292,9 +357,11 @@ test("scans a food, asks a typed question, logs the meal, and persists it", asyn
   expect(["encourage", "moderate", "minimize"]).toContain((logged as { band: string }).band);
   expect(typeof (logged as { fcs: number }).fcs).toBe("number");
 
+  await openMoreAboutThisFood(page);
   await expect(page.getByRole("listitem").filter({ hasText: "Campbell's Condensed Chicken Noodle Soup" })).toBeVisible();
 
   await page.reload();
+  await openMoreAboutThisFood(page);
   await expect(page.getByRole("listitem").filter({ hasText: "Campbell's Condensed Chicken Noodle Soup" })).toBeVisible();
 
   await page.goto("/chat");

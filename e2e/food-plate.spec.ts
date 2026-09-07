@@ -153,7 +153,25 @@ async function stubPlateDoor(page: Page, plateBody: object = platePayload) {
   );
 }
 
+/**
+ * A tap before the video has frames grabs nothing, and the scan falls through. Nothing
+ * about that race is worth testing, so wait for the camera rather than run it.
+ */
+async function waitForCameraFrames(page: Page) {
+  await expect
+    .poll(
+      async () =>
+        page.locator("video").first().evaluate((video) => (video as HTMLVideoElement).readyState),
+      { timeout: 15_000 }
+    )
+    .toBeGreaterThanOrEqual(2);
+}
+
 async function scan(page: Page, confirmMatches = true) {
+  await waitForCameraFrames(page);
+  // Spec 29 P4: the plate is a camera action, so its button exists only while the camera is
+  // on. A tap that does nothing is worse than no button (critique G5).
+  await expect(page.getByRole("button", { name: "Scan the plate" })).toBeVisible();
   await page.getByRole("button", { name: /Tap to scan(?: again)?/ }).click();
   // Confirming the image candidate preserves the no-score-before-confirmation invariant.
   await page.getByRole("button", { name: "Yes, use this food" }).click();
@@ -163,8 +181,14 @@ async function scan(page: Page, confirmMatches = true) {
     const review = page.getByTestId("plate-scan");
     await expect(review.getByRole("button", { name: "Quinoa, no added fat", exact: true })).toBeVisible();
     await expect(page.getByTestId("plate-card")).toHaveCount(0);
+    // One confirmation at a time. `addPlateItemByFoodId` aborts whatever plate lookup is
+    // still in flight before it starts its own, so a second tap that lands first drops the
+    // first item without saying so. Reported; waiting for the row keeps this test about the
+    // plate rather than about that race.
     await review.getByRole("button", { name: "Quinoa, no added fat", exact: true }).click();
+    await expect(page.getByTestId("plate-card").getByTestId("plate-item")).toHaveCount(1);
     await review.getByRole("button", { name: "Apple, raw", exact: true }).click();
+    await expect(page.getByTestId("plate-card").getByTestId("plate-item")).toHaveCount(2);
   }
 }
 
