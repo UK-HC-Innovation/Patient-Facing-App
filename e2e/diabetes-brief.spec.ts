@@ -1,13 +1,20 @@
 import { expect, test } from "@playwright/test";
 
-// DPL golden path (plan 10 acceptance): load the Brent demo, then the blood-sugar
+// DPL golden path (plan 10 acceptance): load the sample patient, then the blood-sugar
 // page shows time-in-range + the deterministic food<->glucose pattern, and the
 // visit Health Brief carries the full diabetes picture. Deterministic fixtures,
 // zero env vars, mock provider.
 test("diabetes-legible loop: time-in-range, food pattern, and a diabetes-complete brief", async ({ page }) => {
-  // Load the Brent demo (blood pressure + diabetes) from the privacy controls.
-  await page.goto("/privacy");
-  await page.getByRole("button", { name: "Restore retinopathy walkthrough" }).click();
+  // Spec 29 P2: the default patient is empty, so seeded history has to be asked for.
+  // /menu is the one control that loads the sample patient (blood pressure + diabetes).
+  await page.goto("/menu");
+  await page.getByRole("button", { name: "Load a sample patient (Brent)" }).click();
+  await page.waitForURL(/\/screening/);
+  // Every page below is reached with a full load, which rehydrates from storage.
+  // Wait for the sample patient to get there, or the reload restores the empty one.
+  await page.waitForFunction(() =>
+    (window.localStorage.getItem("home-health-ai-ownership-state") ?? "").includes("Brent")
+  );
 
   // Blood-sugar page: the time-in-range band and the food<->glucose pattern card.
   await page.goto("/glucose");

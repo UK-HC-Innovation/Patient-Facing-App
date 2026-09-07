@@ -28,8 +28,16 @@ async function stubFoodLens(page: Page) {
 test("tier-2 diabetes loop: dose-log tags and editable portion scaling", async ({ page }) => {
   await stubFoodLens(page);
 
-  await page.goto("/privacy");
-  await page.getByRole("button", { name: "Restore retinopathy walkthrough" }).click();
+  // Spec 29 P2: nothing loads Brent by default. The dose-log tags below need his
+  // seeded readings, so ask for the sample patient explicitly.
+  await page.goto("/menu");
+  await page.getByRole("button", { name: "Load a sample patient (Brent)" }).click();
+  await page.waitForURL(/\/screening/);
+  // /glucose and /food below are full loads, which rehydrate from storage. Wait for
+  // the sample patient to get there, or the reload restores the empty one.
+  await page.waitForFunction(() =>
+    (window.localStorage.getItem("home-health-ai-ownership-state") ?? "").includes("Brent")
+  );
 
   await page.goto("/glucose");
   await expect(page.getByText(/Tags show what your dose log says/)).toBeVisible();
@@ -46,12 +54,18 @@ test("tier-2 diabetes loop: dose-log tags and editable portion scaling", async (
   await page.getByRole("button", { name: "Use this product" }).click();
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior }));
   await expect(page.getByTestId("food-verdict")).toContainText("Condensed Chicken Noodle Soup");
-  await expect(page.getByText("Set to 1 servings — tap to change.")).toBeVisible();
+
+  // Spec 29 P8: the serving stepper, the nutrient tiles and the flags moved under
+  // one disclosure. The score and the verdict stay above it; everything this test
+  // measures is behind it.
+  await page.getByText("More about this food").click();
+
+  await expect(page.getByText("Set to 1 servings. Tap to change.")).toBeVisible();
   await expect(page.getByText("60")).toBeVisible();
 
   await page.getByRole("button", { name: "Increase servings" }).click();
 
-  await expect(page.getByText("Set to 2 servings — tap to change.")).toBeVisible();
+  await expect(page.getByText("Set to 2 servings. Tap to change.")).toBeVisible();
   await expect(page.getByText("120")).toBeVisible();
   await expect(page.getByText(/1780 mg sodium/)).toBeVisible();
 });
