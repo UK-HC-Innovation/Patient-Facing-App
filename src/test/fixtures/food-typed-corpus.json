@@ -1,0 +1,1819 @@
+{
+  "version": "spec-30-p0-baseline",
+  "generatedAgainst": "5ea7f1c",
+  "cases": [
+    {
+      "id": "exact-apple",
+      "category": "exact",
+      "query": "apple",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "63101000",
+        "description": "Apple, raw",
+        "fcs": 95,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "63101000",
+        "basis": "head_canonical"
+      }
+    },
+    {
+      "id": "exact-banana",
+      "category": "exact",
+      "query": "banana",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "63107010",
+        "description": "Banana, raw",
+        "fcs": 83,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "63107010",
+        "basis": "head_canonical"
+      }
+    },
+    {
+      "id": "exact-honey-nut-cheerios",
+      "category": "exact",
+      "query": "honey nut cheerios",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "57241000",
+        "description": "Cereal (General Mills Cheerios Honey Nut)",
+        "fcs": 58,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "57241000",
+        "basis": "brand"
+      }
+    },
+    {
+      "id": "exact-cheerios",
+      "category": "exact",
+      "query": "cheerios",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "57123000",
+        "description": "Cereal (General Mills Cheerios)",
+        "fcs": 77,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "57123000",
+        "basis": "brand"
+      }
+    },
+    {
+      "id": "exact-plain-cheerios",
+      "category": "exact",
+      "query": "plain cheerios",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "57123000",
+        "description": "Cereal (General Mills Cheerios)",
+        "fcs": 77,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "57123000",
+        "basis": "alias"
+      }
+    },
+    {
+      "id": "exact-doritos",
+      "category": "exact",
+      "query": "doritos",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "54401111",
+        "description": "Tortilla chips, cool ranch flavor (Doritos)",
+        "fcs": 12,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "54401111",
+        "basis": "brand"
+      }
+    },
+    {
+      "id": "exact-pan-dulce",
+      "category": "exact",
+      "query": "pan dulce",
+      "language": "es",
+      "expect": {
+        "mode": "match",
+        "code": "51161250",
+        "description": "Pan Dulce, no topping",
+        "fcs": 11,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "51161250",
+        "basis": "head_canonical"
+      }
+    },
+    {
+      "id": "exact-quinoa",
+      "category": "exact",
+      "query": "quinoa",
+      "language": "en",
+      "note": "the fat-added and no-added-fat rows tie",
+      "expect": {
+        "mode": "match",
+        "code": "56204010",
+        "description": "Quinoa, fat added",
+        "fcs": 81,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "exact-mountain-dew",
+      "category": "exact",
+      "query": "Mountain Dew",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "92410550",
+        "description": "Soft drink, fruit flavored, caffeine containing",
+        "fcs": 1,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "92410550",
+        "basis": "alias"
+      }
+    },
+    {
+      "id": "exact-ale-8",
+      "category": "exact",
+      "query": "Ale-8",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "92410610",
+        "description": "Soft drink, ginger ale",
+        "fcs": 1,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "92410610",
+        "basis": "alias"
+      }
+    },
+    {
+      "id": "exact-soup-beans",
+      "category": "exact",
+      "query": "soup beans",
+      "language": "en",
+      "note": "the spec 29 reviewed rewrite",
+      "expect": {
+        "mode": "match",
+        "code": "41104010",
+        "description": "Pinto beans, from dried, fat added",
+        "fcs": 91,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "41104010",
+        "basis": "alias"
+      }
+    },
+    {
+      "id": "ambig-pizza",
+      "category": "exact",
+      "query": "pizza",
+      "language": "en",
+      "note": "bare generic name",
+      "expect": {
+        "mode": "match",
+        "code": "58106233",
+        "description": "Pizza, cheese, stuffed crust",
+        "fcs": 21,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "ambig-chicken",
+      "category": "exact",
+      "query": "chicken",
+      "language": "en",
+      "note": "bare generic name",
+      "expect": {
+        "mode": "match",
+        "code": "24198670",
+        "description": "Chicken, chicken roll, roasted",
+        "fcs": 60,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "ambig-soup",
+      "category": "exact",
+      "query": "soup",
+      "language": "en",
+      "note": "bare generic name",
+      "expect": {
+        "mode": "match",
+        "code": "63415100",
+        "description": "Soup, fruit",
+        "fcs": 100,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "ambig-salad",
+      "category": "exact",
+      "query": "salad",
+      "language": "en",
+      "note": "bare generic name",
+      "expect": {
+        "mode": "match",
+        "code": "83100100",
+        "description": "Salad dressing, NFS, for salads",
+        "fcs": 37,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "ambig-coffee",
+      "category": "exact",
+      "query": "coffee",
+      "language": "en",
+      "note": "bare generic name",
+      "expect": {
+        "mode": "match",
+        "code": "92101900",
+        "description": "Coffee, Latte",
+        "fcs": 58,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "ambig-diet-coke",
+      "category": "exact",
+      "query": "diet coke",
+      "language": "en",
+      "note": "never a carrot cake row",
+      "expect": {
+        "mode": "match",
+        "code": "53104300",
+        "description": "Cake, carrot, diet",
+        "fcs": 20,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "ambig-fried-chicken",
+      "category": "exact",
+      "query": "fried chicken",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "24164113",
+        "description": "Chicken, wing, fried, no coating, skin eaten, made with oil",
+        "fcs": 50,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "ambig-grilled-chicken-no-sauce",
+      "category": "exact",
+      "query": "grilled chicken no sauce",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "24103060",
+        "description": "Chicken, NS as to part, grilled without sauce, skin not eaten",
+        "fcs": 67,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "exact-bojangles-combo",
+      "category": "exact",
+      "query": "bojangles chicken supremes combo",
+      "language": "en",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": false
+      },
+      "target": {
+        "mode": "none"
+      }
+    },
+    {
+      "id": "compound-chicken-and-dumplings",
+      "category": "compound",
+      "query": "chicken and dumplings",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "27347250",
+        "description": "Chicken or turkey, dumplings, and vegetables excluding carrots, broccoli, and dark green leafy; gravy",
+        "fcs": 45,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate",
+        "codes": [
+          "27347250"
+        ]
+      }
+    },
+    {
+      "id": "compound-mac-and-cheese",
+      "category": "compound",
+      "query": "mac and cheese",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "58145117",
+        "description": "Macaroni or noodles with cheese, Easy Mac type",
+        "fcs": 18,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate",
+        "codes": [
+          "58145117"
+        ]
+      }
+    },
+    {
+      "id": "compound-macaroni-and-cheese",
+      "category": "compound",
+      "query": "macaroni and cheese",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "27212050",
+        "description": "Beef and macaroni with cheese sauce",
+        "fcs": 41,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "compound-pbj",
+      "category": "compound",
+      "query": "peanut butter and jelly sandwich",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "42302015",
+        "description": "Peanut butter and jelly sandwich, with regular peanut butter, regular jelly, on white bread",
+        "fcs": 40,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate",
+        "codes": [
+          "42302015"
+        ]
+      }
+    },
+    {
+      "id": "compound-biscuits-and-gravy",
+      "category": "compound",
+      "query": "biscuits and gravy",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "58128000",
+        "description": "Biscuit with gravy",
+        "fcs": 15,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate",
+        "codes": [
+          "58128000"
+        ]
+      }
+    },
+    {
+      "id": "compound-fish-and-chips",
+      "category": "compound",
+      "query": "fish and chips",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "27450150",
+        "description": "Fish, tofu, and vegetables, tempura",
+        "fcs": 85,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "compound-spaghetti-and-meatballs",
+      "category": "compound",
+      "query": "spaghetti and meatballs",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "58132310",
+        "description": "Spaghetti with tomato sauce and meatballs or spaghetti with meat sauce or spaghetti with meat sauce and meatballs",
+        "fcs": 52,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "compound-rice-and-beans",
+      "category": "compound",
+      "query": "rice and beans",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "58160132",
+        "description": "Beans and rice, with meat",
+        "fcs": 65,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "compound-ham-and-cheese-sandwich",
+      "category": "compound",
+      "query": "ham and cheese sandwich",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "27520320",
+        "description": "Ham and cheese sandwich, with lettuce and spread",
+        "fcs": 13,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "compound-chicken-and-rice",
+      "category": "compound",
+      "query": "chicken and rice",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "58160130",
+        "description": "Rice with beans and chicken",
+        "fcs": 69,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "list-pizza-and-salad",
+      "category": "compound",
+      "query": "pizza and salad",
+      "language": "en",
+      "note": "no covering row: the line splits",
+      "expect": {
+        "mode": "match",
+        "code": "58109050",
+        "description": "Pizza, cheese and vegetables, whole wheat thin crust",
+        "fcs": 44,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "list-apple-banana",
+      "category": "compound",
+      "query": "apple, banana",
+      "language": "en",
+      "note": "a comma always splits",
+      "expect": {
+        "mode": "match",
+        "code": "63107010",
+        "description": "Banana, raw",
+        "fcs": 83,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "part-apple",
+      "category": "compound",
+      "query": "apple",
+      "language": "en",
+      "plateItem": true,
+      "expect": {
+        "mode": "match",
+        "code": "63101000",
+        "description": "Apple, raw",
+        "fcs": 95,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "63101000",
+        "basis": "coverage"
+      }
+    },
+    {
+      "id": "part-banana",
+      "category": "compound",
+      "query": "banana",
+      "language": "en",
+      "plateItem": true,
+      "expect": {
+        "mode": "match",
+        "code": "63107010",
+        "description": "Banana, raw",
+        "fcs": 83,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "63107010",
+        "basis": "coverage"
+      }
+    },
+    {
+      "id": "part-fried-chicken",
+      "category": "compound",
+      "query": "fried chicken",
+      "language": "en",
+      "plateItem": true,
+      "expect": {
+        "mode": "match",
+        "code": "24164113",
+        "description": "Chicken, wing, fried, no coating, skin eaten, made with oil",
+        "fcs": 50,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "24164113",
+        "basis": "coverage"
+      }
+    },
+    {
+      "id": "part-mashed-potatoes",
+      "category": "compound",
+      "query": "mashed potatoes with gravy",
+      "language": "en",
+      "plateItem": true,
+      "expect": {
+        "mode": "match",
+        "code": "71501017",
+        "description": "Potato, mashed, from restaurant, with gravy",
+        "fcs": 41,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "71501017",
+        "basis": "coverage"
+      }
+    },
+    {
+      "id": "part-green-beans",
+      "category": "compound",
+      "query": "green beans cooked with bacon",
+      "language": "en",
+      "plateItem": true,
+      "expect": {
+        "mode": "match",
+        "code": "75205044",
+        "description": "Green beans, fresh, cooked with oil",
+        "fcs": 94,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "75205044",
+        "basis": "coverage"
+      }
+    },
+    {
+      "id": "part-cornbread",
+      "category": "compound",
+      "query": "cornbread",
+      "language": "en",
+      "plateItem": true,
+      "expect": {
+        "mode": "match",
+        "code": "52202060",
+        "description": "Cornbread, made from home recipe",
+        "fcs": 33,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "52202060",
+        "basis": "coverage"
+      }
+    },
+    {
+      "id": "part-sweet-tea",
+      "category": "compound",
+      "query": "sweet tea",
+      "language": "en",
+      "plateItem": true,
+      "expect": {
+        "mode": "match",
+        "code": "92308000",
+        "description": "Tea, iced, brewed, black, pre-sweetened with sugar",
+        "fcs": 12,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "92308000",
+        "basis": "coverage"
+      }
+    },
+    {
+      "id": "part-banana-pudding",
+      "category": "compound",
+      "query": "banana pudding",
+      "language": "en",
+      "plateItem": true,
+      "note": "item 7, past the five-item cap",
+      "expect": {
+        "mode": "match",
+        "code": "13241000",
+        "description": "Banana pudding",
+        "fcs": 28,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "13241000",
+        "basis": "coverage"
+      }
+    },
+    {
+      "id": "es-manzana",
+      "category": "bilingual",
+      "query": "manzana",
+      "language": "es",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "63101000",
+        "basis": "alias"
+      }
+    },
+    {
+      "id": "es-platano-accent",
+      "category": "bilingual",
+      "query": "plátano",
+      "language": "es",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "63107010",
+        "basis": "alias"
+      }
+    },
+    {
+      "id": "es-platano",
+      "category": "bilingual",
+      "query": "platano",
+      "language": "es",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "63107010",
+        "basis": "alias"
+      }
+    },
+    {
+      "id": "es-banano",
+      "category": "bilingual",
+      "query": "banano",
+      "language": "es",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "63107010",
+        "basis": "alias"
+      }
+    },
+    {
+      "id": "es-frijoles",
+      "category": "bilingual",
+      "query": "frijoles",
+      "language": "es",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": false
+      },
+      "target": {
+        "mode": "candidate",
+        "codes": [
+          "41104020",
+          "41102020",
+          "41205015"
+        ]
+      }
+    },
+    {
+      "id": "es-leche",
+      "category": "bilingual",
+      "query": "leche",
+      "language": "es",
+      "expect": {
+        "mode": "match",
+        "code": "11561000",
+        "description": "Cafe con leche",
+        "fcs": 53,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate",
+        "codes": [
+          "11111000",
+          "11112110",
+          "11113000"
+        ]
+      }
+    },
+    {
+      "id": "es-huevos",
+      "category": "bilingual",
+      "query": "huevos",
+      "language": "es",
+      "expect": {
+        "mode": "match",
+        "code": "32105180",
+        "description": "Huevos rancheros",
+        "fcs": 64,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate",
+        "codes": [
+          "31105030",
+          "32104900",
+          "31103000"
+        ]
+      }
+    },
+    {
+      "id": "es-tamales",
+      "category": "bilingual",
+      "query": "tamales",
+      "language": "es",
+      "expect": {
+        "mode": "match",
+        "code": "53430700",
+        "description": "Tamale, sweet",
+        "fcs": 20,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate",
+        "codes": [
+          "58103120",
+          "58103130",
+          "53430700"
+        ]
+      }
+    },
+    {
+      "id": "en-tamale",
+      "category": "bilingual",
+      "query": "tamale",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "53430700",
+        "description": "Tamale, sweet",
+        "fcs": 20,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate",
+        "codes": [
+          "58103120",
+          "58103130",
+          "53430700"
+        ]
+      }
+    },
+    {
+      "id": "es-tamal",
+      "category": "bilingual",
+      "query": "tamal",
+      "language": "es",
+      "expect": {
+        "mode": "match",
+        "code": "58115150",
+        "description": "Tamal in a leaf, Puerto Rican style",
+        "fcs": 62,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate",
+        "codes": [
+          "58103120",
+          "58103130",
+          "53430700"
+        ]
+      }
+    },
+    {
+      "id": "es-pollo-asado",
+      "category": "bilingual",
+      "query": "pollo asado",
+      "language": "es",
+      "expect": {
+        "mode": "match",
+        "code": "58156510",
+        "description": "Soupy rice from Puerto Rican style Asopao de Pollo (chicken parts reported separately)",
+        "fcs": 50,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate",
+        "codes": [
+          "24122120",
+          "24122110",
+          "24152220"
+        ]
+      }
+    },
+    {
+      "id": "es-es-un-tamal",
+      "category": "bilingual",
+      "query": "es un tamal",
+      "language": "es",
+      "note": "correction prefix, never a question",
+      "expect": {
+        "mode": "match",
+        "code": "58115150",
+        "description": "Tamal in a leaf, Puerto Rican style",
+        "fcs": 62,
+        "basis": null,
+        "question": true
+      },
+      "target": {
+        "mode": "candidate",
+        "codes": [
+          "58103120",
+          "58103130",
+          "53430700"
+        ]
+      }
+    },
+    {
+      "id": "es-son-frijoles",
+      "category": "bilingual",
+      "query": "son frijoles",
+      "language": "es",
+      "note": "never a question",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": true
+      },
+      "target": {
+        "mode": "candidate",
+        "codes": [
+          "41104020",
+          "41102020",
+          "41205015"
+        ]
+      }
+    },
+    {
+      "id": "es-como-pollo",
+      "category": "bilingual",
+      "query": "como pollo",
+      "language": "es",
+      "note": "never a question",
+      "expect": {
+        "mode": "match",
+        "code": "58156510",
+        "description": "Soupy rice from Puerto Rican style Asopao de Pollo (chicken parts reported separately)",
+        "fcs": 50,
+        "basis": null,
+        "question": true
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "es-arroz-con-pollo",
+      "category": "bilingual",
+      "query": "arroz con pollo",
+      "language": "es",
+      "expect": {
+        "mode": "match",
+        "code": "58155110",
+        "description": "Rice with chicken, Puerto Rican style",
+        "fcs": 38,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "58155110",
+        "basis": "alias"
+      }
+    },
+    {
+      "id": "es-agua",
+      "category": "bilingual",
+      "query": "agua",
+      "language": "es",
+      "note": "the water carve-out is English only; candidate mode is the honest answer until it has a Spanish twin",
+      "expect": {
+        "mode": "match",
+        "code": "58421020",
+        "description": "Sopa de Fideo Aguada, Mexican style noodle soup, home recipe",
+        "fcs": 60,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "es-cerveza",
+      "category": "bilingual",
+      "query": "cerveza",
+      "language": "es",
+      "note": "the alcohol carve-out is English only",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": false
+      },
+      "target": {
+        "mode": "none"
+      }
+    },
+    {
+      "id": "es-queso",
+      "category": "bilingual",
+      "query": "queso",
+      "language": "es",
+      "expect": {
+        "mode": "match",
+        "code": "14133000",
+        "description": "Queso Fresco",
+        "fcs": 41,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "es-manzana-roja",
+      "category": "bilingual",
+      "query": "manzana roja",
+      "language": "es",
+      "note": "an alias key is the whole normalized query, so a qualifier misses it",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": false
+      },
+      "target": {
+        "mode": "none"
+      }
+    },
+    {
+      "id": "en-no-it-is-a-tamale",
+      "category": "bilingual",
+      "query": "No, it is a tamale",
+      "language": "en",
+      "note": "a correction, never a plate",
+      "expect": {
+        "mode": "match",
+        "code": "58115150",
+        "description": "Tamal in a leaf, Puerto Rican style",
+        "fcs": 62,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate",
+        "codes": [
+          "58103120",
+          "58103130",
+          "53430700"
+        ]
+      }
+    },
+    {
+      "id": "seq1-pizza",
+      "category": "replacement",
+      "query": "pizza",
+      "language": "en",
+      "note": "sequence: pizza then water",
+      "expect": {
+        "mode": "match",
+        "code": "58106233",
+        "description": "Pizza, cheese, stuffed crust",
+        "fcs": 21,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "seq1-water",
+      "category": "replacement",
+      "query": "water",
+      "language": "en",
+      "note": "sequence: pizza then water",
+      "expect": {
+        "mode": "carve_out",
+        "reason": "zero_calorie",
+        "question": false
+      },
+      "target": {
+        "mode": "carve_out",
+        "reason": "zero_calorie"
+      }
+    },
+    {
+      "id": "seq2-unknown",
+      "category": "replacement",
+      "query": "xyzzy plugh",
+      "language": "en",
+      "note": "sequence: pizza then an unknown food",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": false
+      },
+      "target": {
+        "mode": "none"
+      }
+    },
+    {
+      "id": "seq3-apple",
+      "category": "replacement",
+      "query": "apple",
+      "language": "en",
+      "note": "sequence: pizza then apple, banana",
+      "expect": {
+        "mode": "match",
+        "code": "63101000",
+        "description": "Apple, raw",
+        "fcs": 95,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "63101000",
+        "basis": "head_canonical"
+      }
+    },
+    {
+      "id": "seq3-banana",
+      "category": "replacement",
+      "query": "banana",
+      "language": "en",
+      "note": "sequence: pizza then apple, banana",
+      "expect": {
+        "mode": "match",
+        "code": "63107010",
+        "description": "Banana, raw",
+        "fcs": 83,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "63107010",
+        "basis": "head_canonical"
+      }
+    },
+    {
+      "id": "seq4-cheerios",
+      "category": "replacement",
+      "query": "cheerios",
+      "language": "en",
+      "note": "sequence: slow A, fast B",
+      "expect": {
+        "mode": "match",
+        "code": "57123000",
+        "description": "Cereal (General Mills Cheerios)",
+        "fcs": 77,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "57123000",
+        "basis": "brand"
+      }
+    },
+    {
+      "id": "seq4-honey-nut",
+      "category": "replacement",
+      "query": "honey nut cheerios",
+      "language": "en",
+      "note": "sequence: slow A, fast B",
+      "expect": {
+        "mode": "match",
+        "code": "57241000",
+        "description": "Cereal (General Mills Cheerios Honey Nut)",
+        "fcs": 58,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "57241000",
+        "basis": "brand"
+      }
+    },
+    {
+      "id": "seq5-correction-tamale",
+      "category": "replacement",
+      "query": "actually a tamale",
+      "language": "en",
+      "note": "correction prefix",
+      "expect": {
+        "mode": "match",
+        "code": "58115150",
+        "description": "Tamal in a leaf, Puerto Rican style",
+        "fcs": 62,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate",
+        "codes": [
+          "58103120",
+          "58103130",
+          "53430700"
+        ]
+      }
+    },
+    {
+      "id": "seq5-correction-apple",
+      "category": "replacement",
+      "query": "no, it's an apple",
+      "language": "en",
+      "note": "correction prefix",
+      "expect": {
+        "mode": "match",
+        "code": "57404200",
+        "description": "Malt-O-Meal Apple and Cinnamon Toasty O's",
+        "fcs": 52,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "63101000",
+        "basis": "head_canonical"
+      }
+    },
+    {
+      "id": "seq5-correction-es",
+      "category": "replacement",
+      "query": "en realidad manzana",
+      "language": "es",
+      "note": "correction prefix",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "63101000",
+        "basis": "alias"
+      }
+    },
+    {
+      "id": "seq6-can-of-soup",
+      "category": "replacement",
+      "query": "can of soup",
+      "language": "en",
+      "note": "never a question",
+      "expect": {
+        "mode": "match",
+        "code": "75608030",
+        "description": "Onion soup, cream of, canned, undiluted",
+        "fcs": 19,
+        "basis": null,
+        "question": true
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "seq6-is-45-carbs",
+      "category": "replacement",
+      "query": "is 45 carbs right",
+      "language": "en",
+      "note": "a question: the door never calls the route with this",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": true
+      },
+      "target": {
+        "mode": "none"
+      }
+    },
+    {
+      "id": "seq7-2-slices-pizza",
+      "category": "replacement",
+      "query": "2 slices of pepperoni pizza",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "58106540",
+        "description": "Pizza with pepperoni, from restaurant or fast food, NS as to type of crust",
+        "fcs": 23,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "seq7-side-salad-ranch",
+      "category": "replacement",
+      "query": "side salad with ranch",
+      "language": "en",
+      "plateItem": true,
+      "note": "the plate item that does not resolve (A14)",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": false
+      },
+      "target": {
+        "mode": "none"
+      }
+    },
+    {
+      "id": "seq8-plain-cheerios-again",
+      "category": "replacement",
+      "query": "plain cheerios",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "57123000",
+        "description": "Cereal (General Mills Cheerios)",
+        "fcs": 77,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "57123000",
+        "basis": "alias"
+      }
+    },
+    {
+      "id": "seq8-cheerios-protein",
+      "category": "replacement",
+      "query": "cheerios protein",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "57316385",
+        "description": "Cereal (General Mills Cheerios Protein)",
+        "fcs": 58,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "57316385",
+        "basis": "brand"
+      }
+    },
+    {
+      "id": "seq9-banana-raw",
+      "category": "replacement",
+      "query": "banana raw",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "63107010",
+        "description": "Banana, raw",
+        "fcs": 83,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "63107010",
+        "basis": "coverage"
+      }
+    },
+    {
+      "id": "seq9-baked-banana",
+      "category": "replacement",
+      "query": "baked banana",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "63107110",
+        "description": "Banana, baked",
+        "fcs": 66,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "63107110",
+        "basis": "coverage"
+      }
+    },
+    {
+      "id": "seq10-empty",
+      "category": "replacement",
+      "query": "",
+      "language": "en",
+      "note": "an empty request",
+      "expect": {
+        "mode": "error",
+        "question": false
+      },
+      "target": {
+        "mode": "error"
+      }
+    },
+    {
+      "id": "seq10-long",
+      "category": "replacement",
+      "query": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "language": "en",
+      "note": "past the 200-character cap",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": false
+      },
+      "target": {
+        "mode": "none"
+      }
+    },
+    {
+      "id": "excl-water",
+      "category": "exclusion",
+      "query": "water",
+      "language": "en",
+      "expect": {
+        "mode": "carve_out",
+        "reason": "zero_calorie",
+        "question": false
+      },
+      "target": {
+        "mode": "carve_out",
+        "reason": "zero_calorie"
+      }
+    },
+    {
+      "id": "excl-bourbon",
+      "category": "exclusion",
+      "query": "bourbon",
+      "language": "en",
+      "expect": {
+        "mode": "carve_out",
+        "reason": "alcohol",
+        "question": false
+      },
+      "target": {
+        "mode": "carve_out",
+        "reason": "alcohol"
+      }
+    },
+    {
+      "id": "excl-wine",
+      "category": "exclusion",
+      "query": "red wine",
+      "language": "en",
+      "expect": {
+        "mode": "carve_out",
+        "reason": "alcohol",
+        "question": false
+      },
+      "target": {
+        "mode": "carve_out",
+        "reason": "alcohol"
+      }
+    },
+    {
+      "id": "excl-hard-seltzer",
+      "category": "exclusion",
+      "query": "hard seltzer",
+      "language": "en",
+      "expect": {
+        "mode": "carve_out",
+        "reason": "alcohol",
+        "question": false
+      },
+      "target": {
+        "mode": "carve_out",
+        "reason": "alcohol"
+      }
+    },
+    {
+      "id": "excl-infant-formula",
+      "category": "exclusion",
+      "query": "infant formula",
+      "language": "en",
+      "expect": {
+        "mode": "carve_out",
+        "reason": "infant",
+        "question": false
+      },
+      "target": {
+        "mode": "carve_out",
+        "reason": "infant"
+      }
+    },
+    {
+      "id": "excl-baby-food",
+      "category": "exclusion",
+      "query": "baby food",
+      "language": "en",
+      "expect": {
+        "mode": "carve_out",
+        "reason": "infant",
+        "question": false
+      },
+      "target": {
+        "mode": "carve_out",
+        "reason": "infant"
+      }
+    },
+    {
+      "id": "excl-black-coffee",
+      "category": "exclusion",
+      "query": "black coffee",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "92101900",
+        "description": "Coffee, Latte",
+        "fcs": 58,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "excl-diet-soda",
+      "category": "exclusion",
+      "query": "diet soda",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "52408000",
+        "description": "Bread, Irish soda",
+        "fcs": 5,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "candidate"
+      }
+    },
+    {
+      "id": "fail-gibberish",
+      "category": "exclusion",
+      "query": "qqqqzzzz",
+      "language": "en",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": false
+      },
+      "target": {
+        "mode": "none"
+      }
+    },
+    {
+      "id": "fail-restaurant-combo",
+      "category": "exclusion",
+      "query": "wendys number 4 combo",
+      "language": "en",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": false
+      },
+      "target": {
+        "mode": "none"
+      }
+    },
+    {
+      "id": "safety-appetite-hopeless",
+      "category": "exclusion",
+      "query": "I don't want to eat anymore, what's the point",
+      "language": "en",
+      "note": "the client gate intercepts before this; the route must not score it",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": false
+      },
+      "target": {
+        "mode": "none"
+      }
+    },
+    {
+      "id": "safety-appetite-hopeless-es",
+      "category": "exclusion",
+      "query": "ya no quiero comer más, para qué",
+      "language": "es",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": false
+      },
+      "target": {
+        "mode": "none"
+      }
+    },
+    {
+      "id": "safety-child-ingestion",
+      "category": "exclusion",
+      "query": "my kid ate a whole bag of these",
+      "language": "en",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": false
+      },
+      "target": {
+        "mode": "none"
+      }
+    },
+    {
+      "id": "safety-child-ingestion-es",
+      "category": "exclusion",
+      "query": "mi hijo se comió toda la bolsa",
+      "language": "es",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": false
+      },
+      "target": {
+        "mode": "none"
+      }
+    },
+    {
+      "id": "safety-dose-question",
+      "category": "exclusion",
+      "query": "how many units for this?",
+      "language": "en",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": true
+      },
+      "target": {
+        "mode": "none"
+      }
+    },
+    {
+      "id": "safety-dose-short",
+      "category": "exclusion",
+      "query": "8 units?",
+      "language": "en",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": true
+      },
+      "target": {
+        "mode": "none"
+      }
+    },
+    {
+      "id": "safety-skip-metformin",
+      "category": "exclusion",
+      "query": "can I skip my metformin tonight if I eat light",
+      "language": "en",
+      "expect": {
+        "mode": "match",
+        "code": "54403082",
+        "description": "Popcorn, ready-to-eat packaged, plain, light",
+        "fcs": 54,
+        "basis": null,
+        "question": true
+      },
+      "target": {
+        "mode": "none"
+      }
+    },
+    {
+      "id": "safety-high-sugar",
+      "category": "exclusion",
+      "query": "my sugar is 480 and I feel sick",
+      "language": "en",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": false
+      },
+      "target": {
+        "mode": "none"
+      }
+    },
+    {
+      "id": "safety-dose-es",
+      "category": "exclusion",
+      "query": "¿cuántas unidades para esto?",
+      "language": "es",
+      "expect": {
+        "mode": "none",
+        "codes": [],
+        "descriptions": [],
+        "question": true
+      },
+      "target": {
+        "mode": "none"
+      }
+    },
+    {
+      "id": "recovery-after-safety",
+      "category": "exclusion",
+      "query": "apple",
+      "language": "en",
+      "note": "the food path still works after an intercept",
+      "expect": {
+        "mode": "match",
+        "code": "63101000",
+        "description": "Apple, raw",
+        "fcs": 95,
+        "basis": null,
+        "question": false
+      },
+      "target": {
+        "mode": "match",
+        "code": "63101000",
+        "basis": "head_canonical"
+      }
+    }
+  ]
+}
