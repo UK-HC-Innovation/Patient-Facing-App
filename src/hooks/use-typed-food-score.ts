@@ -17,7 +17,13 @@ export type TypedFoodResult =
   | { kind: "none"; candidates: LiveCandidate[] }
   | { kind: "carve_out"; reason: NotScoreableReason }
   /** Not a food. The caller opens a session, or hands it to the local coach. */
-  | { kind: "question"; text: string };
+  | { kind: "question"; text: string }
+  /**
+   * A newer submission replaced this one before it finished. The caller must do nothing
+   * with it: acting on it would adopt a stale match, or open a session and send a line the
+   * person has already replaced.
+   */
+  | { kind: "superseded" };
 
 export type TypedFoodScoreState = {
   result: TypedFoodResult | null;
@@ -138,14 +144,17 @@ export function useTypedFoodScore(options: { passcode?: string; enabled?: boolea
       }
 
       if (controller.signal.aborted) {
-        return next;
+        return { kind: "superseded" };
       }
       if (mountedRef.current) setResult(next);
       return next;
     } catch {
+      if (controller.signal.aborted) {
+        return { kind: "superseded" };
+      }
       // A lookup that could not run is not a "no such food". Let the caller ask instead.
       const fallback: TypedFoodResult = { kind: "question", text: trimmed };
-      if (!controller.signal.aborted && mountedRef.current) setResult(fallback);
+      if (mountedRef.current) setResult(fallback);
       return fallback;
     } finally {
       if (abortRef.current === controller) {

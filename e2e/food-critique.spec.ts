@@ -170,6 +170,24 @@ test.describe("Safety: the four phrases", () => {
     await expect(page.getByText(/1-800-222-1222/).first()).toBeVisible({ timeout: 10_000 });
   });
 
+  // Spec 29 "done means" item 5: the same phrases, in Spanish, on both doors.
+  for (const door of ["/food", "/food/demo"]) {
+    test(`the Spanish phrase intercepts on ${door}`, async ({ page }) => {
+      await page.goto(`${door}?lang=es`);
+      await ask(page, "ya no quiero comer más, para qué");
+
+      await expect(page.getByRole("link", { name: /988/ }).first()).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByTestId("food-verdict")).toHaveCount(0);
+    });
+  }
+
+  test("a Spanish child-ingestion phrase reaches Poison Control", async ({ page }) => {
+    await page.goto("/food?lang=es");
+    await ask(page, "mi hijo se comió toda la bolsa");
+
+    await expect(page.getByText(/1-800-222-1222/).first()).toBeVisible({ timeout: 10_000 });
+  });
+
   test("a high sugar with symptoms escalates", async ({ page }) => {
     await page.goto("/food");
     await ask(page, "my sugar is 480 and I feel sick");

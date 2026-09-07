@@ -116,4 +116,35 @@ describe("useTypedFoodScore", () => {
 
     expect(outcome).toMatchObject({ kind: "question" });
   });
+
+  // A second ask must not let the first one open a session and send the line the person
+  // has already replaced, or adopt a match they have moved on from.
+  it("marks a lookup that a newer submission replaced", async () => {
+    let release: ((value: Response) => void) | undefined;
+    fetchMock.mockImplementationOnce(
+      (_url: string, init: { signal: AbortSignal }) =>
+        new Promise<Response>((resolve, reject) => {
+          release = resolve;
+          init.signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+        })
+    );
+    fetchMock.mockImplementationOnce(() =>
+      Promise.resolve(new Response(JSON.stringify(matchResponse("Cereal, Cheerios", 77))))
+    );
+    const { result } = renderHook(() => useTypedFoodScore());
+
+    let first: TypedFoodResult | undefined;
+    let second: TypedFoodResult | undefined;
+    await act(async () => {
+      const pending = result.current.submit("fried chicken").then((value) => {
+        first = value;
+      });
+      second = await result.current.submit("cheerios");
+      release?.(new Response(JSON.stringify(matchResponse("Chicken, fried", 50))));
+      await pending;
+    });
+
+    expect(first).toEqual({ kind: "superseded" });
+    expect(second).toMatchObject({ kind: "match" });
+  });
 });
