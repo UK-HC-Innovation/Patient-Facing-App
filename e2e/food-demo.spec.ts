@@ -236,10 +236,11 @@ test("plots Food Compass on X and calorie density on Y in one of four quadrants"
   await confirmCameraCandidate(page);
   await expect(page.getByTestId("food-verdict")).toContainText("Banana, raw", { timeout: 10_000 });
 
-  // And once there is one, the chart is under the fold rather than between the score and
-  // the alternatives (spec 29 P8 item 5, critique N5).
-  await expect(chart).toBeHidden();
-  await openMoreAboutThisFood(page);
+  // And once there is one, the chart is part of the answer, not behind the fold. Spec 29
+  // P8 item 5 folded it to cut a barcode score down from ten and a half screens; that cut
+  // too far, because the picture of score against calorie density is the product itself,
+  // and someone trialling the page never found the tap. The blank-screen rule above is the
+  // half of critique N3 that still holds.
   await expect(chart).toBeVisible({ timeout: 10_000 });
 
   const marker = page.getByTestId("nutrition-compass-marker");

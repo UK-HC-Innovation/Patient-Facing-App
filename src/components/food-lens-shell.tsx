@@ -69,12 +69,17 @@ export const FOOD_LENS_SLOT_ORDER: readonly FoodLensSlot[] = [
 export const FOOD_LENS_ANSWER_SLOTS: readonly FoodLensSlot[] = [
   "verdict",
   "plate",
+  // The chart is the product. Folding it put the one picture of score against calorie
+  // density -- the thing Food Compass 2.0 is for, and the thing the name refers to --
+  // behind a tap that nobody trialling the page found. It stays out of the blank screen,
+  // which is what critique N3 was actually about: chartPlaceholder is still false, so
+  // there are no axes and no quadrant labels until there is a food to plot.
+  "chart",
   "alternatives",
   "actions"
 ];
 
 const FOOD_LENS_FOLDED_SLOTS: readonly FoodLensSlot[] = [
-  "chart",
   "whyScore",
   "weHeard",
   "flags",
