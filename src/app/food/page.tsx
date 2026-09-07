@@ -226,6 +226,9 @@ export default function FoodPage() {
     if (result.kind === "none") {
       return { kind: "none" as const, candidates: result.candidates };
     }
+    if (result.kind === "candidate") {
+      return { kind: "candidate" as const, candidates: result.candidates, query: result.query };
+    }
     if (result.kind === "carve_out") {
       return { kind: "carve_out" as const, reason: result.reason };
     }
@@ -1252,17 +1255,50 @@ export default function FoodPage() {
     ) : null;
 
   const typedMiss = typedCurrent?.kind === "none" ? typedCurrent : null;
+  /**
+   * A typed line the promotion policy would not publish (spec 30 R4, A19 to A21).
+   *
+   * One row is a proposal to confirm, and goes through the same review the camera uses.
+   * Several are chips to pick from. A tap on either sends the exact code, which the route
+   * has always answered deterministically.
+   */
+  const typedProposal = typedCurrent?.kind === "candidate" ? typedCurrent : null;
+  const typedIdentityCandidate =
+    typedProposal && typedProposal.candidates.length === 1
+      ? {
+          food: {
+            code: typedProposal.candidates[0].code,
+            description: typedProposal.candidates[0].description,
+            group: ""
+          },
+          candidates: []
+        }
+      : null;
   const view: FoodLensView = {
     name: typedCurrent ? null : scanChip ?? live.candidate?.food.description ?? null,
     identified: identifiedFood !== null,
     score: compass.score,
     carveOut: compass.carveOut,
     badge: typedCurrent ? (compass.carveOut ? "carve_out" : "idle") : badgeState,
-    noMatchCandidates: typedMiss ? typedMiss.candidates : foodResolutionActive ? [] : live.noMatchCandidates,
-    noMatch: typedMiss !== null || (!typedCurrent && !foodResolutionActive && live.noMatch),
+    noMatchCandidates: typedMiss
+      ? typedMiss.candidates
+      : typedProposal && !typedIdentityCandidate
+        ? typedProposal.candidates
+        : foodResolutionActive
+          ? []
+          : live.noMatchCandidates,
+    noMatch:
+      typedMiss !== null ||
+      (typedProposal !== null && typedIdentityCandidate === null) ||
+      (!typedCurrent && !foodResolutionActive && live.noMatch),
+    noMatchChoose: typedProposal !== null && typedIdentityCandidate === null,
     // A miss the person named reads differently from a camera that saw nothing.
-    noMatchNamed: typedMiss !== null,
-    candidate: typedCurrent || identifiedFood || foodResolutionActive ? null : live.candidate,
+    noMatchNamed: typedMiss !== null || typedProposal !== null,
+    candidate: typedIdentityCandidate
+      ? typedIdentityCandidate
+      : typedCurrent || identifiedFood || foodResolutionActive
+        ? null
+        : live.candidate,
     packageDetected:
       !typedCurrent && !foodResolutionActive && identifiedFood === null && live.packageDetected
   };
@@ -1305,8 +1341,12 @@ export default function FoodPage() {
       emptyStateChildren={savedPicks}
       language={language}
       loopState={live.loopState}
-      onConfirmIdentity={(foodId) => void confirmCameraCandidate(foodId)}
-      onRejectIdentity={rejectCameraCandidate}
+      onConfirmIdentity={(foodId) =>
+        // A typed proposal has no camera candidate behind it; confirming it is the same
+        // deterministic foodId request the correction chips make.
+        typedProposal ? void resolveCameraMatch(foodId) : void confirmCameraCandidate(foodId)
+      }
+      onRejectIdentity={typedProposal ? typedClear : rejectCameraCandidate}
       onSelectCandidate={(foodId) => void correctCameraMatch(foodId)}
       onVisibleRatio={live.setVisibleRatio}
       view={view}

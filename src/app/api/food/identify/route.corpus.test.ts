@@ -6,9 +6,9 @@
  * so identity is a regression gate rather than a one-off measurement. No browser, no server,
  * no model spend: the typed branch answers before any provider or passcode check.
  *
- * `expect` in the fixture is what the route does today. `target` is what spec 30 A2 requires.
- * Where the two differ the case is reported as outstanding rather than failed, so this file
- * runs green at P0 and becomes A2's gate when the fixture's `expect` is refreshed to `target`.
+ * `expect` is what the route does. `target` is what spec 30 A2 requires. At P0 the two
+ * differed on 53 of the 100 cases and this file recorded the gap; A2 closed it, so the last
+ * test now asserts the two agree everywhere and the file is the identity gate.
  */
 import { describe, expect, it } from "vitest";
 import { isQuestionLine } from "@/domain/typed-food-line";
@@ -20,6 +20,7 @@ type CorpusCase = {
   category: "exact" | "compound" | "bilingual" | "replacement" | "exclusion";
   query: string;
   language: "en" | "es";
+  /** A component of a plate the person already named: the route publishes the best row. */
   plateItem?: boolean;
   note?: string;
   expect: {
@@ -49,7 +50,7 @@ async function resolve(entry: CorpusCase) {
     new Request("http://localhost/api/food/identify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: entry.query, ...(entry.plateItem ? { plateItem: true } : {}) })
+      body: JSON.stringify({ text: entry.query, ...(entry.plateItem ? { bestRow: true } : {}) })
     })
   );
   const json = (await response.json()) as {
@@ -110,7 +111,7 @@ describe("typed identity corpus", () => {
     expect(misses).toEqual([]);
   });
 
-  it("reports what spec 30 A2 still owes, by category", () => {
+  it("has nothing left outstanding against spec 30 A2", () => {
     const outstanding = CASES.filter((entry) => {
       if (entry.expect.mode !== entry.target.mode) return true;
       if (entry.target.mode === "match") {
@@ -121,15 +122,33 @@ describe("typed identity corpus", () => {
       }
       return false;
     });
-    const byCategory = outstanding.reduce<Record<string, number>>((totals, entry) => {
-      totals[entry.category] = (totals[entry.category] ?? 0) + 1;
+    expect(outstanding.map((entry) => `${entry.id}: ${entry.expect.mode} -> ${entry.target.mode}`)).toEqual([]);
+  });
+
+  // The number that matters for A2's release question: how much of the corpus is answered
+  // with a published score, how much asks, and how much abstains. Refusing everything would
+  // pass "zero false confident acceptances" and be useless.
+  it("publishes a score for a third of the corpus while abstaining on every ambiguous case", () => {
+    const tally = CASES.reduce<Record<string, number>>((totals, entry) => {
+      totals[entry.expect.mode] = (totals[entry.expect.mode] ?? 0) + 1;
       return totals;
     }, {});
-    // Not an assertion of correctness: a running count of the gap this corpus exists to close.
-    console.log(
-      `spec 30 A2 outstanding: ${outstanding.length}/100 ${JSON.stringify(byCategory)}\n` +
-        outstanding.map((entry) => `  ${entry.id}: ${entry.expect.mode} -> ${entry.target.mode}`).join("\n")
-    );
-    expect(outstanding.length).toBeLessThanOrEqual(100);
+    expect(tally).toEqual({ match: 35, candidate: 40, carve_out: 7, none: 17, error: 1 });
+    // Every designated ambiguous case asks rather than answering.
+    for (const id of [
+      "ambig-pizza",
+      "ambig-chicken",
+      "ambig-soup",
+      "ambig-salad",
+      "ambig-coffee",
+      "ambig-diet-coke",
+      "es-frijoles",
+      "es-leche",
+      "es-huevos",
+      "es-tamales",
+      "es-pollo-asado"
+    ]) {
+      expect(CASES.find((entry) => entry.id === id)?.expect.mode).toBe("candidate");
+    }
   });
 });

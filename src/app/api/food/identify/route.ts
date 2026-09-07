@@ -9,7 +9,15 @@ import {
   type CompassScore,
   type FcsFood
 } from "@/domain/food-compass";
-import { matchFood, type FoodMatch, type FoodSearchIndex } from "@/domain/food-compass-search";
+import {
+  coversBothSidesOfConjunctions,
+  matchFood,
+  resolveTypedIdentity,
+  type FoodMatch,
+  type FoodSearchIndex,
+  type IdentityBasis
+} from "@/domain/food-compass-search";
+import { hasConjunction, stripCorrectionPrefix } from "@/domain/typed-food-line";
 import {
   buildFoodMatchProvenance,
   foodOrderCorrectionQueries,
@@ -103,6 +111,15 @@ const DISAMBIGUATE_SYSTEM = [
 type IdentifyBody = {
   text?: string;
   foodId?: string;
+  /**
+   * This text is one component of a plate the person already named, or an alternatives
+   * lookup for a food that is already confirmed. Both are asking which row this is, not
+   * which food this is, so the reviewed identity policy in R4 does not apply: the plate
+   * shows every row it landed on next to its score, and the person can correct any of them.
+   * Without this, spec 30 A2 turned every plate item into a question and a plate stopped
+   * being a plate (spec 30 R4/R5; the corpus requires five scored items from a list of seven).
+   */
+  bestRow?: boolean;
   requireConfirmation?: boolean;
   image?: string | null;
   passcode?: string;
@@ -122,6 +139,26 @@ function buildUnscoredCandidate(food: FcsFood, headers: Record<string, string> =
       }
     },
     { headers: { "Cache-Control": "no-store", ...headers } }
+  );
+}
+
+/**
+ * Named rows with no score, which is what a typed line gets when nothing justified it.
+ *
+ * No `fcs`, deliberately: a candidate has not been confirmed, and a number beside an
+ * unconfirmed name is the confident wrong answer this whole slice exists to stop (R1, R4).
+ */
+function unscoredCandidates(
+  foods: FcsFood[],
+  extra: { corrected?: boolean; splitSuggested?: boolean } = {}
+): Response {
+  return Response.json(
+    {
+      mode: "candidate",
+      candidates: foods.map((food) => ({ code: food.code, description: food.description })),
+      ...extra
+    },
+    { headers: { "Cache-Control": "no-store" } }
   );
 }
 
@@ -195,7 +232,8 @@ function buildMatch(
   food: FcsFood,
   body: IdentifyBody,
   candidates: Candidate[],
-  interpretation: FoodOrderIntent | null = null
+  interpretation: FoodOrderIntent | null = null,
+  basis: IdentityBasis | null = null
 ): Response {
   const data = loadFoodCompassData();
   const siblings = data.byCode.get(food.code) ?? [food];
@@ -218,6 +256,7 @@ function buildMatch(
         score,
         alternatives,
         nutrients,
+        ...(basis ? { basis } : {}),
         ...(estimatedDomains ? { estimatedDomains } : {}),
         ...(interpretation
           ? {
@@ -409,24 +448,77 @@ export async function POST(request: Request): Promise<Response> {
   // the path that works in mock/locked mode and under Playwright. ---
   if (text.length > 0 && !hasImage) {
     const data = loadFoodCompassData();
-    const searchText = interpretation?.matchQuery ?? text;
+    // A correction replaces the food on screen, and it is stripped before anything else so
+    // "No, it is a tamale" is one food rather than a two-item plate whose first item is "No".
+    const correction = stripCorrectionPrefix(text);
+    const searchText = interpretation?.matchQuery ?? correction.text;
     const carveOut = classifyQueryScoreability(searchText);
     if (carveOut && !carveOut.scoreable) {
-      return Response.json({ mode: "carve_out", reason: carveOut.reason });
-    }
-    const candidates = resolveTextCandidates(data.index, searchText, interpretation);
-    if (candidates.length === 0) {
-      return Response.json({ mode: "none", candidates: [] });
+      return Response.json({ mode: "carve_out", reason: carveOut.reason, corrected: correction.corrected });
     }
     if (body.requireConfirmation === true) {
       // Barcode/product text is evidence for a published-row proposal, not permission to
       // publish the fuzzy match's score. A separate exact foodId request follows the
       // person's confirmation of this row.
-      return buildUnscoredCandidate(candidates[0].food);
+      const proposals = resolveTextCandidates(data.index, searchText, interpretation);
+      if (proposals.length === 0) {
+        return Response.json({ mode: "none", candidates: [] });
+      }
+      return buildUnscoredCandidate(proposals[0].food);
     }
-    // A typed query always resolves to the best-ranked row: the user can see the
-    // alternatives list and re-pick, which is cheaper and more honest than a model call.
-    return buildMatch(candidates[0].food, body, toCandidates(candidates), interpretation);
+
+    // A spoken or typed food order carries its own review surface: the door prints what it
+    // heard, the closest published row and correction chips beside it. That IS the identity
+    // review, so the order path keeps resolving directly.
+    const bestRow = body.bestRow === true || interpretation !== null;
+    const identity = resolveTypedIdentity(data.index, searchText, { limit: CANDIDATE_LIMIT, bestRow });
+
+    if (identity.kind === "alias_row") {
+      const food = findFoodByCode(data, identity.code);
+      if (food) {
+        const candidates = resolveTextCandidates(data.index, searchText, interpretation);
+        return buildMatch(food, body, toCandidates(candidates), interpretation, "alias");
+      }
+    }
+    if (identity.kind === "alias_candidates") {
+      return unscoredCandidates(
+        identity.codes.map((code) => findFoodByCode(data, code)).filter((food): food is FcsFood => Boolean(food)),
+        { corrected: correction.corrected }
+      );
+    }
+    if (identity.kind === "row") {
+      const ordered = interpretation
+        ? resolveTextCandidates(data.index, searchText, interpretation)
+        : identity.candidates;
+      return buildMatch(identity.food, body, toCandidates(ordered), interpretation, identity.basis);
+    }
+
+    // Nothing justified. A line joined only by "and" gets one more chance to be one dish
+    // before it becomes two foods: the row has to cover both sides (spec 30 R5 step 5).
+    const top = identity.candidates[0]?.food ?? null;
+    const splitSuggested =
+      hasConjunction(correction.text) && !(top && coversBothSidesOfConjunctions(top.description, correction.text));
+
+    if (identity.kind === "proposal") {
+      return unscoredCandidates(
+        identity.candidates.slice(0, 3).map((candidate) => candidate.food),
+        { corrected: correction.corrected, splitSuggested }
+      );
+    }
+    // A miss that had hits the coverage filter rejected names them anyway, so the chips can
+    // render and nobody has to retype (spec 30 R4, A21).
+    return Response.json(
+      {
+        mode: "none",
+        candidates: identity.candidates.slice(0, 3).map((candidate) => ({
+          code: candidate.food.code,
+          description: candidate.food.description
+        })),
+        corrected: correction.corrected,
+        splitSuggested
+      },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   }
 
   if (!hasImage) {

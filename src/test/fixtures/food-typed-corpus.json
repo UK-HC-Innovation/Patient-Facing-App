@@ -1,6 +1,6 @@
 {
-  "version": "spec-30-p0-baseline",
-  "generatedAgainst": "5ea7f1c",
+  "version": "spec-30-a2",
+  "generatedAgainst": "4ae3bb4",
   "cases": [
     {
       "id": "exact-apple",
@@ -12,7 +12,7 @@
         "code": "63101000",
         "description": "Apple, raw",
         "fcs": 95,
-        "basis": null,
+        "basis": "head_canonical",
         "question": false
       },
       "target": {
@@ -31,7 +31,7 @@
         "code": "63107010",
         "description": "Banana, raw",
         "fcs": 83,
-        "basis": null,
+        "basis": "head_canonical",
         "question": false
       },
       "target": {
@@ -50,7 +50,7 @@
         "code": "57241000",
         "description": "Cereal (General Mills Cheerios Honey Nut)",
         "fcs": 58,
-        "basis": null,
+        "basis": "brand",
         "question": false
       },
       "target": {
@@ -69,7 +69,7 @@
         "code": "57123000",
         "description": "Cereal (General Mills Cheerios)",
         "fcs": 77,
-        "basis": null,
+        "basis": "brand",
         "question": false
       },
       "target": {
@@ -88,7 +88,7 @@
         "code": "57123000",
         "description": "Cereal (General Mills Cheerios)",
         "fcs": 77,
-        "basis": null,
+        "basis": "alias",
         "question": false
       },
       "target": {
@@ -107,7 +107,7 @@
         "code": "54401111",
         "description": "Tortilla chips, cool ranch flavor (Doritos)",
         "fcs": 12,
-        "basis": null,
+        "basis": "brand",
         "question": false
       },
       "target": {
@@ -126,7 +126,7 @@
         "code": "51161250",
         "description": "Pan Dulce, no topping",
         "fcs": 11,
-        "basis": null,
+        "basis": "head_canonical",
         "question": false
       },
       "target": {
@@ -142,11 +142,17 @@
       "language": "en",
       "note": "the fat-added and no-added-fat rows tie",
       "expect": {
-        "mode": "match",
-        "code": "56204010",
-        "description": "Quinoa, fat added",
-        "fcs": 81,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "56204010",
+          "56204005",
+          "56204000"
+        ],
+        "descriptions": [
+          "Quinoa, fat added",
+          "Quinoa, no added fat",
+          "Quinoa, NS as to fat"
+        ],
         "question": false
       },
       "target": {
@@ -163,7 +169,7 @@
         "code": "92410550",
         "description": "Soft drink, fruit flavored, caffeine containing",
         "fcs": 1,
-        "basis": null,
+        "basis": "alias",
         "question": false
       },
       "target": {
@@ -182,7 +188,7 @@
         "code": "92410610",
         "description": "Soft drink, ginger ale",
         "fcs": 1,
-        "basis": null,
+        "basis": "alias",
         "question": false
       },
       "target": {
@@ -202,7 +208,7 @@
         "code": "41104010",
         "description": "Pinto beans, from dried, fat added",
         "fcs": 91,
-        "basis": null,
+        "basis": "alias",
         "question": false
       },
       "target": {
@@ -218,11 +224,17 @@
       "language": "en",
       "note": "bare generic name",
       "expect": {
-        "mode": "match",
-        "code": "58106233",
-        "description": "Pizza, cheese, stuffed crust",
-        "fcs": 21,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "58106233",
+          "58107060",
+          "58107050"
+        ],
+        "descriptions": [
+          "Pizza, cheese, stuffed crust",
+          "Pizza, no cheese, regular crust",
+          "Pizza, no cheese, thin crust"
+        ],
         "question": false
       },
       "target": {
@@ -236,11 +248,17 @@
       "language": "en",
       "note": "bare generic name",
       "expect": {
-        "mode": "match",
-        "code": "24198670",
-        "description": "Chicken, chicken roll, roasted",
-        "fcs": 60,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "24198670",
+          "24198720",
+          "24170200"
+        ],
+        "descriptions": [
+          "Chicken, chicken roll, roasted",
+          "Chicken, ground",
+          "Chicken, back"
+        ],
         "question": false
       },
       "target": {
@@ -254,11 +272,17 @@
       "language": "en",
       "note": "bare generic name",
       "expect": {
-        "mode": "match",
-        "code": "63415100",
-        "description": "Soup, fruit",
-        "fcs": 100,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "63415100",
+          "58407030",
+          "58407035"
+        ],
+        "descriptions": [
+          "Soup, fruit",
+          "Soup, mostly noodles",
+          "Soup, mostly noodles, reduced sodium"
+        ],
         "question": false
       },
       "target": {
@@ -272,11 +296,17 @@
       "language": "en",
       "note": "bare generic name",
       "expect": {
-        "mode": "match",
-        "code": "83100100",
-        "description": "Salad dressing, NFS, for salads",
-        "fcs": 37,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "83100100",
+          "71603020",
+          "32103020"
+        ],
+        "descriptions": [
+          "Salad dressing, NFS, for salads",
+          "Potato salad, made with mayonnaise-type salad dressing",
+          "Egg salad, made with mayonnaise-type salad dressing"
+        ],
         "question": false
       },
       "target": {
@@ -290,11 +320,17 @@
       "language": "en",
       "note": "bare generic name",
       "expect": {
-        "mode": "match",
-        "code": "92101900",
-        "description": "Coffee, Latte",
-        "fcs": 58,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "92101900",
+          "92101610",
+          "92101810"
+        ],
+        "descriptions": [
+          "Coffee, Latte",
+          "Coffee, espresso",
+          "Coffee, macchiato"
+        ],
         "question": false
       },
       "target": {
@@ -308,11 +344,17 @@
       "language": "en",
       "note": "never a carrot cake row",
       "expect": {
-        "mode": "match",
-        "code": "53104300",
-        "description": "Cake, carrot, diet",
-        "fcs": 20,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "53104300",
+          "53102300",
+          "53105500"
+        ],
+        "descriptions": [
+          "Cake, carrot, diet",
+          "Cake, applesauce, diet, without icing",
+          "Cake, chocolate, with icing, diet"
+        ],
         "question": false
       },
       "target": {
@@ -325,11 +367,17 @@
       "query": "fried chicken",
       "language": "en",
       "expect": {
-        "mode": "match",
-        "code": "24164113",
-        "description": "Chicken, wing, fried, no coating, skin eaten, made with oil",
-        "fcs": 50,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "24164113",
+          "24154213",
+          "24124113"
+        ],
+        "descriptions": [
+          "Chicken, wing, fried, no coating, skin eaten, made with oil",
+          "Chicken, thigh, fried, no coating, skin eaten, made with oil",
+          "Chicken, breast, fried, no coating, skin eaten, made with oil"
+        ],
         "question": false
       },
       "target": {
@@ -342,11 +390,17 @@
       "query": "grilled chicken no sauce",
       "language": "en",
       "expect": {
-        "mode": "match",
-        "code": "24103060",
-        "description": "Chicken, NS as to part, grilled without sauce, skin not eaten",
-        "fcs": 67,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "24103060",
+          "24103080",
+          "24123301"
+        ],
+        "descriptions": [
+          "Chicken, NS as to part, grilled without sauce, skin not eaten",
+          "Chicken, NS as to part, grilled with sauce, skin not eaten",
+          "Chicken breast, grilled without sauce, skin not eaten"
+        ],
         "question": false
       },
       "target": {
@@ -360,8 +414,16 @@
       "language": "en",
       "expect": {
         "mode": "none",
-        "codes": [],
-        "descriptions": [],
+        "codes": [
+          "91708040",
+          "24198670",
+          "27540120"
+        ],
+        "descriptions": [
+          "Fun Fruits Creme Supremes",
+          "Chicken, chicken roll, roasted",
+          "Chicken salad or chicken spread sandwich"
+        ],
         "question": false
       },
       "target": {
@@ -374,17 +436,25 @@
       "query": "chicken and dumplings",
       "language": "en",
       "expect": {
-        "mode": "match",
-        "code": "27347250",
-        "description": "Chicken or turkey, dumplings, and vegetables excluding carrots, broccoli, and dark green leafy; gravy",
-        "fcs": 45,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "27347250",
+          "27347240",
+          "58404510"
+        ],
+        "descriptions": [
+          "Chicken or turkey, dumplings, and vegetables excluding carrots, broccoli, and dark green leafy; gravy",
+          "Chicken or turkey, dumplings, and vegetables including carrots, broccoli, and/or dark green leafy; gravy",
+          "Chicken or turkey soup with dumplings and potatoes, home recipe, canned, or ready-to-serve"
+        ],
         "question": false
       },
       "target": {
         "mode": "candidate",
         "codes": [
-          "27347250"
+          "27347250",
+          "27347240",
+          "58404510"
         ]
       }
     },
@@ -394,17 +464,25 @@
       "query": "mac and cheese",
       "language": "en",
       "expect": {
-        "mode": "match",
-        "code": "58145117",
-        "description": "Macaroni or noodles with cheese, Easy Mac type",
-        "fcs": 18,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "58145117",
+          "27212050",
+          "58145130"
+        ],
+        "descriptions": [
+          "Macaroni or noodles with cheese, Easy Mac type",
+          "Beef and macaroni with cheese sauce",
+          "Macaroni or noodles with cheese and beef"
+        ],
         "question": false
       },
       "target": {
         "mode": "candidate",
         "codes": [
-          "58145117"
+          "58145117",
+          "27212050",
+          "58145130"
         ]
       }
     },
@@ -414,11 +492,17 @@
       "query": "macaroni and cheese",
       "language": "en",
       "expect": {
-        "mode": "match",
-        "code": "27212050",
-        "description": "Beef and macaroni with cheese sauce",
-        "fcs": 41,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "27212050",
+          "58145130",
+          "58145120"
+        ],
+        "descriptions": [
+          "Beef and macaroni with cheese sauce",
+          "Macaroni or noodles with cheese and beef",
+          "Macaroni or noodles with cheese and tuna"
+        ],
         "question": false
       },
       "target": {
@@ -431,17 +515,25 @@
       "query": "peanut butter and jelly sandwich",
       "language": "en",
       "expect": {
-        "mode": "match",
-        "code": "42302015",
-        "description": "Peanut butter and jelly sandwich, with regular peanut butter, regular jelly, on white bread",
-        "fcs": 40,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "42302015",
+          "42302020",
+          "42302025"
+        ],
+        "descriptions": [
+          "Peanut butter and jelly sandwich, with regular peanut butter, regular jelly, on white bread",
+          "Peanut butter and jelly sandwich, with regular peanut butter, regular jelly, on wheat bread",
+          "Peanut butter and jelly sandwich, with regular peanut butter, regular jelly, on whole wheat bread"
+        ],
         "question": false
       },
       "target": {
         "mode": "candidate",
         "codes": [
-          "42302015"
+          "42302015",
+          "42302020",
+          "42302025"
         ]
       }
     },
@@ -450,19 +542,19 @@
       "category": "compound",
       "query": "biscuits and gravy",
       "language": "en",
+      "note": "the whole-dish row IS the head food, so it promotes rather than asking",
       "expect": {
         "mode": "match",
         "code": "58128000",
         "description": "Biscuit with gravy",
         "fcs": 15,
-        "basis": null,
+        "basis": "head_canonical",
         "question": false
       },
       "target": {
-        "mode": "candidate",
-        "codes": [
-          "58128000"
-        ]
+        "mode": "match",
+        "code": "58128000",
+        "basis": "head_canonical"
       }
     },
     {
@@ -471,11 +563,17 @@
       "query": "fish and chips",
       "language": "en",
       "expect": {
-        "mode": "match",
-        "code": "27450150",
-        "description": "Fish, tofu, and vegetables, tempura",
-        "fcs": 85,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "27450150",
+          "27350100",
+          "27350090"
+        ],
+        "descriptions": [
+          "Fish, tofu, and vegetables, tempura",
+          "Fish, noodles, and vegetables excluding carrots, broccoli, and dark- green leafy; cheese sauce",
+          "Fish, noodles, and vegetables including carrots, broccoli, and/or dark green leafy; cheese sauce"
+        ],
         "question": false
       },
       "target": {
@@ -488,11 +586,17 @@
       "query": "spaghetti and meatballs",
       "language": "en",
       "expect": {
-        "mode": "match",
-        "code": "58132310",
-        "description": "Spaghetti with tomato sauce and meatballs or spaghetti with meat sauce or spaghetti with meat sauce and meatballs",
-        "fcs": 52,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "58132310",
+          "58132360",
+          "58132460"
+        ],
+        "descriptions": [
+          "Spaghetti with tomato sauce and meatballs or spaghetti with meat sauce or spaghetti with meat sauce and meatballs",
+          "Spaghetti with tomato sauce and meatballs, whole wheat noodles or spaghetti with meat sauce, whole wheat noodles or spaghetti with meat sauce and meatballs, whole wheat noodles",
+          "Spaghetti with tomato sauce and meatballs made with spinach noodles, or spaghetti with meat sauce made with spinach noodles, or spaghetti with meat sauce and meatballs made with spinach noodles"
+        ],
         "question": false
       },
       "target": {
@@ -505,11 +609,17 @@
       "query": "rice and beans",
       "language": "en",
       "expect": {
-        "mode": "match",
-        "code": "58160132",
-        "description": "Beans and rice, with meat",
-        "fcs": 65,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "58160132",
+          "58160120",
+          "58161325"
+        ],
+        "descriptions": [
+          "Beans and rice, with meat",
+          "Beans and rice, with tomatoes",
+          "Rice, brown, with beans and tomatoes"
+        ],
         "question": false
       },
       "target": {
@@ -522,11 +632,17 @@
       "query": "ham and cheese sandwich",
       "language": "en",
       "expect": {
-        "mode": "match",
-        "code": "27520320",
-        "description": "Ham and cheese sandwich, with lettuce and spread",
-        "fcs": 13,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "27520320",
+          "27520350",
+          "27520360"
+        ],
+        "descriptions": [
+          "Ham and cheese sandwich, with lettuce and spread",
+          "Ham and cheese sandwich, with spread, grilled",
+          "Ham and cheese sandwich, on bun, with lettuce and spread"
+        ],
         "question": false
       },
       "target": {
@@ -539,11 +655,17 @@
       "query": "chicken and rice",
       "language": "en",
       "expect": {
-        "mode": "match",
-        "code": "58160130",
-        "description": "Rice with beans and chicken",
-        "fcs": 69,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "58160130",
+          "58100255",
+          "58100250"
+        ],
+        "descriptions": [
+          "Rice with beans and chicken",
+          "Burrito with chicken, beans, and rice",
+          "Burrito with chicken, rice, and cheese"
+        ],
         "question": false
       },
       "target": {
@@ -557,11 +679,17 @@
       "language": "en",
       "note": "no covering row: the line splits",
       "expect": {
-        "mode": "match",
-        "code": "58109050",
-        "description": "Pizza, cheese and vegetables, whole wheat thin crust",
-        "fcs": 44,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "58109050",
+          "58109060",
+          "58109140"
+        ],
+        "descriptions": [
+          "Pizza, cheese and vegetables, whole wheat thin crust",
+          "Pizza, cheese and vegetables, whole wheat thick crust",
+          "Pizza, cheese and vegetables, gluten-free thin crust"
+        ],
         "question": false
       },
       "target": {
@@ -575,11 +703,17 @@
       "language": "en",
       "note": "a comma always splits",
       "expect": {
-        "mode": "match",
-        "code": "63107010",
-        "description": "Banana, raw",
-        "fcs": 83,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "63107010",
+          "63107110",
+          "63107410"
+        ],
+        "descriptions": [
+          "Banana, raw",
+          "Banana, baked",
+          "Banana, fried"
+        ],
         "question": false
       },
       "target": {
@@ -597,7 +731,7 @@
         "code": "63101000",
         "description": "Apple, raw",
         "fcs": 95,
-        "basis": null,
+        "basis": "coverage",
         "question": false
       },
       "target": {
@@ -617,7 +751,7 @@
         "code": "63107010",
         "description": "Banana, raw",
         "fcs": 83,
-        "basis": null,
+        "basis": "coverage",
         "question": false
       },
       "target": {
@@ -637,7 +771,7 @@
         "code": "24164113",
         "description": "Chicken, wing, fried, no coating, skin eaten, made with oil",
         "fcs": 50,
-        "basis": null,
+        "basis": "coverage",
         "question": false
       },
       "target": {
@@ -657,7 +791,7 @@
         "code": "71501017",
         "description": "Potato, mashed, from restaurant, with gravy",
         "fcs": 41,
-        "basis": null,
+        "basis": "coverage",
         "question": false
       },
       "target": {
@@ -677,7 +811,7 @@
         "code": "75205044",
         "description": "Green beans, fresh, cooked with oil",
         "fcs": 94,
-        "basis": null,
+        "basis": "coverage",
         "question": false
       },
       "target": {
@@ -697,7 +831,7 @@
         "code": "52202060",
         "description": "Cornbread, made from home recipe",
         "fcs": 33,
-        "basis": null,
+        "basis": "coverage",
         "question": false
       },
       "target": {
@@ -717,7 +851,7 @@
         "code": "92308000",
         "description": "Tea, iced, brewed, black, pre-sweetened with sugar",
         "fcs": 12,
-        "basis": null,
+        "basis": "coverage",
         "question": false
       },
       "target": {
@@ -738,7 +872,7 @@
         "code": "13241000",
         "description": "Banana pudding",
         "fcs": 28,
-        "basis": null,
+        "basis": "coverage",
         "question": false
       },
       "target": {
@@ -753,9 +887,11 @@
       "query": "manzana",
       "language": "es",
       "expect": {
-        "mode": "none",
-        "codes": [],
-        "descriptions": [],
+        "mode": "match",
+        "code": "63101000",
+        "description": "Apple, raw",
+        "fcs": 95,
+        "basis": "alias",
         "question": false
       },
       "target": {
@@ -770,9 +906,11 @@
       "query": "plátano",
       "language": "es",
       "expect": {
-        "mode": "none",
-        "codes": [],
-        "descriptions": [],
+        "mode": "match",
+        "code": "63107010",
+        "description": "Banana, raw",
+        "fcs": 83,
+        "basis": "alias",
         "question": false
       },
       "target": {
@@ -787,9 +925,11 @@
       "query": "platano",
       "language": "es",
       "expect": {
-        "mode": "none",
-        "codes": [],
-        "descriptions": [],
+        "mode": "match",
+        "code": "63107010",
+        "description": "Banana, raw",
+        "fcs": 83,
+        "basis": "alias",
         "question": false
       },
       "target": {
@@ -804,9 +944,11 @@
       "query": "banano",
       "language": "es",
       "expect": {
-        "mode": "none",
-        "codes": [],
-        "descriptions": [],
+        "mode": "match",
+        "code": "63107010",
+        "description": "Banana, raw",
+        "fcs": 83,
+        "basis": "alias",
         "question": false
       },
       "target": {
@@ -821,9 +963,17 @@
       "query": "frijoles",
       "language": "es",
       "expect": {
-        "mode": "none",
-        "codes": [],
-        "descriptions": [],
+        "mode": "candidate",
+        "codes": [
+          "41104020",
+          "41102020",
+          "41205015"
+        ],
+        "descriptions": [
+          "Pinto beans, from dried, no added fat",
+          "Black beans, from dried, no added fat",
+          "Refried beans, fat not added in cooking"
+        ],
         "question": false
       },
       "target": {
@@ -841,11 +991,17 @@
       "query": "leche",
       "language": "es",
       "expect": {
-        "mode": "match",
-        "code": "11561000",
-        "description": "Cafe con leche",
-        "fcs": 53,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "11111000",
+          "11112110",
+          "11113000"
+        ],
+        "descriptions": [
+          "Milk, whole",
+          "Milk, reduced fat (2%)",
+          "Milk, fat free (skim)"
+        ],
         "question": false
       },
       "target": {
@@ -863,11 +1019,17 @@
       "query": "huevos",
       "language": "es",
       "expect": {
-        "mode": "match",
-        "code": "32105180",
-        "description": "Huevos rancheros",
-        "fcs": 64,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "31105030",
+          "32104900",
+          "31103000"
+        ],
+        "descriptions": [
+          "Egg, whole, fried with oil",
+          "Egg omelet or scrambled egg, NS as to fat added in cooking",
+          "Egg, whole, boiled"
+        ],
         "question": false
       },
       "target": {
@@ -885,11 +1047,17 @@
       "query": "tamales",
       "language": "es",
       "expect": {
-        "mode": "match",
-        "code": "53430700",
-        "description": "Tamale, sweet",
-        "fcs": 20,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "58103120",
+          "58103130",
+          "53430700"
+        ],
+        "descriptions": [
+          "Tamale with meat",
+          "Tamale with chicken",
+          "Tamale, sweet"
+        ],
         "question": false
       },
       "target": {
@@ -907,11 +1075,17 @@
       "query": "tamale",
       "language": "en",
       "expect": {
-        "mode": "match",
-        "code": "53430700",
-        "description": "Tamale, sweet",
-        "fcs": 20,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "58103120",
+          "58103130",
+          "53430700"
+        ],
+        "descriptions": [
+          "Tamale with meat",
+          "Tamale with chicken",
+          "Tamale, sweet"
+        ],
         "question": false
       },
       "target": {
@@ -929,11 +1103,17 @@
       "query": "tamal",
       "language": "es",
       "expect": {
-        "mode": "match",
-        "code": "58115150",
-        "description": "Tamal in a leaf, Puerto Rican style",
-        "fcs": 62,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "58103120",
+          "58103130",
+          "53430700"
+        ],
+        "descriptions": [
+          "Tamale with meat",
+          "Tamale with chicken",
+          "Tamale, sweet"
+        ],
         "question": false
       },
       "target": {
@@ -951,11 +1131,17 @@
       "query": "pollo asado",
       "language": "es",
       "expect": {
-        "mode": "match",
-        "code": "58156510",
-        "description": "Soupy rice from Puerto Rican style Asopao de Pollo (chicken parts reported separately)",
-        "fcs": 50,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "24122120",
+          "24122110",
+          "24152220"
+        ],
+        "descriptions": [
+          "Chicken, breast, roasted, broiled, or baked, skin not eaten",
+          "Chicken, breast, roasted, broiled, or baked, skin eaten",
+          "Chicken, thigh, roasted, broiled, or baked, skin not eaten"
+        ],
         "question": false
       },
       "target": {
@@ -974,12 +1160,18 @@
       "language": "es",
       "note": "correction prefix, never a question",
       "expect": {
-        "mode": "match",
-        "code": "58115150",
-        "description": "Tamal in a leaf, Puerto Rican style",
-        "fcs": 62,
-        "basis": null,
-        "question": true
+        "mode": "candidate",
+        "codes": [
+          "58103120",
+          "58103130",
+          "53430700"
+        ],
+        "descriptions": [
+          "Tamale with meat",
+          "Tamale with chicken",
+          "Tamale, sweet"
+        ],
+        "question": false
       },
       "target": {
         "mode": "candidate",
@@ -997,10 +1189,18 @@
       "language": "es",
       "note": "never a question",
       "expect": {
-        "mode": "none",
-        "codes": [],
-        "descriptions": [],
-        "question": true
+        "mode": "candidate",
+        "codes": [
+          "41104020",
+          "41102020",
+          "41205015"
+        ],
+        "descriptions": [
+          "Pinto beans, from dried, no added fat",
+          "Black beans, from dried, no added fat",
+          "Refried beans, fat not added in cooking"
+        ],
+        "question": false
       },
       "target": {
         "mode": "candidate",
@@ -1018,12 +1218,14 @@
       "language": "es",
       "note": "never a question",
       "expect": {
-        "mode": "match",
-        "code": "58156510",
-        "description": "Soupy rice from Puerto Rican style Asopao de Pollo (chicken parts reported separately)",
-        "fcs": 50,
-        "basis": null,
-        "question": true
+        "mode": "candidate",
+        "codes": [
+          "58156510"
+        ],
+        "descriptions": [
+          "Soupy rice from Puerto Rican style Asopao de Pollo (chicken parts reported separately)"
+        ],
+        "question": false
       },
       "target": {
         "mode": "candidate"
@@ -1039,7 +1241,7 @@
         "code": "58155110",
         "description": "Rice with chicken, Puerto Rican style",
         "fcs": 38,
-        "basis": null,
+        "basis": "alias",
         "question": false
       },
       "target": {
@@ -1055,11 +1257,13 @@
       "language": "es",
       "note": "the water carve-out is English only; candidate mode is the honest answer until it has a Spanish twin",
       "expect": {
-        "mode": "match",
-        "code": "58421020",
-        "description": "Sopa de Fideo Aguada, Mexican style noodle soup, home recipe",
-        "fcs": 60,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "58421020"
+        ],
+        "descriptions": [
+          "Sopa de Fideo Aguada, Mexican style noodle soup, home recipe"
+        ],
         "question": false
       },
       "target": {
@@ -1088,11 +1292,17 @@
       "query": "queso",
       "language": "es",
       "expect": {
-        "mode": "match",
-        "code": "14133000",
-        "description": "Queso Fresco",
-        "fcs": 41,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "14133000",
+          "14134000",
+          "14131500"
+        ],
+        "descriptions": [
+          "Queso Fresco",
+          "Queso cotija",
+          "Queso Asadero"
+        ],
         "question": false
       },
       "target": {
@@ -1122,11 +1332,17 @@
       "language": "en",
       "note": "a correction, never a plate",
       "expect": {
-        "mode": "match",
-        "code": "58115150",
-        "description": "Tamal in a leaf, Puerto Rican style",
-        "fcs": 62,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "58103120",
+          "58103130",
+          "53430700"
+        ],
+        "descriptions": [
+          "Tamale with meat",
+          "Tamale with chicken",
+          "Tamale, sweet"
+        ],
         "question": false
       },
       "target": {
@@ -1145,11 +1361,17 @@
       "language": "en",
       "note": "sequence: pizza then water",
       "expect": {
-        "mode": "match",
-        "code": "58106233",
-        "description": "Pizza, cheese, stuffed crust",
-        "fcs": 21,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "58106233",
+          "58107060",
+          "58107050"
+        ],
+        "descriptions": [
+          "Pizza, cheese, stuffed crust",
+          "Pizza, no cheese, regular crust",
+          "Pizza, no cheese, thin crust"
+        ],
         "question": false
       },
       "target": {
@@ -1199,7 +1421,7 @@
         "code": "63101000",
         "description": "Apple, raw",
         "fcs": 95,
-        "basis": null,
+        "basis": "head_canonical",
         "question": false
       },
       "target": {
@@ -1219,7 +1441,7 @@
         "code": "63107010",
         "description": "Banana, raw",
         "fcs": 83,
-        "basis": null,
+        "basis": "head_canonical",
         "question": false
       },
       "target": {
@@ -1239,7 +1461,7 @@
         "code": "57123000",
         "description": "Cereal (General Mills Cheerios)",
         "fcs": 77,
-        "basis": null,
+        "basis": "brand",
         "question": false
       },
       "target": {
@@ -1259,7 +1481,7 @@
         "code": "57241000",
         "description": "Cereal (General Mills Cheerios Honey Nut)",
         "fcs": 58,
-        "basis": null,
+        "basis": "brand",
         "question": false
       },
       "target": {
@@ -1275,11 +1497,17 @@
       "language": "en",
       "note": "correction prefix",
       "expect": {
-        "mode": "match",
-        "code": "58115150",
-        "description": "Tamal in a leaf, Puerto Rican style",
-        "fcs": 62,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "58103120",
+          "58103130",
+          "53430700"
+        ],
+        "descriptions": [
+          "Tamale with meat",
+          "Tamale with chicken",
+          "Tamale, sweet"
+        ],
         "question": false
       },
       "target": {
@@ -1299,10 +1527,10 @@
       "note": "correction prefix",
       "expect": {
         "mode": "match",
-        "code": "57404200",
-        "description": "Malt-O-Meal Apple and Cinnamon Toasty O's",
-        "fcs": 52,
-        "basis": null,
+        "code": "63101000",
+        "description": "Apple, raw",
+        "fcs": 95,
+        "basis": "head_canonical",
         "question": false
       },
       "target": {
@@ -1318,9 +1546,11 @@
       "language": "es",
       "note": "correction prefix",
       "expect": {
-        "mode": "none",
-        "codes": [],
-        "descriptions": [],
+        "mode": "match",
+        "code": "63101000",
+        "description": "Apple, raw",
+        "fcs": 95,
+        "basis": "alias",
         "question": false
       },
       "target": {
@@ -1336,12 +1566,18 @@
       "language": "en",
       "note": "never a question",
       "expect": {
-        "mode": "match",
-        "code": "75608030",
-        "description": "Onion soup, cream of, canned, undiluted",
-        "fcs": 19,
-        "basis": null,
-        "question": true
+        "mode": "candidate",
+        "codes": [
+          "75608030",
+          "75603030",
+          "75607150"
+        ],
+        "descriptions": [
+          "Onion soup, cream of, canned, undiluted",
+          "Celery soup, cream of, canned, undiluted",
+          "Mushroom soup, cream of, canned, reduced sodium, undiluted"
+        ],
+        "question": false
       },
       "target": {
         "mode": "candidate"
@@ -1355,8 +1591,16 @@
       "note": "a question: the door never calls the route with this",
       "expect": {
         "mode": "none",
-        "codes": [],
-        "descriptions": [],
+        "codes": [
+          "57244000",
+          "57245000",
+          "83207000"
+        ],
+        "descriptions": [
+          "Just Right",
+          "Just Right Fruit and Nut (formerly Just Right with raisins, dates, and nuts)",
+          "Thousand Island dressing, light"
+        ],
         "question": true
       },
       "target": {
@@ -1369,11 +1613,17 @@
       "query": "2 slices of pepperoni pizza",
       "language": "en",
       "expect": {
-        "mode": "match",
-        "code": "58106540",
-        "description": "Pizza with pepperoni, from restaurant or fast food, NS as to type of crust",
-        "fcs": 23,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "58106540",
+          "58106565",
+          "58106516"
+        ],
+        "descriptions": [
+          "Pizza with pepperoni, from restaurant or fast food, NS as to type of crust",
+          "Pizza with pepperoni, stuffed crust",
+          "Pizza with pepperoni, from frozen, thick crust"
+        ],
         "question": false
       },
       "target": {
@@ -1389,8 +1639,16 @@
       "note": "the plate item that does not resolve (A14)",
       "expect": {
         "mode": "none",
-        "codes": [],
-        "descriptions": [],
+        "codes": [
+          "58303100",
+          "58303200",
+          "71601020"
+        ],
+        "descriptions": [
+          "Rice, with broccoli, cheese sauce, frozen side dish",
+          "Rice, with green beans, water chestnuts, in sherry mushroom sauce, frozen side dish",
+          "Potato salad with egg, made with mayonnaise-type salad dressing"
+        ],
         "question": false
       },
       "target": {
@@ -1407,7 +1665,7 @@
         "code": "57123000",
         "description": "Cereal (General Mills Cheerios)",
         "fcs": 77,
-        "basis": null,
+        "basis": "alias",
         "question": false
       },
       "target": {
@@ -1426,7 +1684,7 @@
         "code": "57316385",
         "description": "Cereal (General Mills Cheerios Protein)",
         "fcs": 58,
-        "basis": null,
+        "basis": "brand",
         "question": false
       },
       "target": {
@@ -1445,7 +1703,7 @@
         "code": "63107010",
         "description": "Banana, raw",
         "fcs": 83,
-        "basis": null,
+        "basis": "coverage",
         "question": false
       },
       "target": {
@@ -1464,7 +1722,7 @@
         "code": "63107110",
         "description": "Banana, baked",
         "fcs": 66,
-        "basis": null,
+        "basis": "coverage",
         "question": false
       },
       "target": {
@@ -1599,11 +1857,17 @@
       "query": "black coffee",
       "language": "en",
       "expect": {
-        "mode": "match",
-        "code": "92101900",
-        "description": "Coffee, Latte",
-        "fcs": 58,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "92101900",
+          "92101610",
+          "92101810"
+        ],
+        "descriptions": [
+          "Coffee, Latte",
+          "Coffee, espresso",
+          "Coffee, macchiato"
+        ],
         "question": false
       },
       "target": {
@@ -1616,11 +1880,17 @@
       "query": "diet soda",
       "language": "en",
       "expect": {
-        "mode": "match",
-        "code": "52408000",
-        "description": "Bread, Irish soda",
-        "fcs": 5,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "52408000",
+          "92410410",
+          "13120810"
+        ],
+        "descriptions": [
+          "Bread, Irish soda",
+          "Soft drink, cream soda",
+          "Ice cream soda, chocolate"
+        ],
         "question": false
       },
       "target": {
@@ -1649,8 +1919,16 @@
       "language": "en",
       "expect": {
         "mode": "none",
-        "codes": [],
-        "descriptions": [],
+        "codes": [
+          "27510616",
+          "27510233",
+          "57106100"
+        ],
+        "descriptions": [
+          "Hamburger, 1 medium patty, with condiments, on bun, from fast food / restaurant (Wendy's 1/4 lb Single )",
+          "Cheeseburger, 1 medium patty, with condiments, on bun, from fast food / restaurant (Wendy's 1/4 lb Single with cheese)",
+          "Cereal (General Mills Basic 4)"
+        ],
         "question": false
       },
       "target": {
@@ -1665,8 +1943,16 @@
       "note": "the client gate intercepts before this; the route must not score it",
       "expect": {
         "mode": "none",
-        "codes": [],
-        "descriptions": [],
+        "codes": [
+          "54408430",
+          "54408432",
+          "53105160"
+        ],
+        "descriptions": [
+          "Pretzels, soft, ready-to-eat, topped with meat",
+          "Pretzels, soft, ready-to-eat, topped with cheese",
+          "Cake, chocolate, devil's food, or fudge, without icing or filling, made from home recipe or purchased ready-to-eat"
+        ],
         "question": false
       },
       "target": {
@@ -1680,8 +1966,16 @@
       "language": "es",
       "expect": {
         "mode": "none",
-        "codes": [],
-        "descriptions": [],
+        "codes": [
+          "71970130",
+          "24104020",
+          "27461010"
+        ],
+        "descriptions": [
+          "Starchy vegetables, including tannier, white sweet potato and yam, no plantain, Puerto Rican style",
+          "Chicken, NS as to part, fried, no coating, skin not eaten, fat added in cooking",
+          "Stewed seasoned ground beef, Puerto Rican style (Picadillo para relleno)"
+        ],
         "question": false
       },
       "target": {
@@ -1695,8 +1989,16 @@
       "language": "en",
       "expect": {
         "mode": "none",
-        "codes": [],
-        "descriptions": [],
+        "codes": [
+          "25220445",
+          "25221220",
+          "25220425"
+        ],
+        "descriptions": [
+          "Bologna, made from any kind of meat, reduced fat and reduced sodium",
+          "Pastrami, made from any kind of meat, reduced fat",
+          "Bologna, made from any kind of meat, reduced fat"
+        ],
         "question": false
       },
       "target": {
@@ -1710,8 +2012,16 @@
       "language": "es",
       "expect": {
         "mode": "none",
-        "codes": [],
-        "descriptions": [],
+        "codes": [
+          "43107000",
+          "42502000",
+          "75145000"
+        ],
+        "descriptions": [
+          "Mixed seeds",
+          "Nut mixture with seeds",
+          "Seven-layer salad, lettuce salad made with a combination of onion, celery, green pepper, peas, mayonnaise, cheese, eggs, and/or bacon"
+        ],
         "question": false
       },
       "target": {
@@ -1725,8 +2035,16 @@
       "language": "en",
       "expect": {
         "mode": "none",
-        "codes": [],
-        "descriptions": [],
+        "codes": [
+          "11114321",
+          "54203010",
+          "11114310"
+        ],
+        "descriptions": [
+          "Milk, cow's, fluid, lactose reduced, nonfat, fortified with calcium",
+          "Crackers, toast thins (rye, wheat, white flour), low sodium",
+          "Milk, cow's, fluid, lactose reduced, 1% fat, fortified with calcium"
+        ],
         "question": true
       },
       "target": {
@@ -1740,8 +2058,16 @@
       "language": "en",
       "expect": {
         "mode": "none",
-        "codes": [],
-        "descriptions": [],
+        "codes": [
+          "21501200",
+          "21501300",
+          "21501000"
+        ],
+        "descriptions": [
+          "Ground beef, 80% - 84% lean, cooked (formerly lean)",
+          "Ground beef, 85% - 89% lean, cooked (formerly extra lean)",
+          "Ground beef, less than 80% lean, cooked (formerly regular)"
+        ],
         "question": true
       },
       "target": {
@@ -1753,16 +2079,23 @@
       "category": "exclusion",
       "query": "can I skip my metformin tonight if I eat light",
       "language": "en",
+      "note": "the client gate blocks this and the classifier calls it a question; the route never sees it, and would name rows without scoring one",
       "expect": {
-        "mode": "match",
-        "code": "54403082",
-        "description": "Popcorn, ready-to-eat packaged, plain, light",
-        "fcs": 54,
-        "basis": null,
+        "mode": "candidate",
+        "codes": [
+          "54403082",
+          "54403086",
+          "54403088"
+        ],
+        "descriptions": [
+          "Popcorn, ready-to-eat packaged, plain, light",
+          "Popcorn, ready-to-eat packaged, butter flavored, light",
+          "Popcorn, ready-to-eat packaged, cheese flavored, light"
+        ],
         "question": true
       },
       "target": {
-        "mode": "none"
+        "mode": "candidate"
       }
     },
     {
@@ -1772,8 +2105,16 @@
       "language": "en",
       "expect": {
         "mode": "none",
-        "codes": [],
-        "descriptions": [],
+        "codes": [
+          "92121000",
+          "92121020",
+          "92121001"
+        ],
+        "descriptions": [
+          "Coffee, instant, pre-lightened and pre-sweetened with sugar, reconstituted",
+          "Coffee, mocha, instant, pre-lightened and pre-sweetened with sugar, reconstituted",
+          "Coffee, instant, decaffeinated, pre-lightened and pre-sweetened with sugar, reconsitituted"
+        ],
         "question": false
       },
       "target": {
@@ -1787,8 +2128,16 @@
       "language": "es",
       "expect": {
         "mode": "none",
-        "codes": [],
-        "descriptions": [],
+        "codes": [
+          "27461010",
+          "81302070",
+          "58147100"
+        ],
+        "descriptions": [
+          "Stewed seasoned ground beef, Puerto Rican style (Picadillo para relleno)",
+          "Pesto sauce",
+          "Pasta with pesto sauce"
+        ],
         "question": true
       },
       "target": {
@@ -1806,7 +2155,7 @@
         "code": "63101000",
         "description": "Apple, raw",
         "fcs": 95,
-        "basis": null,
+        "basis": "head_canonical",
         "question": false
       },
       "target": {

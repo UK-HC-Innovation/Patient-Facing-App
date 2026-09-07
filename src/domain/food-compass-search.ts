@@ -11,6 +11,8 @@ export type FoodMatch = { food: FcsFood; score: number };
 
 export type FoodSearchIndex = {
   search: (query: string, limit?: number) => FoodMatch[];
+  /** Hits the coverage filter rejected, so a miss can still name something (spec 30 R4). */
+  rejected?: (query: string, limit?: number) => FoodMatch[];
 };
 
 // FNDDS carries catch-all rows that exist for survey coding, not for a person asking
@@ -270,8 +272,239 @@ export function buildFoodSearchIndex(foods: FcsFood[]): FoodSearchIndex {
       const tied = leading.filter((hit) => hit.score >= cutoff).sort((a, b) => compareCanonical(a.food, b.food));
       const rest = [...leading.filter((hit) => hit.score < cutoff), ...hits.filter((hit) => hit.demoted !== hits[0].demoted)];
       return [...tied, ...rest].slice(0, limit).map(({ food, score }) => ({ food, score }));
+    },
+
+    /**
+     * The hits the coverage filter threw away.
+     *
+     * A typed miss used to answer `candidates: []`, so the "Say one of these instead" chips
+     * could not render and the only way forward was to retype (spec 30 R4, A21). These rows
+     * were retrieved and then rejected for sharing too few of the query's own words, which
+     * is a good reason not to score them and a poor reason to hide them.
+     */
+    rejected(query: string, limit = 3): FoodMatch[] {
+      const trimmed = query.trim();
+      if (trimmed.length === 0) {
+        return [];
+      }
+      const expanded = expandFoodQuery(trimmed);
+      const queryTokens = contentTokens(normalizeText(expanded));
+      const minCovered = queryTokens.length >= 3 ? 2 : 1;
+      return index
+        .search(expanded)
+        .map((hit) => {
+          const food = byCode.get(String(hit.id));
+          if (!food) return null;
+          const words = contentTokens(normalizeText(food.description));
+          return { food, score: hit.score, covered: coveredCount(queryTokens, words) };
+        })
+        .filter((hit): hit is { food: FcsFood; score: number; covered: number } => hit !== null)
+        .filter((hit) => queryTokens.length > 0 && hit.covered < minCovered)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit)
+        .map(({ food, score }) => ({ food, score }));
     }
   };
+}
+
+// ---------------------------------------------------------------------------
+// Reviewed identity (spec 30 R4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Why a row was published rather than proposed.
+ *
+ * The rank margin cannot be the gate. Table S5 rows tie constantly, so the margin is 1.00
+ * to 1.11 for apple, banana, pinto beans, PB&J, chicken and dumplings, coffee and pizza;
+ * only `honey nut cheerios` clears 1.35. Gating on it would ask a question after nearly
+ * every input. These four bases say what actually justified the mapping instead.
+ */
+export type IdentityBasis = "alias" | "head_canonical" | "brand" | "coverage";
+
+/**
+ * The reviewed alias table: a normalized query to one row code.
+ *
+ * Codes checked against src/data/food-compass/fcs2-foods.json on 2026-09-07.
+ */
+const ALIAS_ROWS: Record<string, string> = {
+  // Apple, raw
+  manzana: "63101000",
+  // Banana, raw
+  platano: "63107010",
+  banano: "63107010",
+  // Cereal (General Mills Cheerios). Plain fails the brand rule because "plain" is the
+  // person's word for the absence of a flavour and the row does not carry it.
+  "plain cheerios": "57123000"
+};
+
+/**
+ * The reviewed alias table's other half: a query whose honest answer is a question.
+ *
+ * Each set is three named rows, in the order they are offered. Nothing here is a default:
+ * `frijoles` is pinto, black or refried, and picking one for someone is the mistake this
+ * table exists to stop.
+ */
+const ALIAS_CANDIDATES: Record<string, string[]> = {
+  // Pinto / Black / Refried, all from dried with no added fat
+  frijoles: ["41104020", "41102020", "41205015"],
+  // Whole / reduced fat (2%) / fat free (skim)
+  leche: ["11111000", "11112110", "11113000"],
+  // Fried with oil / omelet or scrambled / boiled
+  huevos: ["31105030", "32104900", "31103000"],
+  // Tamale with meat / with chicken / sweet. `tamal` is the Spanish singular of the same
+  // word, added because spec 30 P5 requires "es un tamal" to reach these three.
+  tamales: ["58103120", "58103130", "53430700"],
+  tamale: ["58103120", "58103130", "53430700"],
+  tamal: ["58103120", "58103130", "53430700"],
+  // Breast skin not eaten / breast skin eaten / thigh skin not eaten
+  "pollo asado": ["24122120", "24122110", "24152220"]
+};
+
+/** The reference form of a food, which never needs the query to name it. */
+const CANONICAL_QUALIFIERS = new Set([
+  "raw",
+  "plain",
+  "fresh",
+  "cooked",
+  "uncooked",
+  "unprepared",
+  "no",
+  "not",
+  "sin",
+  "without",
+  "ns",
+  "nfs",
+  "unspecified"
+]);
+
+/**
+ * Row words that need no support from the query: the canonical qualifiers, plus anything
+ * the row itself negates. "Pan Dulce, no topping" is pan dulce; "Chicken, ..., no coating"
+ * is still not plain chicken, because wing, skin, eaten, made and oil are not negated.
+ */
+function canonicalRowTokens(description: string): Set<string> {
+  const free = new Set(CANONICAL_QUALIFIERS);
+  for (const segment of description.split(",")) {
+    let negated = false;
+    for (const token of normalizeText(segment).split(" ").filter(Boolean)) {
+      if (token === "no" || token === "not" || token === "without" || token === "sin") {
+        negated = true;
+        continue;
+      }
+      if (negated) free.add(token);
+    }
+  }
+  return free;
+}
+
+/** "no sauce" and "without sauce" are the same claim about a food (spec 30 R4 rule 4). */
+function normalizeNegations(text: string): string {
+  return text.replace(/\bno\s+/gi, "without ").replace(/\bsin\s+/gi, "without ");
+}
+
+function queryContentTokens(query: string): string[] {
+  return contentTokens(normalizeText(normalizeNegations(expandFoodQuery(query))));
+}
+
+/** The normalized key the alias table is written in. */
+export function aliasKey(query: string): string {
+  return contentTokens(normalizeText(query)).join(" ");
+}
+
+function sameTokenSet(left: string[], right: string[]): boolean {
+  return (
+    left.length > 0 &&
+    left.every((token) => tokenPresent(token, right)) &&
+    right.every((token) => tokenPresent(token, left))
+  );
+}
+
+function tailTokens(description: string): string[] {
+  return contentTokens(normalizeText(description.split(",").slice(1).join(" ")));
+}
+
+/**
+ * Does this row's mapping to this query justify publishing a score?
+ *
+ * Rules 2 to 4 of spec 30 R4. Rule 1 (the alias table) resolves by code and is applied by
+ * the caller; rule 5 is the absence of a shortcut, not a rule of its own -- a lone hit runs
+ * through exactly these three like any other.
+ */
+export function identityBasis(description: string, query: string): IdentityBasis | null {
+  const queryTokens = queryContentTokens(query);
+  if (queryTokens.length === 0) {
+    return null;
+  }
+
+  // Rule 0, the reviewed rewrites this table already carried: Ale-8 is a ginger ale and
+  // Mountain Dew is a caffeinated fruit-flavoured soft drink, both decided in spec 29.
+  // A rewritten query that the row then covers is a reviewed one-to-one name mapping.
+  if (expandFoodQuery(query) !== query && describesQuery(description, query)) {
+    return "alias";
+  }
+
+  const rowTokens = contentTokens(normalizeText(description));
+  const free = canonicalRowTokens(description);
+  const supported = (token: string) => tokenPresent(token, queryTokens) || free.has(token);
+
+  // Rule 2. The head food IS what was typed, and every qualifier after it is either the
+  // canonical form or a word the person said.
+  if (sameTokenSet(contentTokens(headFood(description)), queryTokens) && tailTokens(description).every(supported)) {
+    return "head_canonical";
+  }
+
+  // Rule 3. A manufacturer row whose brand and product words the query covers.
+  if (brandParenthetical(description) !== null && describesQuery(description, query)) {
+    return "brand";
+  }
+
+  // Rule 4. Coverage both ways, with the negation normalizer, so nothing in the row is a
+  // detail the person never mentioned.
+  if (describesQuery(description, query) && rowTokens.every(supported)) {
+    return "coverage";
+  }
+
+  return null;
+}
+
+/** What the typed branch of the identify route should do with one line. */
+export type TypedIdentity =
+  | { kind: "alias_row"; code: string; candidates: FoodMatch[] }
+  | { kind: "alias_candidates"; codes: string[] }
+  | { kind: "row"; basis: IdentityBasis; food: FcsFood; candidates: FoodMatch[] }
+  /** Search found rows, none of them justified. Named, unscored, waiting for a tap. */
+  | { kind: "proposal"; candidates: FoodMatch[] }
+  | { kind: "none"; candidates: FoodMatch[] };
+
+export function resolveTypedIdentity(
+  index: FoodSearchIndex,
+  query: string,
+  options: { limit?: number; bestRow?: boolean } = {}
+): TypedIdentity {
+  const limit = options.limit ?? 10;
+  const key = aliasKey(query);
+  const aliasRow = ALIAS_ROWS[key];
+  const aliasCandidates = ALIAS_CANDIDATES[key];
+  const candidates = index.search(query, limit);
+
+  if (aliasRow) {
+    return { kind: "alias_row", code: aliasRow, candidates };
+  }
+  if (aliasCandidates) {
+    return { kind: "alias_candidates", codes: aliasCandidates };
+  }
+  if (candidates.length === 0) {
+    return { kind: "none", candidates: index.rejected?.(query, 3) ?? [] };
+  }
+
+  const top = candidates[0].food;
+  // A plate component the person already named, or an alternatives lookup for a food that
+  // is already confirmed. Both are asking "what row is this", not "which food is this".
+  if (options.bestRow) {
+    return { kind: "row", basis: "coverage", food: top, candidates };
+  }
+  const basis = identityBasis(top.description, query);
+  return basis ? { kind: "row", basis, food: top, candidates } : { kind: "proposal", candidates };
 }
 
 /**
@@ -291,11 +524,33 @@ export function matchFood(
     return { candidates, confident: null };
   }
   if (candidates.length === 1) {
-    return { candidates, confident: candidates[0].food };
+    // Spec 30 R4 rule 5. A lone hit used to be confident by virtue of being alone, which is
+    // how `pollo asado` became a Puerto Rican chicken-rice soup and `huevos` became huevos
+    // rancheros -- and on the camera path it skipped the disambiguation call as well.
+    return { candidates, confident: identityBasis(candidates[0].food.description, query) ? candidates[0].food : null };
   }
   const [top, runnerUp] = candidates;
   const confident = runnerUp.score > 0 && top.score / runnerUp.score >= SHORT_CIRCUIT_MARGIN ? top.food : null;
   return { candidates, confident };
+}
+
+/**
+ * Does one row cover both sides of every "and" / "y" in this line?
+ *
+ * Spec 30 R5 step 5. `chicken and dumplings` has a row that covers both sides and is one
+ * dish; `pizza and salad` has none and is two foods. Splitting first turned "mac and cheese"
+ * into a Big Mac and a slice of cheese (finding E02).
+ */
+export function coversBothSidesOfConjunctions(description: string, line: string): boolean {
+  const sides = line.split(/\s+(?:and|y)\s+/i).map((side) => side.trim()).filter((side) => side.length > 0);
+  if (sides.length < 2) {
+    return false;
+  }
+  const words = contentTokens(normalizeText(description));
+  return sides.every((side) => {
+    const tokens = contentTokens(normalizeText(expandFoodQuery(side)));
+    return tokens.length > 0 && coveredCount(tokens, words) === tokens.length;
+  });
 }
 
 /**

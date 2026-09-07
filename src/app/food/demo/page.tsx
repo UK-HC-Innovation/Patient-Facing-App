@@ -45,12 +45,14 @@ import type { LiveSessionContext } from "@/ai/types";
 import { t, type Language } from "@/i18n/strings";
 import { speak, stopSpeaking } from "@/voice/tts";
 
-type FoodCandidate = { code: string; description: string; fcs: number };
+type FoodCandidate = { code: string; description: string; fcs?: number };
 type SortMode = "score" | "density";
 
 type ConversationResult =
   | { kind: "match"; match: LiveMatch; candidates: FoodCandidate[]; input: string; cameraFoodCode: string | null }
   | { kind: "plate"; items: TypedPlateItem[]; dropped: string[]; input: string }
+  /** Rows the promotion policy would not publish: named, unscored, waiting for a tap. */
+  | { kind: "candidate"; candidates: { code: string; description: string }[]; input: string }
   | { kind: "carve_out"; reason: NotScoreableReason }
   | { kind: "none" };
 
@@ -529,6 +531,17 @@ export default function CompassPage() {
           setRefinement(next);
           return;
         }
+        if (result.kind === "candidate") {
+          const next: ConversationResult = {
+            kind: "candidate",
+            candidates: result.candidates,
+            input: result.query
+          };
+          voiceResultRef.current = null;
+          shownRef.current = next;
+          setRefinement(next);
+          return;
+        }
         const next: ConversationResult =
           result.kind === "carve_out" ? { kind: "carve_out", reason: result.reason } : { kind: "none" };
         voiceResultRef.current = null;
@@ -616,6 +629,33 @@ export default function CompassPage() {
 
 
   const matchShown = shown?.kind === "match" ? shown.match : null;
+  /**
+   * A typed line the promotion policy would not publish (spec 30 R4, A19 to A21). One row
+   * goes through the same identity review the camera uses; several render as chips. A tap
+   * on either sends the exact code, which the route has always answered deterministically.
+   */
+  const typedProposal = shown?.kind === "candidate" ? shown : null;
+  const typedIdentityCandidate =
+    typedProposal && typedProposal.candidates.length === 1
+      ? {
+          food: {
+            code: typedProposal.candidates[0].code,
+            description: typedProposal.candidates[0].description,
+            group: ""
+          },
+          candidates: []
+        }
+      : null;
+  const chooseTypedCandidate = (foodId: string) => {
+    const input = typedProposal?.input ?? "";
+    void runQuery(input, sortMode, foodId, null);
+  };
+  const clearTypedProposal = () => {
+    typedClearRef.current?.();
+    voiceResultRef.current = null;
+    shownRef.current = null;
+    setRefinement(null);
+  };
   const domainBreakdown = resolveDomainBreakdown(
     matchShown?.score ?? null,
     matchShown?.estimatedDomains ?? null
@@ -735,11 +775,12 @@ export default function CompassPage() {
     score: matchShown?.score ?? null,
     carveOut: shown?.kind === "carve_out" ? shown.reason : null,
     badge: matchShown ? "score" : shown?.kind === "carve_out" ? "carve_out" : live.badge,
-    noMatchCandidates: [],
-    noMatch: shown?.kind === "none",
+    noMatchCandidates: typedProposal && !typedIdentityCandidate ? typedProposal.candidates : [],
+    noMatch: shown?.kind === "none" || (typedProposal !== null && typedIdentityCandidate === null),
+    noMatchChoose: typedProposal !== null && typedIdentityCandidate === null,
     // A miss the person named reads differently from a camera that saw nothing.
-    noMatchNamed: refinement?.kind === "none",
-    candidate: live.candidate,
+    noMatchNamed: refinement?.kind === "none" || typedProposal !== null,
+    candidate: typedIdentityCandidate ?? live.candidate,
     packageDetected: activeBarcode === null && live.packageDetected
   };
 
@@ -754,8 +795,11 @@ export default function CompassPage() {
       crisis={crisisLocked ? <FoodCrisisLock language={language}>{conversationBlock}</FoodCrisisLock> : null}
       language={language}
       loopState={live.loopState}
-      onConfirmIdentity={(foodId) => void confirmLiveCandidate(foodId)}
-      onRejectIdentity={rejectLiveCandidate}
+      onConfirmIdentity={(foodId) =>
+        typedProposal ? chooseTypedCandidate(foodId) : void confirmLiveCandidate(foodId)
+      }
+      onRejectIdentity={typedProposal ? clearTypedProposal : rejectLiveCandidate}
+      onSelectCandidate={chooseTypedCandidate}
       collapsedViewfinder={cameraBlocked}
       onVisibleRatio={live.setVisibleRatio}
       verdictRegionLabel={t(language, "compassResultRegion")}
@@ -929,7 +973,8 @@ export default function CompassPage() {
                           onClick={() => void runQuery(shown.input, undefined, candidate.code, shown.cameraFoodCode)}
                           type="button"
                         >
-                          {candidate.description} · {candidate.fcs}
+                          {candidate.description}
+                          {candidate.fcs === undefined ? "" : ` · ${candidate.fcs}`}
                         </button>
                       ))}
                     </div>

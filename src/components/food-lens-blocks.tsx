@@ -213,23 +213,38 @@ export function FoodNoMatch({
   candidates,
   language,
   named = true,
+  choose = false,
   onSelect
 }: {
   candidates: LiveCandidate[];
   language: Language;
   /** False when the camera came back empty and nobody has named anything yet. */
   named?: boolean;
+  /**
+   * These rows DO match; the mapping to any one of them is what is not justified (spec 30
+   * R4). "We don't have a score for that one" over three rows that fit is the wrong sentence.
+   */
+  choose?: boolean;
   onSelect?: (foodId: string) => void;
 }) {
   const shown = candidates.slice(0, 3);
+  const offering = choose && shown.length > 0;
   return (
     <section aria-label={t(language, "noMatchLabel")} className="grid gap-2" data-testid="food-no-match">
-      <p className="text-[15px] leading-normal text-ink/75">
-        {t(language, named ? "compassNoPublishedScore" : "nothingScoredYet")}
+      <p
+        className={
+          offering
+            ? "text-[21px] font-semibold leading-tight tracking-tight"
+            : "text-[15px] leading-normal text-ink/75"
+        }
+      >
+        {t(language, offering ? "identityChooseOne" : named ? "compassNoPublishedScore" : "nothingScoredYet")}
       </p>
       {shown.length > 0 && onSelect ? (
         <>
-          <p className="text-[13px] font-semibold text-ink/70">{t(language, "sayOneOfThese")}</p>
+          {offering ? null : (
+            <p className="text-[13px] font-semibold text-ink/70">{t(language, "sayOneOfThese")}</p>
+          )}
           <div className="flex flex-wrap gap-2">
             {shown.map((candidate) => (
               <button

@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MAX_PLATE_ITEMS, isQuestionLine, splitPlateLine } from "@/domain/typed-food-line";
+import {
+  MAX_PLATE_ITEMS,
+  isQuestionLine,
+  splitConjunctionLine,
+  splitPlateLine,
+  stripCorrectionPrefix
+} from "@/domain/typed-food-line";
 import type { FoodAuthority } from "@/domain/food-authority";
 import type { NotScoreableReason } from "@/domain/food-compass";
 import type { LiveCandidate, LiveMatch } from "@/hooks/use-live-food-score";
@@ -19,6 +25,13 @@ export type TypedPlateItem = {
 
 export type TypedFoodResult =
   | { kind: "match"; match: LiveMatch }
+  /**
+   * Rows the search found and the promotion policy would not publish (spec 30 R4).
+   *
+   * One candidate is a proposal to confirm; several are chips to pick from. Neither carries
+   * a score, because a number beside an unconfirmed name is the confident wrong answer.
+   */
+  | { kind: "candidate"; candidates: LiveCandidate[]; query: string; corrected: boolean }
   | {
       kind: "plate";
       items: TypedPlateItem[];
@@ -52,31 +65,49 @@ type IdentifyResponse = {
   reason?: unknown;
   match?: Omit<LiveMatch, "candidates">;
   candidates?: LiveCandidate[];
+  corrected?: boolean;
+  /** The route found no single dish covering both sides of an "and" (spec 30 R5 step 5). */
+  splitSuggested?: boolean;
 };
+
+type Lookup = { result: TypedFoodResult; splitSuggested: boolean };
 
 async function lookupOne(
   text: string,
   passcode: string | undefined,
-  signal: AbortSignal
-): Promise<TypedFoodResult> {
+  signal: AbortSignal,
+  options: { bestRow?: boolean } = {}
+): Promise<Lookup> {
   const response = await fetch("/api/food/identify", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text, passcode }),
+    body: JSON.stringify({ text, passcode, ...(options.bestRow ? { bestRow: true } : {}) }),
     signal
   });
   const json = (await response.json()) as IdentifyResponse;
+  const splitSuggested = json.splitSuggested === true;
 
   if (json.mode === "carve_out") {
-    return { kind: "carve_out", reason: json.reason as NotScoreableReason };
+    return { result: { kind: "carve_out", reason: json.reason as NotScoreableReason }, splitSuggested };
   }
   if (json.mode === "match" && json.match) {
-    return { kind: "match", match: { ...json.match, candidates: (json.candidates ?? []).slice(0, 4) } };
+    return {
+      result: { kind: "match", match: { ...json.match, candidates: (json.candidates ?? []).slice(0, 4) } },
+      splitSuggested
+    };
   }
-  // Typed text always resolves to the best-ranked row or to nothing. The camera's
-  // "candidate, please confirm" shape does not apply: the person said the words, so the
-  // row is the answer and the alternatives list is how they re-pick.
-  return { kind: "none", candidates: (json.candidates ?? []).slice(0, 3) };
+  if (json.mode === "candidate") {
+    return {
+      result: {
+        kind: "candidate",
+        candidates: (json.candidates ?? []).slice(0, 3),
+        query: text,
+        corrected: json.corrected === true
+      },
+      splitSuggested
+    };
+  }
+  return { result: { kind: "none", candidates: (json.candidates ?? []).slice(0, 3) }, splitSuggested };
 }
 
 /**
@@ -136,7 +167,12 @@ export function useTypedFoodScore(
     abortRef.current?.abort();
     abortRef.current = null;
 
-    if (isQuestionLine(trimmed)) {
+    // A correction is stripped before anything else (spec 30 R5 step 2). "No, it is a
+    // tamale" split on its comma into a two-item plate whose first item, "No", scored as
+    // Beef and noodles, no sauce -- the splitter never saw a correction, only a list.
+    const { text: line } = stripCorrectionPrefix(trimmed);
+
+    if (isQuestionLine(line)) {
       const question: TypedFoodResult = { kind: "question", text: trimmed };
       if (mountedRef.current) {
         setLastQuery(trimmed);
@@ -158,32 +194,54 @@ export function useTypedFoodScore(
       setPending(true);
     }
 
+    /**
+     * Every component of a plate, looked up as a plate component (spec 30 R4/R5).
+     *
+     * allSettled, not all: one item the network could not reach used to reject the whole
+     * line into the catch below, which turned a plate into a question and opened a paid
+     * voice session (finding E04).
+     */
+    const lookupPlate = async (parts: string[], dropped: string[]): Promise<TypedFoodResult> => {
+      const settled = await Promise.allSettled(
+        parts
+          .slice(0, MAX_PLATE_ITEMS)
+          .map((query) => lookupOne(query, passcodeRef.current, controller.signal, { bestRow: true }))
+      );
+      const looked: TypedPlateItem[] = settled.map((outcome, index) => {
+        const query = parts[index];
+        if (outcome.status === "rejected") {
+          return { query, match: null, failed: true };
+        }
+        return { query, match: outcome.value.result.kind === "match" ? outcome.value.result.match : null };
+      });
+      // A plate nobody could match at all is a miss, not a plate of blanks -- unless the
+      // reason nothing matched is that the lookups could not run, which is worth a retry.
+      return looked.some((item) => item.match !== null || item.failed === true)
+        ? { kind: "plate", items: looked, dropped }
+        : { kind: "none", candidates: [] };
+    };
+
     try {
-      const { items: parts, dropped } = splitPlateLine(trimmed);
+      const { items: parts, dropped } = splitPlateLine(line);
       let next: TypedFoodResult;
 
       if (parts.length > 1) {
-        // allSettled, not all: one item the network could not reach used to reject the
-        // whole line into the catch below, which turned a plate into a question and opened
-        // a paid voice session (spec 30 R5, finding E04).
-        const settled = await Promise.allSettled(
-          parts.slice(0, MAX_PLATE_ITEMS).map((query) => lookupOne(query, passcodeRef.current, controller.signal))
-        );
-        const looked: TypedPlateItem[] = settled.map((outcome, index) => {
-          const query = parts[index];
-          if (outcome.status === "rejected") {
-            return { query, match: null, failed: true };
-          }
-          return { query, match: outcome.value.kind === "match" ? outcome.value.match : null };
-        });
-        // A plate nobody could match at all is a miss, not a plate of blanks -- unless the
-        // reason nothing matched is that the lookups could not run, which is worth a retry.
-        next =
-          looked.some((item) => item.match !== null || item.failed === true)
-            ? { kind: "plate", items: looked, dropped }
-            : { kind: "none", candidates: [] };
+        next = await lookupPlate(parts, dropped);
       } else {
-        next = await lookupOne(trimmed, passcodeRef.current, controller.signal);
+        // Whole dish first (spec 30 R5 step 4). "chicken and dumplings" and "mac and cheese"
+        // used to be split before the row for the dish itself was ever tried, which turned
+        // mac into a Big Mac. Only a line the route could not resolve as one dish, and whose
+        // top row does not cover both sides of its "and", becomes two foods.
+        const whole = await lookupOne(line, passcodeRef.current, controller.signal);
+        if (whole.splitSuggested) {
+          const conjoined = splitConjunctionLine(line);
+          next =
+            conjoined.items.length > 1
+              ? await lookupPlate(conjoined.items, conjoined.dropped)
+              : whole.result;
+        } else {
+          next = whole.result;
+        }
       }
 
       if (controller.signal.aborted || !isCurrent()) {
@@ -212,7 +270,7 @@ export function useTypedFoodScore(
     const requestEpoch = authorityRef.current?.snapshot() ?? null;
     let next: TypedFoodResult;
     try {
-      next = await lookupOne(query, passcodeRef.current, controller.signal);
+      next = (await lookupOne(query, passcodeRef.current, controller.signal, { bestRow: true })).result;
     } catch {
       return;
     }

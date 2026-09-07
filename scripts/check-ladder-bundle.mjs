@@ -108,8 +108,14 @@ const compassBudgets = {
   // gained the last three. /food's ceiling goes 312 -> 313 from that measurement and
   // /food/demo keeps its 204. The largest chunk either route pulls is 174 KiB raw, so the
   // >900 KiB per-chunk guard below still has the whole job it was written for.
-  "/food/demo/page": 204 * kib,
-  "/food/page": 313 * kib
+  //
+  // Re-measured 2026-09-07 after spec 30 A2: /food 313.05 KiB, /food/demo 203.6 KiB. Candidate
+  // mode is the growth on both doors -- the identity proposal, the chips and the copy that
+  // tells them apart from a miss. The alias table and the promotion policy are server-only,
+  // in food-compass-search.ts, which nothing but the identify route imports. /food goes
+  // 313 -> 315 and /food/demo 204 -> 205. Largest chunk either route pulls is 174 KiB raw.
+  "/food/demo/page": 205 * kib,
+  "/food/page": 315 * kib
 };
 
 const compassReport = [];

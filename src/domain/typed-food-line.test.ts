@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { MAX_PLATE_ITEMS, isQuestionLine, splitPlateLine } from "./typed-food-line";
+import {
+  MAX_PLATE_ITEMS,
+  hasConjunction,
+  isQuestionLine,
+  splitConjunctionLine,
+  splitPlateLine,
+  stripCorrectionPrefix
+} from "./typed-food-line";
 
 describe("isQuestionLine", () => {
   // Darnell's four questions, which must reach the coach and its dosing refusal.
@@ -86,10 +93,55 @@ describe("splitPlateLine", () => {
     expect(splitPlateLine(line).items).toHaveLength(MAX_PLATE_ITEMS);
   });
 
-  it("splits a Spanish plate", () => {
+  // Spec 30 R5 step 5. "and" and "y" stopped being separators here: the whole line is looked
+  // up first, and only a line no single dish row covers splits through splitConjunctionLine.
+  // Splitting first is what turned "mac and cheese" into a Big Mac and a slice of cheese.
+  it("leaves a compound dish alone", () => {
+    expect(splitPlateLine("mac and cheese")).toEqual({ items: ["mac and cheese"], dropped: [] });
+    expect(splitPlateLine("chicken and dumplings")).toEqual({ items: ["chicken and dumplings"], dropped: [] });
+    expect(splitPlateLine("frijoles y pan dulce")).toEqual({ items: ["frijoles y pan dulce"], dropped: [] });
+  });
+
+  it("splits a Spanish plate on its comma, and on y only when asked", () => {
     expect(splitPlateLine("arroz con pollo, frijoles y pan dulce")).toEqual({
+      items: ["arroz con pollo", "frijoles y pan dulce"],
+      dropped: []
+    });
+    expect(splitConjunctionLine("arroz con pollo, frijoles y pan dulce")).toEqual({
       items: ["arroz con pollo", "frijoles", "pan dulce"],
       dropped: []
     });
   });
+
+  it("knows which lines are joined by a conjunction alone", () => {
+    expect(hasConjunction("pizza and salad")).toBe(true);
+    expect(hasConjunction("chicken and dumplings")).toBe(true);
+    expect(hasConjunction("honey nut cheerios")).toBe(false);
+    // Already a list, so the conjunction pass has nothing to add.
+    expect(hasConjunction("apple, banana and pear")).toBe(false);
+  });
+});
+
+// Spec 30 R5 step 2. "No, it is a tamale" split on the comma into a two-item plate whose
+// first item, "No", scored as Beef and noodles, no sauce.
+describe("stripCorrectionPrefix", () => {
+  it.each([
+    ["No, it is a tamale", "tamale"],
+    ["no. actually a tamale", "tamale"],
+    ["actually grilled chicken", "grilled chicken"],
+    ["it's a banana", "banana"],
+    ["es un tamal", "tamal"],
+    ["es una manzana", "manzana"],
+    ["son frijoles", "frijoles"],
+    ["en realidad manzana", "manzana"]
+  ])("reads %j as a correction of %j", (line, food) => {
+    expect(stripCorrectionPrefix(line)).toEqual({ text: food, corrected: true });
+  });
+
+  it.each(["honey nut cheerios", "can of soup", "no bake cookies", "sonoma salad"])(
+    "leaves %j alone",
+    (line) => {
+      expect(stripCorrectionPrefix(line)).toEqual({ text: line, corrected: false });
+    }
+  );
 });

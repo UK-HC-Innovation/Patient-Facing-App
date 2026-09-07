@@ -24,7 +24,14 @@ export const CORRECTION_PIN_MS = 60_000;
 
 const SIGNATURE_EDGE = 32;
 
-export type LiveCandidate = { code: string; description: string; fcs: number };
+/**
+ * A named row on offer.
+ *
+ * `fcs` is optional since spec 30 A2: a candidate has not been confirmed, and a number
+ * beside an unconfirmed name is the confident wrong answer the promotion policy exists to
+ * stop (R1, R4). Correction chips beside an already-confirmed match still carry theirs.
+ */
+export type LiveCandidate = { code: string; description: string; fcs?: number };
 
 export type LiveIdentityCandidate = {
   food: { code: string; description: string; group: string };

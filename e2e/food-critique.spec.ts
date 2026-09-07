@@ -259,7 +259,7 @@ test.describe("One current choice", () => {
   // A02, the E01 reproduction. pizza then water left pizza's card, alternatives and Log this.
   test("a not-scoreable food replaces the score it followed", async ({ page }) => {
     await page.goto("/food");
-    await ask(page, "2 slices of pepperoni pizza");
+    await ask(page, "cheerios");
     await expect(page.getByTestId("food-verdict")).toBeVisible({ timeout: 10_000 });
 
     await ask(page, "water");
@@ -273,7 +273,7 @@ test.describe("One current choice", () => {
   // A03. Two fruit rows replace pizza, and nothing tells anyone to cut back on a banana.
   test("a typed plate replaces the score it followed, with no cut-back on two high rows", async ({ page }) => {
     await page.goto("/food");
-    await ask(page, "2 slices of pepperoni pizza");
+    await ask(page, "cheerios");
     await expect(page.getByTestId("food-verdict")).toBeVisible({ timeout: 10_000 });
 
     await ask(page, "apple, banana");
@@ -314,6 +314,153 @@ test.describe("The public door with the camera denied", () => {
     await ask(page, "banana");
     await expect(page.getByTestId("food-verdict")).toBeVisible({ timeout: 10_000 });
     expect(await page.evaluate(() => window.localStorage.length)).toBe(0);
+  });
+});
+
+// Spec 30 A2: a search result is a proposal unless the mapping is justified.
+test.describe("Justified identity", () => {
+  test.beforeEach(async ({ page }) => {
+    await denyCamera(page);
+    await mockRealtime(page);
+  });
+
+  // A19. These six used to publish Chicken roll, Soup fruit, Salad dressing, Latte, a
+  // stuffed-crust pizza and a diet carrot cake, each with a score beside it.
+  for (const bare of ["chicken", "soup", "salad", "coffee", "diet coke"]) {
+    test(`asks rather than scoring the bare name ${bare}`, async ({ page }) => {
+      await page.goto("/food");
+      await ask(page, bare);
+
+      await expect(page.getByTestId("food-no-match")).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByTestId("food-verdict")).toHaveCount(0);
+      // A question, not a miss: these rows do match, and one of them is the food.
+      await expect(page.getByText("Which one was it?")).toBeVisible();
+      await expect(page.getByText("We don't have a score for that one.")).toHaveCount(0);
+    });
+  }
+
+  // The cake rows may still be NAMED, which is what candidate mode is for. What they may
+  // never carry is a published score: "diet coke" scored 20 as a diet carrot cake (E03).
+  test("never publishes a score for diet coke", async ({ page }) => {
+    await page.goto("/food");
+    await ask(page, "diet coke");
+    await expect(page.getByTestId("food-no-match")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("food-verdict")).toHaveCount(0);
+    await expect(page.getByTestId("nutrition-compass")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Log this" })).toHaveCount(0);
+  });
+
+  // A20. manzana returned nothing at all; leche was a cafe con leche; huevos was huevos
+  // rancheros, published with a score because it was the only hit.
+  test("resolves a reviewed Spanish alias on the Spanish door", async ({ page }) => {
+    await page.goto("/food/demo?lang=es");
+    await ask(page, "manzana");
+
+    await expect(page.getByTestId("food-verdict")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("food-verdict")).toContainText("95");
+  });
+
+  test("names the three bean rows rather than picking one", async ({ page }) => {
+    await page.goto("/food/demo?lang=es");
+    await ask(page, "frijoles");
+
+    await expect(page.getByTestId("food-no-match")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("button", { name: /Pinto beans/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Black beans/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Refried beans/ })).toBeVisible();
+    await expect(page.getByTestId("food-verdict")).toHaveCount(0);
+  });
+
+  // A21. A pick has to score without retyping.
+  test("scores a named candidate in one tap", async ({ page }) => {
+    await page.goto("/food");
+    await ask(page, "frijoles");
+    await expect(page.getByTestId("food-no-match")).toBeVisible({ timeout: 10_000 });
+
+    await page.getByRole("button", { name: /Black beans/ }).click();
+    await expect(page.getByTestId("food-verdict")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("food-verdict")).toContainText("98");
+  });
+
+  // A04. mac became a Big Mac, peanut butter and jelly became two foods.
+  for (const dish of ["chicken and dumplings", "mac and cheese", "peanut butter and jelly sandwich"]) {
+    test(`keeps ${dish} one dish`, async ({ page }) => {
+      await page.goto("/food");
+      await ask(page, dish);
+
+      // One dish, proposed for review. What it must never be is two foods.
+      await expect(
+        page.getByTestId("food-no-match").or(page.getByTestId("food-identity-review"))
+      ).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByTestId("food-typed-plate")).toHaveCount(0);
+    });
+  }
+
+  test("chicken and dumplings offers a dumplings dish row", async ({ page }) => {
+    await page.goto("/food");
+    await ask(page, "chicken and dumplings");
+    await expect(page.getByRole("button", { name: /dumplings/i }).first()).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("biscuits and gravy is the published dish row", async ({ page }) => {
+    await page.goto("/food");
+    await ask(page, "biscuits and gravy");
+
+    await expect(page.getByTestId("food-verdict")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("food-typed-plate")).toHaveCount(0);
+  });
+
+  test("pizza and salad is two foods, because no row covers both", async ({ page }) => {
+    await page.goto("/food");
+    await ask(page, "pizza and salad");
+
+    await expect(page.getByTestId("food-typed-plate")).toBeVisible({ timeout: 15_000 });
+  });
+
+  // A07. All three used to open a paid voice session or split into a two-item plate.
+  test("can of soup is a food, not a question", async ({ page }) => {
+    let tokenMints = 0;
+    page.on("request", (request) => {
+      if (request.url().includes("/api/realtime/token") && !/"probe"\s*:\s*true/.test(request.postData() ?? "")) {
+        tokenMints += 1;
+      }
+    });
+    await page.goto("/food");
+    const before = tokenMints;
+    await ask(page, "can of soup");
+
+    await expect(page.getByTestId("food-no-match").or(page.getByTestId("food-identity-review"))).toBeVisible({
+      timeout: 10_000
+    });
+    expect(tokenMints).toBe(before);
+  });
+
+  test("a correction after a scored food is one food, not two", async ({ page }) => {
+    await page.goto("/food");
+    await ask(page, "banana");
+    await expect(page.getByTestId("food-verdict")).toBeVisible({ timeout: 10_000 });
+
+    await ask(page, "No, it is a tamale");
+
+    await expect(page.getByTestId("food-no-match")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("food-typed-plate")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Tamale with meat/ })).toBeVisible();
+  });
+
+  test("es un tamal reaches the tamale rows on the Spanish door with no token", async ({ page }) => {
+    let tokenMints = 0;
+    page.on("request", (request) => {
+      if (request.url().includes("/api/realtime/token") && !/"probe"\s*:\s*true/.test(request.postData() ?? "")) {
+        tokenMints += 1;
+      }
+    });
+    await page.goto("/food/demo?lang=es");
+    const before = tokenMints;
+    await ask(page, "es un tamal");
+
+    await expect(page.getByTestId("food-no-match")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("button", { name: /Tamale with meat/ })).toBeVisible();
+    expect(tokenMints).toBe(before);
   });
 });
 

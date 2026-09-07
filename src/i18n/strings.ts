@@ -310,6 +310,7 @@ export type FoodLensStringKey =
   | "notScored"
   | "noMatchLabel"
   | "sayOneOfThese"
+  | "identityChooseOne"
   | "identityReviewLabel"
   | "identityReviewRead"
   | "identityReviewConfirm"
@@ -648,6 +649,7 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     notScored: "Not scored",
     noMatchLabel: "No match",
     sayOneOfThese: "Say one of these instead",
+    identityChooseOne: "Which one was it?",
     identityReviewLabel: "Confirm the food",
     identityReviewRead: "I think this is {food}.",
     identityReviewConfirm: "Yes, use this food",
@@ -986,6 +988,7 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     notScored: "Sin puntaje",
     noMatchLabel: "Sin coincidencia",
     sayOneOfThese: "Di una de estas en su lugar",
+    identityChooseOne: "¿Cuál de estas era?",
     identityReviewLabel: "Confirma la comida",
     identityReviewRead: "Creo que esto es {food}.",
     identityReviewConfirm: "Sí, usar esta comida",

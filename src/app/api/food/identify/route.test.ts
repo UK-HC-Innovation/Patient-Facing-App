@@ -134,7 +134,10 @@ describe("POST /api/food/identify — deterministic paths", () => {
     process.env.DEMO_PASSCODE = "secret";
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
-    const json = (await (await POST(request({ text: "quinoa", passcode: "wrong" }))).json()) as IdentifyJson;
+    // "apple", not "quinoa": since spec 30 A2 a bare quinoa is two rows that tie (fat added
+    // and no added fat) and answers with a question. What this case is about is that a typed
+    // query is served before the passcode check either way.
+    const json = (await (await POST(request({ text: "apple", passcode: "wrong" }))).json()) as IdentifyJson;
     expect(json.mode).toBe("match");
     expect(fetchSpy).not.toHaveBeenCalled();
   });

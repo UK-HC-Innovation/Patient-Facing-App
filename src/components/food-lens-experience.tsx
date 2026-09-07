@@ -45,6 +45,11 @@ export type FoodLensView = {
   /** True when the route answered "none" -- distinct from having seen nothing yet. */
   noMatch: boolean;
   /**
+   * The named rows are a question, not a miss: the search found them and the promotion
+   * policy would not publish any one of them (spec 30 R4 candidate mode).
+   */
+  noMatchChoose?: boolean;
+  /**
    * Whether the person named the food that missed. A camera that saw nothing has not been
    * told a name, so "Try a simpler name" is advice about a thing that never happened
    * (critique, spec 29 P7 item 3).
@@ -202,6 +207,7 @@ export function FoodLensExperience({
   ) : view.noMatch || view.noMatchCandidates.length > 0 ? (
     <FoodNoMatch
       candidates={view.noMatchCandidates}
+      choose={view.noMatchChoose === true}
       language={language}
       named={view.noMatchNamed === true}
       onSelect={onSelectCandidate}
@@ -224,7 +230,12 @@ export function FoodLensExperience({
       score={view.score}
       state={chart?.pending ? "pending" : "idle"}
     />
-  ) : chart?.pending || view.noMatch || capabilities.chartPlaceholder ? (
+  ) : chart?.pending ||
+    // A screen offering named rows to pick from is asking a question, and "no match" over a
+    // list of matches is the wrong answer to it (spec 30 R4 candidate mode). The empty-plot
+    // no-match state stays for a miss that named nothing.
+    (view.noMatch && view.noMatchCandidates.length === 0) ||
+    capabilities.chartPlaceholder ? (
     <NutritionCompass
       foodName={null}
       language={language}
