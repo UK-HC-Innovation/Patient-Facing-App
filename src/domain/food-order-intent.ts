@@ -330,3 +330,105 @@ export function foodOrderCorrectionQueries(intent: FoodOrderIntent): string[] {
     .map((category) => `${category}${source}, ${crustQualifier}`)
     .filter((query) => query !== intent.matchQuery);
 }
+
+// ---------------------------------------------------------------------------
+// Barcode product names (spec 29 P5)
+// ---------------------------------------------------------------------------
+
+// Product databases repeat the brand inside the name and then bolt the pack format on
+// the end: "Cheerios Cheerios", "Coca cola Coca cola can cokes LG". Everything from the
+// first size or count word on is packaging, not food.
+const SIZE_OR_COUNT_TOKEN =
+  /^(?:\d+(?:[.,]\d+)?(?:oz|ml|l|g|kg|lb|ct|pk|pc|x)?|oz|ounce|ounces|fl|ml|kg|lb|lbs|ct|count|pk|pack|packs|can|cans|bottle|bottles|btl|box|boxes|bag|bags|case|cases|carton|cartons|lg|sm|md|xl|xxl|jumbo|family|size|multipack|twinpack)$/i;
+
+function titleCaseWord(word: string): string {
+  return word
+    .split("-")
+    .map((part) => (part.length === 0 ? part : part[0].toUpperCase() + part.slice(1).toLowerCase()))
+    .join("-");
+}
+
+/** Drops a leading run of tokens that the following run repeats verbatim. */
+function dropRepeatedRun(tokens: string[]): string[] {
+  const lower = tokens.map((token) => token.toLowerCase());
+  for (let size = Math.floor(tokens.length / 2); size >= 1; size -= 1) {
+    const head = lower.slice(0, size).join(" ");
+    const next = lower.slice(size, size * 2).join(" ");
+    if (head === next) {
+      return dropRepeatedRun(tokens.slice(size));
+    }
+  }
+  return tokens;
+}
+
+/**
+ * The name to show for a scanned product: the brand said once, title-cased, with the
+ * pack size dropped. Returns the original text when cleaning would leave nothing.
+ */
+export function cleanProductName(name: string, brand?: string | null): string {
+  const raw = name.replace(/\s+/g, " ").trim();
+  if (raw.length === 0) {
+    return raw;
+  }
+
+  let tokens = raw.split(" ").map((token) => token.replace(/^[,;:]+|[,;:]+$/g, "")).filter(Boolean);
+  const sizeAt = tokens.findIndex((token) => SIZE_OR_COUNT_TOKEN.test(token));
+  if (sizeAt > 0) {
+    tokens = tokens.slice(0, sizeAt);
+  }
+
+  tokens = dropRepeatedRun(tokens);
+
+  // "Cheerios Cheerios" survives the run check when the brand field repeats the name.
+  const deduped: string[] = [];
+  for (const token of tokens) {
+    if (deduped.length > 0 && deduped[deduped.length - 1].toLowerCase() === token.toLowerCase()) {
+      continue;
+    }
+    deduped.push(token);
+  }
+
+  const brandWords = new Set(
+    (brand ?? "")
+      .split(/[\s,]+/)
+      .map((word) => word.toLowerCase())
+      .filter((word) => word.length > 0)
+  );
+  const withoutRepeatedBrand: string[] = [];
+  for (const token of deduped) {
+    const lower = token.toLowerCase();
+    if (brandWords.has(lower) && withoutRepeatedBrand.some((seen) => seen.toLowerCase() === lower)) {
+      continue;
+    }
+    withoutRepeatedBrand.push(token);
+  }
+
+  const cleaned = withoutRepeatedBrand.map(titleCaseWord).join(" ").trim();
+  return cleaned.length > 0 ? cleaned : raw;
+}
+
+// GS1 company prefixes, so an unknown barcode can still name who made it. Company level
+// is as far as a prefix goes: it names the brand, never the product.
+const GS1_COMPANY_PREFIXES: Record<string, string> = {
+  "028400": "Frito-Lay",
+  "016000": "General Mills",
+  "049000": "Coca-Cola",
+  "012000": "Pepsi",
+  "038000": "Kellogg's",
+  "030000": "Quaker",
+  "051000": "Campbell's",
+  "021000": "Kraft",
+  "044000": "Nabisco",
+  "037600": "Hormel",
+  "024600": "Morton"
+};
+
+/** The brand behind a barcode the product databases do not carry, or null. */
+export function brandForBarcode(barcode: string): string | null {
+  const digits = barcode.replace(/\D/g, "");
+  const upc = digits.length === 13 && digits.startsWith("0") ? digits.slice(1) : digits;
+  if (upc.length < 6) {
+    return null;
+  }
+  return GS1_COMPANY_PREFIXES[upc.slice(0, 6)] ?? null;
+}

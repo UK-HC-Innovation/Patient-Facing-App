@@ -4,13 +4,17 @@ import React, { useCallback, useLayoutEffect, useMemo } from "react";
 import { FoodBarcodeReview } from "@/components/food-barcode-review";
 import type { FoodAuthority } from "@/domain/food-authority";
 import type { IdentifiedFood } from "@/domain/types";
-import { useBarcodeReview } from "@/hooks/use-barcode-review";
+import { useBarcodeReview, type PublishedFoodMatch } from "@/hooks/use-barcode-review";
 import type { Language } from "@/i18n/strings";
 
 export type BarcodeReviewSnapshot = {
   active: boolean;
   resolvedFood: IdentifiedFood | null;
   barcode: string | null;
+  /** The published row, when the product maps to one. One food, one score (critique H7). */
+  published: PublishedFoodMatch | null;
+  /** The brand behind an unknown UPC, to seed the ask box (critique G9). */
+  prefill: string | null;
 };
 
 export function FoodBarcodeReviewBridge({
@@ -62,9 +66,11 @@ export function FoodBarcodeReviewBridge({
     onStateChange({
       active: true,
       resolvedFood: state.resolvedFood,
-      barcode: state.code
+      barcode: state.code,
+      published: state.published ?? null,
+      prefill: state.prefill ?? null
     });
-  }, [onStateChange, state.active, state.code, state.resolvedFood]);
+  }, [onStateChange, state.active, state.code, state.prefill, state.published, state.resolvedFood]);
 
   return <FoodBarcodeReview controller={visibleController} language={language} />;
 }

@@ -14,11 +14,14 @@ import {
 } from "@/components/food-lens-experience";
 import { FoodLensVoiceBar } from "@/components/food-lens-voice-bar";
 import { FoodAttribution, FoodCrisisLock } from "@/components/food-lens-blocks";
+import { FoodTypedPlate } from "@/components/food-typed-plate";
 import { useFoodLensEngine } from "@/hooks/use-food-lens-engine";
 import { usePageHideTeardown } from "@/hooks/use-page-hide-teardown";
 import { useWhyScore } from "@/hooks/use-why-score";
 import type { LiveMatch } from "@/hooks/use-live-food-score";
 import { useFoodVoiceSession } from "@/hooks/use-food-voice-session";
+import { useTypedFoodScore, type TypedPlateItem } from "@/hooks/use-typed-food-score";
+import { evaluateVoiceTranscript } from "@/ai/voice-gate";
 import {
   LOOKUP_FOOD_SCORE_TOOL,
   buildCompassInstructions,
@@ -43,6 +46,7 @@ type SortMode = "score" | "density";
 
 type ConversationResult =
   | { kind: "match"; match: LiveMatch; candidates: FoodCandidate[]; input: string; cameraFoodCode: string | null }
+  | { kind: "plate"; items: TypedPlateItem[]; input: string }
   | { kind: "carve_out"; reason: NotScoreableReason }
   | { kind: "none" };
 
@@ -97,11 +101,15 @@ export default function CompassPage() {
     if (live.candidate || live.packageDetected) {
       return null;
     }
-    if (live.noMatch) {
-      return { kind: "none" };
-    }
+    // Refinement before live.noMatch, deliberately reversed from before spec 29. A typed
+    // food is something the person said; the camera finding nothing is the absence of
+    // information. Typing "honey nut cheerios" used to be erased by an empty viewfinder
+    // 13 seconds later (critique G3, and the trap recorded in spec 29 section 4).
     if (refinement) {
       return refinement;
+    }
+    if (live.noMatch) {
+      return { kind: "none" };
     }
     if (live.match) {
       return { kind: "match", match: live.match, candidates: [], input: "", cameraFoodCode: live.match.food.code };
@@ -272,14 +280,16 @@ export default function CompassPage() {
   }, []);
 
   useEffect(() => {
-    if (!live.candidate && !live.packageDetected && !live.noMatch) return;
+    // live.noMatch is not in this list any more: the camera failing to recognise a scene
+    // must not throw away the food someone typed.
+    if (!live.candidate && !live.packageDetected) return;
     refinementAbortRef.current?.controller.abort();
     refinementAbortRef.current = null;
     setRefinementLoading(false);
     voiceResultRef.current = null;
     pizzaIntentRef.current = null;
     setRefinement(null);
-  }, [live.candidate, live.noMatch, live.packageDetected]);
+  }, [live.candidate, live.packageDetected]);
 
   const handleVoiceTranscript = useCallback(
     (role: "patient" | "assistant", text: string) => {
@@ -393,6 +403,71 @@ export default function CompassPage() {
     status: voiceStatus,
     stop: stopVoice
   } = voice;
+
+  const typed = useTypedFoodScore({ passcode });
+  const typedSubmit = typed.submit;
+  const sendUserText = voice.sendUserText;
+
+  /**
+   * What happens when someone types on the public door.
+   *
+   * Order matters and is the whole point of spec 29 P3: safety gate, then a deterministic
+   * lookup, and only then a live session. Before this the door had no text box at all, and
+   * the personal door's box went straight to a session that needed a working microphone
+   * (critique F1, F5, G1, G2, G3, G4).
+   */
+  const handleTypedLine = useCallback(
+    (text: string) => {
+      const trimmed = text.trim();
+      if (trimmed.length === 0) return;
+      handleVoiceTranscript("patient", trimmed);
+
+      const decision = evaluateVoiceTranscript(trimmed, stateRef.current, language);
+      if (decision.kind === "intercept") {
+        if (decision.safety === "crisis") {
+          setCrisisLocked(true);
+        }
+        setConversationTurns((turns) => [
+          ...turns.slice(-7),
+          { id: crypto.randomUUID(), role: "assistant", text: decision.content }
+        ]);
+        return;
+      }
+
+      void typedSubmit(trimmed).then((result) => {
+        if (result.kind === "question") {
+          sendUserText(trimmed);
+          return;
+        }
+        if (result.kind === "match") {
+          const next: ConversationResult = {
+            kind: "match",
+            match: result.match,
+            candidates: result.match.candidates ?? [],
+            input: trimmed,
+            cameraFoodCode: null
+          };
+          voiceResultRef.current = next;
+          shownRef.current = next;
+          setRefinement(next);
+          return;
+        }
+        if (result.kind === "plate") {
+          const next: ConversationResult = { kind: "plate", items: result.items, input: trimmed };
+          voiceResultRef.current = null;
+          shownRef.current = next;
+          setRefinement(next);
+          return;
+        }
+        const next: ConversationResult =
+          result.kind === "carve_out" ? { kind: "carve_out", reason: result.reason } : { kind: "none" };
+        voiceResultRef.current = null;
+        shownRef.current = next;
+        setRefinement(next);
+      });
+    },
+    [handleVoiceTranscript, language, sendUserText, typedSubmit]
+  );
 
   // In mock or locked mode the patient-oriented local coach is not used on this public surface.
   // A deterministic spoken opening still demonstrates the intended automatic handoff.
@@ -633,11 +708,16 @@ export default function CompassPage() {
         voiceBar={
           <FoodLensVoiceBar
             idleLabel={
-              voice.status === "closed" ? t(language, "compassIdleEnded") : t(language, "compassIdleAwaiting")
+              voiceMode === "mock"
+                ? t(language, "typedOnlyBuild")
+                : voice.status === "closed"
+                  ? t(language, "compassIdleEnded")
+                  : t(language, "compassIdleAwaiting")
             }
             language={language}
             lastTurn={null}
-            mode={voice.mode}
+            micAvailable={voiceMode !== "mock"}
+            onSendText={handleTypedLine}
             onStart={() => void voice.startWithContextResponse()}
             onStop={voice.stop}
             status={voice.status}
@@ -645,6 +725,7 @@ export default function CompassPage() {
           />
         }
         slots={{
+          plate: shown?.kind === "plate" ? <FoodTypedPlate items={shown.items} language={language} /> : null,
           weHeard:
             matchShown && matchShown.interpretation && matchShown.provenance && shown?.kind === "match" ? (
               <div

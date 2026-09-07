@@ -177,7 +177,7 @@ describe("CompassPage camera-first conversation", () => {
     expect(screen.queryByText("Camera collapsed")).not.toBeInTheDocument();
   });
 
-  it("uses Spanish chrome from the mount-time query without adding a text input", () => {
+  it("uses Spanish chrome from the mount-time query, with a working ask box", () => {
     window.history.replaceState({}, "", "/food/demo?lang=es");
 
     render(<CompassPage />);
@@ -192,7 +192,9 @@ describe("CompassPage camera-first conversation", () => {
     );
     expect(screen.getByText("1 good choice:")).toBeInTheDocument();
     expect(screen.getByText(/Veo Pizza, not further specified/)).toBeInTheDocument();
-    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    // Was queryByRole(...).not.toBeInTheDocument(). The public door had no keyboard, so a
+    // phone that said no to the camera had no way in at all (critique F5, G1).
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
   });
 });
 

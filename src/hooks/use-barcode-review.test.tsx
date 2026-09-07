@@ -93,6 +93,60 @@ describe("useBarcodeReview", () => {
     expect(result.current.state.resolvedFood?.id).toBe("barcode:123");
   });
 
+
+  // Spec 29 P5: the published row travels with the candidate so the card can show one
+  // score, and an unknown barcode still names its maker for the ask box.
+  it("carries the published table row through confirmation", async () => {
+    fetchMock.mockResolvedValue(
+      response({
+        found: true,
+        food: barcodeFood,
+        published: {
+          code: "57123000",
+          description: "Cereal (General Mills Cheerios)",
+          group: "1000_Grains",
+          score: {
+            fcs: 77,
+            band: "encourage",
+            tier: "T1",
+            ambiguous: false,
+            range: null,
+            calorieDensity: { kcalPer100g: 372, band: "medium" }
+          }
+        }
+      })
+    );
+    const { result, setBarcode } = harness();
+
+    act(() => setBarcode("123"));
+    await waitFor(() => expect(result.current.state.status).toBe("review"));
+    expect(result.current.state.published).toMatchObject({
+      description: "Cereal (General Mills Cheerios)",
+      score: { fcs: 77, tier: "T1" }
+    });
+
+    act(() => result.current.confirm());
+    expect(result.current.state.published?.score.fcs).toBe(77);
+  });
+
+  it("ignores a published block the response did not really send", async () => {
+    fetchMock.mockResolvedValue(response({ found: true, food: barcodeFood, published: { description: "Nope" } }));
+    const { result, setBarcode } = harness();
+
+    act(() => setBarcode("123"));
+    await waitFor(() => expect(result.current.state.status).toBe("review"));
+    expect(result.current.state.published).toBeNull();
+  });
+
+  it("keeps the brand behind an unknown barcode for the ask box", async () => {
+    fetchMock.mockResolvedValue(response({ found: false, brand: "Frito-Lay", prefill: "Frito-Lay" }));
+    const { result, setBarcode } = harness();
+
+    act(() => setBarcode("028400064002"));
+    await waitFor(() => expect(result.current.state.status).toBe("miss"));
+    expect(result.current.state.prefill).toBe("Frito-Lay");
+  });
+
   it("keeps a mount-time lookup alive through React Strict Effects cleanup", async () => {
     let resolveLookup: (value: Response) => void = () => undefined;
     fetchMock.mockReturnValue(new Promise<Response>((resolve) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { type ReactNode, type RefObject } from "react";
+import React, { useEffect, useState, type ReactNode, type RefObject } from "react";
 import { t, type Language } from "@/i18n/strings";
 import type { CameraStatus } from "@/hooks/use-food-camera";
 import type { LiveSessionStatus } from "@/ai/types";
@@ -120,6 +120,17 @@ export function FoodViewfinder({
     scanPending ? "scanInProgress" : hasScanResult ? "tapToScanAgain" : "tapToScan"
   );
 
+  // Camera denied and no sample preview: the panel is the whole screen. Everything else
+  // that would draw over it stays off. The wordmark, the guidance pill and the "Point at
+  // any food" caption all landed on top of the notice and the retry button (critique G6).
+  const cameraOff = !demoPreview && (cameraStatus === "denied" || cameraStatus === "unavailable");
+
+  const [retried, setRetried] = useState(false);
+  useEffect(() => {
+    if (cameraStatus === "active") setRetried(false);
+  }, [cameraStatus]);
+  const retryBlocked = retried && cameraOff;
+
   return (
     <div className="relative overflow-clip bg-ink" style={{ height }}>
       <video ref={videoRef} className="h-full w-full object-cover" muted playsInline aria-label={t(language, "viewfinderHint")} />
@@ -141,28 +152,28 @@ export function FoodViewfinder({
         </div>
       ) : null}
 
-      {!demoPreview && cameraStatus === "denied" ? (
-        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-ink/80 p-6 text-center text-sm text-white">
-          <p>{t(language, "cameraDenied")}</p>
+      {cameraOff ? (
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-ink p-6 text-center text-sm text-white">
+          <p>{t(language, cameraStatus === "denied" ? "cameraDenied" : "cameraUnavailable")}</p>
           {onCameraRetry ? (
-            <button className="min-h-11 rounded-control bg-white px-4 py-2 font-semibold text-care" onClick={onCameraRetry} type="button">
+            <button
+              className="min-h-11 rounded-control bg-white px-4 py-2 font-semibold text-care"
+              onClick={() => {
+                setRetried(true);
+                onCameraRetry();
+              }}
+              type="button"
+            >
               {t(language, "cameraRetry")}
             </button>
           ) : null}
-        </div>
-      ) : null}
-      {!demoPreview && cameraStatus === "unavailable" ? (
-        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-ink/80 p-6 text-center text-sm text-white">
-          <p>{t(language, "cameraUnavailable")}</p>
-          {onCameraRetry ? (
-            <button className="min-h-11 rounded-control bg-white px-4 py-2 font-semibold text-care" onClick={onCameraRetry} type="button">
-              {t(language, "cameraRetry")}
-            </button>
+          {retryBlocked ? (
+            <p className="max-w-xs text-xs text-white/85">{t(language, "cameraRetryBlocked")}</p>
           ) : null}
         </div>
       ) : null}
 
-      {trustPill ? (
+      {trustPill && !cameraOff ? (
         <div className="absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 bg-gradient-to-b from-slate-900/75 to-transparent p-3">
           <span className="pt-1 font-mono text-xs font-bold tracking-[.16em] text-white/90">
             {t(language, "shellWordmark")}
@@ -194,7 +205,7 @@ export function FoodViewfinder({
         </p>
       ) : null}
 
-      {scanChip ? (
+      {cameraOff ? null : scanChip ? (
         <div
           className={`absolute left-3 z-20 rounded-full bg-white/95 px-3 py-2 text-xs font-semibold text-ink ${
             trustPill ? "bottom-3 max-w-[70%] truncate" : "top-3"
@@ -209,7 +220,7 @@ export function FoodViewfinder({
       )}
 
       <CompassViewfinderBadge
-        badge={scoreBadge}
+        badge={cameraOff ? "hidden" : scoreBadge}
         band={scoreBand}
         fcs={scoreFcs}
         language={language}
@@ -219,7 +230,7 @@ export function FoodViewfinder({
         tier={scoreTier}
       />
 
-      {showVoiceStatus ? (
+      {showVoiceStatus && !cameraOff ? (
         <div aria-live="polite" className="absolute inset-x-0 bottom-3 z-20 flex justify-center">
           {onVoiceStatusTap ? (
             <button

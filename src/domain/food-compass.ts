@@ -188,8 +188,28 @@ export type Scoreability =
   | { scoreable: true; kcalPer100g: number | null }
   | { scoreable: false; reason: NotScoreableReason };
 
+// Drinks that are alcohol whatever else the sentence says.
 const ALCOHOL_PATTERN =
-  /\b(beer|ale|lager|stout|wine|champagne|prosecco|vodka|whisk(?:e)?y|bourbon|rum|gin|tequila|brandy|liqueur|cognac|schnapps|sake|mead|cocktail|margarita|martini|daiquiri|mojito|sangria|hard cider|hard seltzer)\b/i;
+  /\b(lager|stout|wine|champagne|prosecco|vodka|whisk(?:e)?y|bourbon|rum|gin|tequila|brandy|liqueur|cognac|schnapps|sake|mead|cocktail|margarita|martini|daiquiri|mojito|sangria|hard cider|hard seltzer|malt liquor|liquor)\b/i;
+
+// "ale" and "beer" are also soft-drink words: Ale-8 is a Kentucky ginger soda, root beer
+// and cream soda are not beer, and the table's own "Soft drink, ale type" row is a soda.
+// Matching them on the bare word refused to score a soda, which is the H5 bug.
+const SODA_ALE = /\b(?:ginger|cream|root|birch|sarsaparilla|soft\s+drink|soda|pop)\b/i;
+const ALE_NUMBER = /\bale\s+(?:8|one)\b/i;
+
+/** Whole-word alcohol test over text with punctuation flattened, so "ale-8" reads as "ale 8". */
+function mentionsAlcohol(text: string): boolean {
+  const flat = text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  if (ALCOHOL_PATTERN.test(flat)) {
+    return true;
+  }
+  if (/\bhard\s+root\s+beer\b/.test(flat)) {
+    return true;
+  }
+  const sodaContext = SODA_ALE.test(flat) || ALE_NUMBER.test(flat);
+  return /\b(?:ale|beer)\b/.test(flat) && !sodaContext;
+}
 const INFANT_PATTERN = /\b(infant formula|baby food|infant cereal|toddler formula|follow-?up formula|strained baby)\b/i;
 const SPECIALIZED_PATTERN =
   /\b(medical food|enteral|tube feeding|meal replacement shake|nutritional supplement drink|oral rehydration|parenteral)\b/i;
@@ -231,7 +251,7 @@ export function classifyQueryScoreability(query: string): Scoreability | null {
   if (PLAIN_WATER_QUERY.test(trimmed)) {
     return { scoreable: false, reason: "zero_calorie" };
   }
-  if (ALCOHOL_PATTERN.test(trimmed)) {
+  if (mentionsAlcohol(trimmed)) {
     return { scoreable: false, reason: "alcohol" };
   }
   if (INFANT_PATTERN.test(trimmed)) {
@@ -256,7 +276,7 @@ export function classifyScoreability(input: {
 }): Scoreability {
   const haystack = `${input.name} ${input.category ?? ""}`;
 
-  if (ALCOHOL_PATTERN.test(haystack)) {
+  if (mentionsAlcohol(haystack)) {
     return { scoreable: false, reason: "alcohol" };
   }
   if (INFANT_PATTERN.test(haystack)) {

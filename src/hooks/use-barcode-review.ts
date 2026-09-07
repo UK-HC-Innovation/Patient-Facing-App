@@ -1,19 +1,88 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { z } from "zod";
+import type { CompassScore } from "@/domain/food-compass";
 import type { FoodAuthority } from "@/domain/food-authority";
 import { foodLookupResponseSchema } from "@/domain/schemas";
 import type { IdentifiedFood } from "@/domain/types";
 
 const BARCODE_LOOKUP_TIMEOUT_MS = 15_000;
 
+/** The published Table S5 row the scanned product maps to, when it maps to one. */
+export type PublishedFoodMatch = {
+  code: string;
+  description: string;
+  group: string;
+  score: CompassScore;
+};
+
+const publishedTableMatchSchema = z.object({
+  published: z.object({
+    code: z.string().min(1),
+    description: z.string().min(1),
+    group: z.string(),
+    score: z.object({
+      fcs: z.number().int().min(1).max(100),
+      band: z.enum(["encourage", "moderate", "minimize"]),
+      tier: z.literal("T1"),
+      ambiguous: z.boolean().default(false),
+      range: z.tuple([z.number(), z.number()]).nullable().default(null),
+      calorieDensity: z
+        .object({
+          kcalPer100g: z.number().nullable(),
+          band: z.enum(["very_low", "low", "medium", "high", "unknown"])
+        })
+        .default({ kcalPer100g: null, band: "unknown" })
+    })
+  })
+});
+
+const askBoxPrefillSchema = z.object({ prefill: z.string().min(1).max(120) });
+
+/**
+ * The published score is what the card must show when the product has a row: one food,
+ * one number. The label estimate is the fallback, not the headline.
+ */
+function readPublishedMatch(json: unknown): PublishedFoodMatch | null {
+  const parsed = publishedTableMatchSchema.safeParse(json);
+  if (!parsed.success) {
+    return null;
+  }
+  const { code, description, group, score } = parsed.data.published;
+  return { code, description, group, score: { ...score, domains: null, coverage: null } };
+}
+
+function readPrefill(json: unknown): string | null {
+  const parsed = askBoxPrefillSchema.safeParse(json);
+  return parsed.success ? parsed.data.prefill : null;
+}
+
+// `published` and `prefill` are optional so that a state literal written before spec 29
+// still type-checks; the hook always sets them.
 export type BarcodeReviewState =
-  | { active: false; status: "idle"; code: null; food: null; resolvedFood: null }
-  | { active: true; status: "looking_up"; code: string; food: null; resolvedFood: null }
-  | { active: true; status: "review"; code: string; food: IdentifiedFood; resolvedFood: null }
-  | { active: true; status: "miss"; code: string; food: null; resolvedFood: null }
-  | { active: true; status: "error"; code: string; food: null; resolvedFood: null }
-  | { active: true; status: "confirmed"; code: string; food: IdentifiedFood; resolvedFood: IdentifiedFood };
+  | { active: false; status: "idle"; code: null; food: null; resolvedFood: null; published?: null; prefill?: null }
+  | { active: true; status: "looking_up"; code: string; food: null; resolvedFood: null; published?: null; prefill?: null }
+  | {
+      active: true;
+      status: "review";
+      code: string;
+      food: IdentifiedFood;
+      resolvedFood: null;
+      published?: PublishedFoodMatch | null;
+      prefill?: null;
+    }
+  | { active: true; status: "miss"; code: string; food: null; resolvedFood: null; published?: null; prefill?: string | null }
+  | { active: true; status: "error"; code: string; food: null; resolvedFood: null; published?: null; prefill?: null }
+  | {
+      active: true;
+      status: "confirmed";
+      code: string;
+      food: IdentifiedFood;
+      resolvedFood: IdentifiedFood;
+      published?: PublishedFoodMatch | null;
+      prefill?: null;
+    };
 
 export type BarcodeReviewController = {
   state: BarcodeReviewState;
@@ -28,7 +97,9 @@ export const initialBarcodeReviewState: BarcodeReviewState = {
   status: "idle",
   code: null,
   food: null,
-  resolvedFood: null
+  resolvedFood: null,
+  published: null,
+  prefill: null
 };
 
 /**
@@ -76,7 +147,7 @@ export function useBarcodeReview(args: {
     suspendLive();
     const epoch = snapshotAuthority();
     requestRef.current = { controller, epoch, sequence, code };
-    setState({ active: true, status: "looking_up", code, food: null, resolvedFood: null });
+    setState({ active: true, status: "looking_up", code, food: null, resolvedFood: null, published: null, prefill: null });
 
     try {
       const response = await fetch("/api/food/lookup", {
@@ -99,12 +170,15 @@ export function useBarcodeReview(args: {
           status: "review",
           code,
           food: parsed.data.food,
-          resolvedFood: null
+          resolvedFood: null,
+          published: readPublishedMatch(json),
+          prefill: null
         });
       } else if (parsed.success) {
-        setState({ active: true, status: "miss", code, food: null, resolvedFood: null });
+        // A barcode nobody carries still has a maker; the ask box starts from its name.
+        setState({ active: true, status: "miss", code, food: null, resolvedFood: null, published: null, prefill: readPrefill(json) });
       } else {
-        setState({ active: true, status: "error", code, food: null, resolvedFood: null });
+        setState({ active: true, status: "error", code, food: null, resolvedFood: null, published: null, prefill: null });
       }
     } catch {
       if (
@@ -113,7 +187,7 @@ export function useBarcodeReview(args: {
         requestSequenceRef.current === sequence &&
         isAuthorityCurrent(epoch)
       ) {
-        setState({ active: true, status: "error", code, food: null, resolvedFood: null });
+        setState({ active: true, status: "error", code, food: null, resolvedFood: null, published: null, prefill: null });
       }
     } finally {
       globalThis.clearTimeout(timeout);
@@ -155,7 +229,9 @@ export function useBarcodeReview(args: {
       status: "error",
       code: pending.code,
       food: null,
-      resolvedFood: null
+      resolvedFood: null,
+      published: null,
+      prefill: null
     });
   }, [authority.epoch, isAuthorityCurrent]);
 
@@ -167,7 +243,9 @@ export function useBarcodeReview(args: {
       status: "confirmed",
       code: current.code,
       food: current.food,
-      resolvedFood: current.food
+      resolvedFood: current.food,
+      published: current.published ?? null,
+      prefill: null
     });
   }, []);
 

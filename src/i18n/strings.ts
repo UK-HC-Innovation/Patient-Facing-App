@@ -39,6 +39,12 @@ export type FoodLensStringKey =
   | "askButton"
   | "liveTypedHint"
   | "voiceLost"
+  | "typedPlateCutBack"
+  | "typedPlateNoScore"
+  | "typedOnlyBuild"
+  | "voiceOffTypedWorks"
+  | "cameraRetryBlocked"
+  | "nothingScoredYet"
   | "visionEstimateBadge"
   | "labelPhotoRegion"
   | "labelScoreFromPhoto"
@@ -356,12 +362,18 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     cameraDenied: "Camera access is off. You can still type your question below.",
     micDenied: "Microphone access is off. You can still type your question below.",
     cameraUnavailable: "The camera isn't working. You can still type your question below.",
-    voiceErrorLine: "The mic isn't connecting right now. You can still type your question.",
+    voiceErrorLine: "Voice isn't available right now. Type instead.",
     fallbackNotice: "Type your question about the food and I'll answer.",
     askPlaceholder: "Ask about this food…",
     askButton: "Ask",
     liveTypedHint: "You can type instead of talking.",
     voiceLost: "I lost the connection. Ask again.",
+    typedPlateCutBack: "Cut back on {food} first.",
+    typedPlateNoScore: "No score",
+    typedOnlyBuild: "Typed questions only on this build.",
+    voiceOffTypedWorks: "Voice is off. Typed questions still work.",
+    cameraRetryBlocked: "Your browser has blocked the camera. Allow it in site settings, then tap again.",
+    nothingScoredYet: "Nothing scored yet. Fill the frame with one food, or type its name.",
     visionEstimateBadge: "Estimate from photo",
     labelPhotoRegion: "Nutrition label photo",
     labelScoreFromPhoto: "Read the Nutrition Facts label",
@@ -681,12 +693,18 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     cameraDenied: "El acceso a la cámara está desactivado. Aún puedes escribir tu pregunta abajo.",
     micDenied: "El acceso al micrófono está desactivado. Aún puedes escribir tu pregunta abajo.",
     cameraUnavailable: "La cámara no está funcionando. Aún puedes escribir tu pregunta abajo.",
-    voiceErrorLine: "El micrófono no se está conectando. Aún puedes escribir tu pregunta.",
+    voiceErrorLine: "La voz no está disponible ahora. Escribe tu pregunta.",
     fallbackNotice: "Escribe tu pregunta sobre la comida y te respondo.",
     askPlaceholder: "Pregunta sobre esta comida…",
     askButton: "Preguntar",
     liveTypedHint: "También puedes escribir en vez de hablar.",
     voiceLost: "Perdí la conexión. Pregunta otra vez.",
+    typedPlateCutBack: "Reduce primero {food}.",
+    typedPlateNoScore: "Sin puntaje",
+    typedOnlyBuild: "En esta versión solo funcionan las preguntas escritas.",
+    voiceOffTypedWorks: "La voz está apagada. Las preguntas escritas sí funcionan.",
+    cameraRetryBlocked: "Tu navegador bloqueó la cámara. Permítela en la configuración del sitio y toca otra vez.",
+    nothingScoredYet: "Todavía no hay puntaje. Llena el recuadro con una comida o escribe su nombre.",
     visionEstimateBadge: "Estimado por la foto",
     labelPhotoRegion: "Foto de la etiqueta nutricional",
     labelScoreFromPhoto: "Leer la tabla nutricional",

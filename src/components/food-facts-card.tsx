@@ -328,11 +328,12 @@ export function FoodActionsBlock({
     <div className="grid gap-2">
       {logged ? (
         <p className="text-sm font-semibold text-care">{t(language, "loggedConfirmation")}</p>
-      ) : (
+      ) : !canLog ? null : (
         <>
+          {/* Rendered only when it can actually log. A full-width primary drawn at 307x56
+              and greyed out is a tap that does nothing (critique G5). */}
           <button
-            className="min-h-14 w-full rounded-control bg-care px-4 py-2 font-semibold text-white disabled:opacity-40"
-            disabled={!canLog}
+            className="min-h-14 w-full rounded-control bg-care px-4 py-2 font-semibold text-white"
             onClick={onLog}
             type="button"
           >

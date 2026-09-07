@@ -90,7 +90,9 @@ export const FOOD_LENS_CAPABILITIES: FoodLensCapabilities = {
 };
 
 export const COMPASS_CAPABILITIES: FoodLensCapabilities = {
-  typedInput: false,
+  // Was false. With the camera off, the public door's only control was a mic that failed,
+  // so a patient sent the link by their nurse had no way in at all (critique F5, G1).
+  typedInput: true,
   stripCameraButton: false,
   gate: true,
   chartPlaceholder: true

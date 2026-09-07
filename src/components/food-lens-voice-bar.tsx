@@ -3,7 +3,6 @@
 import React, { useState, type ReactNode } from "react";
 import { t, type Language } from "@/i18n/strings";
 import type { LiveSessionStatus } from "@/ai/types";
-import type { VoiceMode } from "@/hooks/use-food-voice-session";
 
 const STATUS_KEY: Record<LiveSessionStatus, Parameters<typeof t>[1]> = {
   idle: "statusIdle",
@@ -14,6 +13,25 @@ const STATUS_KEY: Record<LiveSessionStatus, Parameters<typeof t>[1]> = {
   error: "statusError",
   closed: "statusIdle"
 };
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={`h-4 w-4 shrink-0 text-white/70 ${open ? "rotate-180" : ""}`}
+      fill="none"
+      height="16"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      width="16"
+    >
+      <path d="m6 15 6-6 6 6" />
+    </svg>
+  );
+}
 
 function MicIcon() {
   return (
@@ -48,34 +66,36 @@ function MicIcon() {
  */
 export function FoodLensVoiceBar({
   language,
-  mode,
   status,
   onStart,
   onStop,
   onSendText,
   typedInput,
-  keyboardPrimary = false,
   idleLabel,
   lastTurn,
+  micAvailable = true,
   transcript
 }: {
   language: Language;
-  mode: VoiceMode;
   status: LiveSessionStatus;
   onStart: () => void;
   onStop: () => void;
   onSendText?: (text: string) => void;
   /** The public door renders no text box at all -- not a hidden one. */
   typedInput: boolean;
-  keyboardPrimary?: boolean;
   idleLabel?: string;
   lastTurn?: string | null;
+  /**
+   * A build with no live provider renders no mic at all. A button that says "Listening,
+   * just talk." to nobody is worse than no button (critique H8, H9, and the project rule
+   * that a key-dependent feature must fail visibly).
+   */
+  micAvailable?: boolean;
   transcript?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
 
-  const live = mode === "live";
   const listening = status === "listening" || status === "speaking";
   const statusLabel =
     idleLabel && (status === "idle" || status === "closed") ? idleLabel : t(language, STATUS_KEY[status]);
@@ -114,74 +134,75 @@ export function FoodLensVoiceBar({
     </form>
   );
 
+  const statusLine = (
+    <span className="block min-w-0 truncate text-[13px] font-semibold text-white/85">
+      {open ? statusLabel : lastTurn ?? statusLabel}
+    </span>
+  );
+
   return (
     // [&>*]:min-w-0 is load-bearing: a grid item's default `min-width: auto` is its
     // min-content width, and the truncated last-turn line is one unbreakable string. Without
     // it the bar takes the width of the whole sentence and the phone shrink-to-fits the page.
-    <div className="grid gap-3 [&>*]:min-w-0">
+    <div className="grid gap-2 [&>*]:min-w-0">
       {open ? (
         <div className="grid max-h-[180px] gap-2 overflow-y-auto border-b border-white/15 pb-3">
           {transcript ?? <p className="text-sm text-white/70">{t(language, "compassConversationWaiting")}</p>}
         </div>
       ) : null}
 
-      {showTypedRow ? (
-        <>
-          {live && !keyboardPrimary ? null : (
-            <p className="text-xs text-white/70">
-              {keyboardPrimary ? t(language, "micReadyOrType") : t(language, "fallbackNotice")}
-            </p>
-          )}
-          {typedForm}
-        </>
-      ) : null}
-
-      <div className="flex items-center gap-3">
-        <div aria-hidden="true" className="flex h-6 shrink-0 items-end gap-[3px]">
-          {[0, 1, 2, 3, 4].map((bar) => (
-            <span
-              className={`w-1 rounded-sm ${
-                listening ? "h-6 animate-pulse bg-emerald-300 motion-reduce:animate-none" : "h-5 bg-white/30"
-              }`}
-              key={bar}
-              style={listening ? { animationDelay: `${bar * 120}ms` } : undefined}
-            />
-          ))}
-        </div>
-        {/* Collapsed, the second line previews the last turn. Expanded, the log below is
-            the turn, so the preview steps aside rather than printing it twice. Where the
-            surface keeps its transcript as a content block instead, this is a status
-            readout and not a control at all -- a toggle with nothing to toggle is worse
-            than no toggle. */}
-        {expandable ? (
-          <button
-            aria-expanded={open}
-            className="min-h-11 min-w-0 flex-1 text-left"
-            onClick={() => setOpen((value) => !value)}
-            type="button"
-          >
-            <span className="block text-sm font-semibold text-white/65">
-              {open ? t(language, "transcriptCollapse") : t(language, "transcriptExpand")}
-            </span>
-            <span className="block truncate text-[15px] font-semibold text-white">
-              {open ? statusLabel : lastTurn ?? statusLabel}
-            </span>
-          </button>
-        ) : (
-          <p className="min-w-0 flex-1 truncate text-[15px] font-semibold text-white" role="status">
-            {lastTurn ?? statusLabel}
-          </p>
-        )}
+      {/* One slim line, not two. "Show the conversation" was a whole row of its own, and
+          with the panel open the bar plus nav took 45% of an 812px phone (critique N7). */}
+      {expandable ? (
         <button
-          aria-label={listening ? t(language, "endSession") : t(language, "tapToStart")}
-          className={`grid h-[54px] w-[54px] shrink-0 place-items-center rounded-full text-white ${
-            listening ? "bg-care" : "bg-white/15"
-          }`}
-          onClick={listening ? onStop : onStart}
+          aria-expanded={open}
+          aria-label={open ? t(language, "transcriptCollapse") : t(language, "transcriptExpand")}
+          className="flex min-w-0 items-center gap-1 text-left"
+          onClick={() => setOpen((value) => !value)}
           type="button"
         >
-          <MicIcon />
+          <ChevronIcon open={open} />
+          {statusLine}
         </button>
+      ) : (
+        <p className="min-w-0 truncate text-[13px] font-semibold text-white/85" role="status">
+          {lastTurn ?? statusLabel}
+        </p>
+      )}
+
+      <div className="flex items-center gap-2">
+        {showTypedRow ? (
+          <div className="min-w-0 flex-1">{typedForm}</div>
+        ) : (
+          <>
+            <div aria-hidden="true" className="flex h-6 shrink-0 items-end gap-[3px]">
+              {[0, 1, 2, 3, 4].map((bar) => (
+                <span
+                  className={`w-1 rounded-sm ${
+                    listening ? "h-6 animate-pulse bg-emerald-300 motion-reduce:animate-none" : "h-5 bg-white/30"
+                  }`}
+                  key={bar}
+                  style={listening ? { animationDelay: `${bar * 120}ms` } : undefined}
+                />
+              ))}
+            </div>
+            <p className="min-w-0 flex-1 truncate text-[15px] font-semibold text-white" role="status">
+              {lastTurn ?? statusLabel}
+            </p>
+          </>
+        )}
+        {micAvailable ? (
+          <button
+            aria-label={listening ? t(language, "endSession") : t(language, "tapToStart")}
+            className={`grid h-11 w-11 shrink-0 place-items-center rounded-full text-white ${
+              listening ? "bg-care" : "bg-white/15"
+            }`}
+            onClick={listening ? onStop : onStart}
+            type="button"
+          >
+            <MicIcon />
+          </button>
+        ) : null}
       </div>
     </div>
   );

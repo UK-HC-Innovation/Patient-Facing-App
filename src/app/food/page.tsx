@@ -43,6 +43,10 @@ import { usePageHideTeardown } from "@/hooks/use-page-hide-teardown";
 import { useWhyScore } from "@/hooks/use-why-score";
 import { useFoodVoiceSession, type VoiceSafetyIntercept } from "@/hooks/use-food-voice-session";
 import { useCompassScore } from "@/hooks/use-compass-score";
+import { useTypedFoodScore } from "@/hooks/use-typed-food-score";
+import { FoodTypedPlate } from "@/components/food-typed-plate";
+import { evaluateVoiceTranscript } from "@/ai/voice-gate";
+import type { PublishedFoodMatch } from "@/hooks/use-barcode-review";
 import type { LiveCandidate, LiveMatch } from "@/hooks/use-live-food-score";
 import { toIdentifiedFood } from "@/domain/food-compass";
 import { toCompassContext } from "@/domain/compass-context";
@@ -57,12 +61,17 @@ type FoodResolutionSnapshot = {
   active: boolean;
   resolvedFood: IdentifiedFood | null;
   barcode: string | null;
+  /** Absent on the flag-gated package-scan path, which resolves no published row. */
+  published?: PublishedFoodMatch | null;
+  prefill?: string | null;
 };
 
 const EMPTY_FOOD_RESOLUTION_SNAPSHOT: FoodResolutionSnapshot = {
   active: false,
   resolvedFood: null,
-  barcode: null
+  barcode: null,
+  published: null,
+  prefill: null
 };
 const EMPTY_PLATE_SCAN_OUTCOME: PlateScanOutcome = { notice: null, skipped: [], unmatched: [] };
 
@@ -167,7 +176,7 @@ export default function FoodPage() {
         setLogged(false);
         if (!PACKAGE_SCAN_CLOUD_ENABLED) {
           setBarcodeReviewCode(barcode);
-          setFoodResolutionState({ active: true, resolvedFood: null, barcode });
+          setFoodResolutionState({ active: true, resolvedFood: null, barcode, published: null, prefill: null });
         }
       }
     }
@@ -246,6 +255,7 @@ export default function FoodPage() {
   // per-100-kcal score recomputed off rounded values would wobble as portions change.
   // The score is a property of the food; the flags are a property of the portion.
   const labelCompass = useCompassScore(scannedFood, { passcode });
+  const publishedMatch = foodResolutionState.published ?? null;
   const compass = useMemo(
     () =>
       live.match && !foodResolutionActive
@@ -256,8 +266,19 @@ export default function FoodPage() {
             estimatedDomains: live.match.estimatedDomains ?? null,
             alternativesLoading: false
           }
-        : { ...labelCompass, carveOut: labelCompass.carveOut ?? (foodResolutionActive ? null : live.carveOut), estimatedDomains: null },
-    [labelCompass, live.carveOut, live.match, foodResolutionActive]
+        : // One food, one score. A barcode that maps to a published row shows that row's
+          // number; the label estimate is the fallback, not a second answer. Cheerios by
+          // barcode read 41 while Cheerios by name read 77 (critique H7).
+          publishedMatch
+          ? {
+              score: publishedMatch.score,
+              carveOut: null,
+              alternatives: labelCompass.alternatives,
+              estimatedDomains: null,
+              alternativesLoading: labelCompass.alternativesLoading
+            }
+          : { ...labelCompass, carveOut: labelCompass.carveOut ?? (foodResolutionActive ? null : live.carveOut), estimatedDomains: null },
+    [labelCompass, live.carveOut, live.match, foodResolutionActive, publishedMatch]
   );
   const compassRef = useRef(compass);
   compassRef.current = compass;
@@ -402,6 +423,51 @@ export default function FoodPage() {
     onSafetyIntercept: appendIntercept,
     probeOnMount: true
   });
+
+  const typed = useTypedFoodScore({ passcode });
+  const typedSubmit = typed.submit;
+  const typedPlate = typed.result?.kind === "plate" ? typed.result.items : null;
+  const sendUserText = voice.sendUserText;
+
+  /**
+   * What happens when someone types on the personal door.
+   *
+   * Safety gate, then a deterministic lookup, then a live session, in that order. Before
+   * spec 29 every typed line went straight to a live session, so a food name needed a
+   * working microphone and returned a paragraph with no number. Sixteen attempts minted
+   * seventeen realtime tokens and scored nothing (critique G2, G3).
+   */
+  const handleTypedLine = useCallback(
+    (text: string) => {
+      const trimmed = text.trim();
+      if (trimmed.length === 0) return;
+      appendMessage("patient", trimmed);
+
+      const decision = evaluateVoiceTranscript(trimmed, stateRef.current, language);
+      if (decision.kind === "intercept") {
+        appendIntercept({
+          safety: decision.safety,
+          content: decision.content,
+          banner: decision.banner,
+          actions: decision.actions
+        });
+        return;
+      }
+
+      void typedSubmit(trimmed).then((result) => {
+        if (result.kind === "question") {
+          sendUserText(trimmed);
+          return;
+        }
+        if (result.kind === "match") {
+          adoptLiveMatch(result.match, { pin: true });
+          setLogged(false);
+        }
+        // A plate, a carve-out and a miss all render from the typed hook's own state.
+      });
+    },
+    [adoptLiveMatch, appendIntercept, appendMessage, language, sendUserText, typedSubmit]
+  );
 
   const [pantryResult, setPantryResult] = useState<PantryResult | null>(null);
   const [pantryLoading, setPantryLoading] = useState(false);
@@ -1043,12 +1109,17 @@ export default function FoodPage() {
       }
       voiceBar={
         <FoodLensVoiceBar
-          idleLabel={identifiedFood ? undefined : t(language, "statusIdleNoFood")}
-          keyboardPrimary={cameraBlocked}
+          idleLabel={
+            voice.mode === "mock"
+              ? t(language, "voiceOffTypedWorks")
+              : identifiedFood
+                ? undefined
+                : t(language, "statusIdleNoFood")
+          }
           language={language}
           lastTurn={voice.partialAssistantText || lastAssistantTurn}
-          mode={voice.mode}
-          onSendText={voice.sendUserText}
+          micAvailable={voice.mode !== "mock"}
+          onSendText={handleTypedLine}
           onStart={() => void voice.start()}
           onStop={voice.stop}
           status={voice.status}
@@ -1069,7 +1140,11 @@ export default function FoodPage() {
         </AppShell>
       )}
       slots={{
-        plate: (
+        plate: typedPlate && plateItems.length === 0 ? (
+          // A plate someone typed on one line. The camera's plate review (spec 27) still
+          // owns the slot whenever there is a scanned plate to review.
+          <FoodTypedPlate items={typedPlate} language={language} />
+        ) : (
           <PlateCard
             candidates={plateCandidates}
             flags={plateFlags}
@@ -1197,24 +1272,31 @@ export default function FoodPage() {
 
             {identifiedFood ? savedPicks : null}
 
-            <PlateScanButton
-              busy={plateScanBusy}
-              disabled={camera.status !== "active" || plateScanBlocked}
-              language={language}
-              onScan={() => void scanPlate()}
-              onSelectCandidate={(itemId, foodId) => void addPlateItemByFoodId(itemId, foodId)}
-              outcome={plateScanOutcome}
-              unavailable={live.disarmReason === "provider"}
-            />
+            {/* Camera-only actions are not rendered while the camera is off. Drawn at full
+                size and disabled, they were three big buttons that did nothing on the
+                screen a person lands on when their phone says no (critique G5). */}
+            {camera.status === "active" ? (
+              <>
+                <PlateScanButton
+                  busy={plateScanBusy}
+                  disabled={plateScanBlocked}
+                  language={language}
+                  onScan={() => void scanPlate()}
+                  onSelectCandidate={(itemId, foodId) => void addPlateItemByFoodId(itemId, foodId)}
+                  outcome={plateScanOutcome}
+                  unavailable={live.disarmReason === "provider"}
+                />
 
-            <button
-              className="min-h-14 w-full rounded-control border border-care bg-white px-4 py-2 font-semibold text-care disabled:opacity-40"
-              disabled={pantryLoading || camera.status !== "active" || packageDraftOpen}
-              onClick={() => void findPantryRecipes()}
-              type="button"
-            >
-              {pantryLoading ? t(language, "pantryScanning") : t(language, "pantryButton")}
-            </button>
+                <button
+                  className="min-h-14 w-full rounded-control border border-care bg-white px-4 py-2 font-semibold text-care disabled:opacity-40"
+                  disabled={pantryLoading || packageDraftOpen}
+                  onClick={() => void findPantryRecipes()}
+                  type="button"
+                >
+                  {pantryLoading ? t(language, "pantryScanning") : t(language, "pantryButton")}
+                </button>
+              </>
+            ) : null}
 
             {pantryResult ? (
               <PantryRecipes
