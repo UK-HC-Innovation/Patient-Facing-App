@@ -38,6 +38,8 @@ import {
   type FoodOrderIntent
 } from "@/domain/food-order-intent";
 import type { NotScoreableReason } from "@/domain/food-compass";
+import type { AiMessageAction } from "@/domain/types";
+import { MessageActions } from "@/components/message-actions";
 import type { LiveSessionContext } from "@/ai/types";
 import { t, type Language } from "@/i18n/strings";
 import { speak, stopSpeaking } from "@/voice/tts";
@@ -55,6 +57,9 @@ type ConversationTurn = {
   id: string;
   role: "patient" | "assistant";
   text: string;
+  /** A safety intercept carries its own resources. A crisis line nobody can tap is a wall. */
+  safety?: "crisis" | "escalate" | "blocked";
+  actions?: AiMessageAction[];
 };
 
 function sentenceCase(value: string): string {
@@ -393,7 +398,13 @@ export default function CompassPage() {
       }
       setConversationTurns((turns) => [
         ...turns.slice(-7),
-        { id: crypto.randomUUID(), role: "assistant", text: intercept.content }
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: intercept.content,
+          safety: intercept.safety,
+          actions: intercept.actions
+        }
       ]);
     },
     // Without this the voice control below can never appear: it renders only when
@@ -442,7 +453,13 @@ export default function CompassPage() {
         }
         setConversationTurns((turns) => [
           ...turns.slice(-7),
-          { id: crypto.randomUUID(), role: "assistant", text: decision.content }
+          {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            text: decision.content,
+            safety: decision.safety,
+            actions: decision.actions
+          }
         ]);
         return;
       }
@@ -583,7 +600,9 @@ export default function CompassPage() {
         {conversationTurns.length > 0 ? (
           conversationTurns.map((turn) => (
             <article
-              className={`rounded-control px-3 py-2 text-sm leading-6 ${
+              // Explicit ink on both bubbles, the same fix as food-conversation.tsx. The
+              // block renders inside the dark voice bar and inherited its white (F4).
+              className={`whitespace-pre-line rounded-control px-3 py-2 text-sm leading-6 text-ink ${
                 turn.role === "assistant" ? "bg-white" : "bg-care/10"
               }`}
               key={turn.id}
@@ -594,6 +613,9 @@ export default function CompassPage() {
                 </span>{" "}
                 {turn.text}
               </p>
+              {turn.actions && turn.actions.length > 0 ? (
+                <MessageActions actions={turn.actions} language={language} />
+              ) : null}
             </article>
           ))
         ) : matchShown ? (

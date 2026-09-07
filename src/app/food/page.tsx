@@ -1065,6 +1065,11 @@ export default function FoodPage() {
     packageDetected: !foodResolutionActive && identifiedFood === null && live.packageDetected
   };
 
+  const assistantTurnCount = useMemo(
+    () => foodMessages.filter((message) => message.role === "assistant").length,
+    [foodMessages]
+  );
+
   const conversation = (
     <FoodConversation
       clinic={{ name: state.patient.primaryClinicName, phone: state.patient.primaryClinicPhone }}
@@ -1135,6 +1140,7 @@ export default function FoodPage() {
           onStart={() => void voice.start()}
           onStop={voice.stop}
           status={voice.status}
+          openSignal={assistantTurnCount}
           transcript={conversation}
           typedInput={FOOD_LENS_CAPABILITIES.typedInput}
         />

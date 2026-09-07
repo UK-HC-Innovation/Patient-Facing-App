@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, type ReactNode } from "react";
+import React, { useEffect, useState, type ReactNode } from "react";
 import { t, type Language } from "@/i18n/strings";
 import type { LiveSessionStatus } from "@/ai/types";
 
@@ -74,6 +74,7 @@ export function FoodLensVoiceBar({
   idleLabel,
   lastTurn,
   micAvailable = true,
+  openSignal = 0,
   transcript
 }: {
   language: Language;
@@ -91,12 +92,22 @@ export function FoodLensVoiceBar({
    * that a key-dependent feature must fail visibly).
    */
   micAvailable?: boolean;
+  /**
+   * Bumped by the door whenever something new arrives that the person has to see: an
+   * answer, or a safety intercept. Every persona who typed a question in the critique got
+   * their reply into a panel that was closed, behind a tap they had no reason to make.
+   */
+  openSignal?: number;
   transcript?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
 
   const listening = status === "listening" || status === "speaking";
+
+  useEffect(() => {
+    if (openSignal > 0) setOpen(true);
+  }, [openSignal]);
   const statusLabel =
     idleLabel && (status === "idle" || status === "closed") ? idleLabel : t(language, STATUS_KEY[status]);
   // Typed input is a capability, and where it exists it is always reachable. It used to
