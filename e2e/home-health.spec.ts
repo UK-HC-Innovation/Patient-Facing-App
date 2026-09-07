@@ -1,12 +1,49 @@
-import { expect, test } from "@playwright/test";
-import { brentState } from "../src/domain/fixtures";
+import { expect, test, type Page } from "@playwright/test";
 
-const STORAGE_KEY = "home-health-ai-ownership-state";
+// A cold `next dev` compiles each route on its first request, and one compile
+// can spend a whole test's budget before its first assertion. Warm the routes
+// this file walks, once per worker, so a failure here means the app is wrong
+// rather than the server was busy.
+const BASE_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3100"}`;
+const ROUTES = [
+  "/today",
+  "/menu",
+  "/numbers",
+  "/medicines",
+  "/chat",
+  "/visits",
+  "/checkin/phq9",
+  "/support",
+  "/privacy",
+  "/screening?entry=sms",
+  // API routes compile on first hit too. A GET against a POST-only handler
+  // answers 405 and compiles it all the same.
+  "/api/coach/text",
+  "/api/route/classify",
+  "/api/usage"
+];
+
+test.beforeAll(async ({ playwright }) => {
+  test.setTimeout(180000);
+  const request = await playwright.request.newContext();
+  await Promise.all(ROUTES.map((route) => request.get(`${BASE_URL}${route}`).catch(() => undefined)));
+  await request.dispose();
+});
+
+// The default patient is empty (spec 29 P2): no name, no clinic, no medicines,
+// no readings, no history. Anything that needs a record loads the sample
+// patient the one way the app offers it, so these tests exercise the same door
+// a demoer uses instead of writing a fixture straight into storage.
+async function loadSamplePatient(page: Page): Promise<void> {
+  await page.goto("/menu");
+  await page.getByRole("button", { name: "Load a sample patient (Brent)" }).click();
+  await expect(page).toHaveURL(/\/screening\?entry=sms$/, { timeout: 15000 });
+}
 
 test("patient logs BP, captures a barrier, asks coach, and views Health Brief", async ({ page }) => {
-  await page.addInitScript(() => {
-    window.localStorage.clear();
-  });
+  // Five routes in one journey; a cold dev server compiles each on first hit.
+  test.slow();
+  await loadSamplePatient(page);
 
   await page.goto("/today");
   await expect(page.getByRole("heading", { name: "Today", level: 1 })).toBeVisible();
@@ -126,10 +163,7 @@ test("a positive PHQ-9 item 9 routes to the crisis surface", async ({ page }) =>
 });
 
 test("the support screen surfaces county-first local resources", async ({ page }) => {
-  await page.addInitScript(
-    ([key, state]) => window.localStorage.setItem(key as string, JSON.stringify(state)),
-    [STORAGE_KEY, brentState] as const
-  );
+  await loadSamplePatient(page);
 
   await page.goto("/support");
   const foodGroup = page.getByRole("group").filter({ hasText: "food would run out" });
@@ -139,22 +173,29 @@ test("the support screen surfaces county-first local resources", async ({ page }
   await expect(page.getByText("Perry County food resources")).toBeVisible();
 });
 
-test("the PDC coverage card appears on medicines for the Brent demo", async ({ page }) => {
-  await page.addInitScript(
-    ([key, state]) => window.localStorage.setItem(key as string, JSON.stringify(state)),
-    [STORAGE_KEY, brentState] as const
-  );
+test("the PDC coverage card appears on medicines for the sample patient", async ({ page }) => {
+  await loadSamplePatient(page);
 
   await page.goto("/medicines");
   await expect(page.getByRole("heading", { name: "Diabetes medicine coverage" })).toBeVisible();
   await expect(page.getByText(/estimate from refills you logged/)).toBeVisible();
 });
 
-test("loading the Brent demo from the privacy page is reachable", async ({ page }) => {
+test("a fresh session carries no patient until the menu loads the sample one", async ({ page }) => {
   await page.addInitScript(() => window.localStorage.clear());
 
+  // Blank means blank: nobody is Brent on a phone that just opened the app.
+  await page.goto("/today");
+  await expect(page.getByRole("heading", { name: "Today", level: 1 })).toBeVisible();
+  await expect(page.getByText(/Brent/)).toHaveCount(0);
+
+  await page.goto("/medicines");
+  await expect(page.getByText(/Lisinopril/)).toHaveCount(0);
+});
+
+test("loading the sample patient from the menu brings his record with him", async ({ page }) => {
+  await loadSamplePatient(page);
+
   await page.goto("/privacy");
-  await expect(page.getByRole("button", { name: "Restore retinopathy walkthrough" })).toBeVisible();
-  await page.getByRole("button", { name: "Restore retinopathy walkthrough" }).click();
   await expect(page.getByText(/Recorded a skipped metformin dose/i)).toBeVisible();
 });

@@ -1,12 +1,51 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+// A cold `next dev` compiles each route on its first request, and one compile
+// can spend a whole test's budget before its first assertion. Warm the routes
+// this file walks, once per worker, so a failure here means the app is wrong
+// rather than the server was busy.
+const BASE_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3100"}`;
+const ROUTES = [
+  "/menu",
+  "/screening?entry=sms",
+  "/screening/result",
+  "/today",
+  "/glucose",
+  "/chat",
+  // API routes compile on first hit too. A GET against a POST-only handler
+  // answers 405 and compiles it all the same.
+  "/api/coach/text",
+  "/api/screening/extract",
+  "/api/usage"
+];
+
+test.beforeAll(async ({ playwright }) => {
+  test.setTimeout(180000);
+  const request = await playwright.request.newContext();
+  await Promise.all(ROUTES.map((route) => request.get(`${BASE_URL}${route}`).catch(() => undefined)));
+  await request.dispose();
+});
+
+// The default patient is empty (spec 29 P2), so the DR pathway has no screening
+// gap to work with until the sample patient is loaded. The menu button is the
+// one door that loads him, and it lands on the SMS-nudge entry itself.
+async function loadSamplePatient(page: Page): Promise<void> {
+  await page.goto("/menu");
+  await page.getByRole("button", { name: "Load a sample patient (Brent)" }).click();
+  await expect(page).toHaveURL(/\/screening\?entry=sms$/, { timeout: 15000 });
+}
 
 // The DR-pathway golden path (plan 09 acceptance demo): nudge → book → snap →
 // referral → silence escalation → slot booking → teachable moment → grounded
 // coach answer. Deterministic fixtures, zero env vars, mock provider.
 test("DR screening golden path: nudge to teachable moment to grounded coach answer", async ({ page }) => {
+  // Eleven steps across six routes. Against a cold dev server every first hit
+  // pays a compile, which alone can spend the default budget. Nothing here is
+  // relaxed except the clock.
+  test.slow();
 
   // 1. SMS-style nudge front door.
-  await page.goto("/screening?entry=sms");
+  await loadSamplePatient(page);
   await expect(page.getByText(/it's been \d+ months since your last diabetes eye check/)).toBeVisible();
   await page.getByRole("button", { name: /See times near me/ }).click();
 
@@ -77,6 +116,7 @@ test("DR screening golden path: nudge to teachable moment to grounded coach answ
 });
 
 test("urgent tier: a PDR+DME report routes to retina with the 2-day window and urgent banner", async ({ page }) => {
+  await loadSamplePatient(page);
 
   await page.goto("/screening");
   await page.getByRole("button", { name: "Book it" }).dispatchEvent("click");
@@ -93,6 +133,7 @@ test("urgent tier: a PDR+DME report routes to retina with the 2-day window and u
 });
 
 test("normal tier: a no-DR report closes the loop with a 12-month recall", async ({ page }) => {
+  await loadSamplePatient(page);
 
   await page.goto("/screening");
   await page.getByRole("button", { name: "Book it" }).dispatchEvent("click");
