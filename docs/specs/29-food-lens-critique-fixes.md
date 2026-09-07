@@ -1,6 +1,10 @@
 # Spec 29 · Food Lens critique fixes
 
-> **Status: DRAFT 2026-09-06.** Source: `docs/qa/2026-09-06-food-lens-user-critique.md` (the critique). Every phase below cites the critique finding it closes (H = harm, G = give up, N = annoy, F1 to F5 = the fix-first list).
+> **Status: BUILT 2026-09-07.** All nine phases (reconciliation + P0 to P8) are on master.
+> What landed differently from this draft, and why, is recorded at the bottom under
+> "What shipped".
+>
+> **Original draft 2026-09-06.** Source: `docs/qa/2026-09-06-food-lens-user-critique.md` (the critique). Every phase below cites the critique finding it closes (H = harm, G = give up, N = annoy, F1 to F5 = the fix-first list).
 > Scope: both food doors (`/food`, `/food/demo`), the identify and lookup routes, the realtime session, the crisis corpus, the default patient state, and the food strings. Nothing else.
 > Gate per phase: `npm run check` (bare, never piped; piping hides the exit code) + `npm run crisis:gate` + Playwright chromium **and** mobile. Never run `npm run test:e2e` or `npm run build` while a dev server is up; both wreck `.next`.
 > Copy: every new or changed string follows `C:\Users\tsthe2\.claude\writing-rules.md`. No em dashes, no "not X, it's Y", no ad voice, as few words as possible.
@@ -180,3 +184,49 @@ Traps recorded in the critique, for whoever runs these:
 4. No live session ends in "Thinking…" with a hidden text box; every partial answer is labeled.
 5. The four safety phrases produce the right card on both doors, in English and Spanish.
 6. The ledger line in `docs/ops/DEPLOYS.jsonl` and the memory entry name the deployed sha.
+
+## 6 · What shipped
+
+Reconciliation first: origin's six commits (the 1 good choice rebrand, tap-to-scan,
+exhausted-credit classification, the voice privacy copy) merged by hand into this tree's
+Azure hosting and usage-recording work. Eight conflicts, resolved one at a time. Origin's
+explicit tap-to-scan barcode API won; this tree's foodlens navigation mode, Azure surface
+config and `rearm({ waitForSceneChange })` scene gate were kept.
+
+**P0 root cause, found and named.** Server VAD runs with `interrupt_response` on, so any
+sound the mic picks up cancels the answer in flight. The transcription of that noise comes
+back empty, the guarded "only respond to a non-empty transcript" branch never fires, and
+the last status anyone saw was the `speech_stopped` that means thinking. Nothing moved it
+off again, and the ask button is disabled while thinking. `reduceTurnRecovery` in
+`realtime-session.ts` closes those turns out; the 8 s watchdog in the session hook is belt
+and braces over it. The watchdog's cost is a slow but healthy answer landing after the
+bound, which is the right trade for someone holding an insulin pen.
+
+**Two bugs the phases missed, found by running the personas as scripts.** On `/food` the
+conversation lives only inside the voice bar's transcript panel, which is closed by
+default, so an escalate intercept and every typed answer landed behind a tap nobody had a
+reason to make. On `/food/demo` the conversation was already on the page but rendered the
+intercept as bare text, dropping the 988 links, the Poison Control number and the 911
+button. Both fixed.
+
+Deliberately not done, with reasons:
+
+- **Stored meal-log notes are not re-rendered from string keys** (P6 item 3). The flags are
+  stored as free text and keying them is a persistence schema change, which section 1 puts
+  out of scope. With the empty default patient the only English notes on a Spanish phone
+  are ones that person logged in English.
+- **"tamales" still lands on the dessert tamale** (P5 item 1). The only separator between
+  "Tamale, sweet" and "Tamale with meat" is a dessert signal the table does not carry
+  cleanly, and demoting "sweet" rows inside the sweets group breaks cinnamon rolls,
+  chocolate and sweet potato pie. The reason is written into the test.
+- **The blank public first screen is 30 words, not "under 30"** on a Pixel 7 (31 on
+  desktop), down from 64. What is left is the brand row, one sentence saying the camera is
+  off, the ask box and the mic. The spec's number was written against a blank screen with
+  no camera notice on it.
+- **`export const dynamic = "force-dynamic"` on the root layout** is load-bearing for the
+  P7 nonce: a prerendered page bakes one nonce at build time, which is the same as no
+  nonce. Every route is now server-rendered on demand. The build is clean and there is no
+  ISR or `generateStaticParams` anywhere, but this is a real change in rendering posture.
+- **Bundle budgets were re-measured, not raised blind**: /food/demo 197.5 KiB, /food
+  309.4 KiB gzip. No single chunk moved; the >900 KiB per-chunk guard that actually catches
+  a leaked `fcs2-foods.json` is untouched.
