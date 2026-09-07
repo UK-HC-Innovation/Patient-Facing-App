@@ -264,13 +264,27 @@ export function FoodCorrectionChips({
 }
 
 /** Personalized warnings. /food only -- the public mount has no profile to warn from. */
-export function FoodFlagsBlock({ flags, language }: { flags: FoodFlag[]; language: Language }) {
+export function FoodFlagsBlock({
+  flags,
+  language,
+  personalized = true
+}: {
+  flags: FoodFlag[];
+  language: Language;
+  /**
+   * False when the person has shared no conditions, medicines or readings. These flags are
+   * still computed, from the default daily limits, but calling them personalized on a
+   * phone that holds nothing is the second banner critique N2 caught, and the more
+   * dishonest of the two.
+   */
+  personalized?: boolean;
+}) {
   if (flags.length === 0) {
     return null;
   }
   return (
     <div className="grid gap-2">
-      <FoodGuidanceSource kind="personalized" language={language} />
+      {personalized ? <FoodGuidanceSource kind="personalized" language={language} /> : null}
       <ul className="grid gap-2">
         {flags.map((flag) => (
           <li key={flag.id} className={`rounded-control px-3 py-2 text-sm font-medium ${severityClass[flag.severity]}`}>

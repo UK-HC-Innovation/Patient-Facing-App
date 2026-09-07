@@ -171,7 +171,10 @@ export function FoodLensExperience({
     view.candidate === null &&
     !view.packageDetected &&
     !view.identified;
-  const cameraOnly = blank && capabilities.blankIsCameraOnly;
+  // A typed plate is a result the shared layer cannot see in `view`: it has no single
+  // score, so every field above stays empty while the door has a scored list to show.
+  // Without this, spec 29 P3's whole plate came back and then rendered nothing.
+  const cameraOnly = blank && capabilities.blankIsCameraOnly && !slots.plate;
 
   const verdict = view.candidate && onConfirmIdentity && onRejectIdentity ? (
     <FoodIdentityReview

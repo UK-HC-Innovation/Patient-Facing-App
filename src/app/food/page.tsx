@@ -150,7 +150,15 @@ export default function FoodPage() {
   const loggedEntryIdRef = useRef<string | null>(null);
   const plateScanRequestRef = useRef(0);
   const plateScanAbortRef = useRef<{ controller: AbortController; epoch: number } | null>(null);
-  const plateChoiceAbortRef = useRef<{ controller: AbortController; epoch: number } | null>(null);
+  /**
+   * Plate choices in flight, keyed by the row they land on.
+   *
+   * Shared across correctPlateItem and addPlateItemByFoodId, because two taps on the SAME
+   * row must not land in whatever order their responses return. Keyed rather than global,
+   * because two taps on DIFFERENT rows are independent and cancelling one with the other
+   * silently dropped the first item off the plate.
+   */
+  const plateChoiceAbortsRef = useRef(new Map<string, { controller: AbortController; epoch: number }>());
   const exactFoodRequestRef = useRef(0);
   const exactFoodAbortRef = useRef<{ controller: AbortController; epoch: number } | null>(null);
   const [barcodeReviewCode, setBarcodeReviewCode] = useState<string | null>(null);
@@ -380,8 +388,17 @@ export default function FoodPage() {
     };
   }, []);
 
+  // The door appends a typed line itself, so the person sees it immediately and sees it
+  // even when no session is ever opened. The local coach session then echoes the same text
+  // back as a userTranscript, which printed it twice (found running the personas).
+  const echoedTypedLineRef = useRef<string | null>(null);
+
   const appendMessage = useCallback(
     (role: "patient" | "assistant", content: string) => {
+      if (role === "patient" && echoedTypedLineRef.current === content) {
+        echoedTypedLineRef.current = null;
+        return;
+      }
       if (role === "assistant") {
         lastAssistantRef.current = content;
       }
@@ -445,6 +462,7 @@ export default function FoodPage() {
       const trimmed = text.trim();
       if (trimmed.length === 0) return;
       appendMessage("patient", trimmed);
+      echoedTypedLineRef.current = trimmed;
 
       const decision = evaluateVoiceTranscript(trimmed, stateRef.current, language);
       if (decision.kind === "intercept") {
@@ -624,15 +642,16 @@ export default function FoodPage() {
   useEffect(() => () => exactFoodAbortRef.current?.controller.abort(), []);
 
   useEffect(() => {
-    for (const pending of [plateScanAbortRef.current, plateChoiceAbortRef.current]) {
-      if (pending && !authority.isCurrent(pending.epoch)) pending.controller.abort();
-    }
     if (plateScanAbortRef.current && !authority.isCurrent(plateScanAbortRef.current.epoch)) {
+      plateScanAbortRef.current.controller.abort();
       plateScanAbortRef.current = null;
       setPlateScanBusy(false);
     }
-    if (plateChoiceAbortRef.current && !authority.isCurrent(plateChoiceAbortRef.current.epoch)) {
-      plateChoiceAbortRef.current = null;
+    for (const [key, pending] of plateChoiceAbortsRef.current) {
+      if (!authority.isCurrent(pending.epoch)) {
+        pending.controller.abort();
+        plateChoiceAbortsRef.current.delete(key);
+      }
     }
   }, [authority.epoch, authority]);
 
@@ -641,15 +660,19 @@ export default function FoodPage() {
     plateScanRequestRef.current += 1;
     plateScanAbortRef.current?.controller.abort();
     plateScanAbortRef.current = null;
-    plateChoiceAbortRef.current?.controller.abort();
-    plateChoiceAbortRef.current = null;
+    for (const pending of plateChoiceAbortsRef.current.values()) pending.controller.abort();
+    plateChoiceAbortsRef.current.clear();
     setPlateScanBusy(false);
     setPlateScanOutcome(null);
   }, [foodResolutionActive]);
 
-  useEffect(() => () => {
-    plateScanAbortRef.current?.controller.abort();
-    plateChoiceAbortRef.current?.controller.abort();
+  useEffect(() => {
+    const aborts = plateChoiceAbortsRef.current;
+    return () => {
+      plateScanAbortRef.current?.controller.abort();
+      for (const pending of aborts.values()) pending.controller.abort();
+      aborts.clear();
+    };
   }, []);
 
   const canLog =
@@ -868,10 +891,9 @@ export default function FoodPage() {
       suspendLiveScore();
       const requestEpoch = authority.snapshot();
       const controller = new AbortController();
-      // Shared with addPlateItemByFoodId on purpose: one plate choice may be in flight at a
-      // time, so two quick taps cannot land in the order their responses happen to return.
-      plateChoiceAbortRef.current?.controller.abort();
-      plateChoiceAbortRef.current = { controller, epoch: requestEpoch };
+      // Two taps on this row supersede each other; a tap on another row does not.
+      plateChoiceAbortsRef.current.get(itemId)?.controller.abort();
+      plateChoiceAbortsRef.current.set(itemId, { controller, epoch: requestEpoch });
       try {
         const match = await fetchExactMatch(foodId, controller.signal);
         if (
@@ -891,7 +913,9 @@ export default function FoodPage() {
         });
         setLogged(false);
       } finally {
-        if (plateChoiceAbortRef.current?.controller === controller) plateChoiceAbortRef.current = null;
+        if (plateChoiceAbortsRef.current.get(itemId)?.controller === controller) {
+          plateChoiceAbortsRef.current.delete(itemId);
+        }
         if (authority.isCurrent(requestEpoch) && !foodResolutionActiveRef.current) rearmLiveScore();
       }
     },
@@ -907,8 +931,8 @@ export default function FoodPage() {
       suspendLiveScore();
       const requestEpoch = authority.snapshot();
       const controller = new AbortController();
-      plateChoiceAbortRef.current?.controller.abort();
-      plateChoiceAbortRef.current = { controller, epoch: requestEpoch };
+      plateChoiceAbortsRef.current.get(reviewId)?.controller.abort();
+      plateChoiceAbortsRef.current.set(reviewId, { controller, epoch: requestEpoch });
       try {
         const match = await fetchExactMatch(foodId, controller.signal);
         if (
@@ -935,7 +959,9 @@ export default function FoodPage() {
         );
         setLogged(false);
       } finally {
-        if (plateChoiceAbortRef.current?.controller === controller) plateChoiceAbortRef.current = null;
+        if (plateChoiceAbortsRef.current.get(reviewId)?.controller === controller) {
+          plateChoiceAbortsRef.current.delete(reviewId);
+        }
         if (authority.isCurrent(requestEpoch) && !foodResolutionActiveRef.current) rearmLiveScore();
       }
     },
@@ -1199,19 +1225,26 @@ export default function FoodPage() {
               ) : null}
             </div>
           ) : null,
-        flags: <FoodFlagsBlock flags={flags} language={language} />,
-        totals: (
-          <>
-            {foodHistory && historyDate ? (
-              <FoodHistoryBlock
-                history={{ ...foodHistory, date: historyDate }}
-                language={language}
-                showGlucoseHistory={conditions.includes("diabetes")}
-              />
-            ) : null}
-            <FoodTotalsBlock dayTotals={startedEatingToday ? visibleDayTotals : []} language={language} />
-          </>
-        ),
+        // Null rather than a component that renders null: the shell decides whether the
+        // "More about this food" fold exists at all by whether any folded slot is set, and
+        // an element that happens to render nothing is still an element.
+        flags:
+          flags.length > 0 ? (
+            <FoodFlagsBlock flags={flags} language={language} personalized={guidanceIsPersonalized} />
+          ) : null,
+        totals:
+          (foodHistory && historyDate) || startedEatingToday ? (
+            <>
+              {foodHistory && historyDate ? (
+                <FoodHistoryBlock
+                  history={{ ...foodHistory, date: historyDate }}
+                  language={language}
+                  showGlucoseHistory={conditions.includes("diabetes")}
+                />
+              ) : null}
+              <FoodTotalsBlock dayTotals={startedEatingToday ? visibleDayTotals : []} language={language} />
+            </>
+          ) : null,
         nutrients: scaledFood?.nutrition ? (
           <FoodNutrientsBlock
             food={scaledFood}
