@@ -227,7 +227,11 @@ export function emptyPatientState(): AppState {
       preferredName: "",
       // A client call picks up the browser's language; on the server this stays English
       // until the store re-reads it after mount.
-      language: typeof navigator !== "undefined" && navigator.language?.toLowerCase().startsWith("es") ? "es" : "en",
+      // Always English here, on the server and on the first client render alike. Node 22
+      // exposes navigator.language too, so reading it in a module-scope fixture would pin
+      // the language to the server's locale and mismatch on hydration. The store applies
+      // the browser's language after mount instead (spec 29 P6 item 2).
+      language: "en",
       primaryClinicName: "",
       primaryClinicPhone: ""
     },
