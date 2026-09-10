@@ -157,13 +157,13 @@ const PROMPT_INJECTION_TEXT = [
   /[{}]|["']?(?:brand|product|flavor|kind|confidence)["']?\s*:/iu
 ];
 
-function containsInstructionText(values: readonly (string | null)[]): boolean {
+export function containsInstructionText(values: readonly (string | null)[]): boolean {
   return values.some(
     (value) => value !== null && PROMPT_INJECTION_TEXT.some((pattern) => pattern.test(value))
   );
 }
 
-function packageDisplayName(parts: readonly (string | null)[]): string {
+export function packageDisplayName(parts: readonly (string | null)[]): string {
   const kept: string[] = [];
   const normalized = new Set<string>();
   for (const part of parts) {

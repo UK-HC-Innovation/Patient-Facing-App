@@ -32,6 +32,13 @@ export type FoodLensView = {
   /** Names the food in the verdict, the sticky strip and the viewfinder chip. */
   name: string | null;
   /**
+   * The published row the score came from, when it is not what `name` says. Spec 30 R4
+   * keeps the familiar display name separate from the source row rather than replacing it:
+   * a Coke reads "coca-cola" with "Scored as Soft drink, cola" under it, and the chart
+   * caption still names the row, so the number never loses its provenance.
+   */
+  sourceRow?: string | null;
+  /**
    * Whether a food is actually resolved. Distinct from having a name: a barcode in frame
    * that has not resolved yet still puts its digits on the viewfinder chip.
    */
@@ -194,7 +201,7 @@ export function FoodLensExperience({
   ) : view.packageDetected ? (
     <FoodPackageAbstention language={language} onScanAgain={onRejectIdentity} />
   ) : view.carveOut ? (
-    <FoodVerdict carveOutReason={view.carveOut} foodName={view.name} language={language} score={null} />
+    <FoodVerdict carveOutReason={view.carveOut} foodName={view.name} language={language} score={null} sourceRow={view.sourceRow ?? null} />
   ) : view.score ? (
     <FoodVerdict
       carveOutReason={null}
@@ -202,6 +209,7 @@ export function FoodLensExperience({
       language={language}
       onWhyScore={whyScore.breakdown && whyScore.onOpen ? whyScore.onOpen : undefined}
       score={view.score}
+      sourceRow={view.sourceRow ?? null}
       whyScoreRef={whyScore.triggerRef}
     />
   ) : view.noMatch || view.noMatchCandidates.length > 0 ? (
@@ -223,7 +231,7 @@ export function FoodLensExperience({
   // (spec 25 section 6) -- so this rule now holds on both doors, not just the personal one.
   const chartSlot = view.carveOut ? null : view.score ? (
     <NutritionCompass
-      foodName={view.identified ? view.name : null}
+      foodName={view.identified ? view.sourceRow ?? view.name : null}
       language={language}
       markerRef={chart?.markerRef}
       onMarkerTap={chart?.onMarkerTap}

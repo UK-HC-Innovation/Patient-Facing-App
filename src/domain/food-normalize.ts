@@ -210,14 +210,26 @@ const FDC_NUTRIENT_NUMBERS: Record<string, NumericNutritionKey> = {
   "303": "ironMg"
 };
 
+/** A 12-digit UPC-A and its 13-digit EAN form are the same product, so compare unpadded. */
+function gtinMatchesBarcode(gtin: string, barcode: string): boolean {
+  const strip = (value: string) => value.replace(/\D/g, "").replace(/^0+/, "");
+  const left = strip(gtin);
+  const right = strip(barcode);
+  return left.length > 0 && left === right;
+}
+
 export function normalizeFdcFood(barcode: string, json: unknown): IdentifiedFood | null {
   if (!isRecord(json) || !Array.isArray(json.foods)) {
     return null;
   }
 
-  const match =
-    json.foods.find((food) => isRecord(food) && typeof food.gtinUpc === "string" && food.gtinUpc.endsWith(barcode)) ??
-    json.foods[0];
+  // FDC's branded search is a text search, so a barcode query can return five unrelated
+  // products that merely contain those digits somewhere. Taking foods[0] on a GTIN miss
+  // reported a stranger's product under its real brand name, which is worse than no answer:
+  // the caller falls back to the published table or the GS1 prefix instead.
+  const match = json.foods.find(
+    (food) => isRecord(food) && typeof food.gtinUpc === "string" && gtinMatchesBarcode(food.gtinUpc, barcode)
+  );
 
   if (!isRecord(match)) {
     return null;

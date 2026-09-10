@@ -139,6 +139,27 @@ describe("normalizeFdcFood", () => {
     expect(normalizeFdcFood("1", { foods: [] })).toBeNull();
     expect(normalizeFdcFood("1", {})).toBeNull();
   });
+
+  // FDC's branded endpoint is a text search, so a barcode query returns whatever contains
+  // those digits. Reporting the first hit under its real brand name is worse than no answer.
+  it("abstains when no returned product carries the scanned barcode", () => {
+    const food = normalizeFdcFood("030000010204", {
+      foods: [
+        { description: "Someone Else's Cereal", gtinUpc: "0088888888888", brandOwner: "Not Yours", foodNutrients: [] },
+        { description: "No GTIN At All", brandOwner: "Also Not Yours", foodNutrients: [] }
+      ]
+    });
+
+    expect(food).toBeNull();
+  });
+
+  it("treats a 12-digit UPC and its zero-padded 13-digit form as the same product", () => {
+    const food = normalizeFdcFood("030000010204", {
+      foods: [{ description: "Old Fashioned Oats", gtinUpc: "0030000010204", brandOwner: "Quaker", foodNutrients: [] }]
+    });
+
+    expect(food?.name).toBe("Old Fashioned Oats");
+  });
 });
 
 describe("saltGramsToSodiumMg", () => {

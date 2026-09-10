@@ -16,6 +16,11 @@ function matchResponse(description: string, fcs: number) {
   };
 }
 
+function aliasMatchResponse(description: string) {
+  const base = matchResponse(description, 1);
+  return { ...base, match: { ...base.match, basis: "alias" } };
+}
+
 describe("useTypedFoodScore", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -26,6 +31,34 @@ describe("useTypedFoodScore", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  // Table S5 has no Coca-Cola row. The alias basis says the person's word and the row's
+  // word are different on purpose, so their word is what the screen leads with (spec 30 R4).
+  it("keeps the typed words as the display name when a reviewed alias resolved the row", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(aliasMatchResponse("Soft drink, cola"))));
+    const { result } = renderHook(() => useTypedFoodScore());
+
+    let outcome: TypedFoodResult | undefined;
+    await act(async () => {
+      outcome = await result.current.submit("coca-cola");
+    });
+
+    expect(outcome?.kind).toBe("match");
+    expect(outcome?.kind === "match" ? outcome.match.readName : null).toBe("coca-cola");
+    expect(outcome?.kind === "match" ? outcome.match.food.description : null).toBe("Soft drink, cola");
+  });
+
+  it("adds no display name when the row already carries the words that were typed", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(matchResponse("Banana, raw", 95))));
+    const { result } = renderHook(() => useTypedFoodScore());
+
+    let outcome: TypedFoodResult | undefined;
+    await act(async () => {
+      outcome = await result.current.submit("banana");
+    });
+
+    expect(outcome?.kind === "match" ? outcome.match.readName : "unset").toBeNull();
   });
 
   // Brenda in the cereal aisle: no mic, no camera, one typed name.

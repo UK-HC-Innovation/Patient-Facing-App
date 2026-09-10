@@ -99,7 +99,30 @@ const QUERY_SYNONYMS: { pattern: RegExp; replacement: string }[] = [
   { pattern: /\barroz\s+con\s+pollo\b/gi, replacement: "rice with chicken" },
   // Appalachian soup beans are a pot of pinto beans, not a canned bean soup. Rewriting to
   // the bare head food keeps "cooked" from pulling in the green-bean-with-pinto-beans row.
-  { pattern: /\bsoup\s+beans\b/gi, replacement: "pinto beans" }
+  { pattern: /\bsoup\s+beans\b/gi, replacement: "pinto beans" },
+
+  // Supermarket brands Table S5 has no row for. It carries a brand parenthetical on 296 of
+  // its 9,273 rows, and none of them is a cola, so a scanned Coke used to land wherever
+  // BM25 happened to point. Each replacement is the table's own vocabulary for that exact
+  // product, verified against fcs2-foods.json on 2026-09-10. A brand the table DOES carry
+  // (Doritos, Fritos, Cheerios, Gatorade, Red Bull, Big Mac) is deliberately absent: those
+  // already resolve through the brand-row rule.
+  //
+  // Bare "coke" is left out on purpose. In Kentucky it is said for any soft drink, so it is
+  // exactly the ambiguous case R4 sends to a clarification instead of guessing.
+  // Diet and zero colas go to the reduced-sugar row. Both score 1, so this changes no
+  // number; it stops a Diet Coke being labelled with the full-sugar row's name.
+  { pattern: /\bdiet\s+(?:coke|coca[\s-]*cola|pepsi|rc)\b|\b(?:coke|coca[\s-]*cola|pepsi)\s+zero\b/gi, replacement: "soft drink, cola, reduced sugar" },
+  { pattern: /\bcoca[\s-]*cola\b|\bpepsi\b|\brc\s+cola\b/gi, replacement: "soft drink, cola" },
+  { pattern: /\bdr\.?\s*pepper\b/gi, replacement: "soft drink, pepper type" },
+  // Lemon-lime sodas. The table has no lemon-lime row; caffeine-free fruit flavored is the
+  // family it files them under, the same call spec 29 made for Mountain Dew.
+  { pattern: /\bsprite\b|\b7\s*-?\s*up\b|\bsierra\s+mist\b|\bmello\s+yello\b/gi, replacement: "soft drink, fruit flavored, caffeine free" },
+  // Sun Drop is a Southern citrus soda; same family as Mountain Dew, and it has no row.
+  { pattern: /\bmtn\s+dew\b|\bsun\s*-?\s*drop\b/gi, replacement: "soft drink, fruit flavored, caffeine containing" },
+  { pattern: /\blay'?s\b|\bruffles\b|\bpringles\b|\bkettle\s+chips\b/gi, replacement: "potato chips" },
+  { pattern: /\bcheetos\b/gi, replacement: "corn cheese puffs and twists" },
+  { pattern: /\boreos?\b/gi, replacement: "cookie, chocolate sandwich" }
 ];
 
 /** Rewrites regional and brand names to the table's own vocabulary. */
@@ -334,7 +357,17 @@ const ALIAS_ROWS: Record<string, string> = {
   banano: "63107010",
   // Cereal (General Mills Cheerios). Plain fails the brand rule because "plain" is the
   // person's word for the absence of a flavour and the row does not carry it.
-  "plain cheerios": "57123000"
+  "plain cheerios": "57123000",
+  // Energy drinks the table names in full. Search alone cannot reach them: "red" outranks
+  // "bull", so `red bull` returned Cabbage, red, raw and Raspberries, red, raw. Codes
+  // checked against fcs2-foods.json on 2026-09-10.
+  "red bull": "92650000",
+  // Red Bull Energy Drink, sugar-free. "sugar" and "free" outrank "bull" without this.
+  "red bull sugar free": "92650005",
+  "sugar free red bull": "92650005",
+  "monster": "92650200",
+  "rockstar": "92650700",
+  "full throttle": "92650100"
 };
 
 /**

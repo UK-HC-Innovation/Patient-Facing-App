@@ -91,8 +91,16 @@ async function lookupOne(
     return { result: { kind: "carve_out", reason: json.reason as NotScoreableReason }, splitSuggested };
   }
   if (json.mode === "match" && json.match) {
+    // An alias basis means the person's word and the row's word are different on purpose:
+    // manzana is Apple, raw, coca-cola is Soft drink, cola. Their word is the familiar
+    // display name spec 30 R4 asks for, so it leads and the row is named beneath it. Every
+    // other basis matched the words they already used, and repeating them adds nothing.
+    const readName = json.match.basis === "alias" ? text.trim() || null : null;
     return {
-      result: { kind: "match", match: { ...json.match, candidates: (json.candidates ?? []).slice(0, 4) } },
+      result: {
+        kind: "match",
+        match: { ...json.match, readName, candidates: (json.candidates ?? []).slice(0, 4) }
+      },
       splitSuggested
     };
   }

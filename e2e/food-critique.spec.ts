@@ -324,9 +324,11 @@ test.describe("Justified identity", () => {
     await mockRealtime(page);
   });
 
-  // A19. These six used to publish Chicken roll, Soup fruit, Salad dressing, Latte, a
-  // stuffed-crust pizza and a diet carrot cake, each with a score beside it.
-  for (const bare of ["chicken", "soup", "salad", "coffee", "diet coke"]) {
+  // A19. These used to publish Chicken roll, Soup fruit, Salad dressing, Latte and a
+  // stuffed-crust pizza, each with a score beside it. "diet coke" was on this list too and
+  // has since moved: it names one product, not a generic with many variants, and it now
+  // has a reviewed alias to the cola row. Its own case is below.
+  for (const bare of ["chicken", "soup", "salad", "coffee"]) {
     test(`asks rather than scoring the bare name ${bare}`, async ({ page }) => {
       await page.goto("/food");
       await ask(page, bare);
@@ -339,15 +341,28 @@ test.describe("Justified identity", () => {
     });
   }
 
-  // The cake rows may still be NAMED, which is what candidate mode is for. What they may
-  // never carry is a published score: "diet coke" scored 20 as a diet carrot cake (E03).
-  test("never publishes a score for diet coke", async ({ page }) => {
+  // "diet coke" scored 20 as a diet carrot cake (E03). The fix then was to stop it scoring
+  // at all; the fix now is a reviewed alias to the row it always meant. Table S5 has no
+  // Coca-Cola row, so nothing but an alias could ever have got here.
+  test("resolves diet coke to the cola row and never to a cake", async ({ page }) => {
     await page.goto("/food");
     await ask(page, "diet coke");
-    await expect(page.getByTestId("food-no-match")).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByTestId("food-verdict")).toHaveCount(0);
-    await expect(page.getByTestId("nutrition-compass")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Log this" })).toHaveCount(0);
+
+    await expect(page.getByTestId("food-verdict")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/cake/i)).toHaveCount(0);
+  });
+
+  // R4's display-name half: the person's word leads, the row it scores against is named
+  // under it. Table S5 has no Coca-Cola row, so without this the screen only ever said
+  // "Soft drink, cola" back to someone holding a Coke.
+  test("keeps the typed brand on screen next to the row it scores against", async ({ page }) => {
+    await page.goto("/food");
+    await ask(page, "coca-cola");
+
+    await expect(page.getByTestId("food-verdict")).toContainText("coca-cola", { timeout: 10_000 });
+    await expect(page.getByTestId("food-verdict-scored-as")).toHaveText("Scored as Soft drink, cola");
+    // The chart caption keeps naming the published row, so the number never loses its source.
+    await expect(page.getByTestId("nutrition-compass")).toContainText("Soft drink, cola");
   });
 
   // A20. manzana returned nothing at all; leche was a cafe con leche; huevos was huevos

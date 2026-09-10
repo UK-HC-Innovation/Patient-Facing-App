@@ -140,7 +140,11 @@ describe("demotions release when the query asks for the thing", () => {
 describe("describesQuery", () => {
   it("holds only when the row carries every word of the query", () => {
     expect(describesQuery("Cereal (General Mills Cheerios)", "Cheerios")).toBe(true);
-    expect(describesQuery("Soft drink, cola", "Coca Cola")).toBe(false);
+    // Coca Cola used to be the example of a query no row carried. It is now a reviewed
+    // alias to this exact row, and describesQuery expands before it compares, so it holds.
+    // Barq's is the replacement: still no mapping, still no shared word.
+    expect(describesQuery("Soft drink, cola", "Coca Cola")).toBe(true);
+    expect(describesQuery("Soft drink, cola", "Barq's root beer")).toBe(false);
     expect(describesQuery("Fun Fruits Creme Supremes", "Bojangles chicken supremes combo")).toBe(false);
     expect(describesQuery("Tortilla chips, plain", "")).toBe(false);
   });

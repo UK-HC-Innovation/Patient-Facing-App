@@ -342,23 +342,17 @@
       "category": "exact",
       "query": "diet coke",
       "language": "en",
-      "note": "never a carrot cake row",
+      "note": "never a carrot cake row; reviewed alias to the reduced-sugar cola row 2026-09-10, which is what this case always wanted. It was filed as ambiguous only because no cola row was reachable and the fuzzy match returned diet cakes.",
       "expect": {
-        "mode": "candidate",
-        "codes": [
-          "53104300",
-          "53102300",
-          "53105500"
-        ],
-        "descriptions": [
-          "Cake, carrot, diet",
-          "Cake, applesauce, diet, without icing",
-          "Cake, chocolate, with icing, diet"
-        ],
+        "mode": "match",
+        "code": "92410315",
+        "basis": "alias",
         "question": false
       },
       "target": {
-        "mode": "candidate"
+        "mode": "match",
+        "code": "92410315",
+        "basis": "alias"
       }
     },
     {

@@ -8,6 +8,9 @@ import type {
   NotScoreableReason,
   ScoreDomainBreakdown
 } from "@/domain/food-compass";
+// Type-only, so this never pulls minisearch (and the 5 MB index it serves) into a client
+// bundle. The bundle budget check in `npm run check` is what proves it.
+import type { IdentityBasis } from "@/domain/food-compass-search";
 import type { FoodMatchProvenance, FoodOrderIntent } from "@/domain/food-order-intent";
 import type { FoodAuthority } from "@/domain/food-authority";
 import { GATE_PAUSE_BELOW, GATE_RESUME_ABOVE } from "@/domain/viewfinder-gate";
@@ -35,11 +38,24 @@ export type LiveCandidate = { code: string; description: string; fcs?: number };
 
 export type LiveIdentityCandidate = {
   food: { code: string; description: string; group: string };
+  /**
+   * What the package front actually said, when the camera could read it. Held apart from
+   * the Table S5 row so a Doritos bag is confirmed as "Doritos Tortilla Chips Nacho Cheese"
+   * and not as "Tortilla chips, nacho cheese flavor (Doritos)" -- and so brands the table
+   * has no row for survive to the screen at all (spec 30 R4).
+   */
+  readName?: string | null;
   candidates: LiveCandidate[];
 };
 
 export type LiveMatch = {
   food: { code: string; description: string; group: string };
+  /** The confirmed candidate's printed name, carried past confirmation so the brand does
+   *  not vanish the moment the person says yes. Null for correction chips and saved picks,
+   *  which name a row directly and have no package behind them. */
+  readName?: string | null;
+  /** Why the route was willing to publish this row rather than propose it. */
+  basis?: IdentityBasis;
   score: CompassScore;
   alternatives: CompassAlternative[];
   nutrients: FnddsRecord | null;
@@ -381,7 +397,7 @@ export function useLiveFoodScore(args: {
         mode: string;
         reason?: NotScoreableReason | LiveScanError;
         match?: Omit<LiveMatch, "candidates">;
-        candidate?: { food: LiveIdentityCandidate["food"] };
+        candidate?: { food: LiveIdentityCandidate["food"]; readName?: string };
         candidates?: LiveCandidate[];
       };
 
@@ -454,6 +470,7 @@ export function useLiveFoodScore(args: {
         invalidateAuthority();
         const next: LiveIdentityCandidate = {
           food: proposedFood,
+          readName: json.candidate?.readName ?? null,
           candidates: candidateList(json.candidates, proposedFood.code)
         };
         commitCandidate(next);

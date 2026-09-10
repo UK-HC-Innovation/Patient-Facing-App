@@ -53,6 +53,7 @@ export function FoodVerdict({
   language,
   score,
   foodName,
+  sourceRow = null,
   carveOutReason,
   onWhyScore,
   whyScoreRef
@@ -60,6 +61,8 @@ export function FoodVerdict({
   language: Language;
   score: CompassScore | null;
   foodName: string | null;
+  /** The published row behind the score, when the headline says something else. */
+  sourceRow?: string | null;
   carveOutReason: NotScoreableReason | null;
   /**
    * Opens the domain breakdown. A chart marker was the only way in, and a marker is not a
@@ -106,6 +109,11 @@ export function FoodVerdict({
           {t(language, verdictSentenceKey(score))}
         </p>
         {subline ? <p className="mt-1.5 text-[15px] leading-normal text-ink/70">{subline}</p> : null}
+        {sourceRow && sourceRow !== foodName ? (
+          <p className="mt-1 text-[13px] leading-snug text-ink/65" data-testid="food-verdict-scored-as">
+            {t(language, "identityReviewScoredAs", { row: sourceRow })}
+          </p>
+        ) : null}
         {score.ambiguous && score.range ? (
           <p className="mt-1 text-xs text-ink/70">
             {t(language, "compassAmbiguous", { low: score.range[0], high: score.range[1] })}

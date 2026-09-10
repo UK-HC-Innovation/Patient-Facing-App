@@ -133,7 +133,7 @@ describe("typed identity corpus", () => {
       totals[entry.expect.mode] = (totals[entry.expect.mode] ?? 0) + 1;
       return totals;
     }, {});
-    expect(tally).toEqual({ match: 35, candidate: 40, carve_out: 7, none: 17, error: 1 });
+    expect(tally).toEqual({ match: 36, candidate: 39, carve_out: 7, none: 17, error: 1 });
     // Every designated ambiguous case asks rather than answering.
     for (const id of [
       "ambig-pizza",
@@ -141,7 +141,6 @@ describe("typed identity corpus", () => {
       "ambig-soup",
       "ambig-salad",
       "ambig-coffee",
-      "ambig-diet-coke",
       "es-frijoles",
       "es-leche",
       "es-huevos",

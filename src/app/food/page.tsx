@@ -303,7 +303,16 @@ export default function FoodPage() {
     if (packageDraftOpen || liveSceneUnconfirmed) {
       return null;
     }
-    return live.match ? toIdentifiedFood({ ...live.match.food, fcs2: live.match.score.fcs, fcs1: 0, nova: 1, hsr: 0, nutriScore: "C", ambiguous: live.match.score.ambiguous }, live.match.nutrients) : null;
+    if (!live.match) {
+      return null;
+    }
+    const matched = toIdentifiedFood(
+      { ...live.match.food, fcs2: live.match.score.fcs, fcs1: 0, nova: 1, hsr: 0, nutriScore: "C", ambiguous: live.match.score.ambiguous },
+      live.match.nutrients
+    );
+    // The id still carries the fndds code, so provenance survives; only the label the person
+    // reads changes. Coca-Cola stays Coca-Cola instead of becoming "Soft drink, cola".
+    return live.match.readName ? { ...matched, name: live.match.readName } : matched;
   }, [live.match, liveSceneUnconfirmed, packageDraftOpen, scannedFood, typedCurrent]);
 
   const identifiedFoodId = identifiedFood?.id ?? null;
@@ -678,7 +687,7 @@ export default function FoodPage() {
   }, []);
 
   const resolveCameraMatch = useCallback(
-    async (foodId: string) => {
+    async (foodId: string, readName: string | null = null) => {
       if (foodResolutionActive) {
         cancelFoodResolution();
       }
@@ -709,7 +718,7 @@ export default function FoodPage() {
           json.mode === "match" &&
           json.match
         ) {
-          adoptLiveMatch({ ...json.match, candidates: json.candidates ?? [] });
+          adoptLiveMatch({ ...json.match, readName, candidates: json.candidates ?? [] });
           setLogged(false);
         }
       } catch {
@@ -728,9 +737,9 @@ export default function FoodPage() {
   const confirmCameraCandidate = useCallback(
     (foodId: string) => {
       if (live.candidate?.food.code !== foodId) return Promise.resolve();
-      return resolveCameraMatch(foodId);
+      return resolveCameraMatch(foodId, live.candidate.readName ?? null);
     },
-    [live.candidate?.food.code, resolveCameraMatch]
+    [live.candidate?.food.code, live.candidate?.readName, resolveCameraMatch]
   );
 
   const rejectCameraCandidate = useCallback(() => {
@@ -1275,7 +1284,15 @@ export default function FoodPage() {
         }
       : null;
   const view: FoodLensView = {
-    name: typedCurrent ? null : scanChip ?? live.candidate?.food.description ?? null,
+    name: typedCurrent
+      ? null
+      : scanChip ?? live.candidate?.readName ?? live.candidate?.food.description ?? null,
+    // Only when the two differ. A scanned Coke reads "Coca-Cola Classic" with the row named
+    // under it; a banana reads "Banana, raw" once, not twice.
+    sourceRow: typedCurrent
+      ? null
+      : (identifiedFood && live.match?.readName ? live.match.food.description : null) ??
+        (live.candidate?.readName ? live.candidate.food.description : null),
     identified: identifiedFood !== null,
     score: compass.score,
     carveOut: compass.carveOut,

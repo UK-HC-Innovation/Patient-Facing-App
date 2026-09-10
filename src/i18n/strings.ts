@@ -313,6 +313,7 @@ export type FoodLensStringKey =
   | "identityChooseOne"
   | "identityReviewLabel"
   | "identityReviewRead"
+  | "identityReviewScoredAs"
   | "identityReviewConfirm"
   | "identityReviewReject"
   | "packageDetectedTitle"
@@ -652,6 +653,7 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     identityChooseOne: "Which one was it?",
     identityReviewLabel: "Confirm the food",
     identityReviewRead: "I think this is {food}.",
+    identityReviewScoredAs: "Scored as {row}",
     identityReviewConfirm: "Yes, use this food",
     identityReviewReject: "No, scan again",
     packageDetectedTitle: "This looks packaged",
@@ -991,6 +993,7 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     identityChooseOne: "¿Cuál de estas era?",
     identityReviewLabel: "Confirma la comida",
     identityReviewRead: "Creo que esto es {food}.",
+    identityReviewScoredAs: "Puntuado como {row}",
     identityReviewConfirm: "Sí, usar esta comida",
     identityReviewReject: "No, escanear de nuevo",
     packageDetectedTitle: "Parece un producto empacado",

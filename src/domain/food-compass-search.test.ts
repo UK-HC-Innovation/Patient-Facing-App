@@ -118,7 +118,9 @@ describe("resolveTypedIdentity", () => {
   });
 
   it("proposes rather than publishing a bare generic name", () => {
-    for (const query of ["pizza", "chicken", "soup", "salad", "coffee", "diet coke"]) {
+    // "diet coke" left this list when it gained a reviewed alias to the reduced-sugar cola
+    // row. The rest are still bare generic names with many variants and no reviewed default.
+    for (const query of ["pizza", "chicken", "soup", "salad", "coffee"]) {
       expect(resolveTypedIdentity(index, query).kind, query).toBe("proposal");
     }
   });
