@@ -58,6 +58,12 @@ async function onTheLiveEngine(page: Page) {
   );
 }
 
+// A fresh dev server compiles the identify route, and its 5 MB table, on the first lookup. Run
+// on its own this spec is first in line, and under load that compile outlasted the verdict wait.
+test.beforeAll(async ({ request }) => {
+  await request.post("/api/food/identify", { data: { text: "banana" }, timeout: 120_000 });
+});
+
 for (const door of ["/food", "/food/demo"]) {
   test(`typed lines never open a GPT-Live session on ${door}`, async ({ page }) => {
     await page.addInitScript(CAMERA_DENIED);
