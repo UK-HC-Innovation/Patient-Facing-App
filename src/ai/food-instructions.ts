@@ -159,10 +159,11 @@ export const NO_SCORE_SWAP_TEXT: Record<NoScoreSwapId, string> = {
   black_coffee: "black coffee"
 };
 
-export const NO_SWAP_TEXT: Record<"affirm" | "similar" | "none_higher", string> = {
+export const NO_SWAP_TEXT: Record<"affirm" | "similar" | "none_higher" | "none", string> = {
   affirm: "No swap: this is a good choice as it is.",
   similar: "No swap: similar foods score about the same.",
-  none_higher: "No swap: nothing similar scores higher."
+  none_higher: "No swap: nothing similar scores higher.",
+  none: "No swap: there is none to suggest for this food."
 };
 
 /** How a swap reads in a prompt: the action or reviewed name, the published row, the score. */
@@ -197,7 +198,7 @@ function describeSwapContext(compass: Extract<CompassContext, { kind: "score" }>
     return `Swap to suggest: ${first}.${others} ${closing}`;
   }
   const state = compass.swapState;
-  if (state === "affirm" || state === "similar" || state === "none_higher") {
+  if (state === "affirm" || state === "similar" || state === "none_higher" || state === "none") {
     return `${NO_SWAP_TEXT[state]} ${closing}`;
   }
   return null;

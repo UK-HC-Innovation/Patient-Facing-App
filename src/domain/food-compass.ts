@@ -764,9 +764,10 @@ export type SwapAction = "bake" | "skin_off" | "no_added_fat" | "whole_grain" | 
 
 /**
  * What the alternatives slot says (R3, R5). A no-score swap is water, unsweetened tea or
- * black coffee for a sugar-sweetened drink; the last three states are one line each.
+ * black coffee for a sugar-sweetened drink; "affirm", "similar" and "none_higher" are one line
+ * each; "none" prints nothing: no similar row to compare, or a higher one the swap rules keep out.
  */
-export type SwapState = "swap" | "no_score_swap" | "affirm" | "similar" | "none_higher";
+export type SwapState = "swap" | "no_score_swap" | "affirm" | "similar" | "none_higher" | "none";
 
 export type NoScoreSwapId = "water_or_unsweetened_tea" | "black_coffee";
 

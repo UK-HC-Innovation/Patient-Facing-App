@@ -84,6 +84,12 @@ export const SWAP_FAMILIES: readonly Family[] = [
     ],
     // "addded" is the table's own spelling of that row.
     preferred: ["Potato, baked, peel eaten", "Potato, boiled, from fresh, peel eaten, no addded fat"]
+  },
+  {
+    // WWEIA files plain milk by fat level, so without a family whole milk never meets skim.
+    id: "milk",
+    categories: ["Milk, whole", "Milk, reduced fat", "Milk, lowfat", "Milk, nonfat"],
+    preferred: ["Milk, fat free (skim)"]
   }
 ];
 
@@ -220,6 +226,9 @@ const FAT_PHRASES = [NO_ADDED_FAT, FAT_UNKNOWN, FAT_ADDED, /\bmade with cooking 
 
 type FatState = "none" | "unknown" | "added" | "unspecified";
 
+// Leanest wording first, for choosing among rows that make the same preparation change.
+const FAT_RANK: Readonly<Record<FatState, number>> = { none: 0, unspecified: 1, unknown: 2, added: 3 };
+
 function fatState(description: string): FatState {
   if (NO_ADDED_FAT.test(description)) return "none";
   if (FAT_UNKNOWN.test(description)) return "unknown";
@@ -311,21 +320,21 @@ function isLineSibling(current: string, candidate: string): boolean {
 // ---------------------------------------------------------------------------
 
 const FRIED = /\b(?:fried|deep[- ]fried|battered|breaded|tempura)\b/i;
-const DRY_HEAT = /\b(?:baked|broiled|grilled|roasted|steamed|poached|boiled|braised)\b/i;
+// The action reads "Bake, broil or grill it", so its row has to say one of those.
+const DRY_HEAT = /\b(?:baked|broiled|grilled|roasted)\b/i;
 const SKIN_EATEN = /\bskin(?:\/coating)? eaten\b/i;
 const SKIN_NOT_EATEN = /\bskin(?:\/coating)? not eaten\b/i;
 const WHITE = /\bwhite\b/i;
 const WHOLE_GRAIN = /\b(?:whole wheat|whole grain|whole-grain|brown|wild|100% whole)\b/i;
+// "Brown" and "wild" name a whole grain only against a white row: wild salmon is not one.
+const WHOLE_GRAIN_WORDING = /\b(?:whole wheat|whole grain|whole-grain|100% whole)\b/i;
 const SWEETENED = /\b(?:pre-?sweetened|presweetened|sweetened|with sugar|frosted)\b/i;
 const UNSWEETENED = /\b(?:unsweetened|no sugar added|sugar[- ]free|without sugar)\b/i;
 const LOWER_SODIUM = /\b(?:reduced sodium|low sodium|no salt added|lower sodium)\b/i;
 
 // The words each change is allowed to touch. Everything else has to match.
 const ACTION_WORDS: Readonly<Record<SwapAction, ReadonlySet<string>>> = {
-  bake: new Set([
-    "fried", "deep", "battered", "breaded", "tempura", "coated", "coating", "no_coating",
-    "baked", "broiled", "grilled", "roasted", "steamed", "poached", "boiled", "braised"
-  ]),
+  bake: new Set(["fried", "deep", "battered", "breaded", "tempura", "coated", "coating", "no_coating", "baked", "broiled", "grilled", "roasted"]),
   skin_off: new Set(["skin", "eaten", "not_eaten", "coating"]),
   no_added_fat: new Set<string>(),
   whole_grain: new Set(["white", "whole", "wheat", "grain", "brown", "wild", "100"]),
@@ -347,7 +356,7 @@ function detectAction(current: FcsFood, candidate: FcsFood): SwapAction | null {
     ["bake", FRIED.test(c) && !FRIED.test(d) && DRY_HEAT.test(d)],
     ["skin_off", SKIN_EATEN.test(c) && SKIN_NOT_EATEN.test(d)],
     ["no_added_fat", fatState(c) === "added" && fatState(d) === "none"],
-    ["whole_grain", WHITE.test(c) && !WHOLE_GRAIN.test(c) && WHOLE_GRAIN.test(d)],
+    ["whole_grain", !WHOLE_GRAIN.test(c) && (WHITE.test(c) ? WHOLE_GRAIN.test(d) : WHOLE_GRAIN_WORDING.test(d))],
     ["lower_sodium", !LOWER_SODIUM.test(c) && LOWER_SODIUM.test(d)],
     ["unsweetened", SWEETENED.test(c) && UNSWEETENED.test(d)]
   ];
@@ -380,8 +389,11 @@ const ORGAN_MEAT =
 const SUBSTITUTE = /\b(?:substitute|cereal beverage)\b/i;
 const RAW = /\braw\b/i;
 const RAW_PROTEIN_GROUPS = new Set(["5000_MPE", "5800_Seafood"]);
+// A school-lunch row is a tray a school serves, which nobody can pick at home.
+const SCHOOL_LUNCH = /\bschool lunch\b/i;
 const CATCH_ALL = /\b(?:NFS|NS as to|not further specified)\b/i;
 
+/** Rows that are not comparable foods: never a swap, and never evidence for a state line. */
 function excludedTarget(current: FcsFood, candidate: FcsFood, candidateCategory: string | null): boolean {
   const c = current.description;
   const d = candidate.description;
@@ -389,6 +401,7 @@ function excludedTarget(current: FcsFood, candidate: FcsFood, candidateCategory:
   if (ORGAN_MEAT.test(d) && !ORGAN_MEAT.test(c)) return true;
   if (SUBSTITUTE.test(d) && !SUBSTITUTE.test(c)) return true;
   if (RAW.test(d) && RAW_PROTEIN_GROUPS.has(candidate.group) && !RAW.test(c)) return true;
+  if (SCHOOL_LUNCH.test(d) && !SCHOOL_LUNCH.test(c)) return true;
   return candidateCategory === NOT_A_POOL;
 }
 
@@ -540,33 +553,39 @@ function toAlternative(entry: Found, index: SwapIndex, isDefault: boolean): Comp
  * family's preferred targets, the row's own WWEIA category, then the family's other
  * categories. There is no food-group fallback: it is how fried chicken used to reach
  * chicken liver (spec 31 E04).
+ *
+ * With no swap, the state line has to be true of every comparable row a person would call
+ * similar: the current food's own rows and its category and family rows, less the rows
+ * that are not comparable foods. "none" prints no line, for a row with nothing similar to
+ * compare, or whose higher similar rows the swap rules keep out.
  */
 export function findSwaps(food: FcsFood, index: SwapIndex): SwapResult {
   const category = index.categoryOf(food);
   const family = category ? index.familyByCategory.get(category) ?? null : null;
   const sugarSweetened = isSugarSweetened(food, category);
+  const headRows = index.byHeadGroup.get(headGroupKey(food)) ?? [];
+  const categoryRows = category && category !== NOT_A_POOL ? index.byCategory.get(category) ?? [] : [];
+  const familyRows = family
+    ? family.categories.filter((other) => other !== category).flatMap((other) => index.byCategory.get(other) ?? [])
+    : [];
   const found = new Map<string, Found>();
-  let higherExists = false;
 
   const consider = (candidate: FcsFood, pool: SwapPool, action: SwapAction | null = null, order = 0) => {
-    if (candidate.ambiguous || candidate.code === food.code || candidate.fcs2 <= food.fcs2) return;
+    if (candidate.ambiguous || candidate.code === food.code || candidate.fcs2 < food.fcs2 + SWAP_THRESHOLD) return;
     const candidateCategory = index.categoryOf(candidate);
     if (excludedTarget(food, candidate, candidateCategory)) return;
-    const kcal = index.nutrients[candidate.code]?.kcal;
-    if (kcal !== null && kcal !== undefined && kcal < 5) return;
+    if (belowFiveKcal(index.nutrients[candidate.code] ?? null)) return;
     if (sugarSweetened && isSugarSweetened(candidate, candidateCategory)) return;
     // Frying already carries fat, so "bake it instead" may name a row baked with oil.
     if (action !== "bake" && addsFat(food.description, candidate.description)) return;
     if (pool !== "action" && sameFood(food, candidate)) return;
-    higherExists = true;
-    if (candidate.fcs2 < food.fcs2 + SWAP_THRESHOLD) return;
     const previous = found.get(candidate.code);
     if (!previous || POOL_RANK[pool] < POOL_RANK[previous.pool]) {
       found.set(candidate.code, { food: candidate, pool, action, order });
     }
   };
 
-  for (const candidate of index.byHeadGroup.get(headGroupKey(food)) ?? []) {
+  for (const candidate of headRows) {
     if (isLineSibling(food.description, candidate.description)) {
       consider(candidate, "line");
       continue;
@@ -580,18 +599,10 @@ export function findSwaps(food: FcsFood, index: SwapIndex): SwapResult {
       if (row) consider(row, "preferred", null, position);
     });
   }
-  if (category && category !== NOT_A_POOL) {
-    for (const candidate of index.byCategory.get(category) ?? []) consider(candidate, "category");
-  }
-  if (family) {
-    for (const other of family.categories) {
-      if (other === category) continue;
-      for (const candidate of index.byCategory.get(other) ?? []) consider(candidate, "family");
-    }
-  }
+  for (const candidate of categoryRows) consider(candidate, "category");
+  for (const candidate of familyRows) consider(candidate, "family");
 
   const foodTokens = contentTokens(food.description);
-  const currentFat = fatState(food.description);
   const preferred = new Set(family?.preferred ?? []);
   const overlapCache = new Map<string, number>();
   const overlap = (candidate: FcsFood) => {
@@ -603,19 +614,25 @@ export function findSwaps(food: FcsFood, index: SwapIndex): SwapResult {
     return value;
   };
   const density = (candidate: FcsFood) => publishedCalorieDensity(candidate, index.nutrients[candidate.code] ?? null);
+  const currentFat = fatState(food.description);
+  const fatOrder = (candidate: FcsFood) => {
+    const state = fatState(candidate.description);
+    return state === "none" ? 0 : state === currentFat ? 1 : 2 + FAT_RANK[state];
+  };
 
   const ordered = [...found.values()].sort((a, b) => {
     if (a.pool !== b.pool) return POOL_RANK[a.pool] - POOL_RANK[b.pool];
     if (a.pool === "preferred" && a.order !== b.order) return a.order - b.order;
     if (a.pool === "action") {
-      // Within one kind of change: the family's preferred row, then the row that keeps the
-      // current fat wording (brown rice with no added fat beats wild rice, fat unknown),
-      // then the higher score.
+      // Within the preparation changes: the family's preferred row (brown rice before wild
+      // rice), then the higher score (R4). At an equal score, a row with no added fat comes
+      // first (baked catfish, 83, before baked with cooking spray, 83), then one that keeps
+      // the current fat wording (the skinless wing made with oil, like the wing it replaces).
       const byPreference = Number(!preferred.has(a.food.description)) - Number(!preferred.has(b.food.description));
       if (byPreference !== 0) return byPreference;
-      const byFat = Number(fatState(a.food.description) !== currentFat) - Number(fatState(b.food.description) !== currentFat);
-      if (byFat !== 0) return byFat;
       if (a.food.fcs2 !== b.food.fcs2) return b.food.fcs2 - a.food.fcs2;
+      const byFat = fatOrder(a.food) - fatOrder(b.food);
+      if (byFat !== 0) return byFat;
     }
     const catchAll = Number(CATCH_ALL.test(a.food.description)) - Number(CATCH_ALL.test(b.food.description));
     if (catchAll !== 0) return catchAll;
@@ -641,6 +658,17 @@ export function findSwaps(food: FcsFood, index: SwapIndex): SwapResult {
     if (picked.length === MAX_SWAPS) break;
   }
 
+  // The best comparable similar row. Survey duplicates and fat-adding rows count: they are
+  // the same food, so a higher one makes "nothing similar scores higher" false.
+  let compared = false;
+  let best = -Infinity;
+  for (const row of [...headRows, ...categoryRows, ...familyRows]) {
+    if (row.ambiguous || row.code === food.code) continue;
+    if (belowFiveKcal(index.nutrients[row.code] ?? null) || excludedTarget(food, row, index.categoryOf(row))) continue;
+    compared = true;
+    best = Math.max(best, row.fcs2);
+  }
+
   const alternatives = picked.map((entry, position) => toAlternative(entry, index, position === 0 && !sugarSweetened));
   const state: SwapState = sugarSweetened
     ? "no_score_swap"
@@ -648,9 +676,13 @@ export function findSwaps(food: FcsFood, index: SwapIndex): SwapResult {
       ? "swap"
       : food.fcs2 >= 70
         ? "affirm"
-        : higherExists
-          ? "similar"
-          : "none_higher";
+        : !compared
+          ? "none"
+          : best <= food.fcs2
+            ? "none_higher"
+            : best < food.fcs2 + SWAP_THRESHOLD
+              ? "similar"
+              : "none";
 
   return {
     state,

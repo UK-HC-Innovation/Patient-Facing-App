@@ -45,6 +45,10 @@ describe("CompassSwaps", () => {
     rerender(<CompassSwaps alternatives={[]} current={current} language="en" noScoreSwap={null} state="none_higher" />);
     expect(screen.getByText("Nothing similar scores higher.")).toBeInTheDocument();
 
+    // Nothing similar to compare: no line at all rather than a rank claim nobody checked.
+    rerender(<CompassSwaps alternatives={[]} current={current} language="en" noScoreSwap={null} state="none" />);
+    expect(screen.queryByTestId("food-alternatives")).not.toBeInTheDocument();
+
     rerender(<CompassSwaps alternatives={[]} current={current} language="es" noScoreSwap={null} state="affirm" />);
     expect(screen.getByText("Es una buena elección tal como está.")).toBeInTheDocument();
   });

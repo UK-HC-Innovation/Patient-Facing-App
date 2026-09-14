@@ -66,14 +66,27 @@ describe("findSwaps: named cases", () => {
   });
 
   it("offers baking for fried catfish, with the baked row's own score", () => {
-    const [first] = swapsFor("Catfish, battered, fried").alternatives;
-    expect(first).toMatchObject({ pool: "action", action: "bake", fcs: 83 });
-    expect(first.description).toMatch(/^Catfish, baked or broiled/);
+    expect(swapsFor("Catfish, battered, fried").alternatives[0]).toMatchObject({
+      pool: "action",
+      action: "bake",
+      description: "Catfish, baked or broiled, no added fat",
+      fcs: 83
+    });
+  });
+
+  it("points baking at a baked or broiled row, never a steamed one", () => {
+    const [first] = swapsFor("Fish, NS as to type, battered, fried").alternatives;
+    expect(first).toMatchObject({ action: "bake" });
+    expect(first.description).toMatch(/^Fish, NS as to type, baked or broiled/);
   });
 
   it("offers taking the skin off a fried wing, and never chicken liver or egg substitute", () => {
     const result = swapsFor("Chicken, wing, fried, no coating, skin eaten, made with oil");
-    expect(result.alternatives[0]).toMatchObject({ action: "skin_off", fcs: 63 });
+    expect(result.alternatives[0]).toMatchObject({
+      action: "skin_off",
+      description: "Chicken, wing, fried, no coating, skin not eaten, made with oil",
+      fcs: 63
+    });
     expect(result.alternatives.map((alternative) => alternative.description).join(" ")).not.toMatch(/liver|egg substitute/i);
   });
 
@@ -91,8 +104,18 @@ describe("findSwaps: named cases", () => {
     expect(swapsFor("Bread, white").alternatives[0]).toMatchObject({ action: "whole_grain" });
   });
 
+  it("offers whole wheat for plain spaghetti, whose row never says white", () => {
+    const [first] = swapsFor("Spaghetti, cooked, fat added in cooking").alternatives;
+    expect(first).toMatchObject({ action: "whole_grain" });
+    expect(first.description).toMatch(/^Spaghetti, cooked, whole wheat/);
+  });
+
   it("never offers a pizza topping as a pizza", () => {
     expect(describedAs("Pizza, cheese, stuffed crust").some((description) => /^Topping from/.test(description))).toBe(false);
+  });
+
+  it("never offers a school-lunch tray", () => {
+    expect(describedAs("Chicken nuggets").some((description) => /school lunch/i.test(description))).toBe(false);
   });
 
   it("prefers air-popped popcorn for plain potato chips", () => {
@@ -107,6 +130,15 @@ describe("findSwaps: named cases", () => {
     expect(describedAs("Potato, french fries, restaurant")[0]).toBe("Potato, boiled, from fresh, peel eaten, no addded fat");
   });
 
+  it("offers fat-free milk for whole milk, across the fat-level categories", () => {
+    expect(swapsFor("Milk, whole").alternatives[0]).toMatchObject({
+      description: "Milk, fat free (skim)",
+      fcs: 66,
+      pool: "preferred",
+      displayName: { en: "Fat-free milk", es: "Leche descremada" }
+    });
+  });
+
   it("does not offer another survey code for the same grits as a swap", () => {
     expect(describedAs("Grits, with cheese, fat added").some((description) => /^Grits, cooked, corn or hominy, with cheese/.test(description))).toBe(false);
   });
@@ -115,6 +147,10 @@ describe("findSwaps: named cases", () => {
     for (const description of ["Bologna, beef", "Bacon, for use with vegetables"]) {
       expect(describedAs(description).join(" ")).not.toMatch(/liver|cocoa/i);
     }
+  });
+
+  it("prints no line for a row with nothing similar to compare", () => {
+    expect(swapsFor("Froot Loops Cereal Straws")).toMatchObject({ state: "none", alternatives: [] });
   });
 
   it("puts a recipe query on the default swap only, and only with a reviewed name", () => {
@@ -148,6 +184,11 @@ describe("findSwaps: every row in Table S5", () => {
         if (organ.test(alternative.description) && !organ.test(food.description)) {
           problems.push(`${label}: organ meat`);
         }
+        const schoolLunch = /\bschool lunch\b/i;
+        if (schoolLunch.test(alternative.description) && !schoolLunch.test(food.description)) problems.push(`${label}: school lunch`);
+        if (alternative.action === "bake" && !/\b(?:baked|broiled|grilled|roasted)\b/i.test(alternative.description)) {
+          problems.push(`${label}: "bake" on a row that is not baked, broiled, grilled or roasted`);
+        }
         const kcal = data.nutrients[alternative.code]?.kcal;
         if (kcal !== null && kcal !== undefined && kcal < 5) problems.push(`${label}: under 5 kcal`);
         if (data.nutrients[alternative.code]?.wweia === "Not included in a food category") problems.push(`${label}: not a pool`);
@@ -162,10 +203,33 @@ describe("findSwaps: every row in Table S5", () => {
       const label = `${food.description} (${food.fcs2}) ${result.state}`;
       if (result.state === "swap" && result.alternatives.length === 0) problems.push(label);
       if (result.state === "affirm" && (food.fcs2 < 70 || result.alternatives.length > 0)) problems.push(label);
-      if ((result.state === "similar" || result.state === "none_higher") && (food.fcs2 >= 70 || result.alternatives.length > 0)) {
-        problems.push(label);
-      }
+      const lineOrNothing = result.state === "similar" || result.state === "none_higher" || result.state === "none";
+      if (lineOrNothing && (food.fcs2 >= 70 || result.alternatives.length > 0)) problems.push(label);
       if (result.state === "no_score_swap" && result.noScoreSwap === null) problems.push(label);
+    }
+    expect(problems).toEqual([]);
+  });
+
+  it("never prints a line its own category contradicts", () => {
+    // Rows nobody would call a similar food, left out of the check the way the finder leaves them out.
+    const notComparable =
+      /^Topping from|\b(?:liver|livers|gizzards?|giblets|kidneys?|tripe|brains?|chitterlings|variety meats|substitute|cereal beverage|school lunch|raw)\b/i;
+    const problems: string[] = [];
+    for (const { food, result } of results) {
+      if (result.state !== "none_higher" && result.state !== "similar") continue;
+      const category = index.categoryOf(food);
+      if (!category || category === "Not included in a food category") continue;
+      const peers = (index.byCategory.get(category) ?? []).filter(
+        (peer) =>
+          !peer.ambiguous &&
+          peer.code !== food.code &&
+          !notComparable.test(peer.description) &&
+          !belowFiveKcal(data.nutrients[peer.code] ?? null)
+      );
+      const best = Math.max(-Infinity, ...peers.map((peer) => peer.fcs2));
+      const label = `${food.description} (${food.fcs2}) ${result.state}: ${best} in ${category}`;
+      if (result.state === "none_higher" && best > food.fcs2) problems.push(label);
+      if (result.state === "similar" && best >= food.fcs2 + SWAP_THRESHOLD) problems.push(label);
     }
     expect(problems).toEqual([]);
   });

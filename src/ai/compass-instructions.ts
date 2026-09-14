@@ -163,7 +163,7 @@ export async function lookupFoodScore(query: string, passcode?: string): Promise
       : published;
   const state = match.swapState;
   const noSwap =
-    swaps.length === 0 && (state === "affirm" || state === "similar" || state === "none_higher")
+    swaps.length === 0 && (state === "affirm" || state === "similar" || state === "none_higher" || state === "none")
       ? NO_SWAP_TEXT[state]
       : undefined;
 
