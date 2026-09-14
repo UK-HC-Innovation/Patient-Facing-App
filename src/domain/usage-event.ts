@@ -80,7 +80,8 @@ export const USAGE_DECISIONS = [
   "dr_triage",
   "family_recommend",
   "screening_extract",
-  "coach_reply"
+  "coach_reply",
+  "voice_delegation"
 ] as const;
 export type UsageDecision = (typeof USAGE_DECISIONS)[number];
 

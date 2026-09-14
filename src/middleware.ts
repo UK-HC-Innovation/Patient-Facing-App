@@ -8,6 +8,7 @@ const FOODLENS_API_PATHS = new Set([
   "/api/food/plate",
   "/api/food/vision",
   "/api/realtime/token",
+  "/api/live/session",
   "/api/health"
 ]);
 const FOODLENS_PUBLIC_ASSET_PATHS = new Set([

@@ -159,3 +159,19 @@ describe("createOutputTranscriptGuard leaves honest food answers alone", () => {
     expect(onEvent).not.toHaveBeenCalled();
   });
 });
+
+// GPT-Live accepts no cancel and no buffer clear, so its session hands the guard a remedy.
+describe("createOutputTranscriptGuard with a remedy", () => {
+  it("runs the remedy instead of Realtime's cancel and clear", () => {
+    const send = vi.fn();
+    const onEvent = vi.fn();
+    const remedy = vi.fn();
+    const guard = createOutputTranscriptGuard({ language: "en", send, onEvent, remedy });
+
+    guard.observeDelta("Take 8 units of insulin.");
+
+    expect(remedy).toHaveBeenCalledTimes(1);
+    expect(send).not.toHaveBeenCalled();
+    expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ type: "safetyIntercept", safety: "blocked" }));
+  });
+});

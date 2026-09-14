@@ -238,3 +238,74 @@ describe("realtime token route", () => {
     await expect(response.json()).resolves.toMatchObject({ mode: "live" });
   });
 });
+
+describe("realtime token route, the food doors' engine answer", () => {
+  beforeEach(() => {
+    resetRateLimitsForTest();
+    vi.stubEnv("REALTIME_NONCE_SECRET", "test-nonce-secret-value");
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("tells a food door it gets GPT-Live, and mints nothing", async () => {
+    liveEnv();
+    vi.stubEnv("HEALTH_AI_LIVE_LANGUAGES", "en");
+    const fetchMock = mockMint();
+
+    const probe = await POST(makeRequest({ surface: "food", language: "en", probe: true }, { nonce: null }));
+    await expect(probe.json()).resolves.toEqual({ mode: "live", model: "gpt-live-1", engine: "live" });
+
+    const start = await POST(makeRequest({ surface: "food", language: "en", patientId: "patient-1" }));
+    await expect(start.json()).resolves.toEqual({ mode: "live", model: "gpt-live-1", engine: "live" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps a language that is not switched on on Realtime", async () => {
+    liveEnv();
+    vi.stubEnv("HEALTH_AI_LIVE_LANGUAGES", "en");
+    const fetchMock = mockMint();
+
+    const probe = await POST(makeRequest({ surface: "food", language: "es", probe: true }, { nonce: null }));
+    await expect(probe.json()).resolves.toEqual({ mode: "live", model: "gpt-realtime-2", engine: "realtime" });
+
+    const minted = await POST(makeRequest({ surface: "food", language: "es", patientId: "patient-1" }));
+    await expect(minted.json()).resolves.toMatchObject({
+      mode: "live",
+      clientSecret: "client-secret",
+      engine: "realtime"
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("answers /chat exactly as before with GPT-Live switched on", async () => {
+    liveEnv();
+    vi.stubEnv("HEALTH_AI_LIVE_LANGUAGES", "en,es");
+    mockMint();
+
+    const probe = await POST(makeRequest({ probe: true }, { nonce: null }));
+    await expect(probe.json()).resolves.toEqual({ mode: "live", model: "gpt-realtime-2" });
+
+    const minted = await POST(makeRequest({ patientId: "patient-1", crisisOpen: false }));
+    await expect(minted.json()).resolves.toEqual({
+      mode: "live",
+      clientSecret: "client-secret",
+      model: "gpt-realtime-2",
+      expiresAt: 123
+    });
+  });
+
+  it("does not charge the spend window for a food request on GPT-Live", async () => {
+    liveEnv();
+    vi.stubEnv("HEALTH_AI_LIVE_LANGUAGES", "en");
+    mockMint();
+    const address = "203.0.113.44";
+
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const response = await POST(makeRequest({ surface: "food", language: "en" }, { address }));
+      expect(response.status).toBe(200);
+    }
+  });
+});
