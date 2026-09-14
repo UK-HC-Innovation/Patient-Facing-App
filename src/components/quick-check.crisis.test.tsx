@@ -17,7 +17,7 @@ describe("QuickCheck crisis path", () => {
   beforeEach(() => dispatch.mockReset());
 
   it("records PHQ-2 then terminates after a positive PHQ-9 item 9 through the frozen crisis seam", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     render(<QuickCheck />);
 
     await user.click(screen.getByRole("button", { name: "I understand — start" }));

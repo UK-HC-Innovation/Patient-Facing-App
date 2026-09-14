@@ -11,6 +11,7 @@ type IdentifyJson = {
   match?: {
     food: { code: string; description: string; group: string };
     tier: string;
+    basis?: string | null;
     score: {
       fcs: number;
       band: string;
@@ -241,6 +242,19 @@ describe("POST /api/food/identify — deterministic paths", () => {
   ])("lands the no-score swap %s on the carve-out, not on pre-sweetened rows", async (text, reason) => {
     const json = (await (await POST(request({ text }))).json()) as IdentifyJson;
     expect(json).toMatchObject({ mode: "carve_out", reason });
+  });
+
+  it("scores cheetos from the table's own Cheetos row", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const json = (await (await POST(request({ text: "cheetos" }))).json()) as IdentifyJson;
+
+    // Table S5 names Cheetos itself. A brand rewrite once sent it to the generic corn-puff
+    // row, which the table scores 23 instead of 17.
+    expect(json.mode).toBe("match");
+    expect(json.match?.food).toMatchObject({ code: "54401081", description: "Cheese flavored corn snacks (Cheetos)" });
+    expect(json.match?.basis).toBe("brand");
+    expect(json.match?.score.fcs).toBe(17);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("re-scores an exact food code for a correction-chip tap", async () => {

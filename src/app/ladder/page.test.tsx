@@ -169,7 +169,8 @@ beforeEach(() => {
 // The one-line verification that replaced the stack of confirmation cards.
 describe("the heard strip", { timeout: 20_000 }, () => {
   async function submitAs(user: ReturnType<typeof userEvent.setup>, text: string): Promise<void> {
-    await user.type(screen.getByLabelText("What would you like help with?"), text);
+    await user.click(screen.getByLabelText("What would you like help with?"));
+    await user.paste(text);
     await submitDescription(user);
     await screen.findByTestId("family-heard-strip");
   }
@@ -701,8 +702,8 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
       "aria-expanded",
       "false"
     );
-    await user.type(
-      screen.getByLabelText("What would you like help with?"),
+    await user.click(screen.getByLabelText("What would you like help with?"));
+    await user.paste(
       "Reading is really hard for him at school and I keep hearing about waivers."
     );
     await submitDescription(user);
@@ -755,8 +756,8 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     const user = userEvent.setup();
     render(<ReducerHarness />);
 
-    await user.type(
-      screen.getByLabelText("What would you like help with?"),
+    await user.click(screen.getByLabelText("What would you like help with?"));
+    await user.paste(
       "Theo is two. He says mama and no, but not much else, and he still falls a lot when he walks. His doctor said speech and physical therapy could help. I’m his grandmother and I don’t drive, so we need a ride to appointments. I need somebody to tell me who to call first."
     );
     await submitDescription(user);
@@ -802,8 +803,8 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     const user = userEvent.setup();
     render(<ReducerHarness />);
 
-    await user.type(
-      screen.getByLabelText("What would you like help with?"),
+    await user.click(screen.getByLabelText("What would you like help with?"));
+    await user.paste(
       "I have a seven-year-old with big meltdowns. He has been kicked out of school several times. We live in Breathitt County and we need help."
     );
     await submitDescription(user);
@@ -831,8 +832,8 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     const user = userEvent.setup();
     render(<ReducerHarness />);
 
-    await user.type(
-      screen.getByLabelText("What would you like help with?"),
+    await user.click(screen.getByLabelText("What would you like help with?"));
+    await user.paste(
       "We live in Scott County and reading homework is a nightly battle."
     );
     await submitDescription(user);
@@ -855,8 +856,8 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     const user = userEvent.setup();
     render(<ReducerHarness />);
 
-    await user.type(
-      screen.getByLabelText("What would you like help with?"),
+    await user.click(screen.getByLabelText("What would you like help with?"));
+    await user.paste(
       "We live in Breathitt County and reading homework is a nightly battle."
     );
     await submitDescription(user);
@@ -880,8 +881,8 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     const user = userEvent.setup();
     render(<ReducerHarness />);
 
-    await user.type(
-      screen.getByLabelText("What would you like help with?"),
+    await user.click(screen.getByLabelText("What would you like help with?"));
+    await user.paste(
       "Reading is really hard for him at school."
     );
     await submitDescription(user);
@@ -918,7 +919,7 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
 
     const interview = screen.getByLabelText("What would you like help with?");
     await user.clear(interview);
-    await user.type(interview, "He keeps getting kicked out of school and I do not know what to ask for.");
+    await user.paste("He keeps getting kicked out of school and I do not know what to ask for.");
     await submitDescription(user);
 
     const heard = await screen.findByTestId("family-heard");
@@ -944,7 +945,7 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
 
     const interview = screen.getByLabelText("What would you like help with?");
     await user.clear(interview);
-    await user.type(interview, "He keeps getting kicked out of school and I do not know what to ask for.");
+    await user.paste("He keeps getting kicked out of school and I do not know what to ask for.");
     await submitDescription(user);
 
     await waitFor(() => expect(requestFamilyRecommendations).toHaveBeenCalled());
@@ -978,7 +979,7 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
 
     const interview = screen.getByLabelText("What would you like help with?");
     await user.clear(interview);
-    await user.type(interview, "He keeps getting kicked out of school and I do not know what to ask for.");
+    await user.paste("He keeps getting kicked out of school and I do not know what to ask for.");
     await submitDescription(user);
 
     await goToSurface(user, /Programs/);
@@ -1895,8 +1896,8 @@ describe("monthly check-in", () => {
     const user = userEvent.setup();
     render(<ReducerHarness />);
 
-    await user.type(
-      screen.getByLabelText("What would you like help with?"),
+    await user.click(screen.getByLabelText("What would you like help with?"));
+    await user.paste(
       "Reading is really hard for him at school and I keep hearing about waivers."
     );
     await submitDescription(user);

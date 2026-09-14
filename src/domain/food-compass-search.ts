@@ -91,8 +91,9 @@ const QUERY_SYNONYMS: { pattern: RegExp; replacement: string }[] = [
   { pattern: /\bale\s*-?\s*8(?:\s*-?\s*one)?\b/gi, replacement: "ginger ale" },
   // The table's only Mountain Dew rows are the AMP energy drinks, which is a different
   // product from the soda someone is holding. There is no "citrus" row; a caffeinated
-  // fruit-flavoured soft drink is what the table calls this.
-  { pattern: /\bmountain\s+dew\b/gi, replacement: "soft drink, fruit flavored, caffeine containing" },
+  // fruit-flavoured soft drink is what the table calls this. A line that names AMP is
+  // asking for those rows, so it is left alone.
+  { pattern: /\bmountain\s+dew\b(?!\s+amp\b)/gi, replacement: "soft drink, fruit flavored, caffeine containing" },
   { pattern: /\bdumplin['’]?s\b/gi, replacement: "dumplings" },
   // The table has no "arroz con pollo" row, and fuzzy matching hands it a Mexican rice
   // soup. Said in English it lands on the dish itself.
@@ -105,8 +106,10 @@ const QUERY_SYNONYMS: { pattern: RegExp; replacement: string }[] = [
   // its 9,273 rows, and none of them is a cola, so a scanned Coke used to land wherever
   // BM25 happened to point. Each replacement is the table's own vocabulary for that exact
   // product, verified against fcs2-foods.json on 2026-09-10. A brand the table DOES carry
-  // (Doritos, Fritos, Cheerios, Gatorade, Red Bull, Big Mac) is deliberately absent: those
-  // already resolve through the brand-row rule.
+  // (Cheetos, Doritos, Fritos, Cheerios, Gatorade, Red Bull, Big Mac) is deliberately
+  // absent: those already resolve through the brand-row rule. No pattern may match a row's
+  // own description either, and the brands test checks every row. Until 2026-09-14 a
+  // Cheetos rewrite moved "cheetos" off its own row (17) onto a generic corn-puff row (23).
   //
   // Bare "coke" is left out on purpose. In Kentucky it is said for any soft drink, so it is
   // exactly the ambiguous case R4 sends to a clarification instead of guessing.
@@ -117,12 +120,14 @@ const QUERY_SYNONYMS: { pattern: RegExp; replacement: string }[] = [
   { pattern: /\bdr\.?\s*pepper\b/gi, replacement: "soft drink, pepper type" },
   // Lemon-lime sodas. The table has no lemon-lime row; caffeine-free fruit flavored is the
   // family it files them under, the same call spec 29 made for Mountain Dew.
-  { pattern: /\bsprite\b|\b7\s*-?\s*up\b|\bsierra\s+mist\b|\bmello\s+yello\b/gi, replacement: "soft drink, fruit flavored, caffeine free" },
-  // Sun Drop is a Southern citrus soda; same family as Mountain Dew, and it has no row.
-  { pattern: /\bmtn\s+dew\b|\bsun\s*-?\s*drop\b/gi, replacement: "soft drink, fruit flavored, caffeine containing" },
-  { pattern: /\blay'?s\b|\bruffles\b|\bpringles\b|\bkettle\s+chips\b/gi, replacement: "potato chips" },
-  { pattern: /\bcheetos\b/gi, replacement: "corn cheese puffs and twists" },
-  { pattern: /\boreos?\b/gi, replacement: "cookie, chocolate sandwich" }
+  { pattern: /\bsprite\b|\b7\s*-?\s*up\b|\bsierra\s+mist\b/gi, replacement: "soft drink, fruit flavored, caffeine free" },
+  // Sun Drop and Mello Yello are caffeinated citrus sodas, the same family as Mountain Dew,
+  // and neither has a row.
+  { pattern: /\bmtn\s+dew\b(?!\s+amp\b)|\bsun\s*-?\s*drop\b|\bmello\s+yello\b/gi, replacement: "soft drink, fruit flavored, caffeine containing" },
+  { pattern: /\blay['’]?s\b|\bruffles\b|\bpringles\b|\bkettle\s+chips\b/gi, replacement: "potato chips" },
+  // FNDDS files Oreo under Cookie, chocolate sandwich. The table's only Oreo row is Oreo O's
+  // cereal, which this leaves alone.
+  { pattern: /\boreos?\b(?!\s*(?:o['’]?s|cereal)\b)/gi, replacement: "cookie, chocolate sandwich" }
 ];
 
 /** Rewrites regional and brand names to the table's own vocabulary. */
