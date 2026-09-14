@@ -114,8 +114,16 @@ const compassBudgets = {
   // tells them apart from a miss. The alias table and the promotion policy are server-only,
   // in food-compass-search.ts, which nothing but the identify route imports. /food goes
   // 313 -> 315 and /food/demo 204 -> 205. Largest chunk either route pulls is 174 KiB raw.
-  "/food/demo/page": 205 * kib,
-  "/food/page": 315 * kib
+  //
+  // Re-measured 2026-09-14 after spec 31 C1 (1f0033c): /food/demo 206.0 KiB, /food 315.4 KiB.
+  // Both doors gained the swap row, "More swaps", the in-place comparison with "Use this
+  // instead" and the state lines in two languages, which outgrew what retiring the public
+  // sort control freed. The swap finder, families and display names stay server-only in
+  // food-swaps.ts, which only the identify route imports. At 333c618, which also carries
+  // 465bfbc's GPT-Live-1 voice engine, /food/demo is 206.6 KiB and /food 316.0 KiB.
+  // /food/demo goes 205 -> 208 and /food 315 -> 317.
+  "/food/demo/page": 208 * kib,
+  "/food/page": 317 * kib
 };
 
 const compassReport = [];

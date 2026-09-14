@@ -1,6 +1,6 @@
 # Spec 31: OneGoodChoice, alternatives and recipes
 
-**Status:** Draft for independent review, 2026-09-14. Not approved for build or release. Slice C1 is the first build candidate: it can start before the nutrition lead's review and cannot ship before it (section 10).
+**Status:** C1 built on master 2026-09-14 (`1f0033c`, `333c618`), with C2's barcode swaps and C3's labeled recipe search; not deployed. Families, targets, exclusions and names ship as proposed defaults, so release still waits for the nutrition lead and a Spanish reviewer (section 10). Section 13 records the build and what changed from this draft.
 **Date:** 2026-09-14. Evidence gathered 2026-09-13 and 2026-09-14.
 **Author:** Claude (Opus 5), from `docs/handoffs/31-onegoodchoice-alternatives-recipes-spec-prompt.md`.
 **Baseline:** HEAD `79eec03`. Its last code commit is `32223e2` (brand identity), committed and not deployed. Production is `4a0be55` (spec 30 A2), the last entry in `docs/ops/DEPLOYS.jsonl`.
@@ -397,6 +397,62 @@ Extension collaborator (C3): 16. Which Plate It Up! pages serve which swaps, and
 Exercised: the scratch harness over the whole table; the identify route handler for 102 named queries and 100 corpus cases; 408 production typed and `foodId` requests; a scratch prototype of R1, R2 and R4 over the table (indicative); a clean HEAD build and the repo's bundle script; the Review Copy PDF text (all 10 pages) and the 09-03 and 09-04 Markdown drafts; web research on recipe sources, plus direct requests to MyPlate Kitchen and Plate It Up! pages.
 
 Not exercised: no browser run on either door, so every rendering claim is C. The public door probes voice on load, which mints no session; the risk was the camera loop, which could send frames to the paid vision route if the browser pane attached a camera. No e2e run, live model, voice, physical phone or screen reader. No nutrition, Spanish or Extension review. No recipe source license confirmed with its publisher. The prototype is unreviewed scratch code and did not model R3's drink rule. Production latency comes from one machine.
+
+## 13. As built, 2026-09-14
+
+C1 is built on master in `1f0033c` and `333c618`, with C2's barcode swaps and C3's recipe search. It is not deployed: production is still `4a0be55`, which serves the old list. The owner took decisions 1 to 5 as recommended. Everything section 10 leaves to the nutrition lead or the Spanish reviewer ships as a proposed default in `src/domain/food-swaps.ts`, marked pending review, so release still waits on both.
+
+What shipped:
+
+- `findSwaps` in `src/domain/food-swaps.ts` applies R1 to R3, and only the identify route imports it. The route returns at most three swaps, a `swapState` and, for a sugar-sweetened drink, a no-score swap.
+- Rows under 5 kcal per 100 g answer as not scored, by `foodId` as well as by text. Typed `unsweetened tea`, `black coffee`, `agua`, `un vaso de agua`, `té sin azúcar` and `café negro` reach the carve-out, and corpus cases `excl-black-coffee` and `es-agua` are re-adjudicated.
+- Both doors show one "Try instead" row, "More swaps", the comparison in place and "Use this instead" (`CompassSwaps` in `src/components/compass-score.tsx`). The public sort control and its strings are gone, and `FoodFactsCard` lost its unused copy of the list. On `/food`, "Use this instead" makes the swap the current choice and "Log this" then logs it.
+- A barcode that maps to a published row gets that row's swaps on both doors (C25).
+- The voice context and the public `lookup_food_score` tool carry the same swap or state line as the screen. In candidate mode the tool returns the named rows with no score (`needs_choice`).
+- The default swap carries one recipe link, a labeled web search built from its reviewed display name.
+
+Changes from the draft:
+
+1. Cereal is two families, ready-to-eat and hot. Grits never get a cold cereal until the nutrition lead says the two are swaps for each other.
+2. A milk family joins section 5: whole, reduced fat, lowfat and nonfat milk, with fat-free milk preferred. WWEIA files plain milk by fat level, so without it whole milk (54) never met fat-free milk (66).
+3. School-lunch rows are never targets. They are trays a school serves, and they led the list for chicken nuggets and restaurant pepperoni pizza.
+4. "Bake, broil or grill it" lands only on a row that says baked, broiled, grilled or roasted. The first build put a steamed row under that label for fried fish.
+5. "Choose whole grain" takes brown or wild only against a white row; otherwise the row has to say whole wheat or whole grain. Plain spaghetti, whose row never says white, now reaches whole wheat spaghetti (82), and wild salmon can never pass as a grain.
+6. Among preparation changes the highest score wins (R4), then a row with no added fat, then one that keeps the current fat wording. Fried fish therefore gets "Fish, NS as to type, baked or broiled, made with oil" (97) rather than appendix A's row with no added fat (95). The nutrition lead should confirm this case (review question 4).
+7. A fourth state, `none`, prints no line. Both state lines are checked against every comparable row of the same food, its category and its family. When there is nothing to compare, or the higher similar rows are ones the rules keep out (a survey duplicate, a row that adds fat), nothing prints and voice hears "there is none to suggest for this food". The first build printed "Nothing similar scores higher." for 1,143 rows, many with nothing compared, such as Froot Loops Cereal Straws (4).
+8. There are two no-score swaps: water or unsweetened tea, and black coffee. Sparkling water is not a swap of its own; typed, it already reaches the zero-calorie carve-out.
+9. The curated recipe table, `recipeCurated` and its link check wait for Extension picks. Only the labeled web search shipped.
+
+Measured on the committed code (X), over the 9,229 non-ambiguous rows:
+
+| State | Rows | What shows |
+|---|---|---|
+| Swap | 6,256 | "Try instead" and the swap |
+| No-score drink swap | 144 | "Water or unsweetened tea" (126) or "Black coffee" (18) |
+| Affirmation | 1,216 | "A good choice as it is." |
+| Similar | 600 | "Similar foods score about the same." |
+| Nothing higher | 229 | "Nothing similar scores higher." |
+| None | 784 | No line |
+
+- 7,616 rows (82.5%) end in a swap or an affirmation. Before, 1,004 rows printed a false empty line (E02).
+- Default swaps by pool: same category 4,697, preferred target 916, preparation change 565, another category in the family 78, product line 18. By change: skip the added fat 187, choose whole grain 170, bake 109, lower sodium 57, take the skin off 34, unsweetened 8.
+- Of the 6,274 default swaps, 565 lead with a named change, 1,003 with a reviewed name and 4,706 with their source row alone, which is English on the Spanish door. 847 carry a recipe link. C22 stays open until the Spanish reviewer adds names.
+- Corpus: all 28 typed lines that score directly show a swap or an affirmation with no tap; before, 5 showed an alternative. 33 more reach one after a single chip tap. 9 are carve-outs, and 30 never get one: 12 plate lines and items, 9 safety intercepts, 5 misses, 2 candidates whose chips get only state lines, 1 question and 1 empty line.
+- Named cases that moved from appendix A's proposal: fried fish (item 6); cornbread and biscuit get whole wheat bread from the bread family; grits get oatmeal made with water (81), the hot-cereal preferred row; chicken nuggets get grilled chicken (64); `leche` now reaches fat-free milk in one tap. Country ham, `refresco`, `jugo de naranja`, bacon and macaroni and cheese still reach wrong chips, because C2's reviewed defaults and candidate sets are not built.
+
+Verification:
+
+- 215 unit tests in the 15 food suites pass, including the table-wide gate (C20) and a check that no state line contradicts its category. Lint, typecheck and `npm run storefree` (C18) are clean.
+- `npm run crisis:gate` passed on `1f0033c`.
+- Bundle, from a clean `git archive` build: C1 took `/food/demo` to 206.0 KiB and `/food` to 315.4 KiB, over their 205 and 315 KiB ceilings, so the 0.7 KiB of review question 10 did not hold. The swap row, "More swaps", the comparison, "Use this instead" and the state lines in two languages outgrew what the sort control's removal freed; the finder, families and names stay server-only. At `333c618`, which also carries `465bfbc`'s voice engine, the doors measure 206.6 and 316.0 KiB. The ceilings are now 208 and 317 KiB, with the measurements recorded in `scripts/check-ladder-bundle.mjs` (C19 by remeasurement), and the repo's bundle check passes against them on a rebuild of `333c618`, per-chunk guard and package-scanner checks included. Ladder is at 315.9 of 316 KiB.
+- E2E on the same clean copy of `333c618`, in Chromium and the mobile project: all 182 tests in food-demo, food-critique, food-lens, food-lens-shell, food-plate and food-measure pass. A new Swaps block checks C01, C02, C04, C12, C14 and the "Use this instead" part of C15 on both doors; the label-only estimate test (C17) is unchanged and passes.
+
+Still open:
+
+- C2's reviewed default rows and candidate sets (R7). They touch `food-compass-search.ts`, which other work also edits.
+- C13's 30-row cross-path test, and C16's fixture eval that fails a reply naming an unsupplied food. Tests cover the instruction and tool wording only.
+- Spanish display names, the curated recipe table, saved swaps, plate swaps and a second chart marker.
+- Deploy, after the reviews.
 
 ## Appendix A. Named cases
 
