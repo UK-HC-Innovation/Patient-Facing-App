@@ -2,6 +2,7 @@
 
 import React, {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -1086,9 +1087,12 @@ export function FamilyExperience({
   // Not scoped to the first interview — a caregiver who starts over and then
   // writes a complete description would otherwise land in a profile-less state
   // that no turn can finish.
+  // A layout effect, so the profile is saved before the browser paints. As a
+  // passive effect it landed a frame late, and that frame showed the strip with
+  // no county, no age and no cards.
   const autoAppliedForRef = useRef<string | undefined>(undefined);
   const canAutoApply = !!family && !family.profile && autoBasics !== null;
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!canAutoApply || autoBasics === null) return;
     if (autoAppliedForRef.current === latestInterviewId) return;
     autoAppliedForRef.current = latestInterviewId;
@@ -1098,7 +1102,9 @@ export function FamilyExperience({
   }, [canAutoApply, autoBasics, latestInterviewId]);
 
   const basicsOpen = selectLadderBasicsOpen(session);
-  const needsBasics = activeAsk === "basics";
+  // Nothing is asked while a complete set is about to be applied: the turns
+  // would open with every answer already filled in.
+  const needsBasics = activeAsk === "basics" && !canAutoApply;
 
   // The child's own name wherever the copy addresses them, with the language's
   // stand-in when the caregiver has not given one.

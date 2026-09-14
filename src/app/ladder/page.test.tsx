@@ -800,7 +800,7 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
   }, 20_000);
 
   it("applies the county, age, and stage the caregiver already wrote without asking for a tap", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     render(<ReducerHarness />);
 
     await user.click(screen.getByLabelText("What would you like help with?"));
