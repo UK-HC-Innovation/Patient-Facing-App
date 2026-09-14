@@ -34,7 +34,7 @@ describe("FamilyProfileForm", () => {
   });
 
   it("saves only the minimal profile, supports all diagnoses and month-only dates, and preserves diagnosis IDs", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     const onSave = vi.fn();
     render(
       <FamilyProfileForm
@@ -84,7 +84,7 @@ describe("FamilyProfileForm", () => {
   });
 
   it("validates birth year against 1900 through the current year", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     const onSave = vi.fn();
     render(
       <FamilyProfileForm
@@ -108,7 +108,7 @@ describe("FamilyProfileForm", () => {
     ["es" as const, "", "Otro diagnóstico", /escribe las palabras que te dieron/i],
     ["es" as const, "   ", "Otro diagnóstico", /escribe las palabras que te dieron/i]
   ])("rejects an empty or whitespace-only Other diagnosis with a localized linked error in %s", async (language, value, label, error) => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     const onSave = vi.fn();
     render(
       <FamilyProfileForm

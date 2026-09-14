@@ -26,7 +26,7 @@ vi.mock("@/components/app-shell", () => ({
 }));
 
 async function submitPhq2(first: "Not at all" | "Nearly every day", second = "Not at all") {
-  const user = userEvent.setup();
+  const user = userEvent.setup({ delay: null });
   await user.click(screen.getByRole("button", { name: "I understand — start" }));
   await user.click(screen.getAllByRole("radio", { name: first })[0]);
   await user.click(screen.getAllByRole("radio", { name: second })[1]);
@@ -79,7 +79,7 @@ describe("perinatal check-in route", () => {
   });
 
   it("renders Spanish framing and the routed below-threshold PHQ-2 result", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     context.state = {
       ...demoState,
       patient: { ...demoState.patient, language: "es" }

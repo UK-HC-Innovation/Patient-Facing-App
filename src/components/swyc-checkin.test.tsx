@@ -49,7 +49,7 @@ describe("SwycCheckin", () => {
     { label: "SWYC 18-month Milestones", instrument: SWYC_18MO_INSTRUMENT, childAgeMonths: 18 },
     { label: "SWYC 30-month Milestones", instrument: SWYC_30MO_INSTRUMENT, childAgeMonths: 30 }
   ])("records $label before the single shared POSI registry object after explicit continuation", async ({ instrument, childAgeMonths }) => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     expect(getInstrument("swyc_posi")).toBe(SWYC_POSI_INSTRUMENT);
     render(
       <SwycCheckin
@@ -77,7 +77,7 @@ describe("SwycCheckin", () => {
   });
 
   it("shows no First Steps action when both Milestones and POSI are lower risk", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     render(
       <SwycCheckin childAgeMonths={18} language="en" milestoneInstrument={SWYC_18MO_INSTRUMENT} profile={profile} />
     );
@@ -90,7 +90,7 @@ describe("SwycCheckin", () => {
   });
 
   it("shows First Steps when POSI is discuss even with lower-risk Milestones", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     render(
       <SwycCheckin childAgeMonths={18} language="en" milestoneInstrument={SWYC_18MO_INSTRUMENT} profile={profile} />
     );
