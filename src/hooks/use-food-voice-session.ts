@@ -14,7 +14,13 @@ import { readRealtimeNonce } from "@/hooks/realtime-nonce-client";
 import { aiDataModeForVoiceTransport, type AiDataMode } from "@/domain/privacy-disclosure";
 import { t } from "@/i18n/strings";
 import type { AiMessageAction, AppState } from "@/domain/types";
-import type { LiveSessionContext, LiveSessionEvent, LiveSessionHandle, LiveSessionStatus } from "@/ai/types";
+import type {
+  HealthAiProvider,
+  LiveSessionContext,
+  LiveSessionEvent,
+  LiveSessionHandle,
+  LiveSessionStatus
+} from "@/ai/types";
 
 export type VoiceSafetyIntercept = {
   safety: "crisis" | "escalate" | "blocked";
@@ -53,10 +59,23 @@ export function sanitizeFoodVoiceContext(context: LiveSessionContext): LiveSessi
   };
 }
 
+type VoiceEngine = "realtime" | "live";
+
 type TokenResponse =
-  | { mode: "live"; clientSecret: string; model: string; expiresAt: number | null }
+  | { mode: "live"; engine?: VoiceEngine; model: string; clientSecret?: string; expiresAt?: number | null }
   | { mode: "mock"; reason: string }
   | { mode: "error"; message: string };
+
+/**
+ * Which kind of session the handle is. On GPT-Live the mic and the typed box use different
+ * sessions: a typed line never enters a Live session, and the mic cannot ride the text path.
+ */
+type HandleKind = "realtime" | "live" | "local";
+
+function engineOf(token: TokenResponse): VoiceEngine | null {
+  if (token.mode !== "live") return null;
+  return token.engine === "live" ? "live" : "realtime";
+}
 
 export function useFoodVoiceSession(args: {
   language: "en" | "es";
@@ -71,6 +90,10 @@ export function useFoodVoiceSession(args: {
   buildContext?: (context: LiveSessionContext) => string;
   beforePatientResponse?: (text: string) => Promise<void>;
   tools?: RealtimeTool[];
+  /** The food's name as the door shows it, for spoken GPT-Live answers. Defaults to the identified food. */
+  currentFoodName?: () => string | null;
+  /** The line GPT-Live says when the camera names a food first. Defaults to the food's score. */
+  buildOpeningLine?: () => string | null;
   /**
    * Resolve `mode` on mount instead of waiting for the first start().
    *
@@ -102,13 +125,17 @@ export function useFoodVoiceSession(args: {
     buildInstructions: args.buildInstructions,
     buildContext: args.buildContext,
     beforePatientResponse: args.beforePatientResponse,
-    tools: args.tools
+    tools: args.tools,
+    currentFoodName: args.currentFoodName,
+    buildOpeningLine: args.buildOpeningLine
   });
   overridesRef.current = {
     buildInstructions: args.buildInstructions,
     buildContext: args.buildContext,
     beforePatientResponse: args.beforePatientResponse,
-    tools: args.tools
+    tools: args.tools,
+    currentFoodName: args.currentFoodName,
+    buildOpeningLine: args.buildOpeningLine
   };
   const onInterceptRef = useRef(onSafetyIntercept);
   onInterceptRef.current = onSafetyIntercept;
@@ -119,6 +146,9 @@ export function useFoodVoiceSession(args: {
   const [partialAssistantText, setPartialAssistantText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const handleRef = useRef<LiveSessionHandle | null>(null);
+  const handleKindRef = useRef<HandleKind | null>(null);
+  /** The engine the token route last named for this door. The route decides; this remembers. */
+  const engineRef = useRef<VoiceEngine | null>(null);
   const sessionStartRef = useRef<Promise<void> | null>(null);
   const startGenerationRef = useRef(0);
   const safetyLatchedRef = useRef(false);
@@ -151,6 +181,7 @@ export function useFoodVoiceSession(args: {
     clearIdleTimer();
     handleRef.current?.close();
     handleRef.current = null;
+    handleKindRef.current = null;
     partialRef.current = "";
     setPartialAssistantText("");
     setStatus("closed");
@@ -180,6 +211,13 @@ export function useFoodVoiceSession(args: {
     }, THINKING_WATCHDOG_MS);
   }, [clearThinkingTimer, stop]);
 
+  /** A session that ended on its own is gone: the mic must be able to start another. */
+  const forgetHandle = useCallback(() => {
+    handleRef.current = null;
+    handleKindRef.current = null;
+    sessionStartRef.current = null;
+  }, []);
+
   const handleEvent = useCallback(
     (event: LiveSessionEvent) => {
       if (safetyLatchedRef.current) return;
@@ -191,6 +229,12 @@ export function useFoodVoiceSession(args: {
             armThinkingTimer();
           } else {
             clearThinkingTimer();
+          }
+          if (event.status === "closed") {
+            // Only a session that closes itself reaches here: stop() moves the generation on
+            // first, so its own close is never delivered. GPT-Live closes itself when idle.
+            clearIdleTimer();
+            forgetHandle();
           }
           break;
         case "userTranscript":
@@ -234,11 +278,14 @@ export function useFoodVoiceSession(args: {
           if (event.fatal) {
             clearThinkingTimer();
             setStatus("error");
+            // A failed transport has already let go of everything; keeping its handle would
+            // leave Retry calling start() on a session that no longer exists.
+            forgetHandle();
           }
           break;
       }
     },
-    [armIdleTimer, armThinkingTimer, clearThinkingTimer, stop]
+    [armIdleTimer, armThinkingTimer, clearIdleTimer, clearThinkingTimer, forgetHandle, stop]
   );
 
   const gateTranscript = useCallback(
@@ -246,7 +293,7 @@ export function useFoodVoiceSession(args: {
     [getState, language]
   );
 
-  const startSession = useCallback(async (requestContextResponse: boolean) => {
+  const startSession = useCallback(async (requestContextResponse: boolean, purpose: "voice" | "text" = "voice") => {
     const generation = ++startGenerationRef.current;
     setError(null);
     safetyLatchedRef.current = false;
@@ -266,7 +313,13 @@ export function useFoodVoiceSession(args: {
       const response = await fetch("/api/realtime/token", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-realtime-nonce": readRealtimeNonce() },
-        body: JSON.stringify({ patientId: stateBeforeStart.patient.id, crisisOpen: false, passcode })
+        body: JSON.stringify({
+          patientId: stateBeforeStart.patient.id,
+          crisisOpen: false,
+          passcode,
+          surface: "food",
+          language
+        })
       });
       token = (await response.json()) as TokenResponse;
     } catch {
@@ -279,10 +332,79 @@ export function useFoodVoiceSession(args: {
 
     const state = getState();
     const getSafeContext = () => sanitizeFoodVoiceContext(getContext());
+    const onEvent = (event: LiveSessionEvent) => {
+      if (generation === startGenerationRef.current) {
+        handleEvent(event);
+      }
+    };
+    const adopt = (handle: LiveSessionHandle, kind: HandleKind) => {
+      if (generation !== startGenerationRef.current || safetyLatchedRef.current) {
+        handle.close();
+        return;
+      }
+      handleRef.current = handle;
+      handleKindRef.current = kind;
+      if (requestContextResponse) {
+        handle.requestContextResponse?.();
+      }
+      armIdleTimer();
+    };
+    const openLocal = async (provider: HealthAiProvider) => {
+      adopt(await openLocalCoachSession({ language, getState, getContext: getSafeContext, onEvent }, provider), "local");
+    };
+    const instructions = overridesRef.current.buildInstructions
+      ? overridesRef.current.buildInstructions(state)
+      : buildFoodLensInstructions(state, selectLenses(activeConditions(state.carePlan)));
 
-    if (token.mode === "live") {
+    const engine = engineOf(token);
+    if (engine) {
+      engineRef.current = engine;
       setMode("live");
       setDataMode(aiDataModeForVoiceTransport(token));
+    }
+
+    if (engine === "live") {
+      if (purpose === "text") {
+        // A typed line never enters a GPT-Live session. It takes the text path, which runs the
+        // full safety and grounding chain and needs no microphone.
+        await openLocal(new OpenAiVisionProvider({ passcode }));
+        return;
+      }
+      try {
+        // Loaded on a mic tap, so neither door's first load carries GPT-Live.
+        const { startLiveVoice } = await import("@/ai/live-voice");
+        if (generation !== startGenerationRef.current) {
+          return;
+        }
+        adopt(
+          await startLiveVoice({
+            instructions,
+            language,
+            patientId: state.patient.id,
+            passcode,
+            nonce: readRealtimeNonce(),
+            getContext: getSafeContext,
+            overrides: () => overridesRef.current,
+            gateTranscript,
+            onEvent
+          }),
+          "live"
+        );
+      } catch {
+        if (generation === startGenerationRef.current) {
+          setError("Could not start the voice session.");
+          setStatus("error");
+        }
+      }
+      return;
+    }
+
+    if (token.mode === "live") {
+      if (typeof token.clientSecret !== "string") {
+        setError("Could not start the voice session.");
+        setStatus("error");
+        return;
+      }
       let lastInjectedFoodId: string | null = null;
       const buildContextMessage = (): { text: string; imageDataUrl: string | null } => {
         const context = getSafeContext();
@@ -314,17 +436,11 @@ export function useFoodVoiceSession(args: {
         const handle = await connectRealtimeSession({
           clientSecret: token.clientSecret,
           model: token.model,
-          instructions: overridesRef.current.buildInstructions
-            ? overridesRef.current.buildInstructions(state)
-            : buildFoodLensInstructions(state, selectLenses(activeConditions(state.carePlan))),
+          instructions,
           tools: overridesRef.current.tools,
           language,
           buildContextMessage,
-          onEvent: (event) => {
-            if (generation === startGenerationRef.current) {
-              handleEvent(event);
-            }
-          },
+          onEvent,
           gateTranscript,
           ...(hasBeforePatientResponse
             ? {
@@ -333,15 +449,7 @@ export function useFoodVoiceSession(args: {
               }
             : {})
         });
-        if (generation !== startGenerationRef.current || safetyLatchedRef.current) {
-          handle.close();
-        } else {
-          handleRef.current = handle;
-          if (requestContextResponse) {
-            handle.requestContextResponse?.();
-          }
-          armIdleTimer();
-        }
+        adopt(handle, "realtime");
       } catch {
         if (generation === startGenerationRef.current) {
           setError("Could not start the voice session.");
@@ -357,41 +465,26 @@ export function useFoodVoiceSession(args: {
     setMode("mock");
     const resolvedDataMode = aiDataModeForVoiceTransport(token);
     setDataMode(resolvedDataMode);
-    const handle = await openLocalCoachSession(
-      {
-        language,
-        getState,
-        getContext: getSafeContext,
-        onEvent: (event) => {
-          if (generation === startGenerationRef.current) {
-            handleEvent(event);
-          }
-        }
-      },
-      resolvedDataMode === "on_device"
-        ? new MockHealthAiProvider()
-        : new OpenAiVisionProvider({ passcode })
+    await openLocal(
+      resolvedDataMode === "on_device" ? new MockHealthAiProvider() : new OpenAiVisionProvider({ passcode })
     );
-    if (generation !== startGenerationRef.current || safetyLatchedRef.current) {
-      handle.close();
-    } else {
-      handleRef.current = handle;
-      if (requestContextResponse) {
-        handle.requestContextResponse?.();
-      }
-      armIdleTimer();
-    }
   }, [armIdleTimer, gateTranscript, getContext, getState, handleEvent, language]);
 
-  const start = useCallback(() => {
+  const begin = useCallback((purpose: "voice" | "text") => {
     if (handleRef.current) {
-      return Promise.resolve();
+      const wrongKind =
+        engineRef.current === "live" &&
+        (purpose === "voice" ? handleKindRef.current !== "live" : handleKindRef.current === "live");
+      if (!wrongKind) {
+        return Promise.resolve();
+      }
+      stop();
     }
     if (sessionStartRef.current) {
       return sessionStartRef.current;
     }
 
-    const pending = startSession(false);
+    const pending = startSession(false, purpose);
     sessionStartRef.current = pending;
     const clearPending = () => {
       if (sessionStartRef.current === pending) {
@@ -400,8 +493,17 @@ export function useFoodVoiceSession(args: {
     };
     void pending.then(clearPending, clearPending);
     return pending;
-  }, [startSession]);
-  const startWithContextResponse = useCallback(() => startSession(true), [startSession]);
+  }, [startSession, stop]);
+
+  const start = useCallback(() => begin("voice"), [begin]);
+  const startWithContextResponse = useCallback(() => {
+    // Replace, never stack: a second session beside the first would keep a GPT-Live meter
+    // running with no screen attached to it.
+    if (handleRef.current) {
+      stop();
+    }
+    return startSession(true, "voice");
+  }, [startSession, stop]);
 
   useEffect(() => {
     if (!probeOnMount) {
@@ -412,13 +514,14 @@ export function useFoodVoiceSession(args: {
     void fetch("/api/realtime/token", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ probe: true, crisisOpen: false, passcode })
+      body: JSON.stringify({ probe: true, crisisOpen: false, passcode, surface: "food", language })
     })
       .then((response) => response.json() as Promise<TokenResponse>)
       .then((token) => {
         if (!cancelled) {
           setMode(token.mode === "live" ? "live" : "mock");
           setDataMode(aiDataModeForVoiceTransport(token));
+          engineRef.current = engineOf(token);
         }
       })
       .catch(() => {
@@ -429,28 +532,45 @@ export function useFoodVoiceSession(args: {
     return () => {
       cancelled = true;
     };
-  }, [probeOnMount]);
+  }, [language, probeOnMount]);
 
   const sendUserText = useCallback((text: string) => {
     const handle = handleRef.current;
-    if (handle) {
+    if (handle && !(engineRef.current === "live" && handleKindRef.current === "live")) {
       handle.sendUserText(text);
       return;
     }
 
     // probeOnMount resolves the transport so the typed form can render without
-    // spending on a session. Open that session only when the person actually asks.
-    const pending = start();
+    // spending on a session. Open that session only when the person actually asks. On
+    // GPT-Live that is the text path, and an open Live session closes first.
+    const pending = begin("text");
     const generation = startGenerationRef.current;
     void pending.then(
       () => {
-        if (generation === startGenerationRef.current) {
-          handleRef.current?.sendUserText(text);
+        if (generation !== startGenerationRef.current) {
+          return;
         }
+        if (engineRef.current === "live" && handleKindRef.current === "live") {
+          // A mic start was already in flight when the line was typed. The line still takes
+          // the text path; a typed question is never dropped.
+          const retry = begin("text");
+          const retryGeneration = startGenerationRef.current;
+          void retry.then(
+            () => {
+              if (retryGeneration === startGenerationRef.current) {
+                handleRef.current?.sendUserText(text);
+              }
+            },
+            () => undefined
+          );
+          return;
+        }
+        handleRef.current?.sendUserText(text);
       },
       () => undefined
     );
-  }, [start]);
+  }, [begin]);
 
   const requestContextResponse = useCallback(() => {
     handleRef.current?.requestContextResponse?.();
@@ -464,6 +584,7 @@ export function useFoodVoiceSession(args: {
       clearThinkingTimer();
       handleRef.current?.close();
       handleRef.current = null;
+      handleKindRef.current = null;
     };
   }, [clearIdleTimer, clearThinkingTimer]);
 

@@ -19,7 +19,13 @@ Four kinds of event.
 question a person then acts on, so a wrong answer there is the bug that matters:
 
 `crisis_gate`, `route_classify`, `food_score`, `carb_range`, `plate_review`, `package_scan`,
-`barcode_lookup`, `dr_triage`, `family_recommend`, `screening_extract`, `coach_reply`.
+`barcode_lookup`, `dr_triage`, `family_recommend`, `screening_extract`, `coach_reply`,
+`voice_delegation`.
+
+`voice_delegation` is GPT-Live handing a spoken question back to the app. Its outcome names
+the branch that answered: `current`, `lookup_match`, `lookup_candidate`, `lookup_carve_out`,
+`lookup_none`, `nothing_on_screen`, `other`, or `timeout` and `error`, which answer with a
+fixed line.
 
 A decision carries the outcome, how it was reached, an optional confidence and latency, and
 an `inputSignature`: a 32-bit hash of the input. The signature is what makes the report able

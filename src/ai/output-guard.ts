@@ -44,13 +44,22 @@ export function createOutputTranscriptGuard(args: {
   language: Language;
   send: (event: object) => void;
   onEvent: (event: LiveSessionEvent) => void;
+  /**
+   * What stops the audio. Omitted, Realtime's cancel and buffer clear are sent. GPT-Live
+   * accepts neither, so its session passes a remedy that mutes playback instead.
+   */
+  remedy?: () => void;
 }): { observeDelta: (delta: string) => void; reset: () => void } {
   let accumulated = "";
   let tripped = false;
 
   function intercept(event: Extract<LiveSessionEvent, { type: "safetyIntercept" }>): void {
-    args.send({ type: "response.cancel" });
-    args.send({ type: "output_audio_buffer.clear" });
+    if (args.remedy) {
+      args.remedy();
+    } else {
+      args.send({ type: "response.cancel" });
+      args.send({ type: "output_audio_buffer.clear" });
+    }
     args.onEvent(event);
     tripped = true;
   }

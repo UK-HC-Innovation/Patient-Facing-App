@@ -7,6 +7,7 @@ describe("FoodLens deployment boundary", () => {
     expect(isFoodLensRoute("/food")).toBe(true);
     expect(isFoodLensRoute("/food/demo")).toBe(true);
     expect(isFoodLensRoute("/api/food/identify")).toBe(true);
+    expect(isFoodLensRoute("/api/live/session")).toBe(true);
     expect(isFoodLensRoute("/api/food/package")).toBe(false);
     expect(isFoodLensRoute("/api/food/package/session")).toBe(false);
     expect(isFoodLensRoute("/today")).toBe(false);
