@@ -179,6 +179,41 @@ describe("buildPerAskContext — Food Compass block", () => {
   it("says nothing about the compass when there is no score", () => {
     expect(buildPerAskContext(null, [])).not.toContain("Food Compass");
   });
+
+  it("names the one swap the screen shows and no other (spec 31 R8)", () => {
+    const context = buildPerAskContext(null, [], {
+      kind: "score",
+      fcs: 66,
+      band: "moderate",
+      tier: "T1",
+      calorieDensityKcalPer100g: 200,
+      alternatives: [{ description: "Catfish, baked or broiled, no added fat", fcs: 83, name: "Baked catfish", action: "bake" }],
+      swapState: "swap",
+      noScoreSwap: null
+    });
+    expect(context).toContain(
+      "Swap to suggest: bake, broil or grill it instead of frying: Catfish, baked or broiled, no added fat (83)."
+    );
+    expect(context).toContain("Name no other food as a better choice.");
+  });
+
+  it("says there is no swap in the words the screen uses", () => {
+    const base = {
+      kind: "score" as const,
+      fcs: 77,
+      band: "encourage" as const,
+      tier: "T1" as const,
+      calorieDensityKcalPer100g: 372,
+      alternatives: []
+    };
+    expect(buildPerAskContext(null, [], { ...base, swapState: "affirm" })).toContain("No swap: this is a good choice as it is.");
+    expect(buildPerAskContext(null, [], { ...base, fcs: 47, band: "moderate", swapState: "similar" })).toContain(
+      "No swap: similar foods score about the same."
+    );
+    expect(
+      buildPerAskContext(null, [], { ...base, fcs: 1, band: "minimize", swapState: "no_score_swap", noScoreSwap: "black_coffee" })
+    ).toContain("Swap to suggest: black coffee (no score: almost no calories).");
+  });
 });
 
 describe("buildFoodLensInstructions with an empty patient", () => {

@@ -1249,19 +1249,15 @@
       "category": "bilingual",
       "query": "agua",
       "language": "es",
-      "note": "the water carve-out is English only; candidate mode is the honest answer until it has a Spanish twin",
+      "note": "spec 31 R3: the water carve-out has its Spanish twin; re-adjudicated 2026-09-14 from a noodle-soup candidate",
       "expect": {
-        "mode": "candidate",
-        "codes": [
-          "58421020"
-        ],
-        "descriptions": [
-          "Sopa de Fideo Aguada, Mexican style noodle soup, home recipe"
-        ],
+        "mode": "carve_out",
+        "reason": "zero_calorie",
         "question": false
       },
       "target": {
-        "mode": "candidate"
+        "mode": "carve_out",
+        "reason": "zero_calorie"
       }
     },
     {
@@ -1850,22 +1846,15 @@
       "category": "exclusion",
       "query": "black coffee",
       "language": "en",
+      "note": "spec 31 R3: black coffee is a no-score swap; re-adjudicated 2026-09-14 from candidate (latte, espresso, macchiato) to the carve-out",
       "expect": {
-        "mode": "candidate",
-        "codes": [
-          "92101900",
-          "92101610",
-          "92101810"
-        ],
-        "descriptions": [
-          "Coffee, Latte",
-          "Coffee, espresso",
-          "Coffee, macchiato"
-        ],
+        "mode": "carve_out",
+        "reason": "below_5kcal",
         "question": false
       },
       "target": {
-        "mode": "candidate"
+        "mode": "carve_out",
+        "reason": "below_5kcal"
       }
     },
     {

@@ -235,6 +235,19 @@ const SPECIALIZED_PATTERN =
 const PLAIN_WATER_QUERY =
   /^(?:a |an |some |the |glass of |cup of |bottle of |bottled |ice |iced |tap |plain |sparkling |mineral |still |carbonated |soda |seltzer |club )*(?:water|seltzer|club soda|soda water)$/i;
 
+// The same carve-out in Spanish. "agua" alone used to land on a Mexican noodle soup, because
+// search matched "aguada" (spec 31 R3, corpus case es-agua).
+const PLAIN_WATER_QUERY_ES =
+  /^(?:un |una |el |la |vaso de |botella de |taza de )*agua(?: natural| de la llave| del grifo| mineral| con gas| sin gas| embotellada| purificada)?$/i;
+
+// The no-score drink swaps (spec 31 R3). Table S5 has no plain tea or coffee row, because
+// Food Compass excludes drinks under 5 kcal per 100 g, so a swap that says "unsweetened tea"
+// has to land on that answer instead of on the pre-sweetened rows search finds first.
+const NO_SCORE_DRINK_QUERY =
+  /^(?:a |an |some |cup of |glass of |mug of )*(?:(?:unsweetened|plain|herbal) (?:iced |hot )?tea|(?:iced |hot )?tea,? (?:unsweetened|plain|with no sugar|without sugar|no sugar)|black coffee|plain coffee|coffee,? (?:black|plain|with no sugar|without sugar|no sugar))$/i;
+const NO_SCORE_DRINK_QUERY_ES =
+  /^(?:un |una |taza de |vaso de )*(?:t[eé](?: helado| caliente| negro| verde)? sin az[uú]car|caf[eé] (?:negro|solo|americano|sin az[uú]car)(?: sin az[uú]car)?)$/i;
+
 /**
  * Scoreability of a typed or spoken query, before any lookup. Returns null when the query
  * says nothing decisive and the food's own nutrition facts should decide.
@@ -244,8 +257,11 @@ export function classifyQueryScoreability(query: string): Scoreability | null {
   if (trimmed.length === 0) {
     return null;
   }
-  if (PLAIN_WATER_QUERY.test(trimmed)) {
+  if (PLAIN_WATER_QUERY.test(trimmed) || PLAIN_WATER_QUERY_ES.test(trimmed)) {
     return { scoreable: false, reason: "zero_calorie" };
+  }
+  if (NO_SCORE_DRINK_QUERY.test(trimmed) || NO_SCORE_DRINK_QUERY_ES.test(trimmed)) {
+    return { scoreable: false, reason: "below_5kcal" };
   }
   if (mentionsAlcohol(trimmed)) {
     return { scoreable: false, reason: "alcohol" };
@@ -736,168 +752,40 @@ export function aggregateLipids(lipids: { score: number; weight: number }[]): nu
 }
 
 // ---------------------------------------------------------------------------
-// Alternatives
+// Swaps (spec 31). The finder lives in food-swaps.ts, which only the identify route
+// imports; these are the shapes every door and the voice context read.
 // ---------------------------------------------------------------------------
+
+/** Where a swap came from, in the order the finder prefers them (spec 31 R1). */
+export type SwapPool = "line" | "action" | "preferred" | "category" | "family";
+
+/** A plain preparation change, shown as an action with the target row's score (R4). */
+export type SwapAction = "bake" | "skin_off" | "no_added_fat" | "whole_grain" | "lower_sodium" | "unsweetened";
+
+/**
+ * What the alternatives slot says (R3, R5). A no-score swap is water, unsweetened tea or
+ * black coffee for a sugar-sweetened drink; the last three states are one line each.
+ */
+export type SwapState = "swap" | "no_score_swap" | "affirm" | "similar" | "none_higher";
+
+export type NoScoreSwapId = "water_or_unsweetened_tea" | "black_coffee";
+
+export type LocalizedName = { en: string; es: string };
 
 export type CompassAlternative = {
   code: string;
+  /** The Table S5 row, always shown so the number keeps its source (spec 30 R4). */
   description: string;
   fcs: number;
   band: CompassBand;
   calorieDensity: CalorieDensity;
-  recipeSearchUrl: string;
+  pool: SwapPool;
+  action: SwapAction | null;
+  /** A reviewed short name, when the family table has one. */
+  displayName: LocalizedName | null;
+  /** Search text for a recipe: the default swap only, and only with a reviewed name (R10). */
+  recipeQuery: LocalizedName | null;
 };
-
-export type AlternativePreferences = {
-  preferHigherScore?: boolean;
-  preferLowerCalorieDensity?: boolean;
-};
-
-export function recipeSearchUrl(description: string): string {
-  return `https://www.google.com/search?q=${encodeURIComponent(`${description} recipe`)}`;
-}
-
-const MIN_IMPROVEMENT = 10;
-
-// Words that carry no food identity; dropped before comparing two descriptions.
-const DESCRIPTION_STOPWORDS = new Set([
-  "with", "and", "or", "no", "not", "added", "fat", "from", "the", "as", "to", "ns", "nfs",
-  "made", "cooked", "fresh", "type", "other", "in", "on", "of", "for", "its", "any", "all"
-]);
-
-function contentTokens(description: string): Set<string> {
-  return new Set(
-    description
-      .toLowerCase()
-      .replace(/[^a-z0-9 ]/g, " ")
-      .split(/\s+/)
-      .filter((token) => token.length > 2 && !DESCRIPTION_STOPWORDS.has(token))
-  );
-}
-
-function sharedTokenCount(a: Set<string>, b: Set<string>): number {
-  let count = 0;
-  for (const token of b) {
-    if (a.has(token)) {
-      count += 1;
-    }
-  }
-  return count;
-}
-
-/**
- * Deterministic, published-data only: no model decides what a better option is.
- *
- * The candidate pool is the WWEIA category the food belongs to, not its Table S5 food
- * group. The S5 groups are far too coarse to suggest a swap with — 8000_Mixed alone holds
- * 2,551 foods, so a group-ranked answer to "pizza" is "Ceviche, 100", which is true and
- * useless. WWEIA is the USDA's own 148-category grouping and comes from the same joined
- * data, so "pizza" answers with a better pizza and "nacho cheese Doritos" answers with
- * bean chips. About a third of Table S5 predates FNDDS 2017-18 and has no WWEIA category;
- * those fall back to the S5 group narrowed to candidates that share a content word, which
- * turns "taco burger" into a turkey burger rather than a grapefruit.
- *
- * Never an ambiguous (twice-listed) row, never another food pinned at the tail the current
- * food already sits at, and always at least 10 points better. The toggles only reorder the
- * qualifying set; they never widen it.
- */
-export function findAlternatives(
-  food: FcsFood,
-  all: FcsFood[],
-  nutrientsByCode: Record<string, FnddsRecord | undefined>,
-  preferences: AlternativePreferences = {},
-  limit = 3
-): CompassAlternative[] {
-  if (food.fcs2 === 100) {
-    return [];
-  }
-
-  const category = nutrientsByCode[food.code]?.wweia ?? null;
-  const foodTokens = contentTokens(food.description);
-  const seen = new Set<string>();
-
-  const candidates: { food: FcsFood; overlap: number }[] = [];
-  for (const candidate of all) {
-    if (candidate.ambiguous || candidate.code === food.code) {
-      continue;
-    }
-    if (candidate.fcs2 < food.fcs2 + MIN_IMPROVEMENT) {
-      continue;
-    }
-    if (food.fcs2 === 1 && candidate.fcs2 === 1) {
-      continue;
-    }
-    const overlap = sharedTokenCount(foodTokens, contentTokens(candidate.description));
-    if (category !== null) {
-      if ((nutrientsByCode[candidate.code]?.wweia ?? null) !== category) {
-        continue;
-      }
-    } else if (candidate.group !== food.group || overlap === 0) {
-      continue;
-    }
-    const key = candidate.description.toLowerCase();
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    candidates.push({ food: candidate, overlap });
-  }
-
-  const densityOf = (candidate: FcsFood): CalorieDensity =>
-    publishedCalorieDensity(candidate, nutrientsByCode[candidate.code] ?? null);
-  const compareDensity = (left: FcsFood, right: FcsFood): number => {
-    const leftDensity = densityOf(left);
-    const rightDensity = densityOf(right);
-    // A cohort estimate is useful to the person viewing one food, but it must never outrank
-    // an observed value when they explicitly ask for the lowest-density alternative.
-    const provenanceDiff = Number(leftDensity.estimate !== undefined) - Number(rightDensity.estimate !== undefined);
-    if (provenanceDiff !== 0) return provenanceDiff;
-    return (leftDensity.kcalPer100g ?? Number.POSITIVE_INFINITY) -
-      (rightDensity.kcalPer100g ?? Number.POSITIVE_INFINITY);
-  };
-
-  // All four toggle combinations are distinct and observable. Default is the nearest
-  // better swap; "highest score" makes the score the primary key; "lowest calorie density"
-  // makes density the primary key unless the score toggle is also on.
-  const densityFirst = preferences.preferLowerCalorieDensity === true && preferences.preferHigherScore !== true;
-  const scoreFirst = preferences.preferHigherScore === true;
-
-  const sorted = [...candidates].sort((a, b) => {
-    if (densityFirst) {
-      const diff = compareDensity(a.food, b.food);
-      if (diff !== 0) {
-        return diff;
-      }
-    } else if (!scoreFirst && b.overlap !== a.overlap) {
-      return b.overlap - a.overlap;
-    }
-    if (b.food.fcs2 !== a.food.fcs2) {
-      return b.food.fcs2 - a.food.fcs2;
-    }
-    if (preferences.preferLowerCalorieDensity) {
-      const diff = compareDensity(a.food, b.food);
-      if (diff !== 0) {
-        return diff;
-      }
-    }
-    if (b.overlap !== a.overlap) {
-      return b.overlap - a.overlap;
-    }
-    return a.food.description.localeCompare(b.food.description);
-  });
-
-  return sorted.slice(0, limit).map(({ food: candidate }) => {
-    const record = nutrientsByCode[candidate.code];
-    return {
-      code: candidate.code,
-      description: candidate.description,
-      fcs: candidate.fcs2,
-      band: bandForScore(candidate.fcs2),
-      calorieDensity: publishedCalorieDensity(candidate, record ?? null),
-      recipeSearchUrl: recipeSearchUrl(candidate.description)
-    };
-  });
-}
 
 // ---------------------------------------------------------------------------
 // Full-domain recompute

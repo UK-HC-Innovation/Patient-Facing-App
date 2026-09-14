@@ -5,8 +5,10 @@ import type {
   CompassAlternative,
   CompassScore,
   FnddsRecord,
+  NoScoreSwapId,
   NotScoreableReason,
-  ScoreDomainBreakdown
+  ScoreDomainBreakdown,
+  SwapState
 } from "@/domain/food-compass";
 // Type-only, so this never pulls minisearch (and the 5 MB index it serves) into a client
 // bundle. The bundle budget check in `npm run check` is what proves it.
@@ -58,6 +60,9 @@ export type LiveMatch = {
   basis?: IdentityBasis;
   score: CompassScore;
   alternatives: CompassAlternative[];
+  /** What the alternatives slot says (spec 31 R5). Absent on fixtures that predate it. */
+  swapState?: SwapState;
+  noScoreSwap?: NoScoreSwapId | null;
   nutrients: FnddsRecord | null;
   estimatedDomains?: ScoreDomainBreakdown;
   candidates: LiveCandidate[];
@@ -107,6 +112,11 @@ export type LiveScoreState = {
   /** Capture and identify one frame after an explicit user action. */
   scan: () => Promise<void>;
   adoptMatch: (match: LiveMatch) => void;
+  /**
+   * Make a not-scored answer the current choice: a no-score swap someone chose, or a row
+   * under 5 kcal per 100 g that a chip named (spec 31 R3). Only the manual engine has it.
+   */
+  adoptCarveOut?: (reason: NotScoreableReason) => void;
   /** Clear all current authority and stop paid identification until rearm(). */
   suspend: () => void;
   rearm: (options?: { waitForSceneChange?: boolean }) => void;

@@ -180,10 +180,21 @@ export type FoodLensStringKey =
   | "compassDensityHigh"
   | "compassDensityUnknown"
   | "compassDensityEstimated"
-  | "compassBetterOptions"
-  | "compassAlreadyBest"
   | "compassNoCloseMatch"
-  | "compassRecipeLink"
+  | "swapLead"
+  | "swapMore"
+  | "swapUse"
+  | "swapAffirm"
+  | "swapSimilar"
+  | "swapWaterOrTea"
+  | "swapBlackCoffee"
+  | "actionBake"
+  | "actionSkinOff"
+  | "actionNoAddedFat"
+  | "actionWholeGrain"
+  | "actionLowerSodium"
+  | "actionUnsweetened"
+  | "recipeSearch"
   | "compassCarveOutZeroCalorie"
   | "compassCarveOutBelow5"
   | "compassCarveOutAlcohol"
@@ -219,9 +230,6 @@ export type FoodLensStringKey =
   | "compassIdleAwaiting"
   | "compassCameraRegion"
   | "compassResultRegion"
-  | "compassSortLegend"
-  | "compassSortScore"
-  | "compassSortDensity"
   | "compassNoPublishedScore"
   | "compassOrderInterpretation"
   | "compassWeHeard"
@@ -239,9 +247,6 @@ export type FoodLensStringKey =
   | "nutritionPotassium"
   | "compassPer100g"
   | "compassNoNutrientPanel"
-  | "compassBetterOptionsSorted"
-  | "compassSortedScore"
-  | "compassSortedDensity"
   | "compassHowScoringWorks"
   | "compassScoreSource"
   | "compassMethodology"
@@ -518,10 +523,21 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     compassDensityHigh: "High",
     compassDensityUnknown: "Serving weight unknown",
     compassDensityEstimated: "Estimated",
-    compassBetterOptions: "Better options",
-    compassAlreadyBest: "Already one of the best choices in its group.",
     compassNoCloseMatch: "Nothing similar scores higher.",
-    compassRecipeLink: "Recipe ideas",
+    swapLead: "Try instead",
+    swapMore: "More swaps ({count})",
+    swapUse: "Use this instead",
+    swapAffirm: "A good choice as it is.",
+    swapSimilar: "Similar foods score about the same.",
+    swapWaterOrTea: "Water or unsweetened tea",
+    swapBlackCoffee: "Black coffee",
+    actionBake: "Bake, broil or grill it",
+    actionSkinOff: "Take the skin off",
+    actionNoAddedFat: "Skip the added fat",
+    actionWholeGrain: "Choose whole grain",
+    actionLowerSodium: "Choose lower sodium",
+    actionUnsweetened: "Choose unsweetened",
+    recipeSearch: "Recipes (web search)",
     compassCarveOutZeroCalorie: "Water is the best choice there is. No score needed.",
     compassCarveOutBelow5: "Almost no calories, so there's no score for it.",
     compassCarveOutAlcohol: "Alcohol doesn't get a score.",
@@ -557,9 +573,6 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     compassIdleAwaiting: "Point at a food to start talking.",
     compassCameraRegion: "Food camera",
     compassResultRegion: "Score for this food",
-    compassSortLegend: "Sort better options by",
-    compassSortScore: "Highest score first",
-    compassSortDensity: "Lowest calorie density first",
     compassNoPublishedScore: "We don't have a score for that one. Try a simpler name.",
     compassOrderInterpretation: "Your order",
     compassWeHeard: "Your order",
@@ -577,9 +590,6 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     nutritionPotassium: "Potassium",
     compassPer100g: "per 100 g",
     compassNoNutrientPanel: "We don't have the nutrition numbers for this food, just its score.",
-    compassBetterOptionsSorted: "Better options · {sort}",
-    compassSortedScore: "highest score first",
-    compassSortedDensity: "lowest calorie density first",
     compassHowScoringWorks: "How scoring works",
     compassScoreSource: "Food Compass 2.0 (Tufts University, used with permission)",
     compassMethodology: "Read the research",
@@ -858,10 +868,21 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     compassDensityHigh: "Alta",
     compassDensityUnknown: "Peso de la porción desconocido",
     compassDensityEstimated: "Estimada",
-    compassBetterOptions: "Mejores opciones",
-    compassAlreadyBest: "Ya es una de las mejores opciones de su grupo.",
     compassNoCloseMatch: "Nada parecido tiene mejor puntaje.",
-    compassRecipeLink: "Ideas de recetas",
+    swapLead: "Prueba en su lugar",
+    swapMore: "Más opciones ({count})",
+    swapUse: "Usar esta opción",
+    swapAffirm: "Es una buena elección tal como está.",
+    swapSimilar: "Las opciones parecidas tienen casi el mismo puntaje.",
+    swapWaterOrTea: "Agua o té sin azúcar",
+    swapBlackCoffee: "Café negro",
+    actionBake: "Hornéalo, ásalo o hazlo a la parrilla",
+    actionSkinOff: "Quítale la piel",
+    actionNoAddedFat: "Evita la grasa añadida",
+    actionWholeGrain: "Elige integral",
+    actionLowerSodium: "Elige bajo en sodio",
+    actionUnsweetened: "Elige sin azúcar",
+    recipeSearch: "Recetas (búsqueda web)",
     compassCarveOutZeroCalorie: "El agua es la mejor opción que existe. No lleva puntaje.",
     compassCarveOutBelow5: "Tiene muy pocas calorías, así que no lleva puntaje.",
     compassCarveOutAlcohol: "El alcohol no lleva puntaje.",
@@ -897,9 +918,6 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     compassIdleAwaiting: "Apunta a una comida para empezar a hablar.",
     compassCameraRegion: "Cámara de alimentos",
     compassResultRegion: "Puntaje de esta comida",
-    compassSortLegend: "Ordenar las mejores opciones por",
-    compassSortScore: "Mayor puntaje primero",
-    compassSortDensity: "Menor densidad calórica primero",
     compassNoPublishedScore: "No tenemos puntaje para esa comida. Prueba con un nombre más sencillo.",
     compassOrderInterpretation: "Tu pedido",
     compassWeHeard: "Tu pedido",
@@ -917,9 +935,6 @@ export const foodLensStrings: Record<Language, Record<FoodLensStringKey, string>
     nutritionPotassium: "Potasio",
     compassPer100g: "por 100 g",
     compassNoNutrientPanel: "No tenemos los datos nutricionales de esta comida, solo su puntaje.",
-    compassBetterOptionsSorted: "Mejores opciones · {sort}",
-    compassSortedScore: "mayor puntaje primero",
-    compassSortedDensity: "menor densidad calórica primero",
     compassHowScoringWorks: "Cómo funciona el puntaje",
     compassScoreSource: "Food Compass 2.0 (Universidad de Tufts, usado con permiso)",
     compassMethodology: "Lee la investigación",

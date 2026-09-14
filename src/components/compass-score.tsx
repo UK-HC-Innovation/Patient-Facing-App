@@ -1,15 +1,19 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { t, type FoodLensStringKey, type Language } from "@/i18n/strings";
 import type {
+  CalorieDensity,
   CalorieDensityBand,
   CompassAlternative,
   CompassBand,
   CompassScore,
   DomainKey,
+  NoScoreSwapId,
   ScoreDomainBreakdown,
-  NotScoreableReason
+  NotScoreableReason,
+  SwapAction,
+  SwapState
 } from "@/domain/food-compass";
 
 // Measured, not asserted: the packaged-group mean absolute error from the T2 simulation in
@@ -240,51 +244,186 @@ export function CompassScoreRow({
   );
 }
 
-export function CompassAlternatives({
+const ACTION_LABEL: Record<SwapAction, FoodLensStringKey> = {
+  bake: "actionBake",
+  skin_off: "actionSkinOff",
+  no_added_fat: "actionNoAddedFat",
+  whole_grain: "actionWholeGrain",
+  lower_sodium: "actionLowerSodium",
+  unsweetened: "actionUnsweetened"
+};
+
+const STATE_LINE: Record<"affirm" | "similar" | "none_higher", FoodLensStringKey> = {
+  affirm: "swapAffirm",
+  similar: "swapSimilar",
+  none_higher: "compassNoCloseMatch"
+};
+
+const NO_SCORE_NAME: Record<NoScoreSwapId, FoodLensStringKey> = {
+  water_or_unsweetened_tea: "swapWaterOrTea",
+  black_coffee: "swapBlackCoffee"
+};
+
+/** What "Use this instead" hands back to the door: a row to confirm, or a no-score swap. */
+export type SwapChoice =
+  | { kind: "published"; code: string; description: string }
+  | { kind: "no_score"; id: NoScoreSwapId };
+
+export type SwapSide = {
+  name: string;
+  fcs: number | null;
+  band: CompassBand | null;
+  calorieDensity: CalorieDensity | null;
+};
+
+function sideLine(side: SwapSide, language: Language): string {
+  return [
+    side.name,
+    side.fcs === null ? t(language, "notScored") : `${side.fcs} ${t(language, "compassOutOf100")}`,
+    side.band ? t(language, BAND_LABEL[side.band]) : null,
+    side.calorieDensity?.kcalPer100g != null
+      ? t(language, "compassKcalPer100g", { calories: side.calorieDensity.kcalPer100g })
+      : null
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join(" · ");
+}
+
+/**
+ * The swap slot (spec 31 R5, R6): one swap with "More swaps" on request, or one line.
+ *
+ * Replaces the "Better options" heading, its three cards and the public door's sort control.
+ * A tap on a swap opens the comparison in place; "Use this instead" makes it the current
+ * choice through the door's own path. Opening the comparison logs and stores nothing.
+ */
+export function CompassSwaps({
+  state,
+  noScoreSwap,
   alternatives,
+  current,
   language,
-  currentFcs
+  onUse
 }: {
+  state: SwapState;
+  noScoreSwap: NoScoreSwapId | null;
   alternatives: CompassAlternative[];
+  current: SwapSide;
   language: Language;
-  currentFcs?: number;
+  onUse?: (choice: SwapChoice) => void;
 }) {
-  if (alternatives.length === 0) {
-    // "Already one of the best" is only true near the top of the scale. For a food scoring
-    // 18 with nothing close and better in its category, saying that would be a lie.
-    const alreadyGood = currentFcs === undefined || currentFcs >= 70;
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const [showMore, setShowMore] = useState(false);
+
+  if (state === "affirm" || state === "similar" || state === "none_higher") {
     return (
-      <p className="text-sm text-ink/65">{t(language, alreadyGood ? "compassAlreadyBest" : "compassNoCloseMatch")}</p>
+      <p className="text-sm text-ink/75" data-swap-state={state} data-testid="food-alternatives">
+        {t(language, STATE_LINE[state])}
+      </p>
     );
   }
 
-  return (
-    <ul className="grid gap-2">
-      {alternatives.map((alternative) => (
-        <li className="rounded-control border border-ink/10 bg-white p-3" key={alternative.code}>
-          <div className="flex items-start gap-3">
-            <CompassDial band={alternative.band} fcs={alternative.fcs} size={40} />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold">{alternative.description}</p>
-              {alternative.calorieDensity.kcalPer100g !== null ? (
-                <p className="text-xs text-ink/70">
-                  {alternative.calorieDensity.estimate ? `${t(language, "compassDensityEstimated")} · ` : ""}
-                  {t(language, "compassKcalPer100g", { calories: alternative.calorieDensity.kcalPer100g })}
-                </p>
-              ) : null}
-              <a
-                className="mt-1 inline-block text-xs font-semibold text-care underline"
-                href={alternative.recipeSearchUrl}
-                rel="noreferrer noopener"
-                target="_blank"
-              >
-                {t(language, "compassRecipeLink")}
-              </a>
+  const noScore = state === "no_score_swap" ? noScoreSwap ?? "water_or_unsweetened_tea" : null;
+  const [first, ...rest] = alternatives;
+  if (!noScore && !first) {
+    return null;
+  }
+  const more = noScore ? alternatives : rest;
+
+  const row = (
+    key: string,
+    lead: string,
+    detail: string | null,
+    side: SwapSide,
+    choice: SwapChoice,
+    recipeQuery: string | null
+  ) => {
+    const expanded = openKey === key;
+    return (
+      <li className="rounded-control border border-ink/10 bg-white p-3" key={key}>
+        <button
+          aria-expanded={expanded}
+          className="flex min-h-11 w-full items-start gap-3 text-left"
+          onClick={() => setOpenKey(expanded ? null : key)}
+          type="button"
+        >
+          {side.fcs !== null && side.band ? <CompassDial band={side.band} fcs={side.fcs} size={40} /> : null}
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-ink">{lead}</span>
+            {detail ? <span className="block text-xs text-ink/70">{detail}</span> : null}
+          </span>
+        </button>
+        {recipeQuery ? (
+          <a
+            className="mt-2 inline-block text-xs font-semibold text-care underline"
+            href={`https://www.google.com/search?q=${encodeURIComponent(recipeQuery)}`}
+            rel="noreferrer noopener"
+            target="_blank"
+          >
+            {t(language, "recipeSearch")}
+          </a>
+        ) : null}
+        {expanded ? (
+          <div className="mt-2 grid gap-2">
+            <div className="grid gap-1 rounded-control bg-calm/60 px-3 py-2 text-xs text-ink/75">
+              <p>{sideLine(current, language)}</p>
+              <p className="font-semibold text-ink">{sideLine({ ...side, name: lead }, language)}</p>
             </div>
+            {onUse ? (
+              <button
+                className="min-h-11 justify-self-start rounded-control bg-care px-4 py-2 text-sm font-semibold text-white"
+                onClick={() => onUse(choice)}
+                type="button"
+              >
+                {t(language, "swapUse")}
+              </button>
+            ) : null}
           </div>
-        </li>
-      ))}
-    </ul>
+        ) : null}
+      </li>
+    );
+  };
+
+  const published = (alternative: CompassAlternative, isDefault: boolean) => {
+    const lead = alternative.action
+      ? t(language, ACTION_LABEL[alternative.action])
+      : alternative.displayName?.[language] ?? alternative.description;
+    return row(
+      alternative.code,
+      lead,
+      lead === alternative.description ? null : t(language, "identityReviewScoredAs", { row: alternative.description }),
+      { name: lead, fcs: alternative.fcs, band: alternative.band, calorieDensity: alternative.calorieDensity },
+      { kind: "published", code: alternative.code, description: alternative.description },
+      isDefault ? alternative.recipeQuery?.[language] ?? null : null
+    );
+  };
+
+  return (
+    <section aria-label={t(language, "swapLead")} className="grid gap-2" data-swap-state={state} data-testid="food-alternatives">
+      <p className="text-sm font-semibold text-ink/75">{t(language, "swapLead")}</p>
+      <ul className="grid gap-2">
+        {noScore
+          ? row(
+              `no-score-${noScore}`,
+              t(language, NO_SCORE_NAME[noScore]),
+              t(language, "compassCarveOutBelow5"),
+              { name: t(language, NO_SCORE_NAME[noScore]), fcs: null, band: null, calorieDensity: null },
+              { kind: "no_score", id: noScore },
+              null
+            )
+          : published(first, true)}
+        {showMore ? more.map((alternative) => published(alternative, false)) : null}
+      </ul>
+      {more.length > 0 && !showMore ? (
+        <button
+          aria-expanded={false}
+          className="min-h-11 justify-self-start text-sm font-semibold text-care underline"
+          onClick={() => setShowMore(true)}
+          type="button"
+        >
+          {t(language, "swapMore", { count: more.length })}
+        </button>
+      ) : null}
+    </section>
   );
 }
 

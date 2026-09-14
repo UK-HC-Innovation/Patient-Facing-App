@@ -6,7 +6,7 @@ import { FoodViewfinder } from "@/components/food-viewfinder";
 import { OneGoodChoiceBrand } from "@/components/one-good-choice-brand";
 import { LanguageToggle } from "@/components/language-toggle";
 import { FoodGuidanceSource } from "@/components/food-guidance-source";
-import { CompassAlternatives, resolveDomainBreakdown } from "@/components/compass-score";
+import { CompassSwaps, resolveDomainBreakdown, type SwapChoice } from "@/components/compass-score";
 import { COMPASS_CAPABILITIES } from "@/components/food-lens-shell";
 import {
   FoodLensExperience,
@@ -46,7 +46,6 @@ import { t, type Language } from "@/i18n/strings";
 import { speak, stopSpeaking } from "@/voice/tts";
 
 type FoodCandidate = { code: string; description: string; fcs?: number };
-type SortMode = "score" | "density";
 
 type ConversationResult =
   | { kind: "match"; match: LiveMatch; candidates: FoodCandidate[]; input: string; cameraFoodCode: string | null }
@@ -107,7 +106,6 @@ export default function CompassPage() {
 
   const [refinement, setRefinement] = useState<ConversationResult | null>(null);
   const [refinementLoading, setRefinementLoading] = useState(false);
-  const [sortMode, setSortMode] = useState<SortMode>("score");
   const [conversationTurns, setConversationTurns] = useState<ConversationTurn[]>([]);
   const lastAutoConversationFoodRef = useRef<string | null>(null);
   const shownRef = useRef<ConversationResult | null>(null);
@@ -148,7 +146,6 @@ export default function CompassPage() {
   const runQuery = useCallback(
     async (
       text: string,
-      requestedSort: SortMode = sortMode,
       foodId?: string,
       cameraFoodCode: string | null = live.match?.food.code ?? null
     ) => {
@@ -168,9 +165,7 @@ export default function CompassPage() {
           body: JSON.stringify({
             text: trimmed,
             ...(foodId ? { foodId } : {}),
-            passcode,
-            preferHigherScore: requestedSort === "score",
-            preferLowerCalorieDensity: requestedSort === "density"
+            passcode
           }),
           signal: controller.signal
         });
@@ -213,24 +208,7 @@ export default function CompassPage() {
         }
       }
     },
-    [authority, live.match?.food.code, passcode, sortMode]
-  );
-
-  // Re-run so the selected, mutually exclusive sort mode updates the visible alternatives.
-  const changeSortMode = useCallback(
-    (next: SortMode) => {
-      if (next === sortMode) {
-        return;
-      }
-      setSortMode(next);
-      if (shown?.kind === "match") {
-        const input = refinement?.kind === "match" ? refinement.input : shown.match.food.description;
-        const cameraFoodCode =
-          refinement?.kind === "match" ? refinement.cameraFoodCode : live.match?.food.code ?? null;
-        void runQuery(input, next, shown.match.food.code, cameraFoodCode);
-      }
-    },
-    [live.match?.food.code, refinement, runQuery, shown, sortMode]
+    [authority, live.match?.food.code, passcode]
   );
 
   const confirmLiveCandidate = useCallback(
@@ -367,9 +345,9 @@ export default function CompassPage() {
         pizzaIntentRef.current = intent;
       }
       const cameraFoodCode = current?.kind === "match" ? current.cameraFoodCode : live.match?.food.code ?? null;
-      await runQuery(foodOrderIntentToLookupText(intent), sortMode, undefined, cameraFoodCode);
+      await runQuery(foodOrderIntentToLookupText(intent), undefined, cameraFoodCode);
     },
-    [live.match?.food.code, runQuery, sortMode]
+    [live.match?.food.code, runQuery]
   );
 
   const getContext = useCallback(
@@ -383,7 +361,10 @@ export default function CompassPage() {
           current?.kind === "carve_out"
             ? { kind: "carve_out", reason: current.reason }
             : current?.kind === "match"
-              ? toCompassContext(current.match.score, current.match.alternatives, current.match.estimatedDomains ?? null)
+              ? toCompassContext(current.match.score, current.match.alternatives, current.match.estimatedDomains ?? null, {
+                  state: current.match.swapState ?? null,
+                  noScoreSwap: current.match.noScoreSwap ?? null
+                })
               : null
       };
     },
@@ -648,13 +629,33 @@ export default function CompassPage() {
       : null;
   const chooseTypedCandidate = (foodId: string) => {
     const input = typedProposal?.input ?? "";
-    void runQuery(input, sortMode, foodId, null);
+    void runQuery(input, foodId, null);
   };
   const clearTypedProposal = () => {
     typedClearRef.current?.();
     voiceResultRef.current = null;
     shownRef.current = null;
     setRefinement(null);
+  };
+  /**
+   * "Use this instead" (spec 31 R6). A published swap is a replacement through the same exact
+   * foodId request a correction chip makes. A no-score swap needs no request: it is the
+   * carve-out answer, and nothing about the food it replaced survives it (spec 30 R2).
+   */
+  const chooseSwap = (choice: SwapChoice) => {
+    if (choice.kind === "published") {
+      void runQuery(choice.description, choice.code, null);
+      return;
+    }
+    typedClearRef.current?.();
+    authority.invalidate();
+    const next: ConversationResult = {
+      kind: "carve_out",
+      reason: choice.id === "black_coffee" ? "below_5kcal" : "zero_calorie"
+    };
+    voiceResultRef.current = next;
+    shownRef.current = next;
+    setRefinement(next);
   };
   const domainBreakdown = resolveDomainBreakdown(
     matchShown?.score ?? null,
@@ -970,7 +971,7 @@ export default function CompassPage() {
                           className="min-h-11 max-w-full break-words rounded-control border border-care/25 bg-white px-3 py-2 text-left text-xs font-medium text-care disabled:opacity-40"
                           disabled={refinementLoading}
                           key={candidate.code}
-                          onClick={() => void runQuery(shown.input, undefined, candidate.code, shown.cameraFoodCode)}
+                          onClick={() => void runQuery(shown.input, candidate.code, shown.cameraFoodCode)}
                           type="button"
                         >
                           {candidate.description}
@@ -1010,45 +1011,25 @@ export default function CompassPage() {
               <p className="text-xs text-ink/70">{t(language, "compassNoNutrientPanel")}</p>
             )
           ) : null,
-          alternatives: matchShown ? (
-            <section>
-              <h3 className="text-sm font-semibold text-ink/75">
-                {t(language, "compassBetterOptionsSorted", {
-                  sort: t(language, sortMode === "score" ? "compassSortedScore" : "compassSortedDensity")
-                })}
-              </h3>
-              <fieldset className="mt-2 grid gap-2 rounded-control border border-ink/10 p-3">
-                <legend className="px-1 text-sm font-medium text-ink/75">{t(language, "compassSortLegend")}</legend>
-                <label className="flex min-h-11 items-center gap-2 text-sm">
-                  <input
-                    checked={sortMode === "score"}
-                    className="h-5 w-5"
-                    name="compass-sort"
-                    onChange={() => changeSortMode("score")}
-                    type="radio"
-                  />
-                  {t(language, "compassSortScore")}
-                </label>
-                <label className="flex min-h-11 items-center gap-2 text-sm">
-                  <input
-                    checked={sortMode === "density"}
-                    className="h-5 w-5"
-                    name="compass-sort"
-                    onChange={() => changeSortMode("density")}
-                    type="radio"
-                  />
-                  {t(language, "compassSortDensity")}
-                </label>
-              </fieldset>
-              <div className="mt-2">
-                <CompassAlternatives
-                  alternatives={matchShown.alternatives}
-                  currentFcs={matchShown.score.fcs}
-                  language={language}
-                />
-              </div>
-            </section>
-          ) : null,
+          // Spec 31 R6: one swap and "More swaps", in the same order on both doors. The two-way
+          // sort control and its heading went with spec 23's toggles.
+          alternatives:
+            matchShown && matchShown.swapState ? (
+              <CompassSwaps
+                alternatives={matchShown.alternatives}
+                current={{
+                  name: matchShown.food.description,
+                  fcs: matchShown.score.fcs,
+                  band: matchShown.score.band,
+                  calorieDensity: matchShown.score.calorieDensity
+                }}
+                key={matchShown.food.code}
+                language={language}
+                noScoreSwap={matchShown.noScoreSwap ?? null}
+                onUse={chooseSwap}
+                state={matchShown.swapState}
+              />
+            ) : null,
           actions: conversationBlock,
           attribution: (
             <FoodAttribution language={language}>

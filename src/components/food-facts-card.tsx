@@ -4,11 +4,11 @@ import React from "react";
 import { t, type FoodLensStringKey, type Language } from "@/i18n/strings";
 import type { FoodFlag, FoodFlagSeverity } from "@/domain/food-flags";
 import type { IdentifiedFood, NutritionFacts } from "@/domain/types";
-import type { CompassAlternative, CompassScore, NotScoreableReason, ScoreDomainBreakdown } from "@/domain/food-compass";
+import type { CompassScore, NotScoreableReason, ScoreDomainBreakdown } from "@/domain/food-compass";
 import type { SpokenFoodSize } from "@/domain/food-order-intent";
 import type { DayTotal } from "@/domain/day-totals";
 import type { LiveCandidate } from "@/hooks/use-live-food-score";
-import { CompassAlternatives, CompassCarveOut, CompassScoreRow } from "./compass-score";
+import { CompassCarveOut, CompassScoreRow } from "./compass-score";
 import { FoodGuidanceSource } from "./food-guidance-source";
 
 const severityClass: Record<FoodFlagSeverity, string> = {
@@ -391,7 +391,6 @@ export function FoodFactsCard({
   compassScore = null,
   estimatedDomains = null,
   compassCarveOut = null,
-  compassAlternatives = [],
   history = null,
   showGlucoseHistory = false,
   dayTotals = [],
@@ -413,7 +412,6 @@ export function FoodFactsCard({
   compassScore?: CompassScore | null;
   estimatedDomains?: ScoreDomainBreakdown | null;
   compassCarveOut?: NotScoreableReason | null;
-  compassAlternatives?: CompassAlternative[];
   history?: { date: string; postMealReading: number | null } | null;
   showGlucoseHistory?: boolean;
   dayTotals?: DayTotal[];
@@ -480,14 +478,6 @@ export function FoodFactsCard({
       {compassScore ? (
         <div className="mt-3 grid gap-2">
           <CompassScoreRow estimatedDomains={estimatedDomains} language={language} score={compassScore} />
-          <details className="rounded-control border border-ink/10 bg-white p-3">
-            <summary className="cursor-pointer text-sm font-semibold text-care">
-              {t(language, "compassBetterOptions")}
-            </summary>
-            <div className="mt-2">
-              <CompassAlternatives alternatives={compassAlternatives} currentFcs={compassScore.fcs} language={language} />
-            </div>
-          </details>
         </div>
       ) : null}
 

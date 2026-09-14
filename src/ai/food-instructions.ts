@@ -1,5 +1,6 @@
 import { activeMedDietRules, type FoodFlag } from "@/domain/food-flags";
 import type { CompassContext } from "@/domain/compass-context";
+import type { NoScoreSwapId, SwapAction } from "@/domain/food-compass";
 import { activeConditions, type ConditionLens } from "@/domain/condition-lens";
 import { buildMealDigest } from "@/domain/food-week";
 import type { AppState, HomeReading, IdentifiedFood } from "@/domain/types";
@@ -112,7 +113,7 @@ export function buildFoodLensInstructions(state: AppState, lens: ConditionLens):
 // advice, diagnosis-shaped statements, or an unverifiable BP/A1C number — so the
 // model is steered away from them while the substance of the advice stays identical.
 export const GROUNDING_SAFE_PHRASING = [
-  'Give advice as gentle suggestions, never commands. Never begin advice with "You should stop / start / change / lower / raise / increase / decrease". Instead say things like "a lower-sodium version would be a better pick", "try a smaller portion", or "going easy on the salt helps here".',
+  'Give advice as gentle suggestions, never commands. Never begin advice with "You should stop / start / change / lower / raise / increase / decrease". Instead say things like "the swap on screen would be a better pick", "try a smaller portion", or "going easy on the salt helps here".',
   'Never tell the patient they "have" a condition. Refer to their care plan instead — say "for your blood-pressure plan" or "since lower sodium matters for you", not "you have high blood pressure" or "because you have hypertension".',
   "Never state a specific blood-pressure, A1C, or blood-sugar number — talk about the food.",
   "Carb numbers read from a photo are rough estimates. Never help work out an insulin dose, a bolus, or a carb ratio, and never do that arithmetic out loud. Point to the plan the patient's care team gave them.",
@@ -144,6 +145,64 @@ export function buildPantryPrompt(state: AppState, lens: ConditionLens): string 
   ].join("\n\n");
 }
 
+export const SWAP_ACTION_TEXT: Record<SwapAction, string> = {
+  bake: "bake, broil or grill it instead of frying",
+  skin_off: "take the skin off",
+  no_added_fat: "skip the added fat",
+  whole_grain: "choose the whole-grain version",
+  lower_sodium: "choose the lower-sodium version",
+  unsweetened: "choose the unsweetened version"
+};
+
+export const NO_SCORE_SWAP_TEXT: Record<NoScoreSwapId, string> = {
+  water_or_unsweetened_tea: "water or unsweetened tea",
+  black_coffee: "black coffee"
+};
+
+export const NO_SWAP_TEXT: Record<"affirm" | "similar" | "none_higher", string> = {
+  affirm: "No swap: this is a good choice as it is.",
+  similar: "No swap: similar foods score about the same.",
+  none_higher: "No swap: nothing similar scores higher."
+};
+
+/** How a swap reads in a prompt: the action or reviewed name, the published row, the score. */
+export function describeSwapTarget(alternative: {
+  description: string;
+  fcs?: number;
+  name?: string | null;
+  action?: SwapAction | null;
+}): string {
+  const score = alternative.fcs === undefined ? "" : ` (${alternative.fcs})`;
+  if (alternative.action) {
+    return `${SWAP_ACTION_TEXT[alternative.action]}: ${alternative.description}${score}`;
+  }
+  if (alternative.name) {
+    return `${alternative.name}, published row "${alternative.description}"${score}`;
+  }
+  return `${alternative.description}${score}`;
+}
+
+/** Spec 31 R8: the swap the screen shows, or the line that stands in for one. Never a new one. */
+function describeSwapContext(compass: Extract<CompassContext, { kind: "score" }>): string | null {
+  const published = compass.alternatives.map((alternative) => describeSwapTarget(alternative));
+  const closing = "Name no other food as a better choice.";
+  if (compass.swapState === "no_score_swap") {
+    const first = NO_SCORE_SWAP_TEXT[compass.noScoreSwap ?? "water_or_unsweetened_tea"];
+    const others = published.length > 0 ? ` Other swaps: ${published.join("; ")}.` : "";
+    return `Swap to suggest: ${first} (no score: almost no calories).${others} ${closing}`;
+  }
+  if (published.length > 0) {
+    const [first, ...rest] = published;
+    const others = rest.length > 0 ? ` Other swaps: ${rest.join("; ")}.` : "";
+    return `Swap to suggest: ${first}.${others} ${closing}`;
+  }
+  const state = compass.swapState;
+  if (state === "affirm" || state === "similar" || state === "none_higher") {
+    return `${NO_SWAP_TEXT[state]} ${closing}`;
+  }
+  return null;
+}
+
 // The Food Compass block handed to the model. It is a fact sheet, never a request to
 // compute: the score comes from the published table or the deterministic engine, and the
 // closing line is the same instruction every other numeric context in this app carries.
@@ -163,12 +222,9 @@ export function buildCompassContext(compass: CompassContext | null): string | nu
       `${compass.calorieDensityEstimated ? "Estimated calorie density" : "Calorie density"}: ${compass.calorieDensityKcalPer100g} kcal per 100 g.`
     );
   }
-  if (compass.alternatives.length > 0) {
-    lines.push(
-      `Better options in the same food group: ${compass.alternatives
-        .map((alternative) => `${alternative.description} (${alternative.fcs})`)
-        .join("; ")}.`
-    );
+  const swapLine = describeSwapContext(compass);
+  if (swapLine) {
+    lines.push(swapLine);
   }
   if (compass.domainBreakdown) {
     const domainNames = {

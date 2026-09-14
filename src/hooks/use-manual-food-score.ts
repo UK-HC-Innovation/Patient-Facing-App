@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FoodAuthority } from "@/domain/food-authority";
+import type { NotScoreableReason } from "@/domain/food-compass";
 import type {
   LiveCandidate,
   LiveIdentityCandidate,
@@ -239,6 +240,14 @@ export function useManualFoodScore(args: {
     });
   }, [candidateList, clearResult, invalidateAuthority]);
 
+  const adoptCarveOut = useCallback((reason: NotScoreableReason) => {
+    invalidateAuthority();
+    abortRef.current?.abort();
+    abortRef.current = null;
+    requestEpochRef.current = null;
+    clearResult({ carveOut: reason, disarmReason: null, inFlight: false, scanError: null });
+  }, [clearResult, invalidateAuthority]);
+
   useEffect(() => {
     if (crisis) {
       invalidateAuthority();
@@ -297,6 +306,7 @@ export function useManualFoodScore(args: {
     scanError: state.scanError,
     scan,
     adoptMatch,
+    adoptCarveOut,
     suspend,
     rearm,
     setVisibleRatio: () => undefined

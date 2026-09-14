@@ -24,7 +24,7 @@ import {
   FoodTotalsBlock,
   foodTitle
 } from "@/components/food-facts-card";
-import { CompassAlternatives, resolveDomainBreakdown } from "@/components/compass-score";
+import { CompassSwaps, resolveDomainBreakdown, type SwapChoice } from "@/components/compass-score";
 import { hasUnacknowledgedCrisis } from "@/state/selectors";
 import { activeConditions, selectLenses } from "@/domain/condition-lens";
 import { formatDayTotalsContext, selectFoodLensDayTotals, summarizeDayTotals } from "@/domain/day-totals";
@@ -50,7 +50,7 @@ import { evaluateVoiceTranscript } from "@/ai/voice-gate";
 import { hasSharedHealthContext } from "@/ai/food-instructions";
 import type { PublishedFoodMatch } from "@/hooks/use-barcode-review";
 import type { LiveCandidate, LiveMatch } from "@/hooks/use-live-food-score";
-import { toIdentifiedFood } from "@/domain/food-compass";
+import { toIdentifiedFood, type NotScoreableReason } from "@/domain/food-compass";
 import { toCompassContext } from "@/domain/compass-context";
 import { useHealthState } from "@/state/store";
 import type { AiMessage, IdentifiedFood, PantryResult } from "@/domain/types";
@@ -195,6 +195,7 @@ export default function FoodPage() {
     }
   });
   const adoptLiveMatch = live.adoptMatch;
+  const adoptLiveCarveOut = live.adoptCarveOut;
   const rearmLiveScore = live.rearm;
   const suspendLiveScore = live.suspend;
 
@@ -345,8 +346,9 @@ export default function FoodPage() {
   // Scored from identifiedFood, not scaledFood: scaleNutrition rounds to integers, and a
   // per-100-kcal score recomputed off rounded values would wobble as portions change.
   // The score is a property of the food; the flags are a property of the portion.
-  const labelCompass = useCompassScore(scannedFood, { passcode, authority });
   const publishedMatch = foodResolutionState.published ?? null;
+  // Spec 31 R7: a barcode that maps to a confirmed published row gets that row's swaps.
+  const labelCompass = useCompassScore(scannedFood, { passcode, authority, publishedCode: publishedMatch?.code ?? null });
   const compass = useMemo(
     () =>
       typedCurrent
@@ -354,6 +356,8 @@ export default function FoodPage() {
             score: null,
             carveOut: typedCurrent.kind === "carve_out" ? typedCurrent.reason : null,
             alternatives: [],
+            swapState: null,
+            noScoreSwap: null,
             estimatedDomains: null,
             alternativesLoading: false
           }
@@ -362,6 +366,8 @@ export default function FoodPage() {
             score: live.match.score,
             carveOut: null,
             alternatives: live.match.alternatives,
+            swapState: live.match.swapState ?? null,
+            noScoreSwap: live.match.noScoreSwap ?? null,
             estimatedDomains: live.match.estimatedDomains ?? null,
             alternativesLoading: false
           }
@@ -373,6 +379,8 @@ export default function FoodPage() {
               score: publishedMatch.score,
               carveOut: null,
               alternatives: labelCompass.alternatives,
+              swapState: labelCompass.swapState,
+              noScoreSwap: labelCompass.noScoreSwap,
               estimatedDomains: null,
               alternativesLoading: labelCompass.alternativesLoading
             }
@@ -473,7 +481,10 @@ export default function FoodPage() {
       plateLine: plateLineRef.current,
       compass: current.carveOut
         ? { kind: "carve_out", reason: current.carveOut }
-        : toCompassContext(current.score, current.alternatives, current.estimatedDomains)
+        : toCompassContext(current.score, current.alternatives, current.estimatedDomains, {
+            state: current.swapState,
+            noScoreSwap: current.noScoreSwap
+          })
     };
   }, []);
 
@@ -708,17 +719,18 @@ export default function FoodPage() {
         });
         const json = (await response.json()) as {
           mode: string;
+          reason?: NotScoreableReason;
           match?: Omit<LiveMatch, "candidates">;
           candidates?: LiveCandidate[];
         };
-        if (
-          requestId === exactFoodRequestRef.current &&
-          !controller.signal.aborted &&
-          authority.isCurrent(requestEpoch) &&
-          json.mode === "match" &&
-          json.match
-        ) {
+        const stillCurrent =
+          requestId === exactFoodRequestRef.current && !controller.signal.aborted && authority.isCurrent(requestEpoch);
+        if (stillCurrent && json.mode === "match" && json.match) {
           adoptLiveMatch({ ...json.match, readName, candidates: json.candidates ?? [] });
+          setLogged(false);
+        } else if (stillCurrent && json.mode === "carve_out" && json.reason) {
+          // A row under 5 kcal per 100 g answers as not scored (spec 31 R3).
+          adoptLiveCarveOut?.(json.reason);
           setLogged(false);
         }
       } catch {
@@ -729,10 +741,31 @@ export default function FoodPage() {
         }
       }
     },
-    [adoptLiveMatch, authority, cancelFoodResolution, foodResolutionActive, passcode, typedClear]
+    [adoptLiveCarveOut, adoptLiveMatch, authority, cancelFoodResolution, foodResolutionActive, passcode, typedClear]
   );
 
   const correctCameraMatch = resolveCameraMatch;
+
+  /**
+   * "Use this instead" (spec 31 R6). A published swap goes through the same exact foodId
+   * request a correction chip makes; a no-score swap is the carve-out answer and needs none.
+   * Either way it replaces the current choice (spec 30 R2), so "Log this" then logs the swap.
+   */
+  const chooseSwap = useCallback(
+    (choice: SwapChoice) => {
+      if (choice.kind === "published") {
+        void resolveCameraMatch(choice.code);
+        return;
+      }
+      if (foodResolutionActiveRef.current) {
+        dismissBarcodeReview();
+      }
+      typedClear();
+      setLogged(false);
+      adoptLiveCarveOut?.(choice.id === "black_coffee" ? "below_5kcal" : "zero_calorie");
+    },
+    [adoptLiveCarveOut, dismissBarcodeReview, resolveCameraMatch, typedClear]
+  );
 
   const confirmCameraCandidate = useCallback(
     (foodId: string) => {
@@ -1479,20 +1512,24 @@ export default function FoodPage() {
           // Saying so is better than a scored food that silently shows no numbers.
           <p className="text-xs text-ink/70">{t(language, "compassNoNutrientPanel")}</p>
         ) : null,
-        // Held back until the published list has actually arrived: an empty
-        // CompassAlternatives says "already one of the best", which is not true yet.
+        // Held back until the swaps have arrived, and absent for a label estimate, which has
+        // none (spec 31 R5; e2e/food-lens.spec.ts:344).
         alternatives:
-          compass.score && !compass.alternativesLoading && (!scannedFood || compass.alternatives.length > 0) ? (
-            <section data-testid="food-alternatives">
-              <h3 className="text-sm font-semibold text-ink/75">{t(language, "compassBetterOptions")}</h3>
-              <div className="mt-2">
-                <CompassAlternatives
-                  alternatives={compass.alternatives}
-                  currentFcs={compass.score.fcs}
-                  language={language}
-                />
-              </div>
-            </section>
+          compass.score && !compass.alternativesLoading && compass.swapState ? (
+            <CompassSwaps
+              alternatives={compass.alternatives}
+              current={{
+                name: foodTitle(identifiedFood, language),
+                fcs: compass.score.fcs,
+                band: compass.score.band,
+                calorieDensity: compass.score.calorieDensity
+              }}
+              key={identifiedFood?.id ?? "current"}
+              language={language}
+              noScoreSwap={compass.noScoreSwap}
+              onUse={chooseSwap}
+              state={compass.swapState}
+            />
           ) : null,
         actions: (
           <FoodActionsBlock

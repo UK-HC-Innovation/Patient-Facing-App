@@ -249,6 +249,49 @@ test.describe("Safety: the four phrases", () => {
 
 // A18. Production axe reported "of 100" at 3.77:1, "Food Compass score" at 4.39:1 and the
 // attribution at 3.77:1, plus the typed plate's "No score" at 4.39:1 (finding E10).
+// Spec 31 C1: one swap or one true line, the same on both doors (C01, C02, C04, C12, C14).
+test.describe("Swaps", () => {
+  test.beforeEach(async ({ page }) => {
+    await denyCamera(page);
+    await mockRealtime(page);
+  });
+
+  for (const door of ["/food", "/food/demo"]) {
+    test(`offers plain Cheerios for Honey Nut Cheerios on ${door}, with no sort control`, async ({ page }) => {
+      await page.goto(door);
+      await ask(page, "honey nut cheerios");
+      const swaps = page.getByTestId("food-alternatives");
+      await expect(swaps).toContainText("Try instead", { timeout: 10_000 });
+      await expect(swaps).toContainText("Scored as Cereal (General Mills Cheerios)");
+      await expect(page.getByRole("radio")).toHaveCount(0);
+      await expect(page.getByText("Better options")).toHaveCount(0);
+
+      await swaps.getByRole("button", { name: /Cheerios/ }).click();
+      await swaps.getByRole("button", { name: "Use this instead" }).click();
+      await expect(page.getByTestId("food-verdict")).toContainText("77", { timeout: 10_000 });
+    });
+
+    test(`affirms Cheerios on ${door} without claiming it is the best`, async ({ page }) => {
+      await page.goto(door);
+      await ask(page, "cheerios");
+      await expect(page.getByTestId("food-alternatives")).toHaveText("A good choice as it is.", { timeout: 10_000 });
+      await expect(page.getByText(/Already one of the best/)).toHaveCount(0);
+    });
+
+    test(`gives sweet tea a swap with no score on ${door}`, async ({ page }) => {
+      await page.goto(door);
+      await ask(page, "sweet tea");
+      await page.getByRole("button", { name: "Tea, iced, brewed, black, pre-sweetened with sugar" }).click();
+      const swaps = page.getByTestId("food-alternatives");
+      await expect(swaps).toContainText("Water or unsweetened tea", { timeout: 10_000 });
+      await swaps.getByRole("button", { name: /Water or unsweetened tea/ }).click();
+      await swaps.getByRole("button", { name: "Use this instead" }).click();
+      await expect(page.getByText("Water is the best choice there is. No score needed.").first()).toBeVisible();
+      await expect(page.getByTestId("food-alternatives")).toHaveCount(0);
+    });
+  }
+});
+
 // Spec 30 A1: one current choice on the personal door, in a browser.
 test.describe("One current choice", () => {
   test.beforeEach(async ({ page }) => {

@@ -10,7 +10,6 @@ import {
   classifyScoreability,
   computeFullScore,
   computeLabelScore,
-  findAlternatives,
   kcalPer100g,
   lnRatioScore,
   lookupScore,
@@ -539,94 +538,25 @@ describe("computeLabelScore", () => {
   });
 });
 
-describe("findAlternatives", () => {
-  const catalogue: FcsFood[] = [
-    food({ code: "1", description: "Tortilla chips, nacho cheese flavor", group: "9000_SavorySweet", fcs2: 19 }),
-    food({ code: "2", description: "Bean chips", group: "9000_SavorySweet", fcs2: 72 }),
-    food({ code: "3", description: "Sweet potato chips", group: "9000_SavorySweet", fcs2: 59 }),
-    food({ code: "4", description: "Candy, hard", group: "9000_SavorySweet", fcs2: 12 }),
-    food({ code: "5", description: "Chocolate cake", group: "9000_SavorySweet", fcs2: 40 }),
-    food({ code: "6", description: "Ambiguous chips", group: "9000_SavorySweet", fcs2: 90, ambiguous: true }),
-    food({ code: "7", description: "Banana, raw", group: "2000_Fruit", fcs2: 83 })
-  ];
-  // Codes 1-4 share the WWEIA chip category; 5 is in the same coarse S5 group but a
-  // different category, and 7 is neither.
-  const nutrients: Record<string, FnddsRecord | undefined> = {
-    "1": record({ kcal: 490, wweia: "Tortilla, corn, other chips" }),
-    "2": record({ kcal: 470, wweia: "Tortilla, corn, other chips" }),
-    "3": record({ kcal: 520, wweia: "Tortilla, corn, other chips" }),
-    "4": record({ kcal: 390, wweia: "Tortilla, corn, other chips" }),
-    "5": record({ kcal: 380, wweia: "Cakes and pies" }),
-    "6": record({ kcal: 400, wweia: "Tortilla, corn, other chips" }),
-    "7": record({ kcal: 89, wweia: "Bananas" })
-  };
-
-  it("suggests foods from the same WWEIA category, not the far coarser S5 food group", () => {
-    const alternatives = findAlternatives(catalogue[0], catalogue, nutrients);
-    expect(alternatives.map((a) => a.description)).toEqual(["Bean chips", "Sweet potato chips"]);
-    // Chocolate cake is in the same S5 group and scores higher, but it is not a chip.
-    expect(alternatives.map((a) => a.description)).not.toContain("Chocolate cake");
-  });
-
-  it("never suggests an ambiguous, twice-listed row", () => {
-    expect(findAlternatives(catalogue[0], catalogue, nutrients).map((a) => a.code)).not.toContain("6");
-  });
-
-  it("carries a recipe link for every suggestion", () => {
-    const alternatives = findAlternatives(catalogue[0], catalogue, nutrients);
-    expect(alternatives.every((a) => a.recipeSearchUrl.startsWith("https://www.google.com/search?q="))).toBe(true);
-  });
-
-  it("returns nothing for a food already pinned at the top of the scale", () => {
-    const best = food({ code: "9", description: "Raspberries, raw", group: "2000_Fruit", fcs2: 100 });
-    expect(findAlternatives(best, [...catalogue, best], nutrients)).toEqual([]);
-  });
-
-  it("returns nothing when the category holds nothing meaningfully better", () => {
-    expect(findAlternatives(catalogue[6], catalogue, nutrients)).toEqual([]);
-  });
-
-  it("reorders the qualifying set when the lower-calorie-density toggle is on", () => {
-    const byScore = findAlternatives(catalogue[0], catalogue, nutrients, { preferHigherScore: true });
-    const byDensity = findAlternatives(catalogue[0], catalogue, nutrients, { preferLowerCalorieDensity: true });
-    expect(byScore[0].description).toBe("Bean chips");
-    expect(byDensity[0].description).toBe("Bean chips"); // 470 kcal/100 g beats 520
-    expect(byDensity.map((a) => a.calorieDensity.kcalPer100g)).toEqual([470, 520]);
-  });
-
-  it("keeps observed densities ahead of lower-looking cohort estimates", () => {
-    const legacyCatalogue = [
-      food({ code: "legacy", description: "Legacy corn chips", group: "9000_SavorySweet", fcs2: 10 }),
-      food({ code: "observed", description: "Observed corn chips", group: "9000_SavorySweet", fcs2: 70 }),
-      food({ code: "estimated", description: "Estimated corn chips", group: "9000_SavorySweet", fcs2: 80 })
-    ];
-    const legacyNutrients = { observed: record({ kcal: 500 }) };
-
-    const alternatives = findAlternatives(
-      legacyCatalogue[0],
-      legacyCatalogue,
-      legacyNutrients,
-      { preferLowerCalorieDensity: true }
-    );
-
-    expect(alternatives.map((alternative) => alternative.code)).toEqual(["observed", "estimated"]);
-    expect(alternatives[1].calorieDensity.estimate?.method).toBe("food_group_median");
-  });
-
-  it("falls back to shared words within the food group when a food predates FNDDS 2017-18", () => {
-    // About a third of Table S5 has no WWEIA category. Without the shared-word rule this
-    // would answer "taco burger" with whatever scores highest in 8000_Mixed.
-    const legacy: FcsFood[] = [
-      food({ code: "10", description: "Taco burger, on bun", group: "8000_Mixed", fcs2: 18 }),
-      food({ code: "11", description: "Turkey or chicken burger, on wheat bun", group: "8000_Mixed", fcs2: 62 }),
-      food({ code: "12", description: "Ceviche", group: "8000_Mixed", fcs2: 100 })
-    ];
-    const alternatives = findAlternatives(legacy[0], legacy, {});
-    expect(alternatives.map((a) => a.description)).toEqual(["Turkey or chicken burger, on wheat bun"]);
-  });
-});
-
 describe("classifyQueryScoreability", () => {
+  it("lands the no-score drink swaps on the carve-out in both languages (spec 31 R3)", () => {
+    for (const query of ["unsweetened tea", "unsweetened iced tea", "plain tea", "iced tea, unsweetened", "black coffee", "plain coffee", "coffee, black"]) {
+      expect(classifyQueryScoreability(query), query).toEqual({ scoreable: false, reason: "below_5kcal" });
+    }
+    for (const query of ["té sin azúcar", "te helado sin azucar", "café negro", "cafe solo", "café sin azúcar"]) {
+      expect(classifyQueryScoreability(query), query).toEqual({ scoreable: false, reason: "below_5kcal" });
+    }
+    for (const query of ["agua", "un vaso de agua", "agua con gas"]) {
+      expect(classifyQueryScoreability(query), query).toEqual({ scoreable: false, reason: "zero_calorie" });
+    }
+  });
+
+  it("leaves sweetened and ambiguous drinks to the lookup", () => {
+    for (const query of ["sweet tea", "tea", "coffee", "iced tea", "café con leche", "aguacate"]) {
+      expect(classifyQueryScoreability(query), query).toBeNull();
+    }
+  });
+
   it("carves out plain water before any lookup, in the shapes people actually type", () => {
     for (const query of ["water", "Water", "a glass of water", "tap water", "sparkling water", "seltzer", "club soda"]) {
       expect(classifyQueryScoreability(query), query).toEqual({ scoreable: false, reason: "zero_calorie" });

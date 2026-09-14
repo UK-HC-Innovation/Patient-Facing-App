@@ -160,11 +160,86 @@ describe("lookupFoodScore", () => {
       food: "Peanut butter, smooth",
       fcs: 61,
       band: "moderate",
-      betterOptions: [
-        { description: "Peanuts, dry roasted", fcs: 78 },
-        { description: "Almond butter", fcs: 80 },
-        { description: "Cashews, raw", fcs: 85 }
+      swaps: [
+        { suggest: "Peanuts, dry roasted", fcs: 78 },
+        { suggest: "Almond butter", fcs: 80 },
+        { suggest: "Cashews, raw", fcs: 85 }
       ]
+    });
+  });
+
+  it("hands back the named rows, unscored, when a bare name could mean several foods", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        json: () =>
+          Promise.resolve({
+            mode: "candidate",
+            candidates: [
+              { code: "58106233", description: "Pizza, cheese, stuffed crust" },
+              { code: "58107060", description: "Pizza, no cheese, regular crust" }
+            ]
+          })
+      })
+    );
+    expect(await lookupFoodScore("pizza")).toEqual({
+      found: false,
+      reason: "needs_choice",
+      choices: ["Pizza, cheese, stuffed crust", "Pizza, no cheese, regular crust"]
+    });
+  });
+
+  it("puts the no-score drink swap first, names an action plainly, and says when there is no swap", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          json: () =>
+            Promise.resolve({
+              mode: "match",
+              match: {
+                food: { description: "Soft drink, cola" },
+                score: { fcs: 1, band: "minimize" },
+                alternatives: [],
+                swapState: "no_score_swap",
+                noScoreSwap: "water_or_unsweetened_tea"
+              }
+            })
+        })
+        .mockResolvedValueOnce({
+          json: () =>
+            Promise.resolve({
+              mode: "match",
+              match: {
+                food: { description: "Catfish, battered, fried" },
+                score: { fcs: 66, band: "moderate" },
+                alternatives: [{ description: "Catfish, baked or broiled, no added fat", fcs: 83, action: "bake" }],
+                swapState: "swap"
+              }
+            })
+        })
+        .mockResolvedValueOnce({
+          json: () =>
+            Promise.resolve({
+              mode: "match",
+              match: {
+                food: { description: "Cereal (General Mills Cheerios)" },
+                score: { fcs: 77, band: "encourage" },
+                alternatives: [],
+                swapState: "affirm"
+              }
+            })
+        })
+    );
+
+    expect(await lookupFoodScore("coke")).toMatchObject({ swaps: [{ suggest: "water or unsweetened tea", fcs: null }] });
+    expect(await lookupFoodScore("fried catfish")).toMatchObject({
+      swaps: [{ suggest: "bake, broil or grill it instead of frying: Catfish, baked or broiled, no added fat", fcs: 83 }]
+    });
+    expect(await lookupFoodScore("cheerios")).toMatchObject({
+      swaps: [],
+      noSwap: "No swap: this is a good choice as it is."
     });
   });
 

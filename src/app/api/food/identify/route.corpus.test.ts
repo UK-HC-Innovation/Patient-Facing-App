@@ -133,7 +133,8 @@ describe("typed identity corpus", () => {
       totals[entry.expect.mode] = (totals[entry.expect.mode] ?? 0) + 1;
       return totals;
     }, {});
-    expect(tally).toEqual({ match: 36, candidate: 39, carve_out: 7, none: 17, error: 1 });
+    // Spec 31 R3 moved black coffee and agua from candidates to the carve-out.
+    expect(tally).toEqual({ match: 36, candidate: 37, carve_out: 9, none: 17, error: 1 });
     // Every designated ambiguous case asks rather than answering.
     for (const id of [
       "ambig-pizza",

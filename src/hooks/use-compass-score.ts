@@ -6,7 +6,9 @@ import {
   computeLabelScore,
   type CompassAlternative,
   type CompassScore,
-  type NotScoreableReason
+  type NoScoreSwapId,
+  type NotScoreableReason,
+  type SwapState
 } from "@/domain/food-compass";
 import type { FoodAuthority } from "@/domain/food-authority";
 import type { IdentifiedFood } from "@/domain/types";
@@ -15,15 +17,22 @@ export type CompassScoreState = {
   score: CompassScore | null;
   carveOut: NotScoreableReason | null;
   alternatives: CompassAlternative[];
+  /** Null until a published row's swaps arrive, and for a label estimate, which has none. */
+  swapState: SwapState | null;
+  noScoreSwap: NoScoreSwapId | null;
   alternativesLoading: boolean;
 };
+
+type Swaps = { alternatives: CompassAlternative[]; state: SwapState | null; noScoreSwap: NoScoreSwapId | null };
+
+const NO_SWAPS: Swaps = { alternatives: [], state: null, noScoreSwap: null };
 
 /**
  * Scores a barcode/label food on the client.
  *
  * The scoring engine is pure and carries no data, so the T2 number is computed here with
- * no network call, no model spend and no waiting. Only the "better options" list needs the
- * published table, which is server-only, so that alone is fetched.
+ * no network call, no model spend and no waiting. Only the swaps need the published table,
+ * which is server-only, so that alone is fetched.
  *
  * The food passed in must be the UNSCALED one. Portion edits round nutrition to integers,
  * and a per-100-kcal score computed off rounded values would wobble as the user taps
@@ -31,10 +40,11 @@ export type CompassScoreState = {
  */
 export function useCompassScore(
   food: IdentifiedFood | null,
-  options: { passcode?: string; enabled?: boolean; authority?: FoodAuthority } = {}
+  options: { passcode?: string; enabled?: boolean; authority?: FoodAuthority; publishedCode?: string | null } = {}
 ): CompassScoreState {
   const enabled = options.enabled !== false;
   const authority = options.authority;
+  const publishedCode = options.publishedCode ?? null;
 
   const local = useMemo<{ score: CompassScore | null; carveOut: NotScoreableReason | null }>(() => {
     if (!food || !enabled) {
@@ -65,19 +75,21 @@ export function useCompassScore(
     };
   }, [food, enabled]);
 
-  const [alternatives, setAlternatives] = useState<CompassAlternative[]>([]);
+  const [swaps, setSwaps] = useState<Swaps>(NO_SWAPS);
   const [alternativesLoading, setAlternativesLoading] = useState(false);
   const requestId = useRef(0);
 
   // Package names are not catalogue keys. Fuzzy words such as "powder drink mix"
   // can retrieve lemonade for a protein powder, including unrelated alternatives.
-  // Keep confirmed package nutrition local until an exact catalogue mapping exists.
+  // Keep confirmed package nutrition local until an exact catalogue mapping exists --
+  // and when one does (a barcode confirmed to a published row), ask by its code.
   const foodName = food?.source === "label_vision" || food?.source.startsWith("barcode_")
     ? null : food?.name ?? null;
   useEffect(() => {
     const id = (requestId.current += 1);
-    if (!foodName || !local.score) {
-      setAlternatives([]);
+    const lookup = publishedCode ? { foodId: publishedCode } : foodName && local.score ? { text: foodName } : null;
+    if (!lookup || !enabled) {
+      setSwaps(NO_SWAPS);
       setAlternativesLoading(false);
       return;
     }
@@ -90,19 +102,25 @@ export function useCompassScore(
     void fetch("/api/food/identify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: foodName, passcode: options.passcode })
+      body: JSON.stringify({ ...lookup, passcode: options.passcode })
     })
       .then((response) => response.json())
       .then((json: unknown) => {
         if (!stillCurrent()) {
           return;
         }
-        const match = (json as { match?: { alternatives?: CompassAlternative[] } }).match;
-        setAlternatives(match?.alternatives ?? []);
+        const match = (json as {
+          match?: { alternatives?: CompassAlternative[]; swapState?: SwapState; noScoreSwap?: NoScoreSwapId | null };
+        }).match;
+        setSwaps(
+          match
+            ? { alternatives: match.alternatives ?? [], state: match.swapState ?? null, noScoreSwap: match.noScoreSwap ?? null }
+            : NO_SWAPS
+        );
       })
       .catch(() => {
         if (stillCurrent()) {
-          setAlternatives([]);
+          setSwaps(NO_SWAPS);
         }
       })
       .finally(() => {
@@ -110,7 +128,13 @@ export function useCompassScore(
           setAlternativesLoading(false);
         }
       });
-  }, [authority, foodName, local.score, options.passcode]);
+  }, [authority, enabled, foodName, local.score, options.passcode, publishedCode]);
 
-  return { ...local, alternatives, alternativesLoading };
+  return {
+    ...local,
+    alternatives: swaps.alternatives,
+    swapState: swaps.state,
+    noScoreSwap: swaps.noScoreSwap,
+    alternativesLoading
+  };
 }

@@ -115,7 +115,7 @@ export const hypertensionLens: ConditionLens = {
     }
   ],
   betterOptionGuidance:
-    "When you suggest a better option, keep it the same kind of food, keep it generic (a food category or common product type), and never name a specific store or say where to buy it."
+    "Suggest only the swap named in the Food Compass context. If it says there is no swap, say so plainly and do not invent one. Never call another food a better choice, and never name a specific store or say where to buy it."
 };
 
 export const diabetesLens: ConditionLens = {

@@ -253,11 +253,30 @@ test("plots Food Compass on X and calorie density on Y in one of four quadrants"
   await chart.scrollIntoViewIfNeeded();
 });
 
-test("keeps a newly detected package authoritative over a late sort response", async ({ page }) => {
+test("keeps a newly detected package authoritative over a late swap response", async ({ page }) => {
   const appleMatch = {
     ...bananaMatch,
     food: { code: "63101000", description: "Apple, raw", group: "2000_Fruit" },
     score: { ...bananaMatch.score, fcs: 75 }
+  };
+  // Spec 31 R6: the sort control is gone, so the late request is a swap chosen with "Use this
+  // instead", which re-asks the route by text and exact code the way a correction chip does.
+  const bananaWithSwap = {
+    ...bananaMatch,
+    swapState: "swap",
+    alternatives: [
+      {
+        code: "63101000",
+        description: "Apple, raw",
+        fcs: 95,
+        band: "encourage",
+        calorieDensity: { kcalPer100g: 52, band: "very_low" },
+        pool: "category",
+        action: null,
+        displayName: null,
+        recipeQuery: null
+      }
+    ]
   };
   await stubRealtime(page);
   await page.addInitScript(() => {
@@ -268,12 +287,12 @@ test("keeps a newly detected package authoritative over a late sort response", a
     const originalFetch = window.fetch.bind(window);
     window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
       const body = typeof init?.body === "string"
-        ? JSON.parse(init.body) as { text?: string; preferLowerCalorieDensity?: boolean }
+        ? JSON.parse(init.body) as { text?: string; foodId?: string }
         : null;
       if (
         String(input).includes("/api/food/identify") &&
         body?.text &&
-        body.preferLowerCalorieDensity === true
+        body.foodId === "63101000"
       ) {
         testWindow.__refinementStarted = true;
         return new Promise<Response>((resolve) => {
@@ -315,7 +334,7 @@ test("keeps a newly detected package authoritative over a late sort response", a
   await page.route("**/api/food/identify", async (route) => {
     const body = route.request().postDataJSON() as { image?: string; foodId?: string };
     if (body.foodId) {
-      const match = body.foodId === appleMatch.food.code ? appleMatch : bananaMatch;
+      const match = body.foodId === appleMatch.food.code ? appleMatch : bananaWithSwap;
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -337,7 +356,8 @@ test("keeps a newly detected package authoritative over a late sort response", a
   await confirmCameraCandidate(page);
   await expect(page.getByTestId("food-verdict")).toContainText("Banana, raw", { timeout: 10_000 });
 
-  await page.getByRole("radio", { name: "Lowest calorie density first" }).click();
+  await page.getByRole("button", { name: /Apple, raw/ }).click();
+  await page.getByRole("button", { name: "Use this instead" }).click();
   await expect.poll(() => page.evaluate(() => Boolean(
     (window as typeof window & { __refinementStarted?: boolean }).__refinementStarted
   ))).toBe(true);

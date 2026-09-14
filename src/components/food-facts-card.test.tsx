@@ -308,7 +308,6 @@ describe("FoodFactsCard — Food Compass row", () => {
     render(
       <FoodFactsCard
         canLog
-        compassAlternatives={[]}
         compassScore={score}
         flags={[]}
         food={soup}
@@ -328,8 +327,6 @@ describe("FoodFactsCard — Food Compass row", () => {
     expect(screen.getByText("Minerals")).toBeInTheDocument();
     expect(screen.getByText("-5")).toBeInTheDocument();
     expect(screen.getByText(/No data for: Vitamins, Food ingredients/)).toBeInTheDocument();
-    // score 19 with no closer better option: saying "already one of the best" would be a lie
-    expect(screen.getByText(/Nothing similar scores higher/)).toBeInTheDocument();
   });
 
   it("shows an estimated T1 breakdown beside the published score", () => {

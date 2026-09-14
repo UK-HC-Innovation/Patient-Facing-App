@@ -2,13 +2,13 @@ import { buildVoiceSafetyIdentifier } from "@/ai/voice-safety-identifier";
 import {
   classifyQueryScoreability,
   computeFullScore,
-  findAlternatives,
   lookupScore,
   publicationParityBreakdown,
   publicationParityContext,
   type CompassScore,
   type FcsFood
 } from "@/domain/food-compass";
+import { belowFiveKcal, findSwaps, swapIndexFor } from "@/domain/food-swaps";
 import {
   coversBothSidesOfConjunctions,
   matchFood,
@@ -141,8 +141,6 @@ type IdentifyBody = {
   image?: string | null;
   passcode?: string;
   patientId?: string;
-  preferHigherScore?: boolean;
-  preferLowerCalorieDensity?: boolean;
 };
 
 type Candidate = { code: string; description: string; fcs: number };
@@ -259,7 +257,6 @@ async function readBody(request: Request): Promise<IdentifyBody> {
 
 function buildMatch(
   food: FcsFood,
-  body: IdentifyBody,
   candidates: Candidate[],
   interpretation: FoodOrderIntent | null = null,
   basis: IdentityBasis | null = null
@@ -267,14 +264,22 @@ function buildMatch(
   const data = loadFoodCompassData();
   const siblings = data.byCode.get(food.code) ?? [food];
   const nutrients = data.nutrients[food.code] ?? null;
+  // Spec 31 R3. Food Compass excludes foods under 5 kcal per 100 g, and four Table S5 rows
+  // sit under that line with a score anyway (hibiscus tea, 0 kcal, published at 56). The
+  // published number is withheld here, never changed.
+  if (belowFiveKcal(nutrients)) {
+    return Response.json(
+      { mode: "carve_out", reason: "below_5kcal" },
+      { headers: { "Cache-Control": "no-store" } }
+    );
+  }
   const score: CompassScore = lookupScore(food, siblings, nutrients);
   const estimatedDomains = nutrients
     ? publicationParityBreakdown(computeFullScore(nutrients, publicationParityContext(food, nutrients)))
     : undefined;
-  const alternatives = findAlternatives(food, data.foods, data.nutrients, {
-    preferHigherScore: body.preferHigherScore === true,
-    preferLowerCalorieDensity: body.preferLowerCalorieDensity === true
-  });
+  // Spec 31 R1 to R5: one ordered list and the state that stands in for it, the same for
+  // every door and every path. The sort preferences that used to reorder it are gone.
+  const swaps = findSwaps(food, swapIndexFor(data.foods, data.nutrients));
 
   return Response.json(
     {
@@ -283,7 +288,9 @@ function buildMatch(
         food: { code: food.code, description: food.description, group: food.group },
         tier: "T1",
         score,
-        alternatives,
+        alternatives: swaps.alternatives,
+        swapState: swaps.state,
+        noScoreSwap: swaps.noScoreSwap,
         nutrients,
         ...(basis ? { basis } : {}),
         ...(estimatedDomains ? { estimatedDomains } : {}),
@@ -469,7 +476,7 @@ export async function POST(request: Request): Promise<Response> {
     const candidates = interpretation
       ? resolveTextCandidates(data.index, interpretation.matchQuery, interpretation)
       : [];
-    return buildMatch(food, body, toCandidates(candidates), interpretation);
+    return buildMatch(food, toCandidates(candidates), interpretation);
   }
 
   const hasImage =
@@ -508,7 +515,7 @@ export async function POST(request: Request): Promise<Response> {
       const food = findFoodByCode(data, identity.code);
       if (food) {
         const candidates = resolveTextCandidates(data.index, searchText, interpretation);
-        return buildMatch(food, body, toCandidates(candidates), interpretation, "alias");
+        return buildMatch(food, toCandidates(candidates), interpretation, "alias");
       }
     }
     if (identity.kind === "alias_candidates") {
@@ -521,7 +528,7 @@ export async function POST(request: Request): Promise<Response> {
       const ordered = interpretation
         ? resolveTextCandidates(data.index, searchText, interpretation)
         : identity.candidates;
-      return buildMatch(identity.food, body, toCandidates(ordered), interpretation, identity.basis);
+      return buildMatch(identity.food, toCandidates(ordered), interpretation, identity.basis);
     }
 
     // Nothing justified. A line joined only by "and" gets one more chance to be one dish

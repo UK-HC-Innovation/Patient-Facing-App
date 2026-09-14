@@ -21,7 +21,8 @@ type IdentifyJson = {
         estimate?: { method: string; referenceCode: string | null };
       };
     };
-    alternatives: Array<{ fcs: number; recipeSearchUrl: string; description: string }>;
+    alternatives: Array<{ fcs: number; description: string; pool?: string; recipeQuery?: { en: string; es: string } | null }>;
+    swapState?: string;
     estimatedDomains?: {
       domains: Array<{ key: string; value: number }>;
       coverage: { included: string[]; missing: string[]; partial: string[] };
@@ -208,14 +209,38 @@ describe("POST /api/food/identify — deterministic paths", () => {
     expect(json.match).toBeUndefined();
   });
 
-  it("offers same-group better options with recipe links", async () => {
-    const json = (await (await POST(request({ text: "doritos" }))).json()) as IdentifyJson;
+  it("returns one ordered swap list and the state that stands in for it (spec 31)", async () => {
+    const json = (await (await POST(request({ text: "honey nut cheerios" }))).json()) as IdentifyJson;
     expect(json.mode).toBe("match");
-    expect(json.match?.alternatives.length).toBeGreaterThan(0);
+    expect(json.match?.swapState).toBe("swap");
+    expect(json.match?.alternatives[0]).toMatchObject({ description: "Cereal (General Mills Cheerios)", fcs: 77, pool: "line" });
     for (const alternative of json.match?.alternatives ?? []) {
       expect(alternative.fcs).toBeGreaterThanOrEqual((json.match?.score.fcs ?? 0) + 10);
-      expect(alternative.recipeSearchUrl).toContain("google.com/search");
+      expect(JSON.stringify(alternative)).not.toContain("google.com");
     }
+  });
+
+  it("affirms a good choice instead of claiming it is the best in its group", async () => {
+    const json = (await (await POST(request({ text: "cheerios" }))).json()) as IdentifyJson;
+    expect(json.match?.swapState).toBe("affirm");
+    expect(json.match?.alternatives).toEqual([]);
+  });
+
+  it("answers a row under 5 kcal per 100 g as not scored, withholding its published number", async () => {
+    const json = (await (await POST(request({ foodId: "92306090" }))).json()) as IdentifyJson;
+    expect(json).toMatchObject({ mode: "carve_out", reason: "below_5kcal" });
+    expect(json.match).toBeUndefined();
+  });
+
+  it.each([
+    ["unsweetened tea", "below_5kcal"],
+    ["black coffee", "below_5kcal"],
+    ["agua", "zero_calorie"],
+    ["té sin azúcar", "below_5kcal"],
+    ["café negro", "below_5kcal"]
+  ])("lands the no-score swap %s on the carve-out, not on pre-sweetened rows", async (text, reason) => {
+    const json = (await (await POST(request({ text }))).json()) as IdentifyJson;
+    expect(json).toMatchObject({ mode: "carve_out", reason });
   });
 
   it("re-scores an exact food code for a correction-chip tap", async () => {
