@@ -1,6 +1,6 @@
 # Spec 31: OneGoodChoice, alternatives and recipes
 
-**Status:** C1 built on master 2026-09-14 (`1f0033c`, `333c618`), with C2's barcode swaps and C3's labeled recipe search; not deployed. Families, targets, exclusions and names ship as proposed defaults, so release still waits for the nutrition lead and a Spanish reviewer (section 10). Section 13 records the build and what changed from this draft.
+**Status:** C1 built and deployed 2026-09-14 (`1f0033c`, `333c618`; production `f3f7d23`, `dpl_HH1BqptYZ7eGPN5c6YHPLrzXNbid`), with C2's barcode swaps and C3's labeled recipe search. The owner released it before the nutrition lead and a Spanish reviewer signed off, so its families, targets, exclusions and names are live as proposed defaults and their reviews (section 10) still apply. Section 13 records the build and what changed from this draft.
 **Date:** 2026-09-14. Evidence gathered 2026-09-13 and 2026-09-14.
 **Author:** Claude (Opus 5), from `docs/handoffs/31-onegoodchoice-alternatives-recipes-spec-prompt.md`.
 **Baseline:** HEAD `79eec03`. Its last code commit is `32223e2` (brand identity), committed and not deployed. Production is `4a0be55` (spec 30 A2), the last entry in `docs/ops/DEPLOYS.jsonl`.
@@ -400,7 +400,7 @@ Not exercised: no browser run on either door, so every rendering claim is C. The
 
 ## 13. As built, 2026-09-14
 
-C1 is built on master in `1f0033c` and `333c618`, with C2's barcode swaps and C3's recipe search. It is not deployed: production is still `4a0be55`, which serves the old list. The owner took decisions 1 to 5 as recommended. Everything section 10 leaves to the nutrition lead or the Spanish reviewer ships as a proposed default in `src/domain/food-swaps.ts`, marked pending review, so release still waits on both.
+C1 is built on master in `1f0033c` and `333c618`, with C2's barcode swaps and C3's recipe search. It went to production on 2026-09-14 in `f3f7d23` (`dpl_HH1BqptYZ7eGPN5c6YHPLrzXNbid`) by the owner's call, ahead of the reviews. The owner took decisions 1 to 5 as recommended. Everything section 10 leaves to the nutrition lead or the Spanish reviewer is live as a proposed default in `src/domain/food-swaps.ts`, marked pending review, so their reviews now apply to what people see. A production probe of typed and `foodId` lookups, with no model call, confirmed the swaps, the carve-outs and the public door's new copy; `docs/ops/DEPLOYS.jsonl` has the details.
 
 What shipped:
 
@@ -452,7 +452,7 @@ Still open:
 - C2's reviewed default rows and candidate sets (R7). They touch `food-compass-search.ts`, which other work also edits.
 - C13's 30-row cross-path test, and C16's fixture eval that fails a reply naming an unsupplied food. Tests cover the instruction and tool wording only.
 - Spanish display names, the curated recipe table, saved swaps, plate swaps and a second chart marker.
-- Deploy, after the reviews.
+- The nutrition lead's and the Spanish reviewer's sign-off on what is now live.
 
 ## Appendix A. Named cases
 
