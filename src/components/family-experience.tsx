@@ -511,13 +511,6 @@ export function FamilyExperience({
   }
 
   useEffect(() => {
-    if (pendingReviewFocusRef.current && latestInterviewId) {
-      reviewRef.current?.focus();
-      pendingReviewFocusRef.current = false;
-    }
-  }, [latestInterviewId]);
-
-  useEffect(() => {
     if (composerFocusTick === 0) return;
     const box = document.getElementById("family-interview-text");
     if (box instanceof HTMLElement) box.focus();
@@ -1101,6 +1094,24 @@ export function FamilyExperience({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAutoApply, autoBasics, latestInterviewId]);
 
+  // An opening turn moves focus to the strip once, in the layout it will stay
+  // in. When basics are about to be applied, that layout is one commit later:
+  // the saved profile puts the wait header and the check-in cards above the
+  // thread, and focus taken before them stayed where the strip had been, below
+  // the fold. The browser's own focus scroll is skipped for one that puts the
+  // strip at the top, with its cards under it.
+  useLayoutEffect(() => {
+    if (!pendingReviewFocusRef.current || !latestInterviewId || canAutoApply) return;
+    pendingReviewFocusRef.current = false;
+    const strip = reviewRef.current;
+    if (!strip) return;
+    strip.focus({ preventScroll: true });
+    // jsdom has no scrollIntoView.
+    if (typeof strip.scrollIntoView === "function") {
+      strip.scrollIntoView({ block: "start" });
+    }
+  }, [canAutoApply, latestInterviewId]);
+
   const basicsOpen = selectLadderBasicsOpen(session);
   // Nothing is asked while a complete set is about to be applied: the turns
   // would open with every answer already filled in.
@@ -1202,7 +1213,7 @@ export function FamilyExperience({
         tabIndex={-1}
         aria-labelledby="family-facts-title"
         data-testid="family-heard-strip"
-        className="rounded-control border border-ink/10 bg-paper p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care"
+        className="scroll-mt-4 rounded-control border border-ink/10 bg-paper p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-care"
       >
         {heardSentence ? (
           <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">

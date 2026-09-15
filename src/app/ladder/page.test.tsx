@@ -828,6 +828,40 @@ describe("FamilyExperience", { timeout: 20_000 }, () => {
     expect(within(strip).getByTestId("family-heard-guess-chip")).toBeVisible();
   });
 
+  it("moves focus to the strip once, in the layout the applied basics leave, and brings it into view", async () => {
+    const user = userEvent.setup({ delay: null });
+    const scrollIntoView = vi.fn();
+    const original = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    // Whether the wait header was already on the page each time the strip took focus.
+    const headerAtFocus: boolean[] = [];
+    const recordFocus = (event: FocusEvent): void => {
+      if (event.target instanceof HTMLElement && event.target.dataset.testid === "family-heard-strip") {
+        headerAtFocus.push(document.querySelector('[data-testid="family-wait-header"]') !== null);
+      }
+    };
+    document.addEventListener("focusin", recordFocus);
+    try {
+      render(<ReducerHarness />);
+      await user.click(screen.getByLabelText("What would you like help with?"));
+      await user.paste(
+        "I have a seven-year-old with big meltdowns. He has been kicked out of school several times. We live in Breathitt County and we need help."
+      );
+      await submitDescription(user);
+
+      const strip = await screen.findByTestId("family-heard-strip");
+      expect(strip).toHaveFocus();
+      // The applied profile puts the wait header above the thread. Focus taken
+      // before it landed stayed where the strip used to be, below the fold.
+      expect(headerAtFocus).toEqual([true]);
+      expect(scrollIntoView.mock.contexts).toEqual([strip]);
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "start" });
+    } finally {
+      document.removeEventListener("focusin", recordFocus);
+      HTMLElement.prototype.scrollIntoView = original;
+    }
+  });
+
   it("still asks for whatever the description left out, and never re-asks what it read", async () => {
     const user = userEvent.setup();
     render(<ReducerHarness />);

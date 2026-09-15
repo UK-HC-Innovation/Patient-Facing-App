@@ -200,6 +200,22 @@ async function openHeardDisclosure(strip: Locator): Promise<void> {
   await strip.locator("summary").click();
 }
 
+/**
+ * Where a box sits against the part of the screen a caregiver can see: the
+ * viewport, less the sticky tab bar pinned over its bottom edge.
+ */
+async function placeOnScreen(locator: Locator): Promise<{ top: boolean; bottom: boolean }> {
+  return locator.evaluate((node) => {
+    const box = node.getBoundingClientRect();
+    const tabs = document.querySelector('[data-testid="ladder-tabs"]');
+    const floor = tabs ? tabs.getBoundingClientRect().top : window.innerHeight;
+    return {
+      top: box.top >= 0 && box.top < floor,
+      bottom: box.bottom > 0 && box.bottom <= floor
+    };
+  });
+}
+
 async function waitForPersistedState(page: Page): Promise<void> {
   await expect
     .poll(() => page.evaluate((key) => window.localStorage.getItem(key) !== null, STORAGE_KEY))
@@ -1207,6 +1223,16 @@ test("resources-first: one paragraph brings help before any question, with zero 
   const strip = page.getByTestId("family-heard-strip");
   await expect(strip).toBeVisible();
   await expect(strip).toBeFocused();
+  // Focus is where the caregiver looks, so the strip has to be on screen in the
+  // layout it ends up in. The auto-applied profile puts the wait header and the
+  // check-in cards above the thread; focusing before that left the strip a
+  // screen or more below the fold. The first card starts on the same screen.
+  await expect.poll(() => placeOnScreen(strip)).toEqual({ top: true, bottom: true });
+  const firstThreadCard = page
+    .getByTestId("thread-family-resources")
+    .locator("[data-family-resource-card]")
+    .first();
+  await expect.poll(async () => (await placeOnScreen(firstThreadCard)).top).toBe(true);
   await expect(strip.getByTestId("family-heard")).toHaveText(
     /^From what you wrote: Scott County · your child, about 3 years old · .+\.$/
   );

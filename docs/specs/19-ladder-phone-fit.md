@@ -36,6 +36,12 @@ The honesty content they carried was not simply deleted — it survives in strin
 
 What did *not* survive, because nothing else said it: `intro`'s specific pairing of "we cannot say what your child has" with "we cannot decide what you qualify for" in one sentence. The first half is subsumed by "We do not diagnose"; the second half has no direct replacement — `resourcesIntro`'s eligibility caveat is the nearest surviving cousin, but it is about programs' rules, not about the tool declining to decide qualification. Flagged here rather than silently dropped, since it is a step beyond spec 19's original "relocate or fold, never delete" discipline — this deletion was requested, not the presentation-only default.
 
+### Follow-up, 2026-09-14: the answer lands on screen after Find help
+
+Implementation Note 2 measured the page at scrollY 0, and after a first description the page stayed there with the focused strip off screen. Spec 18 moves focus to the strip on the first submission. A description that names the county and age saves its profile in the commit after the interview lands, and that commit adds the wait header, "A way back", the check-in demo control and the First Steps notice above the thread. Focus had already moved while the strip sat under the composer at y=300 (430 on a Pixel 7), so the browser had no reason to scroll. On the Breathitt paragraph the strip ended up focused at y=1102 in a 1280x900 viewport and 1384 on a Pixel 7, with scrollY 0 and a keyboard user's focus ring below the fold.
+
+Focus now moves once, in the commit where the profile lands, and the strip scrolls to the top of the screen (`scroll-mt-4`; smooth unless the reader asked for reduced motion) with the first card under it. The resources-first e2e journey checks the strip's box against the viewport, less the sticky tab bar, on the chromium and mobile projects. Note 2's layout numbers still describe the page at scrollY 0.
+
 ## Problem & Rationale
 
 Three causes, each fully legible in two files:
