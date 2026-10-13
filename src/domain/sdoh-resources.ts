@@ -44,9 +44,10 @@ export const sdohNeedOptions: readonly { id: SdohNeedType; label: string }[] = [
 
 const allNeeds = sdohNeedOptions.map((option) => option.id);
 
-// Manual source review: the two-page Perry guide was rendered and inspected;
-// the other four current primary sources were checked for their routing facts.
-const SOURCE_RECHECKED_AT = "2026-08-12";
+// Manual source review on 2026-10-13: the Perry guide PDF is byte-identical to the
+// one inspected on 2026-08-12 and still carries both sections; the other four
+// current primary sources were checked for their routing facts.
+const SOURCE_RECHECKED_AT = "2026-10-13";
 
 export const KENTUCKY_SDOH_RESOURCE_CATALOG: readonly KentuckySdohResource[] = [
   {

@@ -33,10 +33,10 @@ export interface FamilyGuide {
 /** At most two guides in the resources strip — a nudge, never a reading list. */
 export const GUIDE_STRIP_LIMIT = 2;
 
-// All eight sources were manually reviewed against their primary-source text
-// during the 2026-08-12 catalog refresh. See docs/ops/catalog-verification/ for
-// the evidence and corrections; reachability alone never earns this date.
-const RECHECKED_AT = "2026-08-12";
+// All eight sources were re-reviewed against their primary-source text on
+// 2026-10-13 (the KY-SPIN steps were corrected to match). See
+// docs/ops/catalog-verification/ for the evidence; reachability alone never earns this date.
+const RECHECKED_AT = "2026-10-13";
 
 // Verified exclusion 2026-07-25: do not seed
 // https://www.chfs.ky.gov/agencies/dph/dmch/ecdb/Pages/firststeps.aspx — it 404s.
@@ -137,8 +137,8 @@ export const FAMILY_GUIDE_CATALOG: FamilyGuide[] = [
       "KY-SPIN is Kentucky's statewide parent network, linking families of children with disabilities to resources and training.",
     steps: [
       "Call the toll-free parent line when you do not know who to ask.",
-      "Browse the Learning Center topics for parents and families, behavior, and military families.",
-      "Sign up for a free webinar — IEP basics and life-after-high-school sessions run through the year.",
+      "Browse the resource topics for parents and families, behavior, and military families.",
+      "Check the events calendar for webinars, such as sessions on the IEP process.",
       "Remember KY-SPIN is not a legal services agency and cannot give legal advice."
     ],
     contact: "Call 800-525-7746",

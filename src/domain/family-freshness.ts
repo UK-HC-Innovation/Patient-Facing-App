@@ -25,14 +25,7 @@ export type StaleAccepted = {
  * Entries a machine cannot re-verify, each with a reason and an expiry, so the
  * allowlist can never quietly become the permanent answer.
  */
-export const STALE_ACCEPTED: readonly StaleAccepted[] = [
-  {
-    id: "dsack",
-    until: "2026-10-01",
-    reason:
-      "dsack.org returned 403 to the checker on 2026-08-12; a manual browser review confirmed the current program and contact pages."
-  }
-];
+export const STALE_ACCEPTED: readonly StaleAccepted[] = [];
 
 export type FreshnessSubject = {
   id: string;
