@@ -23,9 +23,10 @@
 
 ## Git
 - At the end of a completed work unit, commit and push to `master` without being asked. This project rule intentionally overrides the global "don't push unless I ask". Conventional-ish messages.
+- Pushing does not deploy; there is no GitHub auto-deploy. Production ships only through the Vercel CLI: `vercel --prod --archive=tgz` from the repo root, verified on https://patient-centered.vercel.app, with one line appended to `docs/ops/DEPLOYS.jsonl` per deploy.
 - Destructive git (force-push, hard reset, branch deletion) remains user-only.
 
 ## Concurrent sessions
 - Multiple Claude sessions may edit this tree at once. Commit early and path-scoped: `git commit -- <paths>`.
-- Never `git reset --hard` or `git checkout --` over uncommitted changes you did not make; stash instead.
+- Never `git reset --hard` or `git checkout --` over uncommitted changes you did not make. Never stash the whole tree; stash only paths you've confirmed are yours.
 - Before overwriting a file you edited earlier in the session, re-read it; the tree may have moved.
