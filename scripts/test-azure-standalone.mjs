@@ -102,11 +102,18 @@ try {
   assert.equal(plate.status, 400);
   assert.deepEqual(await plate.json(), { mode: "error", message: "empty_request" });
 
-  const identified = await postJson("/api/food/identify", { text: "pizza" });
+  const identified = await postJson("/api/food/identify", { text: "apple" });
   assert.equal(identified.status, 200);
   const identifiedBody = await identified.json();
   assert.equal(identifiedBody.mode, "match");
-  assert.equal(identifiedBody.match.score.fcs, 21);
+  assert.equal(identifiedBody.match.score.fcs, 95);
+
+  // A bare generic name asks the user to pick (spec 30 A2, corpus case ambig-pizza).
+  const ambiguous = await postJson("/api/food/identify", { text: "pizza" });
+  assert.equal(ambiguous.status, 200);
+  const ambiguousBody = await ambiguous.json();
+  assert.equal(ambiguousBody.mode, "candidate");
+  assert.ok(ambiguousBody.candidates.length > 1);
 
   const lookup = await postJson("/api/food/lookup", { barcode: "051000012616" });
   assert.equal(lookup.status, 200);
