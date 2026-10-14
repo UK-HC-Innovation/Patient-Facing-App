@@ -32,7 +32,7 @@ jobs:
         run: npm ci
 
       - name: Audit dependencies
-        run: npm audit --audit-level=high
+        run: node scripts/audit-gate.mjs --audit-level=high
 
       - name: Lint, test, and build
         run: npm run check

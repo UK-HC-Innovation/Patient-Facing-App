@@ -32,7 +32,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^0.468.0",
     "minisearch": "^7.2.0",
-    "next": "^15.5.22",
+    "next": "^15.5.27",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.54.2",
@@ -55,11 +55,11 @@
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2",
     "vite": "^7.3.6",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "overrides": {
-    "js-yaml": "4.3.1",
+    "js-yaml": "4.3.2",
     "postcss": "$postcss",
-    "sharp": "0.35.3"
+    "sharp": "0.35.5"
   }
 }
